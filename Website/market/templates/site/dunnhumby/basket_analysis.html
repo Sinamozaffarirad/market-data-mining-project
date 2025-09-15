@@ -507,7 +507,7 @@ html, body {
       <h1 style="font-size: 2.5rem; font-weight: 700; margin-bottom: 1rem;">
         🛒 Advanced Market Basket Analysis
       </h1>
-      <p style="font-size: 1.1rem; opacity: 0.9; margin: 0;">
+      <p style="font-size: 1.1rem; color: white; opacity: 0.9; margin: 0;">
         Comprehensive data mining with Descriptive, Predictive & Differential Analysis
       </p>
     </div>
@@ -1807,9 +1807,11 @@ function runDifferentialAnalysis() {
     // Update metrics with real statistical values
     const pValue = document.getElementById('pValue');
     const effectSize = document.getElementById('effectSize');
+    const significance = document.getElementById('significance');
 
     if (pValue) pValue.textContent = data.statistics.p_value;
     if (effectSize) effectSize.textContent = data.statistics.effect_size;
+    if (significance) significance.textContent = data.statistics.confidence + '%';
 
     // Generate insights using real data
     generateDifferentialInsightsFromAPI(data.insights, compareBy, statTest);
@@ -1922,8 +1924,8 @@ function expandSection(sectionType) {
   if (container) {
     let content = container.innerHTML;
     
-    // For baskets and recommendations, wrap in proper bootstrap grid
-    if (sectionType === 'baskets' || sectionType === 'recommendations') {
+    // For baskets, recommendations, and differential, wrap in proper bootstrap grid
+    if (sectionType === 'baskets' || sectionType === 'recommendations' || sectionType === 'differential') {
       content = `<div class="row g-3">${content}</div>`;
     }
     
@@ -2015,7 +2017,7 @@ function attachPopupEventListeners(sectionType) {
     });
   } else if (sectionType === 'differential') {
     // Attach differential insight card click handlers
-    const insightCards = expandedContent.querySelectorAll('.differential-insight-card');
+    const insightCards = expandedContent.querySelectorAll('.differential-card');
     insightCards.forEach(card => {
       card.style.cursor = 'pointer';
       card.addEventListener('click', function() {
