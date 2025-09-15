@@ -377,8 +377,8 @@ def api_differential_analysis(request):
                         END as quarter,
                         SUM(t.sales_value) as total_sales,
                         COUNT(*) as transaction_count
-                    FROM dbo.dunnhumby_transaction_data t
-                    JOIN dbo.dunnhumby_product p ON t.product_id = p.product_id
+                    FROM transactions t
+                    JOIN product p ON t.product_id = p.product_id
                     WHERE p.department IS NOT NULL
                     GROUP BY p.department,
                         CASE
