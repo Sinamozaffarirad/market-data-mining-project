@@ -113,7 +113,7 @@
 .predictive-card { border-left-color: #007bff; }
 .differential-card { border-left-color: #dc3545; }
 
-.basket-card, .product-card, .differential-card {
+.basket-card, .product-card, .differential-insight-card {
   background: white;
   border-radius: 15px;
   padding: 1.5rem;
@@ -126,7 +126,7 @@
   overflow: hidden;
 }
 
-.basket-card:hover, .product-card:hover, .differential-card:hover {
+.basket-card:hover, .product-card:hover, .differential-insight-card:hover {
   transform: translateY(-5px);
   box-shadow: 0 15px 40px rgba(0,0,0,0.15);
 }
@@ -1713,7 +1713,7 @@ function generateDifferentialInsights() {
   
   const html = insights.map(insight => `
     <div class="col-12 col-md-6">
-      <div class="differential-card fade-in"
+      <div class="differential-insight-card fade-in"
            style="cursor: pointer; transition: all 0.3s ease; border-left: 4px solid ${insight.impact === 'High' ? '#dc3545' : '#ffc107'} !important;"
            data-insight-title="${insight.title}"
            data-insight-description="${insight.description}"
@@ -1844,7 +1844,7 @@ function generateDifferentialInsightsFromAPI(insights, compareBy, statTest) {
 
     return `
     <div class="col-12 col-md-6">
-      <div class="differential-card fade-in"
+      <div class="differential-insight-card fade-in"
            style="cursor: pointer; transition: all 0.3s ease; border-left: 4px solid ${insight.impact === 'High' ? '#dc3545' : '#ffc107'} !important;"
            data-insight-title="${insight.title}"
            data-insight-description="${insight.description}"
@@ -2017,7 +2017,7 @@ function attachPopupEventListeners(sectionType) {
     });
   } else if (sectionType === 'differential') {
     // Attach differential insight card click handlers
-    const insightCards = expandedContent.querySelectorAll('.differential-card');
+    const insightCards = expandedContent.querySelectorAll('.differential-insight-card');
     insightCards.forEach(card => {
       card.style.cursor = 'pointer';
       card.addEventListener('click', function() {
