@@ -28,7 +28,7 @@ def _generate_association_rules(min_support, min_confidence):
             SELECT product_id, department, commodity_desc, brand, curr_size_of_product
             FROM product
             WHERE product_id IN (
-                SELECT DISTINCT product_id FROM transactions LIMIT 1000
+                SELECT DISTINCT TOP 1000 product_id FROM transactions
             )
         """)
         for row in cursor.fetchall():
