@@ -507,7 +507,7 @@ html, body {
       <h1 style="font-size: 2.5rem; font-weight: 700; margin-bottom: 1rem;">
         🛒 Advanced Market Basket Analysis
       </h1>
-      <p style="font-size: 1.1rem; color: white; margin: 0;">
+      <p style="font-size: 1.1rem; color: white !important; margin: 0;">
         Comprehensive data mining with Descriptive, Predictive & Differential Analysis
       </p>
     </div>
@@ -819,15 +819,15 @@ html, body {
         <div class="col-md-4">
           <div class="metric-grid">
             <div class="metric-item">
-              <div class="metric-value" id="pValue">0.032</div>
+              <div class="metric-value" id="pValue">--</div>
               <div class="metric-label">P-Value</div>
             </div>
             <div class="metric-item">
-              <div class="metric-value" id="effectSize">0.67</div>
+              <div class="metric-value" id="effectSize">--</div>
               <div class="metric-label">Effect Size</div>
             </div>
             <div class="metric-item">
-              <div class="metric-value" id="significance">95%</div>
+              <div class="metric-value" id="significance">--</div>
               <div class="metric-label">Confidence</div>
             </div>
           </div>
@@ -1492,8 +1492,8 @@ function loadModelPerformance(algorithm) {
 
 // Differential Analysis Functions
 function loadDifferentialAnalysis() {
-  initializeComparisonChart();
-  generateDifferentialInsights();
+  // Don't show initial results - wait for user to click "Compare Patterns"
+  // Chart and insights will be populated after running analysis
 }
 
 function initializeComparisonChart() {

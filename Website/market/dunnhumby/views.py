@@ -20,6 +20,25 @@ def _generate_association_rules(min_support, min_confidence):
     for t in transactions:
         baskets[t['basket_id']].append(str(t['product_id']))
 
+    # Get product details for enhanced display
+    from django.db import connection
+    product_details = {}
+    with connection.cursor() as cursor:
+        cursor.execute("""
+            SELECT product_id, department, commodity_desc, brand, curr_size_of_product
+            FROM product
+            WHERE product_id IN (
+                SELECT DISTINCT product_id FROM transactions LIMIT 1000
+            )
+        """)
+        for row in cursor.fetchall():
+            product_details[str(row[0])] = {
+                'department': row[1] or 'GENERAL',
+                'commodity': row[2] or 'No Description',
+                'brand': row[3] or 'Generic',
+                'size': row[4] or 'N/A'
+            }
+
     pair_counts = defaultdict(int)
     total_baskets = len(baskets)
     for items in baskets.values():
@@ -37,9 +56,22 @@ def _generate_association_rules(min_support, min_confidence):
             if confidence >= min_confidence:
                 cons_count = sum(1 for b in baskets.values() if pair[1] in b)
                 lift = confidence / (cons_count / (total_baskets or 1) or 1)
+
+                # Get product details for antecedent and consequent
+                ant_detail = product_details.get(pair[0], {
+                    'department': 'GENERAL', 'commodity': f'Product {pair[0]}',
+                    'brand': 'Generic', 'size': 'N/A'
+                })
+                cons_detail = product_details.get(pair[1], {
+                    'department': 'GENERAL', 'commodity': f'Product {pair[1]}',
+                    'brand': 'Generic', 'size': 'N/A'
+                })
+
                 rules.append({
                     'antecedent': [pair[0]],
                     'consequent': [pair[1]],
+                    'antecedent_details': [ant_detail],
+                    'consequent_details': [cons_detail],
                     'support': support,
                     'confidence': confidence,
                     'lift': lift,
