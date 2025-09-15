@@ -202,7 +202,7 @@ Thumbs.db
 *.csv
 *.bak
 Data/
-Dunhummy/
+# Dunhummy/
 
 # LaTeX generated files
 *.aux
@@ -232,7 +232,7 @@ fonts/
 *.ttf
 *.otf
 DataBase*/
-market/
+# market/
 .dist/
 GIT*TOKEN*/
 package.json
