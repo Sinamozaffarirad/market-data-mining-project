@@ -24,4 +24,5 @@ urlpatterns = [
     path('', include('core.urls')),
     # Public/staff site (non-admin) analytics
     path('analysis/', include('dunnhumby.urls', namespace='dunnhumby_site')),
+    path('customers/', include('customers.urls', namespace='customers')),
 ]
