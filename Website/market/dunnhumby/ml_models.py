@@ -184,16 +184,23 @@ class PredictiveMarketBasketAnalyzer:
         # Train each model
         for model_name, model in self.models.items():
             print(f"Training {model_name}...")
-            
+
             try:
                 if model_name == 'svm':
                     # Use smaller sample for SVM due to computational complexity
-                    sample_idx = np.random.choice(len(X_train_scaled), 
-                                                 min(2000, len(X_train_scaled)), 
+                    sample_idx = np.random.choice(len(X_train_scaled),
+                                                 min(2000, len(X_train_scaled)),
                                                  replace=False)
                     model.fit(X_train_scaled[sample_idx], y_train.iloc[sample_idx])
+                elif model_name == 'random_forest':
+                    # Ensure random forest has proper parameters
+                    model.set_params(n_estimators=100, max_depth=10, min_samples_split=5, random_state=42)
+                    model.fit(X_train_scaled, y_train)
+                    print(f"Random Forest trained with {model.n_estimators} estimators")
                 else:
                     model.fit(X_train_scaled, y_train)
+
+                print(f"{model_name} training completed successfully")
                 
                 # Get predictions
                 if model_name == 'svm':
@@ -215,11 +222,16 @@ class PredictiveMarketBasketAnalyzer:
                 if hasattr(model, 'feature_importances_'):
                     importance = model.feature_importances_
                     self.feature_importance[model_name] = dict(zip(feature_names, importance))
+                    if model_name == 'random_forest':
+                        top_features = sorted(zip(feature_names, importance), key=lambda x: x[1], reverse=True)[:5]
+                        print(f"Random Forest top features: {top_features}")
                 
                 print(f"{model_name} trained successfully!")
                 
             except Exception as e:
                 print(f"Error training {model_name}: {e}")
+                import traceback
+                traceback.print_exc()
                 self.model_metrics[model_name] = {
                     'accuracy': 0, 'precision': 0, 'recall': 0, 'f1': 0
                 }

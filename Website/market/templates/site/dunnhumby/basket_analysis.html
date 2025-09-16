@@ -236,30 +236,91 @@
 }
 
 .recommendation-card {
-  border-radius: 18px;
-  border: 1px solid rgba(226, 232, 240, 0.9);
-  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.08);
-  transition: transform 0.25s ease, box-shadow 0.25s ease;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(248, 249, 252, 0.98));
+  border-radius: 20px;
+  border: 2px solid rgba(255, 255, 255, 0.8);
+  box-shadow: 0 15px 35px rgba(15, 23, 42, 0.12), 0 5px 15px rgba(0, 0, 0, 0.07);
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.95), rgba(248, 250, 255, 0.95));
+  backdrop-filter: blur(10px);
+  border-image: linear-gradient(145deg, rgba(102, 126, 234, 0.3), rgba(67, 56, 202, 0.2)) 1;
   height: 100%;
+  position: relative;
+  overflow: hidden;
 }
 
 .recommendation-card:hover {
-  transform: translateY(-6px);
-  box-shadow: 0 18px 35px rgba(99, 102, 241, 0.25);
+  transform: translateY(-8px) scale(1.02);
+  box-shadow: 0 25px 50px rgba(99, 102, 241, 0.3), 0 10px 30px rgba(15, 23, 42, 0.15);
+  border-color: rgba(99, 102, 241, 0.4);
+}
+
+.recommendation-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #667eea, #764ba2);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.recommendation-card:hover::before {
+  opacity: 1;
 }
 
 .recommendation-card .card-body {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: 0.6rem;
   height: 100%;
+  padding: 1.5rem;
+  position: relative;
+}
+
+.recommendation-card .card-body::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 1.5rem;
+  right: 1.5rem;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(102, 126, 234, 0.2), transparent);
 }
 
 .recommendation-meta {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: 0.35rem;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.5rem;
+}
+
+.meta-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem;
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: 8px;
+  border: 1px solid rgba(102, 126, 234, 0.1);
+  transition: all 0.2s ease;
+}
+
+.meta-item:hover {
+  background: rgba(102, 126, 234, 0.05);
+  border-color: rgba(102, 126, 234, 0.2);
+}
+
+.meta-item i {
+  width: 16px;
+  text-align: center;
+  font-size: 0.9rem;
+}
+
+.meta-item span {
+  font-size: 0.85rem;
+  color: #4a5568;
+  font-weight: 500;
   margin-top: 0.25rem;
 }
 
@@ -790,14 +851,26 @@ html, body {
       <div class="row g-2">
         <div class="col-md-6">
           <div class="chart-container">
-            <h5><i class="fas fa-chart-line"></i> Prediction Accuracy</h5>
-            <canvas id="accuracyChart" height="250"></canvas>
+            <h5><i class="fas fa-chart-bar"></i> Revenue Impact by Department</h5>
+            <div id="revenueImpactChart" style="min-height: 250px;">
+              <div class="text-center py-5 text-muted">
+                <i class="fas fa-chart-bar fa-3x mb-3" style="color: #e2e8f0;"></i>
+                <h6 style="color: #a0aec0;">Revenue Impact Analysis</h6>
+                <p style="color: #cbd5e0; font-size: 0.9rem;">Train your model to see predicted revenue impact by department</p>
+              </div>
+            </div>
           </div>
         </div>
         <div class="col-md-6">
           <div class="chart-container">
-            <h5><i class="fas fa-target"></i> Customer Lifetime Value</h5>
-            <canvas id="clvChart" height="250"></canvas>
+            <h5><i class="fas fa-users"></i> Customer Segment Performance</h5>
+            <div id="customerSegmentChart" style="min-height: 250px;">
+              <div class="text-center py-5 text-muted">
+                <i class="fas fa-users fa-3x mb-3" style="color: #e2e8f0;"></i>
+                <h6 style="color: #a0aec0;">Segment Performance</h6>
+                <p style="color: #cbd5e0; font-size: 0.9rem;">Analyze customer segments and their predicted purchase behavior</p>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -814,7 +887,13 @@ html, body {
         </div>
         <div class="recommendations-scroll-container">
           <div class="row g-3" id="recommendedProducts">
-            <!-- Dynamic content -->
+            <div class="col-12">
+              <div class="text-center py-4 text-muted">
+                <i class="fas fa-robot fa-3x mb-3" style="color: #cbd5e0;"></i>
+                <h5 style="color: #718096;">AI Recommendations Ready</h5>
+                <p style="color: #a0aec0;">Click "Train & Predict" to generate machine learning-powered product recommendations.</p>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -1402,88 +1481,8 @@ function updateTrainingSlider() {
 }
 
 function initializePredictiveCharts() {
-  // Accuracy Chart
-  const accuracyCtx = document.getElementById('accuracyChart');
-  if (accuracyCtx) {
-    charts.accuracy = new Chart(accuracyCtx, {
-      type: 'line',
-      data: {
-        labels: ['Epoch 1', 'Epoch 2', 'Epoch 3', 'Epoch 4', 'Epoch 5'],
-        datasets: [{
-          label: 'Training Accuracy',
-          data: [0.72, 0.78, 0.84, 0.89, 0.92],
-          borderColor: '#667eea',
-          backgroundColor: 'rgba(102, 126, 234, 0.1)',
-          tension: 0.4,
-          fill: true
-        }, {
-          label: 'Validation Accuracy',
-          data: [0.68, 0.75, 0.81, 0.85, 0.87],
-          borderColor: '#764ba2',
-          backgroundColor: 'rgba(118, 75, 162, 0.1)',
-          tension: 0.4,
-          fill: true
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            position: 'top',
-            labels: {
-              padding: 20,
-              usePointStyle: true
-            }
-          }
-        },
-        scales: {
-          y: {
-            beginAtZero: true,
-            max: 1
-          }
-        }
-      }
-    });
-  }
-  
-  // CLV Chart
-  const clvCtx = document.getElementById('clvChart');
-  if (clvCtx) {
-    charts.clv = new Chart(clvCtx, {
-      type: 'scatter',
-      data: {
-        datasets: [{
-          label: 'Predicted CLV',
-          data: [
-            {x: 120, y: 850}, {x: 200, y: 1200}, {x: 180, y: 950},
-            {x: 300, y: 1500}, {x: 250, y: 1100}, {x: 150, y: 750}
-          ],
-          backgroundColor: 'rgba(102, 126, 234, 0.6)',
-          borderColor: '#667eea',
-          pointRadius: 6
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        scales: {
-          x: {
-            title: {
-              display: true,
-              text: 'Days Since First Purchase'
-            }
-          },
-          y: {
-            title: {
-              display: true,
-              text: 'Predicted CLV ($)'
-            }
-          }
-        }
-      }
-    });
-  }
+  // Initialize empty chart containers - charts will be populated after training
+  console.log('Predictive charts initialized - waiting for model training');
 }
 
 function generateRecommendations() {
@@ -1491,7 +1490,7 @@ function generateRecommendations() {
   const container = document.getElementById('recommendedProducts');
 
   if (container) {
-    container.innerHTML = '<div class="col-12 text-center"><i class="fas fa-spinner fa-spin fa-2x"></i><p>Loading AI-powered recommendations...</p></div>';
+    container.innerHTML = '<div class="col-12 text-center"><i class="fas fa-spinner fa-spin fa-2x mb-2" style="color: #667eea;"></i><h6 style="color: #4a5568;">Training Model & Generating Recommendations...</h6><p style="color: #a0aec0;">Using ' + algorithm.replace('_', ' ').toUpperCase() + ' algorithm to analyze purchase patterns</p></div>';
   }
   
   // Call ML API for recommendations
@@ -1524,7 +1523,7 @@ function generateRecommendations() {
         return `
           <div class="col-12 col-md-6 col-xl-4">
             <div class="recommendation-card h-100"
-                 style="border-left: 4px solid ${departmentColor}; cursor: pointer;"
+                 style="border-left: 6px solid ${departmentColor}; cursor: pointer; transition: all 0.3s ease;"
                  data-product-id="${escapeHtml(rec.product_id)}"
                  data-department="${escapeHtml(rec.department || '')}"
                  data-commodity="${escapeHtml(rec.commodity || '')}"
@@ -1537,30 +1536,49 @@ function generateRecommendations() {
                  data-customer-count="${rec.customer_count || 0}"
                  data-avg-value="${rec.avg_value || 0}"
                  data-total-value="${rec.total_value || 0}"
-                 data-total-quantity="${rec.total_quantity || 0}">
+                 data-total-quantity="${rec.total_quantity || 0}"
+                 onmouseover="this.style.borderLeft='6px solid ' + '${departmentColor}'; this.style.boxShadow='0 20px 40px rgba(99, 102, 241, 0.25)'"
+                 onmouseout="this.style.borderLeft='6px solid ' + '${departmentColor}'; this.style.boxShadow=''">
               <div class="card-body">
-                <div class="d-flex align-items-center mb-2 gap-2">
+                <div class="d-flex align-items-center mb-3 gap-2">
                   ${createDepartmentBadge(rec.department || 'MISC. TRANS.')}
-                  <span class="product-id-badge">ID ${escapeHtml(rec.product_id)}</span>
-                  <span class="ms-auto badge bg-success">${(Number(rec.confidence) * 100).toFixed(0)}%</span>
+                  <span class="product-id-badge" style="background: linear-gradient(135deg, #e3f2fd, #bbdefb); color: #1976d2; padding: 4px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: 600;">ID ${escapeHtml(rec.product_id)}</span>
+                  <span class="ms-auto badge" style="background: linear-gradient(135deg, #4CAF50, #66BB6A); color: white; padding: 6px 12px; border-radius: 15px; font-weight: 700; box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3);">${(Number(rec.confidence) * 100).toFixed(0)}%</span>
                 </div>
-                <h6 class="card-title mb-0">${brand}</h6>
-                <small class="text-muted d-block">${subtitle}</small>
-                <div class="mt-3 mb-2">
-                  <span class="fw-bold text-primary fs-5">+$${formattedRevenueImpact}</span>
-                  <div class="text-muted small">Predicted Revenue Impact</div>
+
+                <div class="mb-3">
+                  <h6 class="card-title mb-1" style="color: #1a202c; font-weight: 700; font-size: 1.1rem; line-height: 1.3;">${brand}</h6>
+                  <small class="text-muted d-block" style="font-size: 0.85rem; color: #64748b;">${subtitle}</small>
                 </div>
-                <div class="recommendation-stat"><i class="fas fa-industry"></i><span><strong>Manufacturer:</strong> ${manufacturer}</span></div>
-                <div class="recommendation-meta">
-                  <span><i class="fas fa-box-open me-1 text-primary"></i><strong> Size:</strong> ${size}</span>
-                  <span><i class="fas fa-users me-1 text-primary"></i><strong> Households:</strong> ${households}</span>
-                  <span><i class="fas fa-shopping-basket me-1 text-primary"></i><strong> Total Units:</strong> ${formattedTotalQuantity}</span>
-                  <span><i class="fas fa-coins me-1 text-primary"></i><strong> Total Sales:</strong> $${formattedTotalValue}</span>
-                  <span><i class="fas fa-receipt me-1 text-primary"></i><strong> Avg. Basket:</strong> $${formattedAvgValue}</span>
+
+                <div class="revenue-highlight mb-3" style="background: linear-gradient(135deg, rgba(102, 126, 234, 0.1), rgba(67, 56, 202, 0.05)); padding: 1rem; border-radius: 12px; border-left: 4px solid #667eea;">
+                  <div class="d-flex align-items-center gap-2">
+                    <i class="fas fa-chart-line" style="color: #667eea; font-size: 1.2rem;"></i>
+                    <span class="fw-bold text-primary" style="font-size: 1.4rem; color: #667eea !important;">+$${formattedRevenueImpact}</span>
+                  </div>
+                  <div class="text-muted small mt-1" style="font-weight: 500;">Predicted Revenue Impact</div>
                 </div>
-                <div class="mt-auto text-muted small pt-2">
-                  ${commodityBadge}
-                  <div class="mt-2"><i class="fas fa-mouse-pointer"></i> Click for full profile</div>
+
+                <div class="product-details mb-3" style="background: rgba(248, 250, 252, 0.8); padding: 0.75rem; border-radius: 10px;">
+                  <div class="d-flex align-items-center gap-2 mb-2" style="color: #4a5568;">
+                    <i class="fas fa-industry" style="color: #667eea; width: 16px;"></i>
+                    <span style="font-size: 0.9rem;"><strong>Manufacturer:</strong> ${manufacturer}</span>
+                  </div>
+                  <div class="recommendation-meta">
+                    <div class="meta-item"><i class="fas fa-box-open" style="color: #667eea;"></i><span><strong>Size:</strong> ${size}</span></div>
+                    <div class="meta-item"><i class="fas fa-users" style="color: #667eea;"></i><span><strong>Households:</strong> ${households}</span></div>
+                    <div class="meta-item"><i class="fas fa-shopping-basket" style="color: #667eea;"></i><span><strong>Units:</strong> ${formattedTotalQuantity}</span></div>
+                    <div class="meta-item"><i class="fas fa-coins" style="color: #667eea;"></i><span><strong>Total Sales:</strong> $${formattedTotalValue}</span></div>
+                    <div class="meta-item"><i class="fas fa-receipt" style="color: #667eea;"></i><span><strong>Avg Basket:</strong> $${formattedAvgValue}</span></div>
+                  </div>
+                </div>
+
+                <div class="mt-auto">
+                  <div class="mb-2">${commodityBadge}</div>
+                  <div class="click-indicator" style="text-align: center; padding: 0.5rem; background: linear-gradient(135deg, rgba(102, 126, 234, 0.05), rgba(67, 56, 202, 0.02)); border-radius: 8px; border: 1px dashed rgba(102, 126, 234, 0.3);">
+                    <i class="fas fa-mouse-pointer" style="color: #667eea;"></i>
+                    <span style="color: #667eea; font-weight: 600; font-size: 0.85rem; margin-left: 0.5rem;">Click for detailed analytics</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1574,7 +1592,15 @@ function generateRecommendations() {
       }
     } else {
       if (container) {
-        container.innerHTML = '<div class="col-12 text-center text-muted"><i class="fas fa-exclamation-triangle fa-2x mb-2"></i><p>No recommendations available. Try training the model first.</p></div>';
+        container.innerHTML = `
+      <div class="col-12">
+        <div class="text-center py-4 text-muted">
+          <i class="fas fa-robot fa-3x mb-3" style="color: #cbd5e0;"></i>
+          <h5 style="color: #718096;">No Recommendations Yet</h5>
+          <p style="color: #a0aec0;">Click "Train & Predict" to generate AI-powered product recommendations using ${algorithm.replace('_', ' ').toUpperCase()} algorithm.</p>
+        </div>
+      </div>
+    `;
       }
     }
   })
@@ -1588,16 +1614,25 @@ function generateRecommendations() {
 
 function initializeRecommendationCards(scope = document) {
   if (!scope || !scope.querySelectorAll) {
+    console.warn('Invalid scope provided to initializeRecommendationCards');
     return;
   }
 
   const cards = scope.querySelectorAll('.recommendation-card');
-  cards.forEach(card => {
-    if (card.dataset.listenerAttached === 'true') {
+  console.log(`Initializing ${cards.length} recommendation cards`);
+
+  cards.forEach((card, index) => {
+    // Skip if already attached unless explicitly re-initializing
+    if (card.dataset.listenerAttached === 'true' && scope === document) {
       return;
     }
 
-    card.addEventListener('click', () => {
+    // Ensure card is clickable
+    card.style.cursor = 'pointer';
+
+    // Add click handler
+    const clickHandler = () => {
+      console.log(`Clicked recommendation card ${index + 1}`);
       showRecommendationDetails(
         card.dataset.productId,
         card.dataset.department,
@@ -1613,9 +1648,14 @@ function initializeRecommendationCards(scope = document) {
         card.dataset.totalValue,
         card.dataset.totalQuantity
       );
-    });
+    };
 
+    // Add event listener
+    card.addEventListener('click', clickHandler);
+
+    // Mark as attached
     card.dataset.listenerAttached = 'true';
+    console.log(`Attached click listener to recommendation card ${index + 1}`);
   });
 }
 
@@ -1697,7 +1737,7 @@ function loadPredictiveResults(algorithm) {
   .then(response => response.json())
   .then(data => {
     if (data.success && data.predictions.length > 0) {
-      updatePredictiveCharts(data.predictions);
+      updatePredictiveCharts(data.predictions, algorithm);
     }
   })
   .catch(error => {
@@ -2240,7 +2280,25 @@ function attachPopupEventListeners(sectionType) {
       });
     });
   } else if (sectionType === 'recommendations') {
-    initializeRecommendationCards(expandedContent);
+    // Force re-initialization of recommendation cards in modal
+    setTimeout(() => {
+      const cards = expandedContent.querySelectorAll('.recommendation-card');
+      console.log(`Found ${cards.length} recommendation cards in expanded modal`);
+
+      cards.forEach((card, index) => {
+        // Remove existing listener flag to force re-attachment
+        card.dataset.listenerAttached = 'false';
+        card.style.cursor = 'pointer';
+
+        // Clone card to remove all existing event listeners
+        const newCard = card.cloneNode(true);
+        card.parentNode.replaceChild(newCard, card);
+      });
+
+      // Re-initialize with fresh cards
+      initializeRecommendationCards(expandedContent);
+      console.log('Recommendation cards re-initialized in modal');
+    }, 100);
   } else if (sectionType === 'differential') {
     // Attach differential insight card click handlers
     const insightCards = expandedContent.querySelectorAll('.differential-insight-card');
@@ -2952,21 +3010,34 @@ function getCsrfToken() {
   return (document.cookie.split('; ').find(r=>r.startsWith('csrftoken='))||'').split('=')[1]||'';
 }
 
-function updatePredictiveCharts(predictions) {
-  // Update Customer Lifetime Value Chart
-  const clvCtx = document.getElementById('clvChart');
-  if (clvCtx && predictions.length > 0) {
-    if (charts.clv) charts.clv.destroy();
-    
-    charts.clv = new Chart(clvCtx, {
-      type: 'doughnut',
+function updatePredictiveCharts(predictions, algorithm) {
+  if (!predictions || predictions.length === 0) return;
+
+  // Update Revenue Impact Chart
+  const revenueContainer = document.getElementById('revenueImpactChart');
+  if (revenueContainer) {
+    // Get top 6 departments by predicted revenue
+    const topDepts = predictions.slice(0, 6);
+    const revenueData = topDepts.map(p => p.avg_value * p.customers * p.predicted_growth);
+    const labels = topDepts.map(p => p.department);
+    const colors = topDepts.map(p => DEPARTMENT_CONFIG[p.department]?.color || '#6C757D');
+
+    revenueContainer.innerHTML = `<canvas id="revenueChart" height="250"></canvas>`;
+    const ctx = document.getElementById('revenueChart');
+
+    if (charts.revenue) charts.revenue.destroy();
+    charts.revenue = new Chart(ctx, {
+      type: 'bar',
       data: {
-        labels: predictions.slice(0, 5).map(p => p.department),
+        labels: labels,
         datasets: [{
-          data: predictions.slice(0, 5).map(p => p.avg_value),
-          backgroundColor: predictions.slice(0, 5).map(p => 
-            DEPARTMENT_CONFIG[p.department]?.color || '#6C757D'
-          )
+          label: 'Predicted Revenue Impact ($)',
+          data: revenueData,
+          backgroundColor: colors.map(c => c + '80'), // Add transparency
+          borderColor: colors,
+          borderWidth: 2,
+          borderRadius: 8,
+          borderSkipped: false
         }]
       },
       options: {
@@ -2974,12 +3045,123 @@ function updatePredictiveCharts(predictions) {
         maintainAspectRatio: false,
         plugins: {
           legend: {
-            position: 'bottom',
-            labels: {
-              boxWidth: 12,
-              font: {
-                size: 10
+            display: false
+          },
+          title: {
+            display: true,
+            text: `${algorithm.replace('_', ' ').toUpperCase()} Model Revenue Predictions`,
+            font: { size: 14, weight: 'bold' },
+            color: '#2d3748'
+          },
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                return `Revenue Impact: $${context.parsed.y.toLocaleString()}`;
               }
+            }
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            title: {
+              display: true,
+              text: 'Predicted Revenue ($)',
+              color: '#4a5568',
+              font: { weight: 'bold' }
+            },
+            ticks: {
+              callback: function(value) {
+                return '$' + value.toLocaleString();
+              }
+            }
+          },
+          x: {
+            title: {
+              display: true,
+              text: 'Department Categories',
+              color: '#4a5568',
+              font: { weight: 'bold' }
+            }
+          }
+        }
+      }
+    });
+  }
+
+  // Update Customer Segment Chart
+  const segmentContainer = document.getElementById('customerSegmentChart');
+  if (segmentContainer) {
+    const segmentData = topDepts.map(p => ({
+      department: p.department,
+      confidence: p.confidence * 100,
+      growth: p.predicted_growth * 100
+    }));
+
+    segmentContainer.innerHTML = `<canvas id="segmentChart" height="250"></canvas>`;
+    const ctx2 = document.getElementById('segmentChart');
+
+    if (charts.segment) charts.segment.destroy();
+    charts.segment = new Chart(ctx2, {
+      type: 'radar',
+      data: {
+        labels: segmentData.map(s => s.department),
+        datasets: [{
+          label: 'Model Confidence (%)',
+          data: segmentData.map(s => s.confidence),
+          borderColor: '#667eea',
+          backgroundColor: 'rgba(102, 126, 234, 0.2)',
+          pointBackgroundColor: '#667eea',
+          pointBorderColor: '#fff',
+          pointHoverBackgroundColor: '#fff',
+          pointHoverBorderColor: '#667eea',
+          borderWidth: 3
+        }, {
+          label: 'Growth Potential (%)',
+          data: segmentData.map(s => s.growth),
+          borderColor: '#38a169',
+          backgroundColor: 'rgba(56, 161, 105, 0.2)',
+          pointBackgroundColor: '#38a169',
+          pointBorderColor: '#fff',
+          pointHoverBackgroundColor: '#fff',
+          pointHoverBorderColor: '#38a169',
+          borderWidth: 3
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: 'top',
+            labels: {
+              padding: 20,
+              usePointStyle: true,
+              font: { weight: 'bold' }
+            }
+          },
+          title: {
+            display: true,
+            text: 'Prediction Confidence vs Growth Potential',
+            font: { size: 14, weight: 'bold' },
+            color: '#2d3748'
+          }
+        },
+        scales: {
+          r: {
+            beginAtZero: true,
+            max: 120,
+            ticks: {
+              stepSize: 20,
+              callback: function(value) {
+                return value + '%';
+              }
+            },
+            grid: {
+              color: 'rgba(0, 0, 0, 0.1)'
+            },
+            angleLines: {
+              color: 'rgba(0, 0, 0, 0.1)'
             }
           }
         }
