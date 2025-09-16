@@ -831,6 +831,7 @@ html, body {
               <div class="metric-label">Confidence</div>
             </div>
           </div>
+          <div class="small text-muted mt-2" id="statNote">Select a statistical test to view methodology.</div>
         </div>
       </div>
 
@@ -1753,6 +1754,11 @@ function initializeComparisonChart() {
 function generateDifferentialInsights() {
   const compareBy = document.getElementById('compareBy')?.value || 'time';
   const statTest = document.getElementById('statTest')?.value || 'chi_square';
+  const statNote = document.getElementById('statNote');
+
+  if (statNote) {
+    statNote.textContent = 'Using curated sample insights. Run the analysis to refresh live statistics.';
+  }
 
   const insightMap = {
     'time': [
@@ -1847,8 +1853,13 @@ function generateDifferentialInsights() {
 function runDifferentialAnalysis() {
   const compareBy = document.getElementById('compareBy')?.value || 'time';
   const statTest = document.getElementById('statTest')?.value || 'chi_square';
+  const statNote = document.getElementById('statNote');
 
   showNotification(`Running ${statTest.replace('_', ' ')} test for ${compareBy.replace('_', ' ')} comparison...`, 'info');
+
+  if (statNote) {
+    statNote.textContent = `Computing ${statTest.replace('_', ' ')} test using live data...`;
+  }
 
   const container = document.getElementById('differentialInsights');
   if (container) {
@@ -1911,6 +1922,10 @@ function runDifferentialAnalysis() {
       if (significance) {
         significance.textContent = data.statistics?.confidence ? `${data.statistics.confidence}%` : '--';
       }
+      if (statNote) {
+        const testLabel = (data.statistics?.test_type || statTest).replace('_', ' ');
+        statNote.textContent = data.statistics?.note || `Completed ${testLabel} test.`;
+      }
 
       if (data.chart && data.chart.labels) {
         currentAnalysisData[compareBy] = data.chart;
@@ -1941,6 +1956,9 @@ function runDifferentialAnalysis() {
       }
       if (significance) {
         significance.textContent = '90%';
+      }
+      if (statNote) {
+        statNote.textContent = 'Falling back to sample insights due to API timeout.';
       }
 
       initializeComparisonChart();
