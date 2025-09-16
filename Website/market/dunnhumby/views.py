@@ -436,12 +436,24 @@ def api_differential_analysis(request):
             except (TypeError, ValueError):
                 return 'N/A'
 
+        def build_limit_clause(limit):
+            """Return database-specific clauses for limiting result sets."""
+            limit = max(int(limit or 0), 0)
+            if limit <= 0:
+                return "", ""
+
+            vendor = connection.vendor
+            if vendor in ("microsoft", "mssql", "sql_server"):
+                return f"TOP {limit}", ""
+            return "", f"LIMIT {limit}"
+
         def fetch_top_products_by_department(department, start_day, end_day, total_sales, limit=3):
             if not department:
                 return []
             limit = max(int(limit or 3), 1)
+            select_limit, suffix_limit = build_limit_clause(limit)
             query = f"""
-                SELECT TOP {limit}
+                SELECT {select_limit}
                     t.product_id,
                     p.commodity_desc,
                     SUM(t.sales_value) as total_sales,
@@ -452,6 +464,7 @@ def api_differential_analysis(request):
                   AND t.day BETWEEN %s AND %s
                 GROUP BY t.product_id, p.commodity_desc
                 ORDER BY total_sales DESC
+                {suffix_limit}
             """
             with connection.cursor() as cursor:
                 cursor.execute(query, [department, start_day, end_day])
@@ -473,8 +486,9 @@ def api_differential_analysis(request):
             if not segment:
                 return []
             limit = max(int(limit or 3), 1)
+            select_limit, suffix_limit = build_limit_clause(limit)
             query = f"""
-                SELECT TOP {limit}
+                SELECT {select_limit}
                     t.product_id,
                     p.commodity_desc,
                     SUM(t.sales_value) as total_sales,
@@ -485,6 +499,7 @@ def api_differential_analysis(request):
                 WHERE cs.rfm_segment = %s
                 GROUP BY t.product_id, p.commodity_desc
                 ORDER BY total_sales DESC
+                {suffix_limit}
             """
             with connection.cursor() as cursor:
                 cursor.execute(query, [segment])
@@ -503,8 +518,9 @@ def api_differential_analysis(request):
             if store_id is None:
                 return []
             limit = max(int(limit or 3), 1)
+            select_limit, suffix_limit = build_limit_clause(limit)
             query = f"""
-                SELECT TOP {limit}
+                SELECT {select_limit}
                     t.product_id,
                     p.commodity_desc,
                     SUM(t.sales_value) as total_sales,
@@ -514,6 +530,7 @@ def api_differential_analysis(request):
                 WHERE t.store_id = %s
                 GROUP BY t.product_id, p.commodity_desc
                 ORDER BY total_sales DESC
+                {suffix_limit}
             """
             with connection.cursor() as cursor:
                 cursor.execute(query, [store_id])
@@ -528,15 +545,39 @@ def api_differential_analysis(request):
                 'share': round((to_float(row[2]) / denominator) * 100, 1)
             } for row in rows]
 
-        def fetch_basket_totals_for_range(start_day, end_day, limit=4000):
-            queryset = Transaction.objects.filter(day__gte=start_day, day__lte=end_day)
-            totals = queryset.values('basket_id').annotate(total_value=Sum('sales_value')).order_by('basket_id')[:limit]
+        def fetch_top_departments(limit=10):
+            limit = max(int(limit or 10), 1)
+            select_limit, suffix_limit = build_limit_clause(limit)
+            query = f"""
+                SELECT {select_limit}
+                    p.department,
+                    SUM(t.sales_value) AS total_sales
+                FROM transactions t
+                JOIN product p ON t.product_id = p.product_id
+                WHERE p.department IS NOT NULL
+                GROUP BY p.department
+                ORDER BY total_sales DESC
+                {suffix_limit}
+            """
+            with connection.cursor() as cursor:
+                cursor.execute(query)
+                return [row[0] for row in cursor.fetchall() if row[0]]
+
+        def fetch_basket_totals_for_range(start_day, end_day, limit=2500):
+            totals = (
+                Transaction.objects
+                .filter(day__gte=start_day, day__lte=end_day)
+                .values('basket_id')
+                .annotate(total_value=Sum('sales_value'))
+                .order_by()[:limit]
+            )
             return [to_float(item['total_value']) for item in totals if to_float(item['total_value']) > 0]
 
         def fetch_basket_totals_for_segment(segment, limit=4000):
             limit = max(int(limit or 4000), 1)
+            select_limit, suffix_limit = build_limit_clause(limit)
             query = f"""
-                SELECT TOP {limit}
+                SELECT {select_limit}
                     t.basket_id,
                     SUM(t.sales_value) as total_value
                 FROM transactions t
@@ -544,7 +585,7 @@ def api_differential_analysis(request):
                     SELECT household_key FROM dunnhumby_customersegment WHERE rfm_segment = %s
                 )
                 GROUP BY t.basket_id
-                ORDER BY t.basket_id
+                {suffix_limit}
             """
             with connection.cursor() as cursor:
                 cursor.execute(query, [segment])
@@ -555,14 +596,15 @@ def api_differential_analysis(request):
             if store_id is None:
                 return []
             limit = max(int(limit or 4000), 1)
+            select_limit, suffix_limit = build_limit_clause(limit)
             query = f"""
-                SELECT TOP {limit}
+                SELECT {select_limit}
                     t.basket_id,
                     SUM(t.sales_value) as total_value
                 FROM transactions t
                 WHERE t.store_id = %s
                 GROUP BY t.basket_id
-                ORDER BY t.basket_id
+                {suffix_limit}
             """
             with connection.cursor() as cursor:
                 cursor.execute(query, [store_id])
@@ -570,9 +612,19 @@ def api_differential_analysis(request):
             return [to_float(row[1]) for row in rows if to_float(row[1]) > 0]
 
         def compute_statistics(test_name, observed=None, group_a=None, group_b=None):
-            stats = {'p_value': 'N/A', 'effect_size': 'N/A', 'confidence': 0}
             group_a = list(group_a or [])
             group_b = list(group_b or [])
+            stats = {
+                'p_value': None,
+                'effect_size': None,
+                'confidence': 0,
+                'test_used': 'baseline',
+                'note': '',
+                'sample_sizes': {
+                    'group_a': len(group_a),
+                    'group_b': len(group_b),
+                }
+            }
 
             try:
                 if test_name == 'chi_square' and observed is not None and chi2_contingency:
@@ -586,6 +638,11 @@ def api_differential_analysis(request):
                         stats['p_value'] = format_stat_value(p_value)
                         stats['effect_size'] = format_stat_value(effect, decimals=2)
                         stats['confidence'] = max(50, min(99, int(round((1 - p_value) * 100))))
+                        stats['test_used'] = 'chi_square'
+                        stats['note'] = (
+                            f"Chi-square test across {r} groups and {c} categories "
+                            f"(n={int(n)} observations)."
+                        )
                         return stats
 
                 elif test_name == 't_test' and ttest_ind and len(group_a) > 1 and len(group_b) > 1:
@@ -598,6 +655,10 @@ def api_differential_analysis(request):
                     stats['p_value'] = format_stat_value(p_value)
                     stats['effect_size'] = format_stat_value(effect, decimals=2)
                     stats['confidence'] = max(50, min(99, int(round((1 - p_value) * 100))))
+                    stats['test_used'] = 't_test'
+                    stats['note'] = (
+                        f"Welch's t-test comparing {len(group_a_np)} vs {len(group_b_np)} baskets."
+                    )
                     return stats
 
                 elif test_name == 'mann_whitney' and mannwhitneyu and len(group_a) and len(group_b):
@@ -607,6 +668,10 @@ def api_differential_analysis(request):
                     stats['p_value'] = format_stat_value(p_value)
                     stats['effect_size'] = format_stat_value(abs(rank_biserial), decimals=2)
                     stats['confidence'] = max(50, min(95, int(round((1 - p_value) * 100))))
+                    stats['test_used'] = 'mann_whitney'
+                    stats['note'] = (
+                        f"Mann-Whitney U test comparing {n1} vs {n2} baskets (rank-biserial correlation)."
+                    )
                     return stats
 
                 elif test_name == 'kolmogorov' and ks_2samp and len(group_a) and len(group_b):
@@ -614,6 +679,10 @@ def api_differential_analysis(request):
                     stats['p_value'] = format_stat_value(p_value)
                     stats['effect_size'] = format_stat_value(ks_stat, decimals=2)
                     stats['confidence'] = max(50, min(99, int(round((1 - p_value) * 100))))
+                    stats['test_used'] = 'kolmogorov'
+                    stats['note'] = (
+                        f"Kolmogorov-Smirnov test on cumulative distributions ({len(group_a)} vs {len(group_b)} samples)."
+                    )
                     return stats
 
             except Exception:
@@ -625,17 +694,14 @@ def api_differential_analysis(request):
                 diff = abs(mean_a - mean_b)
                 baseline = abs(mean_b) if mean_b else 1
                 ratio = diff / baseline
-                pseudo_p = max(0.001, min(0.499, 0.5 / max(ratio, 1)))
-                combined = np.array(group_a + group_b, dtype=float)
-                std_dev = combined.std() if combined.size > 1 else 0
-                effect = diff / std_dev if std_dev else ratio
-                stats['p_value'] = format_stat_value(pseudo_p)
-                stats['effect_size'] = format_stat_value(effect, decimals=2)
-                stats['confidence'] = max(50, min(95, int(round((1 - pseudo_p) * 100))))
+                stats['note'] = (
+                    f"Insufficient data to run the {test_name.replace('_', ' ')} test reliably. "
+                    f"Average basket values differ by {diff:.2f} ({ratio * 100:.1f}% change)."
+                )
             else:
-                stats['p_value'] = '0.050'
-                stats['effect_size'] = '0.30'
-                stats['confidence'] = 90
+                stats['note'] = (
+                    f"Not enough samples available to evaluate the {test_name.replace('_', ' ')} test."
+                )
 
             return stats
 
@@ -1034,43 +1100,73 @@ def api_differential_analysis(request):
         def analyze_season_comparison():
             insights = []
             dept_season = defaultdict(lambda: defaultdict(lambda: {'sales': 0.0, 'count': 0}))
-            season_totals = defaultdict(lambda: {'sales': 0.0, 'customers': 0, 'baskets': 0})
+            season_totals = {}
+
+            top_departments = fetch_top_departments(limit=8)
+            if not top_departments:
+                stats = compute_statistics(stat_test)
+                stats.setdefault('note', 'Not enough data to compare seasonal demand patterns.')
+                return insights, stats, {}
+
+            season_case = """
+                CASE
+                    WHEN t.day BETWEEN 1 AND 90 THEN 'Winter'
+                    WHEN t.day BETWEEN 91 AND 181 THEN 'Spring'
+                    WHEN t.day BETWEEN 182 AND 273 THEN 'Summer'
+                    ELSE 'Fall'
+                END
+            """
+
+            placeholders = ','.join(['%s'] * len(top_departments))
+            params = list(top_departments)
 
             with connection.cursor() as cursor:
-                cursor.execute("""
+                cursor.execute(f"""
                     SELECT
                         p.department,
-                        CASE
-                            WHEN t.day BETWEEN 1 AND 90 THEN 'Winter'
-                            WHEN t.day BETWEEN 91 AND 181 THEN 'Spring'
-                            WHEN t.day BETWEEN 182 AND 273 THEN 'Summer'
-                            ELSE 'Fall'
-                        END as season,
+                        {season_case} as season,
                         SUM(t.sales_value) as total_sales,
-                        COUNT(*) as transaction_count,
+                        COUNT(*) as transaction_count
+                    FROM transactions t
+                    JOIN product p ON t.product_id = p.product_id
+                    WHERE p.department IN ({placeholders})
+                    GROUP BY p.department, {season_case}
+                """, params)
+                for dept, season, sales, txn_count in cursor.fetchall():
+                    if not dept or not season:
+                        continue
+                    dept_season[dept][season]['sales'] += to_float(sales)
+                    dept_season[dept][season]['count'] += int(txn_count or 0)
+
+            if not dept_season:
+                stats = compute_statistics(stat_test)
+                stats.setdefault('note', 'Seasonal breakdowns are unavailable for the selected data sample.')
+                return insights, stats, {}
+
+            with connection.cursor() as cursor:
+                cursor.execute(f"""
+                    SELECT
+                        {season_case} as season,
+                        SUM(t.sales_value) as total_sales,
                         COUNT(DISTINCT t.household_key) as unique_customers,
                         COUNT(DISTINCT t.basket_id) as baskets
                     FROM transactions t
-                    JOIN product p ON t.product_id = p.product_id
-                    WHERE p.department IS NOT NULL
-                    GROUP BY p.department,
-                        CASE
-                            WHEN t.day BETWEEN 1 AND 90 THEN 'Winter'
-                            WHEN t.day BETWEEN 91 AND 181 THEN 'Spring'
-                            WHEN t.day BETWEEN 182 AND 273 THEN 'Summer'
-                            ELSE 'Fall'
-                        END
+                    GROUP BY {season_case}
                 """)
-                for dept, season, sales, txn_count, customers, baskets in cursor.fetchall():
-                    dept_season[dept][season]['sales'] += to_float(sales)
-                    dept_season[dept][season]['count'] += int(txn_count or 0)
-                    season_totals[season]['sales'] += to_float(sales)
-                    season_totals[season]['customers'] += int(customers or 0)
-                    season_totals[season]['baskets'] += int(baskets or 0)
+                for season, sales, customers, baskets in cursor.fetchall():
+                    if not season:
+                        continue
+                    season_totals[season] = {
+                        'sales': to_float(sales),
+                        'customers': int(customers or 0),
+                        'baskets': int(baskets or 0)
+                    }
 
             season_order = [season for season in ['Winter', 'Spring', 'Summer', 'Fall'] if season in season_totals]
             if not season_order:
-                return insights, {'p_value': 'N/A', 'effect_size': 'N/A', 'confidence': 0}, {}
+                stats = compute_statistics(stat_test)
+                stats.setdefault('note', 'Seasonal totals not available for comparison.')
+                return insights, stats, {}
 
             insight_candidates = []
             for dept, seasons in dept_season.items():
@@ -1104,14 +1200,13 @@ def api_differential_analysis(request):
 
             insights = [entry for _, entry in sorted(insight_candidates, key=lambda item: item[0], reverse=True)[:4]]
 
+            top_departments_matrix = [dept for dept in top_departments if dept in dept_season][:5]
             observed = []
-            top_departments = sorted(
-                dept_season.keys(),
-                key=lambda d: sum(season['sales'] for season in dept_season[d].values()),
-                reverse=True
-            )[:5]
             for season in season_order:
-                observed.append([dept_season[dept].get(season, {}).get('count', 0) for dept in top_departments])
+                observed.append([
+                    dept_season.get(dept, {}).get(season, {}).get('count', 0)
+                    for dept in top_departments_matrix
+                ])
 
             chart = {
                 'labels': season_order,
@@ -1125,7 +1220,11 @@ def api_differential_analysis(request):
                     },
                     {
                         'label': 'Average Basket Value',
-                        'data': [round(season_totals[s]['sales'] / season_totals[s]['baskets'], 2) if season_totals[s]['baskets'] else 0 for s in season_order],
+                        'data': [
+                            round(season_totals[s]['sales'] / season_totals[s]['baskets'], 2)
+                            if season_totals[s]['baskets'] else 0
+                            for s in season_order
+                        ],
                         'borderColor': 'rgba(0, 123, 255, 1)',
                         'backgroundColor': 'rgba(0, 123, 255, 0.15)',
                         'borderWidth': 3,
@@ -1138,13 +1237,18 @@ def api_differential_analysis(request):
 
             peak_season = max(season_totals, key=lambda s: season_totals[s]['sales'])
             low_season = min(season_totals, key=lambda s: season_totals[s]['sales'])
-            group_a = fetch_basket_totals_for_range(*SEASON_RANGES.get(peak_season, (1, 365)))
-            group_b = fetch_basket_totals_for_range(*SEASON_RANGES.get(low_season, (1, 365)))
+            group_a = fetch_basket_totals_for_range(*SEASON_RANGES.get(peak_season, (1, 365)), limit=2000)
+            group_b = fetch_basket_totals_for_range(*SEASON_RANGES.get(low_season, (1, 365)), limit=2000)
+
+            observed_for_stats = None
+            if stat_test == 'chi_square' and len(season_order) >= 2 and len(top_departments_matrix) >= 2:
+                observed_for_stats = observed
+
             stats = compute_statistics(
                 stat_test,
-                observed=observed if stat_test == 'chi_square' else None,
-                group_a=group_a[:3000],
-                group_b=group_b[:3000]
+                observed=observed_for_stats,
+                group_a=group_a[:2000],
+                group_b=group_b[:2000]
             )
 
             return insights, stats, chart
@@ -1161,10 +1265,12 @@ def api_differential_analysis(request):
         return JsonResponse({
             'insights': insights[:5],
             'statistics': {
-                'p_value': stats.get('p_value', 'N/A'),
-                'effect_size': stats.get('effect_size', 'N/A'),
+                'p_value': stats.get('p_value'),
+                'effect_size': stats.get('effect_size'),
                 'confidence': stats.get('confidence', 0),
-                'test_type': stat_test
+                'test_type': stats.get('test_used', stat_test),
+                'note': stats.get('note'),
+                'sample_sizes': stats.get('sample_sizes', {})
             },
             'comparison_type': compare_by,
             'chart': chart
