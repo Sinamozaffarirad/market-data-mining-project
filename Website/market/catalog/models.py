@@ -1,5 +1,8 @@
 # catalog/models.py
-from django.db import models      #  ←  missing line
+from decimal import Decimal
+
+from django.db import models
+from django.db.models import F, Sum
 
 class Product(models.Model):
     sku   = models.CharField(max_length=32, unique=True)
@@ -18,7 +21,11 @@ class Order(models.Model):
 
     @property
     def total(self):
-        return sum(i.subtotal for i in self.items.all())
+        return (
+            self.items.aggregate(total=Sum(F("qty") * F("price")))
+            ["total"]
+            or Decimal("0")
+        )
 
 
 class OrderItem(models.Model):
