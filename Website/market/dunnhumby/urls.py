@@ -18,6 +18,7 @@ urlpatterns = [
     path("api/product/", views.api_product_details, name="api_product_details"),
     path("api/household/", views.api_household_details, name="api_household_details"),
     path("api/segment/", views.api_segment_details, name="api_segment_details"),
+    path("api/differential/", views.api_differential_analysis, name="api_differential_analysis"),
     # ML API endpoints
     path("api/ml/predictive/", views.predictive_analysis_api, name="predictive_analysis_api"),
     path("api/ml/train/", views.train_ml_models, name="train_ml_models"),

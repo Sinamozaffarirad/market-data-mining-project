@@ -113,12 +113,12 @@
 .predictive-card { border-left-color: #007bff; }
 .differential-card { border-left-color: #dc3545; }
 
-.basket-card, .product-card {
+.basket-card, .product-card, .differential-insight-card {
   background: white;
   border-radius: 15px;
   padding: 1.5rem;
   height: 100%;
-  box-shadow: 0 8px 25px rgba(0,0,0,0.08);
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
   transition: all 0.3s ease;
   border: none;
   cursor: pointer;
@@ -126,7 +126,7 @@
   overflow: hidden;
 }
 
-.basket-card:hover, .product-card:hover {
+.basket-card:hover, .product-card:hover, .differential-insight-card:hover {
   transform: translateY(-5px);
   box-shadow: 0 15px 40px rgba(0,0,0,0.15);
 }
@@ -212,6 +212,149 @@
   max-width: 100%;
   overflow: hidden;
   border: 1px solid #e9ecef;
+}
+
+.recommendations-scroll-container {
+  max-height: 420px;
+  overflow-y: auto;
+  padding-right: 0.75rem;
+  margin-right: -0.25rem;
+  padding-bottom: 0.5rem;
+}
+
+.recommendations-scroll-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.recommendations-scroll-container::-webkit-scrollbar-thumb {
+  background: rgba(102, 126, 234, 0.35);
+  border-radius: 4px;
+}
+
+.recommendations-scroll-container::-webkit-scrollbar-track {
+  background: rgba(248, 249, 250, 0.7);
+}
+
+.recommendation-card {
+  border-radius: 20px;
+  border: 2px solid rgba(255, 255, 255, 0.8);
+  box-shadow: 0 15px 35px rgba(15, 23, 42, 0.12), 0 5px 15px rgba(0, 0, 0, 0.07);
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.95), rgba(248, 250, 255, 0.95));
+  backdrop-filter: blur(10px);
+  border-image: linear-gradient(145deg, rgba(102, 126, 234, 0.3), rgba(67, 56, 202, 0.2)) 1;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+}
+
+.recommendation-card:hover {
+  transform: translateY(-8px) scale(1.02);
+  box-shadow: 0 25px 50px rgba(99, 102, 241, 0.3), 0 10px 30px rgba(15, 23, 42, 0.15);
+  border-color: rgba(99, 102, 241, 0.4);
+}
+
+.recommendation-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #667eea, #764ba2);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.recommendation-card:hover::before {
+  opacity: 1;
+}
+
+.recommendation-card .card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  height: 100%;
+  padding: 1.5rem;
+  position: relative;
+}
+
+.recommendation-card .card-body::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 1.5rem;
+  right: 1.5rem;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(102, 126, 234, 0.2), transparent);
+}
+
+.recommendation-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.5rem;
+}
+
+.meta-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem;
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: 8px;
+  border: 1px solid rgba(102, 126, 234, 0.1);
+  transition: all 0.2s ease;
+}
+
+.meta-item:hover {
+  background: rgba(102, 126, 234, 0.05);
+  border-color: rgba(102, 126, 234, 0.2);
+}
+
+.meta-item i {
+  width: 16px;
+  text-align: center;
+  font-size: 0.9rem;
+}
+
+.meta-item span {
+  font-size: 0.85rem;
+  color: #4a5568;
+  font-weight: 500;
+  margin-top: 0.25rem;
+}
+
+.recommendation-meta span {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.7rem;
+  color: #6c757d;
+}
+
+.product-id-badge {
+  background: rgba(15, 23, 42, 0.08);
+  color: #1f2937;
+  border-radius: 999px;
+  font-size: 0.65rem;
+  padding: 0.2rem 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.recommendation-stat {
+  background: rgba(237, 242, 247, 0.9);
+  border-radius: 12px;
+  padding: 0.5rem 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  color: #475569;
+}
+
+.recommendation-stat i {
+  color: #6366f1;
 }
 
 .association-rules-container {
@@ -499,6 +642,7 @@ html, body {
 {% endblock %}
 
 {% block content %}
+{% csrf_token %}
 <div class="module">
   <!-- Hero Section -->
   <div class="hero-section fade-in">
@@ -506,7 +650,7 @@ html, body {
       <h1 style="font-size: 2.5rem; font-weight: 700; margin-bottom: 1rem;">
         🛒 Advanced Market Basket Analysis
       </h1>
-      <p style="font-size: 1.1rem; opacity: 0.9; margin: 0;">
+      <p style="font-size: 1.1rem; color: white !important; margin: 0;">
         Comprehensive data mining with Descriptive, Predictive & Differential Analysis
       </p>
     </div>
@@ -707,14 +851,26 @@ html, body {
       <div class="row g-2">
         <div class="col-md-6">
           <div class="chart-container">
-            <h5><i class="fas fa-chart-line"></i> Prediction Accuracy</h5>
-            <canvas id="accuracyChart" height="250"></canvas>
+            <h5><i class="fas fa-chart-bar"></i> Revenue Impact by Department</h5>
+            <div id="revenueImpactChart" style="min-height: 250px;">
+              <div class="text-center py-5 text-muted">
+                <i class="fas fa-chart-bar fa-3x mb-3" style="color: #e2e8f0;"></i>
+                <h6 style="color: #a0aec0;">Revenue Impact Analysis</h6>
+                <p style="color: #cbd5e0; font-size: 0.9rem;">Train your model to see predicted revenue impact by department</p>
+              </div>
+            </div>
           </div>
         </div>
         <div class="col-md-6">
           <div class="chart-container">
-            <h5><i class="fas fa-target"></i> Customer Lifetime Value</h5>
-            <canvas id="clvChart" height="250"></canvas>
+            <h5><i class="fas fa-users"></i> Customer Segment Performance</h5>
+            <div id="customerSegmentChart" style="min-height: 250px;">
+              <div class="text-center py-5 text-muted">
+                <i class="fas fa-users fa-3x mb-3" style="color: #e2e8f0;"></i>
+                <h6 style="color: #a0aec0;">Segment Performance</h6>
+                <p style="color: #cbd5e0; font-size: 0.9rem;">Analyze customer segments and their predicted purchase behavior</p>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -729,8 +885,16 @@ html, body {
             </button>
           </div>
         </div>
-        <div class="row g-3" id="recommendedProducts">
-          <!-- Dynamic content -->
+        <div class="recommendations-scroll-container">
+          <div class="row g-3" id="recommendedProducts">
+            <div class="col-12">
+              <div class="text-center py-4 text-muted">
+                <i class="fas fa-robot fa-3x mb-3" style="color: #cbd5e0;"></i>
+                <h5 style="color: #718096;">AI Recommendations Ready</h5>
+                <p style="color: #a0aec0;">Click "Train & Predict" to generate machine learning-powered product recommendations.</p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -818,18 +982,19 @@ html, body {
         <div class="col-md-4">
           <div class="metric-grid">
             <div class="metric-item">
-              <div class="metric-value" id="pValue">0.032</div>
+              <div class="metric-value" id="pValue">--</div>
               <div class="metric-label">P-Value</div>
             </div>
             <div class="metric-item">
-              <div class="metric-value" id="effectSize">0.67</div>
+              <div class="metric-value" id="effectSize">--</div>
               <div class="metric-label">Effect Size</div>
             </div>
             <div class="metric-item">
-              <div class="metric-value" id="significance">95%</div>
+              <div class="metric-value" id="significance">--</div>
               <div class="metric-label">Confidence</div>
             </div>
           </div>
+          <div class="small text-muted mt-2" id="statNote">Select a statistical test to view methodology.</div>
         </div>
       </div>
 
@@ -843,11 +1008,14 @@ html, body {
             </button>
           </div>
         </div>
-        <div class="insights-container" id="differentialInsights">
-          <div class="text-center py-3 text-muted">
-            <i class="fas fa-chart-line fa-2x mb-2"></i>
-            <p>Click "Compare Patterns" to generate differential insights...</p>
+        <div class="row g-3 scrollable-section" id="differentialInsights" style="max-height: 500px; overflow-y: auto;">
+          <div class="col-12">
+            <div class="text-center py-3 text-muted">
+              <i class="fas fa-chart-line fa-2x mb-2"></i>
+              <p>Click "Compare Patterns" to generate differential insights...</p>
+            </div>
           </div>
+        </div>
         </div>
       </div>
     </div>
@@ -1017,6 +1185,83 @@ function createCommodityBadge(name) {
     </span>
   `;
 }
+
+function escapeHtml(value) {
+  if (value === undefined || value === null) {
+    return '';
+  }
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function renderDifferentialInsightCard(insight, compareBy, statTest) {
+  const impactLevel = (insight.impact || 'Medium').trim();
+  const departmentIcon = insight.department ? createDepartmentBadge(insight.department) : '';
+  const commodityIcon = insight.commodity ? createCommodityBadge(insight.commodity) : '';
+  const statLabel = statTest.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+  const compareLabel = compareBy.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+  const topProducts = Array.isArray(insight.top_products)
+    ? insight.top_products
+    : (Array.isArray(insight.topProducts) ? insight.topProducts : []);
+  const productBadges = topProducts.slice(0, 3).map(product => {
+    const name = escapeHtml(product.name || product.commodity || `Product ${product.product_id || ''}`);
+    const share = product.share !== undefined && product.share !== null
+      ? `<span style="color: #64748b;"> (${Number(product.share).toFixed(1)}%)</span>`
+      : '';
+    return `<span class="product-chip" style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 999px; padding: 4px 10px; font-size: 0.75rem; color: #334155; display: inline-flex; align-items: center; gap: 4px;">${name}${share}</span>`;
+  }).join('');
+  const productSection = productBadges ? `
+    <div style="background: #f1f5f9; padding: 8px 12px; border-radius: 8px; margin-bottom: 0.75rem;">
+      <div style="font-size: 0.75rem; font-weight: 600; color: #475569; margin-bottom: 6px;"><i class="fas fa-box-open me-1"></i>Top Products Driving This Insight</div>
+      <div style="display: flex; flex-wrap: wrap; gap: 6px;">${productBadges}</div>
+    </div>
+  ` : '';
+  const encodedProducts = encodeURIComponent(JSON.stringify(topProducts || []));
+  return `
+    <div class="col-12 col-md-6">
+      <div class="differential-insight-card fade-in"
+           style="cursor: pointer; transition: all 0.3s ease; border-left: 4px solid ${impactLevel === 'High' ? '#dc3545' : '#ffc107'} !important;"
+           data-insight-title="${escapeHtml(insight.title || '')}"
+           data-insight-description="${escapeHtml(insight.description || '')}"
+           data-insight-impact="${escapeHtml(impactLevel)}"
+           data-insight-recommendation="${escapeHtml(insight.recommendation || '')}"
+           data-compare-by="${escapeHtml(compareBy)}"
+           data-stat-test="${escapeHtml(statTest)}"
+           data-products="${encodedProducts}"
+           onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 25px rgba(0,0,0,0.15)'"
+           onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 10px rgba(0,0,0,0.1)'"
+           onclick="showDifferentialInsightDetailsFromCard(this)">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <div class="d-flex align-items-center gap-2">
+            ${departmentIcon}
+            <span style="font-weight: 700; color: #2d3748; font-size: 0.95rem;">${escapeHtml(insight.title || '')}</span>
+          </div>
+          <span class="badge ${impactLevel === 'High' ? 'bg-danger' : 'bg-warning'}">${escapeHtml(impactLevel)} Impact</span>
+        </div>
+        <div class="d-flex align-items-center gap-2 mb-2">
+          ${commodityIcon}
+        </div>
+        <div style="font-size: 0.9rem; color: #718096; margin-bottom: 0.75rem; line-height: 1.4;">
+          ${escapeHtml(insight.description || '')}
+        </div>
+        ${productSection}
+        <div style="background: #f7fafc; padding: 8px 12px; border-radius: 6px; margin-bottom: 0.75rem;">
+          <div style="font-size: 0.8rem; font-weight: 600; color: #4a5568;">💡 ${escapeHtml(insight.recommendation || 'Review action plan')}</div>
+        </div>
+        <div style="color: #a0aec0; font-size: 0.75rem; display: flex; align-items: center; gap: 8px;">
+          <span><i class="fas fa-chart-bar"></i> ${escapeHtml(statLabel)}</span>
+          <span>•</span>
+          <span><i class="fas fa-filter"></i> ${escapeHtml(compareLabel)}</span>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 
 // Descriptive Analysis Functions
 function loadDescriptiveAnalysis() {
@@ -1236,96 +1481,16 @@ function updateTrainingSlider() {
 }
 
 function initializePredictiveCharts() {
-  // Accuracy Chart
-  const accuracyCtx = document.getElementById('accuracyChart');
-  if (accuracyCtx) {
-    charts.accuracy = new Chart(accuracyCtx, {
-      type: 'line',
-      data: {
-        labels: ['Epoch 1', 'Epoch 2', 'Epoch 3', 'Epoch 4', 'Epoch 5'],
-        datasets: [{
-          label: 'Training Accuracy',
-          data: [0.72, 0.78, 0.84, 0.89, 0.92],
-          borderColor: '#667eea',
-          backgroundColor: 'rgba(102, 126, 234, 0.1)',
-          tension: 0.4,
-          fill: true
-        }, {
-          label: 'Validation Accuracy',
-          data: [0.68, 0.75, 0.81, 0.85, 0.87],
-          borderColor: '#764ba2',
-          backgroundColor: 'rgba(118, 75, 162, 0.1)',
-          tension: 0.4,
-          fill: true
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            position: 'top',
-            labels: {
-              padding: 20,
-              usePointStyle: true
-            }
-          }
-        },
-        scales: {
-          y: {
-            beginAtZero: true,
-            max: 1
-          }
-        }
-      }
-    });
-  }
-  
-  // CLV Chart
-  const clvCtx = document.getElementById('clvChart');
-  if (clvCtx) {
-    charts.clv = new Chart(clvCtx, {
-      type: 'scatter',
-      data: {
-        datasets: [{
-          label: 'Predicted CLV',
-          data: [
-            {x: 120, y: 850}, {x: 200, y: 1200}, {x: 180, y: 950},
-            {x: 300, y: 1500}, {x: 250, y: 1100}, {x: 150, y: 750}
-          ],
-          backgroundColor: 'rgba(102, 126, 234, 0.6)',
-          borderColor: '#667eea',
-          pointRadius: 6
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        scales: {
-          x: {
-            title: {
-              display: true,
-              text: 'Days Since First Purchase'
-            }
-          },
-          y: {
-            title: {
-              display: true,
-              text: 'Predicted CLV ($)'
-            }
-          }
-        }
-      }
-    });
-  }
+  // Initialize empty chart containers - charts will be populated after training
+  console.log('Predictive charts initialized - waiting for model training');
 }
 
 function generateRecommendations() {
   const algorithm = document.getElementById('mlAlgorithm').value;
   const container = document.getElementById('recommendedProducts');
-  
+
   if (container) {
-    container.innerHTML = '<div class="col-12 text-center"><i class="fas fa-spinner fa-spin fa-2x"></i><p>Loading AI-powered recommendations...</p></div>';
+    container.innerHTML = '<div class="col-12 text-center"><i class="fas fa-spinner fa-spin fa-2x mb-2" style="color: #667eea;"></i><h6 style="color: #4a5568;">Training Model & Generating Recommendations...</h6><p style="color: #a0aec0;">Using ' + algorithm.replace('_', ' ').toUpperCase() + ' algorithm to analyze purchase patterns</p></div>';
   }
   
   // Call ML API for recommendations
@@ -1340,37 +1505,102 @@ function generateRecommendations() {
   .then(response => response.json())
   .then(data => {
     if (data.success && data.recommendations.length > 0) {
-      const html = data.recommendations.map(rec => `
-        <div class="col-md-6 col-lg-3">
-          <div class="card h-100 recommendation-card" 
-               style="border-left: 4px solid ${DEPARTMENT_CONFIG[rec.department]?.color || '#6C757D'}; cursor: pointer; transition: all 0.3s ease;" 
-               data-product-id="${rec.product_id}" 
-               data-department="${rec.department}" 
-               data-commodity="${rec.commodity || 'All Products'}" 
-               data-confidence="${rec.confidence}" 
-               data-revenue-impact="${rec.revenue_impact}"
-               onmouseover="this.style.transform='translateY(-3px)'; this.style.boxShadow='0 12px 30px rgba(0,0,0,0.2)'"
-               onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow=''"
-               onclick="showRecommendationDetails('${rec.product_id}', '${rec.department}', '${rec.commodity || 'All Products'}', '${rec.confidence}', '${rec.revenue_impact}')">
-            <div class="card-body">
-              <div class="d-flex align-items-center mb-2">
-                ${createDepartmentBadge(rec.department)}
-                <span class="ms-auto badge bg-success">${(rec.confidence * 100).toFixed(0)}%</span>
+      const html = data.recommendations.map(rec => {
+        const departmentColor = DEPARTMENT_CONFIG[rec.department]?.color || '#6C757D';
+        const brand = escapeHtml(rec.brand || 'Unknown Brand');
+        const commodityName = escapeHtml(rec.commodity || 'All Products');
+        const subCommodity = rec.sub_commodity ? escapeHtml(rec.sub_commodity) : '';
+        const manufacturer = escapeHtml(rec.manufacturer || 'Unknown Manufacturer');
+        const size = escapeHtml(rec.size || 'N/A');
+        const households = Number(rec.customer_count || 0).toLocaleString();
+        const formattedRevenueImpact = Number(rec.revenue_impact || 0).toLocaleString();
+        const formattedAvgValue = Number(rec.avg_value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const formattedTotalValue = Number(rec.total_value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const formattedTotalQuantity = Number(rec.total_quantity || 0).toLocaleString();
+        const commodityBadge = createCommodityBadge(rec.commodity || 'All Products');
+        const subtitle = subCommodity ? `${commodityName} • ${subCommodity}` : commodityName;
+
+        return `
+          <div class="col-12 col-md-6 col-xl-4">
+            <div class="recommendation-card h-100"
+                 style="border-left: 6px solid ${departmentColor}; cursor: pointer; transition: all 0.3s ease;"
+                 data-product-id="${escapeHtml(rec.product_id)}"
+                 data-department="${escapeHtml(rec.department || '')}"
+                 data-commodity="${escapeHtml(rec.commodity || '')}"
+                 data-sub-commodity="${escapeHtml(rec.sub_commodity || '')}"
+                 data-brand="${escapeHtml(rec.brand || '')}"
+                 data-size="${escapeHtml(rec.size || '')}"
+                 data-manufacturer="${escapeHtml(rec.manufacturer || '')}"
+                 data-confidence="${rec.confidence}"
+                 data-revenue-impact="${rec.revenue_impact}"
+                 data-customer-count="${rec.customer_count || 0}"
+                 data-avg-value="${rec.avg_value || 0}"
+                 data-total-value="${rec.total_value || 0}"
+                 data-total-quantity="${rec.total_quantity || 0}"
+                 onmouseover="this.style.borderLeft='6px solid ' + '${departmentColor}'; this.style.boxShadow='0 20px 40px rgba(99, 102, 241, 0.25)'"
+                 onmouseout="this.style.borderLeft='6px solid ' + '${departmentColor}'; this.style.boxShadow=''">
+              <div class="card-body">
+                <div class="d-flex align-items-center mb-3 gap-2">
+                  ${createDepartmentBadge(rec.department || 'MISC. TRANS.')}
+                  <span class="product-id-badge" style="background: linear-gradient(135deg, #e3f2fd, #bbdefb); color: #1976d2; padding: 4px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: 600;">ID ${escapeHtml(rec.product_id)}</span>
+                  <span class="ms-auto badge" style="background: linear-gradient(135deg, #4CAF50, #66BB6A); color: white; padding: 6px 12px; border-radius: 15px; font-weight: 700; box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3);">${(Number(rec.confidence) * 100).toFixed(0)}%</span>
+                </div>
+
+                <div class="mb-3">
+                  <h6 class="card-title mb-1" style="color: #1a202c; font-weight: 700; font-size: 1.1rem; line-height: 1.3;">${brand}</h6>
+                  <small class="text-muted d-block" style="font-size: 0.85rem; color: #64748b;">${subtitle}</small>
+                </div>
+
+                <div class="revenue-highlight mb-3" style="background: linear-gradient(135deg, rgba(102, 126, 234, 0.1), rgba(67, 56, 202, 0.05)); padding: 1rem; border-radius: 12px; border-left: 4px solid #667eea;">
+                  <div class="d-flex align-items-center gap-2">
+                    <i class="fas fa-chart-line" style="color: #667eea; font-size: 1.2rem;"></i>
+                    <span class="fw-bold text-primary" style="font-size: 1.4rem; color: #667eea !important;">+$${formattedRevenueImpact}</span>
+                  </div>
+                  <div class="text-muted small mt-1" style="font-weight: 500;">Predicted Revenue Impact</div>
+                </div>
+
+                <div class="product-details mb-3" style="background: rgba(248, 250, 252, 0.8); padding: 0.75rem; border-radius: 10px;">
+                  <div class="d-flex align-items-center gap-2 mb-2" style="color: #4a5568;">
+                    <i class="fas fa-industry" style="color: #667eea; width: 16px;"></i>
+                    <span style="font-size: 0.9rem;"><strong>Manufacturer:</strong> ${manufacturer}</span>
+                  </div>
+                  <div class="recommendation-meta">
+                    <div class="meta-item"><i class="fas fa-box-open" style="color: #667eea;"></i><span><strong>Size:</strong> ${size}</span></div>
+                    <div class="meta-item"><i class="fas fa-users" style="color: #667eea;"></i><span><strong>Households:</strong> ${households}</span></div>
+                    <div class="meta-item"><i class="fas fa-shopping-basket" style="color: #667eea;"></i><span><strong>Units:</strong> ${formattedTotalQuantity}</span></div>
+                    <div class="meta-item"><i class="fas fa-coins" style="color: #667eea;"></i><span><strong>Total Sales:</strong> $${formattedTotalValue}</span></div>
+                    <div class="meta-item"><i class="fas fa-receipt" style="color: #667eea;"></i><span><strong>Avg Basket:</strong> $${formattedAvgValue}</span></div>
+                  </div>
+                </div>
+
+                <div class="mt-auto">
+                  <div class="mb-2">${commodityBadge}</div>
+                  <div class="click-indicator" style="text-align: center; padding: 0.5rem; background: linear-gradient(135deg, rgba(102, 126, 234, 0.05), rgba(67, 56, 202, 0.02)); border-radius: 8px; border: 1px dashed rgba(102, 126, 234, 0.3);">
+                    <i class="fas fa-mouse-pointer" style="color: #667eea;"></i>
+                    <span style="color: #667eea; font-weight: 600; font-size: 0.85rem; margin-left: 0.5rem;">Click for detailed analytics</span>
+                  </div>
+                </div>
               </div>
-              <h6 class="card-title text-truncate">${rec.commodity || 'All Products'}</h6>
-              <div class="fw-bold text-primary fs-5">+$${rec.revenue_impact.toLocaleString()}</div>
-              <div class="text-muted small">Predicted Revenue Impact</div>
-              <div class="text-muted small mt-1">Product ID: ${rec.product_id}</div>
-              <div class="text-muted small mt-1"><i class="fas fa-mouse-pointer"></i> Click for details</div>
             </div>
           </div>
-        </div>
-      `).join('');
-      
-      if (container) container.innerHTML = html;
+        `;
+      }).join('');
+
+      if (container) {
+        container.innerHTML = html;
+        initializeRecommendationCards(container);
+      }
     } else {
       if (container) {
-        container.innerHTML = '<div class="col-12 text-center text-muted"><i class="fas fa-exclamation-triangle fa-2x mb-2"></i><p>No recommendations available. Try training the model first.</p></div>';
+        container.innerHTML = `
+      <div class="col-12">
+        <div class="text-center py-4 text-muted">
+          <i class="fas fa-robot fa-3x mb-3" style="color: #cbd5e0;"></i>
+          <h5 style="color: #718096;">No Recommendations Yet</h5>
+          <p style="color: #a0aec0;">Click "Train & Predict" to generate AI-powered product recommendations using ${algorithm.replace('_', ' ').toUpperCase()} algorithm.</p>
+        </div>
+      </div>
+    `;
       }
     }
   })
@@ -1379,6 +1609,53 @@ function generateRecommendations() {
     if (container) {
       container.innerHTML = '<div class="col-12 text-center text-danger"><i class="fas fa-exclamation-circle fa-2x mb-2"></i><p>Error loading recommendations</p></div>';
     }
+  });
+}
+
+function initializeRecommendationCards(scope = document) {
+  if (!scope || !scope.querySelectorAll) {
+    console.warn('Invalid scope provided to initializeRecommendationCards');
+    return;
+  }
+
+  const cards = scope.querySelectorAll('.recommendation-card');
+  console.log(`Initializing ${cards.length} recommendation cards`);
+
+  cards.forEach((card, index) => {
+    // Skip if already attached unless explicitly re-initializing
+    if (card.dataset.listenerAttached === 'true' && scope === document) {
+      return;
+    }
+
+    // Ensure card is clickable
+    card.style.cursor = 'pointer';
+
+    // Add click handler
+    const clickHandler = () => {
+      console.log(`Clicked recommendation card ${index + 1}`);
+      showRecommendationDetails(
+        card.dataset.productId,
+        card.dataset.department,
+        card.dataset.commodity,
+        card.dataset.confidence,
+        card.dataset.revenueImpact,
+        card.dataset.manufacturer,
+        card.dataset.brand,
+        card.dataset.subCommodity,
+        card.dataset.size,
+        card.dataset.customerCount,
+        card.dataset.avgValue,
+        card.dataset.totalValue,
+        card.dataset.totalQuantity
+      );
+    };
+
+    // Add event listener
+    card.addEventListener('click', clickHandler);
+
+    // Mark as attached
+    card.dataset.listenerAttached = 'true';
+    console.log(`Attached click listener to recommendation card ${index + 1}`);
   });
 }
 
@@ -1460,7 +1737,7 @@ function loadPredictiveResults(algorithm) {
   .then(response => response.json())
   .then(data => {
     if (data.success && data.predictions.length > 0) {
-      updatePredictiveCharts(data.predictions);
+      updatePredictiveCharts(data.predictions, algorithm);
     }
   })
   .catch(error => {
@@ -1488,183 +1765,215 @@ function loadModelPerformance(algorithm) {
 
 // Differential Analysis Functions
 function loadDifferentialAnalysis() {
-  initializeComparisonChart();
-  generateDifferentialInsights();
+  // Don't show initial results - wait for user to click "Compare Patterns"
+  // Chart and insights will be populated after running analysis
 }
+
 
 function initializeComparisonChart() {
   const ctx = document.getElementById('comparisonChart');
-  if (ctx && charts.comparison) {
+  if (!ctx) {
+    return;
+  }
+
+  if (charts.comparison) {
     charts.comparison.destroy();
   }
 
-  if (ctx) {
-    const compareBy = document.getElementById('compareBy')?.value || 'time';
+  const compareBy = document.getElementById('compareBy')?.value || 'time';
 
-    // Dynamic chart data based on comparison type
-    let chartData = {
-      'time': {
-        labels: ['Q1 2024', 'Q2 2024', 'Q3 2024', 'Q4 2024'],
-        datasets: [{
+  const fallbackMap = {
+    'time': {
+      labels: ['Q1 2024', 'Q2 2024', 'Q3 2024', 'Q4 2024'],
+      datasets: [
+        {
           label: 'Sales Volume',
           data: [2450, 2780, 3120, 3650],
           backgroundColor: 'rgba(102, 126, 234, 0.8)',
           borderColor: 'rgba(102, 126, 234, 1)',
-          borderWidth: 2
-        }, {
+          borderWidth: 2,
+          type: 'bar'
+        },
+        {
           label: 'Basket Size',
           data: [1850, 2100, 2250, 2890],
           backgroundColor: 'rgba(118, 75, 162, 0.8)',
           borderColor: 'rgba(118, 75, 162, 1)',
-          borderWidth: 2
-        }],
-        yAxisLabel: 'Sales ($K)'
-      },
-      'customer_segment': {
-        labels: ['GROCERY', 'MEAT-PCKGD', 'DAIRY', 'FROZEN', 'PRODUCE'],
-        datasets: [{
+          borderWidth: 2,
+          type: 'bar'
+        }
+      ],
+      yAxisLabel: 'Sales ($K)'
+    },
+    'customer_segment': {
+      labels: ['GROCERY', 'MEAT-PCKGD', 'DAIRY', 'FROZEN', 'PRODUCE'],
+      datasets: [
+        {
           label: 'High-Value Customers',
           data: [3400, 1850, 2200, 1650, 1900],
           backgroundColor: 'rgba(40, 167, 69, 0.8)',
           borderColor: 'rgba(40, 167, 69, 1)',
-          borderWidth: 2
-        }, {
+          borderWidth: 2,
+          type: 'bar'
+        },
+        {
           label: 'Low-Value Customers',
           data: [2100, 850, 1200, 950, 1100],
           backgroundColor: 'rgba(255, 193, 7, 0.8)',
           borderColor: 'rgba(255, 193, 7, 1)',
-          borderWidth: 2
-        }],
-        yAxisLabel: 'Average Spend ($)'
-      },
-      'store': {
-        labels: ['PHARMACY', 'SPIRITS', 'FROZEN', 'GROCERY', 'PRODUCE'],
-        datasets: [{
+          borderWidth: 2,
+          type: 'bar'
+        }
+      ],
+      yAxisLabel: 'Average Spend ($)'
+    },
+    'store': {
+      labels: ['PHARMACY', 'SPIRITS', 'FROZEN', 'GROCERY', 'PRODUCE'],
+      datasets: [
+        {
           label: 'Urban Stores',
           data: [1850, 1200, 2100, 3400, 1650],
           backgroundColor: 'rgba(220, 53, 69, 0.8)',
           borderColor: 'rgba(220, 53, 69, 1)',
-          borderWidth: 2
-        }, {
+          borderWidth: 2,
+          type: 'bar'
+        },
+        {
           label: 'Suburban Stores',
           data: [950, 800, 2850, 2900, 1800],
           backgroundColor: 'rgba(23, 162, 184, 0.8)',
           borderColor: 'rgba(23, 162, 184, 1)',
-          borderWidth: 2
-        }],
-        yAxisLabel: 'Units Sold'
+          borderWidth: 2,
+          type: 'bar'
+        }
+      ],
+      yAxisLabel: 'Units Sold'
+    },
+    'season': {
+      labels: ['Winter', 'Spring', 'Summer', 'Fall'],
+      datasets: [
+        {
+          label: 'Total Sales',
+          data: [1950, 1750, 2250, 2600],
+          backgroundColor: 'rgba(255, 193, 7, 0.8)',
+          borderColor: 'rgba(255, 193, 7, 1)',
+          borderWidth: 2,
+          type: 'bar'
+        },
+        {
+          label: 'Average Basket Value',
+          data: [65, 58, 70, 74],
+          borderColor: 'rgba(13, 110, 253, 1)',
+          backgroundColor: 'rgba(13, 110, 253, 0.2)',
+          borderWidth: 3,
+          type: 'line',
+          fill: false
+        }
+      ],
+      yAxisLabel: 'Sales / Basket Value'
+    }
+  };
+
+  const apiData = currentAnalysisData?.[compareBy];
+  const dataConfig = (apiData && apiData.labels && apiData.labels.length)
+    ? apiData
+    : fallbackMap[compareBy];
+
+  const datasets = (dataConfig?.datasets || []).map(dataset => ({
+    ...dataset,
+    data: (dataset.data || []).map(value => Number(value))
+  }));
+
+  const defaultXAxis = compareBy === 'time'
+    ? 'Time Periods'
+    : compareBy === 'customer_segment'
+      ? 'Product Categories'
+      : compareBy === 'store'
+        ? 'Product Categories'
+        : 'Seasons';
+
+  const yAxisLabel = dataConfig?.yAxisLabel || 'Value';
+
+  charts.comparison = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: dataConfig?.labels || [],
+      datasets: datasets.length ? datasets : (fallbackMap[compareBy]?.datasets || [])
+    },
+    options: {
+      maintainAspectRatio: false,
+      responsive: true,
+      interaction: {
+        mode: 'index',
+        intersect: false
       },
-      'season': {
-        labels: ['Winter', 'Spring', 'Summer', 'Fall'],
-        datasets: [{
-          label: 'Comfort Foods',
-          data: [3850, 2200, 1650, 3100],
-          backgroundColor: 'rgba(255, 99, 71, 0.8)',
-          borderColor: 'rgba(255, 99, 71, 1)',
-          borderWidth: 2
-        }, {
-          label: 'Fresh Items',
-          data: [1400, 2800, 3600, 2100],
-          backgroundColor: 'rgba(32, 201, 151, 0.8)',
-          borderColor: 'rgba(32, 201, 151, 1)',
-          borderWidth: 2
-        }],
-        yAxisLabel: 'Sales Volume'
-      }
-    };
-
-    const data = chartData[compareBy] || chartData['time'];
-
-    charts.comparison = new Chart(ctx, {
-      type: 'bar',
-      data: data,
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            position: 'top',
-            labels: {
-              usePointStyle: true,
-              font: {
-                size: 12,
-                weight: 'bold'
-              }
-            }
-          },
+      plugins: {
+        legend: {
+          display: true,
+          position: 'top'
+        },
+        tooltip: {
+          mode: 'index',
+          intersect: false
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
           title: {
             display: true,
-            text: `Differential Analysis: ${compareBy.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())} Comparison`,
-            font: {
-              size: 14,
-              weight: 'bold'
-            }
+            text: yAxisLabel,
+            font: { weight: 'bold' }
           },
-          tooltip: {
-            callbacks: {
-              label: function(context) {
-                const label = context.dataset.label || '';
-                const value = context.parsed.y;
-                const suffix = data.yAxisLabel.includes('$') ? '' : (data.yAxisLabel.includes('Units') ? ' units' : '');
-                return `${label}: ${value.toLocaleString()}${suffix}`;
+          ticks: {
+            callback: function(value) {
+              if (yAxisLabel.includes('$')) {
+                return '$' + Number(value).toLocaleString();
               }
+              return Number(value).toLocaleString();
             }
           }
         },
-        scales: {
-          y: {
-            beginAtZero: true,
-            title: {
-              display: true,
-              text: data.yAxisLabel,
-              font: {
-                weight: 'bold'
-              }
-            },
-            ticks: {
-              callback: function(value) {
-                return data.yAxisLabel.includes('$') ? '$' + value.toLocaleString() : value.toLocaleString();
-              }
-            }
-          },
-          x: {
-            title: {
-              display: true,
-              text: compareBy === 'time' ? 'Time Periods' :
-                    compareBy === 'customer_segment' ? 'Product Categories' :
-                    compareBy === 'store' ? 'Product Categories' : 'Seasons',
-              font: {
-                weight: 'bold'
-              }
-            }
+        x: {
+          title: {
+            display: true,
+            text: dataConfig?.xAxisLabel || defaultXAxis,
+            font: { weight: 'bold' }
           }
-        },
-        animation: {
-          duration: 1000,
-          easing: 'easeInOutQuart'
         }
       }
-    });
-  }
+    }
+  });
 }
 
 function generateDifferentialInsights() {
   const compareBy = document.getElementById('compareBy')?.value || 'time';
   const statTest = document.getElementById('statTest')?.value || 'chi_square';
-  
+  const statNote = document.getElementById('statNote');
+
+  if (statNote) {
+    statNote.textContent = 'Using curated sample insights. Run the analysis to refresh live statistics.';
+  }
+
   const insightMap = {
     'time': [
       {
         title: 'Q4 Holiday Season Peak',
         description: 'FROZEN GROCERY shows 34% higher sales in Q4 vs Q2 (p < 0.01)',
         impact: 'High',
-        recommendation: 'Increase frozen inventory 3 weeks before holidays'
+        recommendation: 'Increase frozen inventory 3 weeks before holidays',
+        department: 'FROZEN GROCERY',
+        commodity: 'Seasonal Demand',
+        top_products: []
       },
       {
         title: 'Summer Beverage Surge',
         description: 'BEVERAGE department peaks in Q3 with 28% increase (p < 0.05)',
         impact: 'Medium',
-        recommendation: 'Boost beverage promotions in summer months'
+        recommendation: 'Boost beverage promotions in summer months',
+        department: 'BEVERAGE',
+        commodity: 'Seasonal Demand',
+        top_products: []
       }
     ],
     'customer_segment': [
@@ -1672,13 +1981,19 @@ function generateDifferentialInsights() {
         title: 'Premium Customer Preferences',
         description: 'High-value customers purchase 2.3x more SPIRITS (Mann-Whitney U p < 0.001)',
         impact: 'High',
-        recommendation: 'Create premium wine and spirits loyalty program'
+        recommendation: 'Create premium wine and spirits loyalty program',
+        department: 'Customer Loyalty',
+        commodity: 'SPIRITS',
+        top_products: []
       },
       {
         title: 'Family Shopping Patterns',
         description: 'Families buy 1.8x more DAIRY and PRODUCE together (χ² = 45.2, p < 0.01)',
         impact: 'Medium',
-        recommendation: 'Place dairy and produce sections adjacently'
+        recommendation: 'Place dairy and produce sections adjacently',
+        department: 'Customer Experience',
+        commodity: 'DAIRY',
+        top_products: []
       }
     ],
     'store': [
@@ -1686,13 +2001,19 @@ function generateDifferentialInsights() {
         title: 'Urban vs Suburban Patterns',
         description: 'Urban stores have 45% higher PHARMACY sales (t-test p < 0.001)',
         impact: 'High',
-        recommendation: 'Expand health sections in urban locations'
+        recommendation: 'Expand health sections in urban locations',
+        department: 'PHARMACY SUPPLY',
+        commodity: 'PHARMACY',
+        top_products: []
       },
       {
         title: 'Location-Based Preferences',
         description: 'Suburban stores sell 60% more FROZEN items (p < 0.05)',
         impact: 'Medium',
-        recommendation: 'Increase frozen food variety in suburban stores'
+        recommendation: 'Increase frozen food variety in suburban stores',
+        department: 'FROZEN GROCERY',
+        commodity: 'FROZEN ITEMS',
+        top_products: []
       }
     ],
     'season': [
@@ -1700,88 +2021,161 @@ function generateDifferentialInsights() {
         title: 'Winter Comfort Food Trend',
         description: 'BAKERY and DELI purchases increase 42% in winter months',
         impact: 'High',
-        recommendation: 'Promote warm, comfort foods during cold seasons'
+        recommendation: 'Promote warm, comfort foods during cold seasons',
+        department: 'BAKERY',
+        commodity: 'Comfort Foods',
+        top_products: []
       }
     ]
   };
-  
+
   const insights = insightMap[compareBy] || insightMap['time'];
-  
-  const html = insights.map(insight => `
-    <div class="card mb-3 border-0 shadow-sm differential-insight-card"
-         style="cursor: pointer; transition: all 0.3s ease; border-left: 4px solid ${insight.impact === 'High' ? '#dc3545' : '#ffc107'} !important;"
-         data-insight-title="${insight.title}"
-         data-insight-description="${insight.description}"
-         data-insight-impact="${insight.impact}"
-         data-insight-recommendation="${insight.recommendation}"
-         data-compare-by="${compareBy}"
-         data-stat-test="${statTest}"
-         onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 25px rgba(0,0,0,0.15)'"
-         onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 1px 3px rgba(0,0,0,0.12)'"
-         onclick="showDifferentialInsightDetails('${insight.title}', '${insight.description}', '${insight.impact}', '${insight.recommendation}', '${compareBy}', '${statTest}')">
-      <div class="card-body">
-        <div class="d-flex align-items-center justify-content-between mb-2">
-          <h6 class="mb-0 text-primary fw-bold">${insight.title}</h6>
-          <div class="d-flex align-items-center gap-2">
-            <span class="badge ${insight.impact === 'High' ? 'bg-danger' : 'bg-warning'}">${insight.impact} Impact</span>
-            <small class="text-muted"><i class="fas fa-mouse-pointer"></i></small>
-          </div>
-        </div>
-        <p class="text-muted mb-2 lh-base">${insight.description}</p>
-        <div class="bg-light p-2 rounded">
-          <small><strong>💡 Recommendation:</strong> ${insight.recommendation}</small>
-        </div>
-        <div class="mt-2 pt-2 border-top">
-          <small class="text-muted">
-            <i class="fas fa-chart-bar"></i> Analysis: ${statTest.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
-            <span class="mx-2">•</span>
-            <i class="fas fa-filter"></i> Comparing: ${compareBy.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
-          </small>
+  const html = (insights || []).map(insight => renderDifferentialInsightCard(insight, compareBy, statTest)).join('');
+  const container = document.getElementById('differentialInsights');
+  if (container) {
+    container.innerHTML = html || `
+      <div class="col-12">
+        <div class="text-center py-3 text-muted">
+          <i class="fas fa-info-circle fa-2x mb-2"></i>
+          <p>No differential insights available.</p>
         </div>
       </div>
-    </div>
-  `).join('');
-  
-  const container = document.getElementById('differentialInsights');
-  if (container) container.innerHTML = html;
+    `;
+  }
 }
+
 
 function runDifferentialAnalysis() {
   const compareBy = document.getElementById('compareBy')?.value || 'time';
   const statTest = document.getElementById('statTest')?.value || 'chi_square';
-  
+  const statNote = document.getElementById('statNote');
+
   showNotification(`Running ${statTest.replace('_', ' ')} test for ${compareBy.replace('_', ' ')} comparison...`, 'info');
-  
-  // Show loading in insights container
+
+  if (statNote) {
+    statNote.textContent = `Computing ${statTest.replace('_', ' ')} test using live data...`;
+  }
+
   const container = document.getElementById('differentialInsights');
   if (container) {
     container.innerHTML = `
-      <div class="text-center py-4">
-        <div class="spinner-border text-primary" role="status">
-          <span class="visually-hidden">Loading...</span>
+      <div class="col-12">
+        <div class="text-center py-4">
+          <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+          </div>
+          <p class="mt-2">Running statistical analysis...</p>
+          <small class="text-muted">Computing ${statTest.replace('_', ' ')} test...</small>
         </div>
-        <p class="mt-2">Running statistical analysis...</p>
-        <small class="text-muted">Computing ${statTest.replace('_', ' ')} test...</small>
       </div>
     `;
   }
-  
-  setTimeout(() => {
-    // Update metrics with realistic statistical values
-    const pValue = document.getElementById('pValue');
-    const effectSize = document.getElementById('effectSize');
 
-    if (pValue) pValue.textContent = (Math.random() * 0.049 + 0.001).toFixed(3);
-    if (effectSize) effectSize.textContent = (Math.random() * 0.6 + 0.3).toFixed(2);
-
-    // Refresh the chart with new comparison data
-    initializeComparisonChart();
+  const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
+  if (!csrfToken) {
+    console.error('CSRF token not found');
+    showNotification('CSRF token missing. Please refresh the page.', 'error');
     generateDifferentialInsights();
-    showNotification(`${statTest.replace('_', ' ')} analysis completed successfully!`, 'success');
-  }, Math.random() * 1500 + 2000);
+    return;
+  }
+
+  const timeoutPromise = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error('Request timeout')), 10000)
+  );
+
+  const fetchPromise = fetch('{% url "dunnhumby_site:api_differential_analysis" %}', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'X-CSRFToken': csrfToken.value
+    },
+    body: `compare_by=${compareBy}&stat_test=${statTest}`
+  });
+
+  Promise.race([fetchPromise, timeoutPromise])
+    .then(response => {
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      return response.json();
+    })
+    .then(data => {
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
+      const pValue = document.getElementById('pValue');
+      const effectSize = document.getElementById('effectSize');
+      const significance = document.getElementById('significance');
+
+      if (pValue) {
+        pValue.textContent = data.statistics?.p_value ?? '--';
+      }
+      if (effectSize) {
+        effectSize.textContent = data.statistics?.effect_size ?? '--';
+      }
+      if (significance) {
+        significance.textContent = data.statistics?.confidence ? `${data.statistics.confidence}%` : '--';
+      }
+      if (statNote) {
+        const testLabel = (data.statistics?.test_type || statTest).replace('_', ' ');
+        statNote.textContent = data.statistics?.note || `Completed ${testLabel} test.`;
+      }
+
+      if (data.chart && data.chart.labels) {
+        currentAnalysisData[compareBy] = data.chart;
+      } else {
+        delete currentAnalysisData[compareBy];
+      }
+
+      generateDifferentialInsightsFromAPI(data.insights || [], compareBy, statTest);
+      initializeComparisonChart();
+
+      showNotification(`${statTest.replace('_', ' ')} analysis completed successfully!`, 'success');
+    })
+    .catch(error => {
+      console.error('Differential Analysis API Error:', error);
+      showNotification(`Using sample data - API issue: ${error.message}`, 'warning');
+
+      delete currentAnalysisData[compareBy];
+      generateDifferentialInsights();
+
+      const pValue = document.getElementById('pValue');
+      const effectSize = document.getElementById('effectSize');
+      const significance = document.getElementById('significance');
+      if (pValue) {
+        pValue.textContent = (Math.random() * 0.049 + 0.001).toFixed(3);
+      }
+      if (effectSize) {
+        effectSize.textContent = (Math.random() * 0.6 + 0.3).toFixed(2);
+      }
+      if (significance) {
+        significance.textContent = '90%';
+      }
+      if (statNote) {
+        statNote.textContent = 'Falling back to sample insights due to API timeout.';
+      }
+
+      initializeComparisonChart();
+    });
 }
 
-// Expand section in popup
+
+function generateDifferentialInsightsFromAPI(insights, compareBy, statTest) {
+  const html = (insights || []).map(insight => renderDifferentialInsightCard(insight, compareBy, statTest)).join('');
+  const container = document.getElementById('differentialInsights');
+  if (container) {
+    container.innerHTML = html || `
+      <div class="col-12">
+        <div class="text-center py-3 text-muted">
+          <i class="fas fa-info-circle fa-2x mb-2"></i>
+          <p>No significant differences found with current parameters.</p>
+        </div>
+      </div>
+    `;
+  }
+}
+
 function expandSection(sectionType) {
   let title, content, container;
   
@@ -1811,8 +2205,8 @@ function expandSection(sectionType) {
   if (container) {
     let content = container.innerHTML;
     
-    // For baskets and recommendations, wrap in proper bootstrap grid
-    if (sectionType === 'baskets' || sectionType === 'recommendations') {
+    // For baskets, recommendations, and differential, wrap in proper bootstrap grid
+    if (sectionType === 'baskets' || sectionType === 'recommendations' || sectionType === 'differential') {
       content = `<div class="row g-3">${content}</div>`;
     }
     
@@ -1886,38 +2280,32 @@ function attachPopupEventListeners(sectionType) {
       });
     });
   } else if (sectionType === 'recommendations') {
-    // Attach recommendation card click handlers
-    const recommendationCards = expandedContent.querySelectorAll('.recommendation-card');
-    recommendationCards.forEach(card => {
-      card.style.cursor = 'pointer';
-      card.addEventListener('click', function() {
-        const productId = this.dataset.productId;
-        const department = this.dataset.department;
-        const commodity = this.dataset.commodity;
-        const confidence = this.dataset.confidence;
-        const revenueImpact = this.dataset.revenueImpact;
+    // Force re-initialization of recommendation cards in modal
+    setTimeout(() => {
+      const cards = expandedContent.querySelectorAll('.recommendation-card');
+      console.log(`Found ${cards.length} recommendation cards in expanded modal`);
 
-        if (productId) {
-          showRecommendationDetails(productId, department, commodity, confidence, revenueImpact);
-        }
+      cards.forEach((card, index) => {
+        // Remove existing listener flag to force re-attachment
+        card.dataset.listenerAttached = 'false';
+        card.style.cursor = 'pointer';
+
+        // Clone card to remove all existing event listeners
+        const newCard = card.cloneNode(true);
+        card.parentNode.replaceChild(newCard, card);
       });
-    });
+
+      // Re-initialize with fresh cards
+      initializeRecommendationCards(expandedContent);
+      console.log('Recommendation cards re-initialized in modal');
+    }, 100);
   } else if (sectionType === 'differential') {
     // Attach differential insight card click handlers
     const insightCards = expandedContent.querySelectorAll('.differential-insight-card');
     insightCards.forEach(card => {
       card.style.cursor = 'pointer';
       card.addEventListener('click', function() {
-        const title = this.dataset.insightTitle;
-        const description = this.dataset.insightDescription;
-        const impact = this.dataset.insightImpact;
-        const recommendation = this.dataset.insightRecommendation;
-        const compareBy = this.dataset.compareBy;
-        const statTest = this.dataset.statTest;
-
-        if (title) {
-          showDifferentialInsightDetails(title, description, impact, recommendation, compareBy, statTest);
-        }
+        showDifferentialInsightDetailsFromCard(this);
       });
     });
   } else {
@@ -2056,16 +2444,80 @@ function showConfigurationHelp() {
 }
 
 // Show detailed differential insight information
-function showDifferentialInsightDetails(title, description, impact, recommendation, compareBy, statTest) {
-  // Get impact-based styling
+
+function showDifferentialInsightDetailsFromCard(cardElement) {
+  if (!cardElement) {
+    return;
+  }
+
+  const title = cardElement.dataset.insightTitle || '';
+  const description = cardElement.dataset.insightDescription || '';
+  const impact = cardElement.dataset.insightImpact || 'Medium';
+  const recommendation = cardElement.dataset.insightRecommendation || '';
+  const compareBy = cardElement.dataset.compareBy || 'time';
+  const statTest = cardElement.dataset.statTest || 'chi_square';
+  let topProducts = [];
+
+  if (cardElement.dataset.products) {
+    try {
+      topProducts = JSON.parse(decodeURIComponent(cardElement.dataset.products)) || [];
+    } catch (error) {
+      console.warn('Unable to parse product details for insight card', error);
+      topProducts = [];
+    }
+  }
+
+  showDifferentialInsightDetails(title, description, impact, recommendation, compareBy, statTest, topProducts);
+}
+
+
+function showDifferentialInsightDetails(title, description, impact, recommendation, compareBy, statTest, topProducts = []) {
   const impactColor = impact === 'High' ? '#dc3545' : '#ffc107';
   const impactIcon = impact === 'High' ? '⚠️' : '⚡';
 
-  // Format the comparison and test names for display
   const comparisonName = compareBy.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
   const testName = statTest.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
 
-  // Generate additional insights based on the type
+  const safeTitle = escapeHtml(title);
+  const safeDescription = escapeHtml(description);
+  const safeImpact = escapeHtml(impact);
+  const safeRecommendation = escapeHtml(recommendation);
+  const safeComparisonName = escapeHtml(comparisonName);
+  const safeTestName = escapeHtml(testName);
+
+  const productDetails = Array.isArray(topProducts) ? topProducts.slice(0, 6) : [];
+  const productSection = productDetails.length ? `
+      <div class="row mb-4">
+        <div class="col-12">
+          <div style="background: #f8f9fa; padding: 1.5rem; border-radius: 10px; border-left: 4px solid #0dcaf0;">
+            <h6 style="color: #0c5460; margin-bottom: 1rem;"><i class="fas fa-boxes"></i> Products Influencing This Difference</h6>
+            <div class="row g-3">
+              ${productDetails.map(product => {
+                const name = escapeHtml(product.name || product.commodity || `Product ${product.product_id || ''}`);
+                const sales = Number(product.sales || 0).toFixed(2);
+                const quantity = Number(product.quantity || 0).toLocaleString();
+                const share = product.share !== undefined && product.share !== null
+                  ? `${Number(product.share).toFixed(1)}%`
+                  : null;
+                return `
+                  <div class="col-md-6">
+                    <div style="background: #ffffff; border-radius: 12px; padding: 1rem; border: 1px solid #e2e8f0;">
+                      <div style="font-weight: 600; color: #2d3748;">${name}</div>
+                      <div style="font-size: 0.85rem; color: #64748b; margin-top: 0.35rem; display: flex; flex-wrap: wrap; gap: 8px;">
+                        <span><i class="fas fa-dollar-sign"></i> $${sales}</span>
+                        <span><i class="fas fa-shopping-cart"></i> ${quantity} units</span>
+                        ${share ? `<span><i class="fas fa-percentage"></i> ${share}</span>` : ''}
+                      </div>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        </div>
+      </div>
+  ` : '';
+
   let additionalInsights = '';
   let actionItems = '';
 
@@ -2120,31 +2572,33 @@ function showDifferentialInsightDetails(title, description, impact, recommendati
       <div class="row mb-4">
         <div class="col-md-8">
           <div class="detail-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 1.5rem; border-radius: 15px;">
-            <h4 style="margin: 0 0 0.5rem 0; font-weight: 600;">${title}</h4>
-            <p style="margin: 0; opacity: 0.9; line-height: 1.4;">${description}</p>
+            <h4 style="margin: 0 0 0.5rem 0; font-weight: 600;">${safeTitle}</h4>
+            <p style="margin: 0; opacity: 0.9; line-height: 1.4;">${safeDescription}</p>
           </div>
         </div>
         <div class="col-md-4">
           <div class="detail-card" style="background: linear-gradient(135deg, ${impactColor}, ${impactColor}dd); color: white; padding: 1.5rem; border-radius: 15px; text-align: center;">
             <h4 style="margin: 0; font-weight: 600;">Impact Level</h4>
             <h2 style="margin: 0.5rem 0; font-size: 2.5rem;">${impactIcon}</h2>
-            <h3 style="margin: 0; font-size: 1.8rem; font-weight: 700;">${impact}</h3>
+            <h3 style="margin: 0; font-size: 1.8rem; font-weight: 700;">${safeImpact}</h3>
           </div>
         </div>
       </div>
+
+      ${productSection}
 
       <div class="row mb-4">
         <div class="col-md-6">
           <div style="background: #f8f9fa; padding: 1.5rem; border-radius: 10px; border-left: 4px solid #007bff;">
             <h6 style="color: #495057; margin-bottom: 1rem;"><i class="fas fa-chart-bar"></i> Statistical Analysis</h6>
-            <p style="color: #6c757d; margin: 0;"><strong>Method:</strong> ${testName}</p>
-            <small style="color: #6c757d;">Comparing patterns between ${comparisonName.toLowerCase()}</small>
+            <p style="color: #6c757d; margin: 0;"><strong>Method:</strong> ${safeTestName}</p>
+            <small style="color: #6c757d;">Comparing patterns between ${safeComparisonName.toLowerCase()}</small>
           </div>
         </div>
         <div class="col-md-6">
           <div style="background: linear-gradient(135deg, #28a745, #20c997); color: white; padding: 1.5rem; border-radius: 10px;">
             <h6 style="margin: 0 0 1rem 0;"><i class="fas fa-lightbulb"></i> Primary Recommendation</h6>
-            <p style="margin: 0; line-height: 1.4; font-weight: 500;">${recommendation}</p>
+            <p style="margin: 0; line-height: 1.4; font-weight: 500;">${safeRecommendation}</p>
           </div>
         </div>
       </div>
@@ -2174,46 +2628,91 @@ function showDifferentialInsightDetails(title, description, impact, recommendati
   showDetailModal(`${impactIcon} Differential Analysis Insight`, body);
 }
 
-// Show detailed recommendation information
-function showRecommendationDetails(productId, department, commodity, confidence, revenueImpact) {
+
+function showRecommendationDetails(
+  productId,
+  department,
+  commodity,
+  confidence,
+  revenueImpact,
+  manufacturer,
+  brand,
+  subCommodity,
+  size,
+  customerCount,
+  avgValue,
+  totalValue,
+  totalQuantity
+) {
   const title = `🛒 Product Recommendation Details`;
-  
-  // Parse confidence as a percentage
-  const confidencePercent = (parseFloat(confidence) * 100).toFixed(1);
-  
-  // Format revenue impact
-  const formattedRevenue = revenueImpact ? `$${parseInt(revenueImpact).toLocaleString()}` : 'N/A';
-  
-  // Create department and commodity badges
-  const deptBadge = createDepartmentBadge(department || 'N/A');
-  const commodityBadge = createCommodityBadge(commodity || 'N/A');
-  
-  // Get confidence interpretation
+
+  const parsedConfidence = parseFloat(confidence || 0);
+  const confidencePercent = (parsedConfidence * 100).toFixed(1);
+  const formattedRevenue = revenueImpact ? `$${Number(revenueImpact).toLocaleString()}` : 'N/A';
+
+  const normalizedDepartment = department && department !== 'undefined' && department !== '' ? department : 'MISC. TRANS.';
+  const normalizedCommodity = commodity && commodity !== 'undefined' && commodity !== '' ? commodity : 'All Products';
+  const normalizedBrand = brand && brand !== 'undefined' && brand !== '' ? brand : 'Unknown Brand';
+  const normalizedManufacturer = manufacturer && manufacturer !== 'undefined' && manufacturer !== '' ? manufacturer : 'Not Provided';
+  const normalizedSubCommodity = subCommodity && subCommodity !== 'undefined' && subCommodity !== '' ? subCommodity : 'N/A';
+  const normalizedSize = size && size !== 'undefined' && size !== '' ? size : 'N/A';
+
+  const deptBadge = createDepartmentBadge(normalizedDepartment);
+  const commodityBadge = createCommodityBadge(normalizedCommodity);
+
+  const safeProductId = escapeHtml(productId || 'N/A');
+  const displayBrand = escapeHtml(normalizedBrand);
+  const displayManufacturer = escapeHtml(normalizedManufacturer);
+  const displaySubCommodity = escapeHtml(normalizedSubCommodity);
+  const displaySize = escapeHtml(normalizedSize);
+  const displayCommodity = escapeHtml(normalizedCommodity);
+
+  const householdsNum = customerCount ? parseInt(customerCount, 10) || 0 : 0;
+  const avgValueNum = avgValue ? parseFloat(avgValue) || 0 : 0;
+  const totalValueNum = totalValue ? parseFloat(totalValue) || 0 : 0;
+  const totalQuantityNum = totalQuantity ? parseFloat(totalQuantity) || 0 : 0;
+
+  const households = householdsNum.toLocaleString();
+  const formattedAvgValue = `$${avgValueNum.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const formattedTotalValue = `$${totalValueNum.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const formattedTotalQuantity = totalQuantityNum.toLocaleString();
+  const revenuePerUnitValue = totalQuantityNum > 0 ? totalValueNum / totalQuantityNum : null;
+  const formattedRevenuePerUnit = revenuePerUnitValue !== null ? `$${revenuePerUnitValue.toFixed(2)}` : 'N/A';
+  const subtitleText = normalizedSubCommodity !== 'N/A' ? `${displayCommodity} • ${displaySubCommodity}` : displayCommodity;
+
+  const commodityLowerEscaped = escapeHtml(normalizedCommodity.toLowerCase());
+  const subCommodityLowerEscaped = normalizedSubCommodity !== 'N/A' ? escapeHtml(normalizedSubCommodity.toLowerCase()) : '';
+  const departmentEscaped = escapeHtml(normalizedDepartment);
+
   let confidenceLevel = 'Low';
   let confidenceColor = '#dc3545';
-  let confidenceDesc = 'This recommendation has low confidence. Consider additional market research.';
-  
-  if (parseFloat(confidence) >= 0.8) {
+  let confidenceDesc = `This recommendation has low confidence. Consider additional validation before expanding <strong>${displayBrand}</strong>.`;
+
+  if (parsedConfidence >= 0.8) {
     confidenceLevel = 'Very High';
     confidenceColor = '#28a745';
-    confidenceDesc = 'This is a highly confident recommendation based on strong predictive patterns.';
-  } else if (parseFloat(confidence) >= 0.65) {
+    confidenceDesc = `<strong>${displayBrand}</strong> shows very strong predictive signals with consistent purchase behavior across engaged households.`;
+  } else if (parsedConfidence >= 0.65) {
     confidenceLevel = 'High';
     confidenceColor = '#20c997';
-    confidenceDesc = 'This recommendation shows good confidence with reliable predictive indicators.';
-  } else if (parseFloat(confidence) >= 0.5) {
+    confidenceDesc = `Predictive indicators for <strong>${displayBrand}</strong> are reliable and align well with recent shopping patterns.`;
+  } else if (parsedConfidence >= 0.5) {
     confidenceLevel = 'Medium';
     confidenceColor = '#ffc107';
-    confidenceDesc = 'This recommendation has moderate confidence. Consider combining with other insights.';
+    confidenceDesc = `<strong>${displayBrand}</strong> has moderate confidence. Pair with supporting campaigns and monitor response closely.`;
   }
-  
+
+  const strategyPromo = parsedConfidence >= 0.7
+    ? '<li>This high-confidence recommendation is ideal for feature placement and promotional campaigns.</li>'
+    : '<li>Run controlled tests before scaling major promotions to confirm shopper response.</li>';
+
   const body = `
     <div class="recommendation-details" style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
       <div class="row mb-4">
         <div class="col-md-6">
           <div class="detail-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 1.5rem; border-radius: 15px; text-align: center;">
             <h4 style="margin: 0; font-weight: 600;">Product ID</h4>
-            <h2 style="margin: 0.5rem 0 0 0; font-size: 2.5rem; font-weight: 700;">${productId}</h2>
+            <h2 style="margin: 0.5rem 0 0 0; font-size: 2.5rem; font-weight: 700;">${safeProductId}</h2>
           </div>
         </div>
         <div class="col-md-6">
@@ -2224,7 +2723,7 @@ function showRecommendationDetails(productId, department, commodity, confidence,
           </div>
         </div>
       </div>
-      
+
       <div class="row mb-4">
         <div class="col-md-6">
           <div style="background: #f8f9fa; padding: 1.5rem; border-radius: 10px; border-left: 4px solid #007bff;">
@@ -2234,12 +2733,32 @@ function showRecommendationDetails(productId, department, commodity, confidence,
         </div>
         <div class="col-md-6">
           <div style="background: #f8f9fa; padding: 1.5rem; border-radius: 10px; border-left: 4px solid #28a745;">
-            <h5 style="color: #495057; margin-bottom: 1rem;"><i class="fas fa-boxes"></i> Commodity</h5>
-            <div>${commodityBadge}</div>
+            <h5 style="color: #495057; margin-bottom: 1rem;"><i class="fas fa-boxes"></i> Commodity Profile</h5>
+            <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+              ${commodityBadge}
+              <span style="color: #6c757d; font-size: 0.85rem;">${subtitleText}</span>
+            </div>
           </div>
         </div>
       </div>
-      
+
+      <div class="row mb-4">
+        <div class="col-md-6">
+          <div style="background: #f8f9fa; padding: 1.5rem; border-radius: 10px; border-left: 4px solid #6610f2;">
+            <h5 style="color: #495057; margin-bottom: 0.75rem;"><i class="fas fa-tag"></i> Brand & Manufacturer</h5>
+            <p style="margin: 0; color: #495057;"><strong>Brand:</strong> ${displayBrand}</p>
+            <p style="margin: 0.35rem 0 0 0; color: #495057;"><strong>Manufacturer:</strong> ${displayManufacturer}</p>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div style="background: #f8f9fa; padding: 1.5rem; border-radius: 10px; border-left: 4px solid #fd7e14;">
+            <h5 style="color: #495057; margin-bottom: 0.75rem;"><i class="fas fa-ruler-combined"></i> Product Attributes</h5>
+            <p style="margin: 0; color: #495057;"><strong>Size / Pack:</strong> ${displaySize}</p>
+            <p style="margin: 0.35rem 0 0 0; color: #495057;"><strong>Sub-Commodity:</strong> ${displaySubCommodity}</p>
+          </div>
+        </div>
+      </div>
+
       <div class="row mb-4">
         <div class="col-12">
           <div style="background: linear-gradient(135deg, #28a745, #20c997); color: white; padding: 1.5rem; border-radius: 10px; text-align: center;">
@@ -2249,22 +2768,63 @@ function showRecommendationDetails(productId, department, commodity, confidence,
           </div>
         </div>
       </div>
-      
+
+      <div class="row g-3 mb-4">
+        <div class="col-sm-6 col-lg-3">
+          <div style="background: #f8f9fa; padding: 1.25rem; border-radius: 12px; border-left: 4px solid #6366f1;">
+            <h6 style="margin: 0; color: #4b5563; font-weight: 600;">Household Reach</h6>
+            <h3 style="margin: 0.5rem 0; color: #1f2937;">${households}</h3>
+            <p style="margin: 0; font-size: 0.8rem; color: #6b7280;">Unique shoppers purchasing this item</p>
+          </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+          <div style="background: #f8f9fa; padding: 1.25rem; border-radius: 12px; border-left: 4px solid #0d6efd;">
+            <h6 style="margin: 0; color: #4b5563; font-weight: 600;">Total Sales Value</h6>
+            <h3 style="margin: 0.5rem 0; color: #1f2937;">${formattedTotalValue}</h3>
+            <p style="margin: 0; font-size: 0.8rem; color: #6b7280;">Historical sales captured in the dataset</p>
+          </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+          <div style="background: #f8f9fa; padding: 1.25rem; border-radius: 12px; border-left: 4px solid #198754;">
+            <h6 style="margin: 0; color: #4b5563; font-weight: 600;">Total Units Sold</h6>
+            <h3 style="margin: 0.5rem 0; color: #1f2937;">${formattedTotalQuantity}</h3>
+            <p style="margin: 0; font-size: 0.8rem; color: #6b7280;">Units purchased across all baskets</p>
+          </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+          <div style="background: #f8f9fa; padding: 1.25rem; border-radius: 12px; border-left: 4px solid #fd7e14;">
+            <h6 style="margin: 0; color: #4b5563; font-weight: 600;">Avg Basket Value</h6>
+            <h3 style="margin: 0.5rem 0; color: #1f2937;">${formattedAvgValue}</h3>
+            <p style="margin: 0; font-size: 0.8rem; color: #6b7280;">Average spend when this product is included</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="row mb-4">
+        <div class="col-12">
+          <div style="background: #fef9ef; padding: 1.25rem; border-radius: 12px; border-left: 4px solid #ffc107;">
+            <h6 style="margin: 0 0 0.75rem 0; color: #84550a; font-weight: 600;"><i class="fas fa-balance-scale"></i> Revenue per Unit</h6>
+            <p style="margin: 0; color: #6c757d; line-height: 1.5;">Average revenue per unit: <strong>${formattedRevenuePerUnit}</strong>. Use this to evaluate pricing and promotional discounts without eroding margin.</p>
+          </div>
+        </div>
+      </div>
+
       <div style="background: #e9ecef; padding: 1.5rem; border-radius: 10px;">
         <h5 style="color: #495057; margin-bottom: 1rem;"><i class="fas fa-lightbulb"></i> AI Analysis</h5>
-        <p style="color: #6c757d; margin-bottom: 1rem; line-height: 1.6;">${confidenceDesc}</p>
-        
+        <p style="color: #6c757d; margin-bottom: 1rem; line-height: 1.6;">${confidenceDesc} Household spend averages ${formattedAvgValue} with lifetime sales of ${formattedTotalValue}, supporting the predicted lift of ${formattedRevenue}.</p>
+
         <h6 style="color: #495057; margin-bottom: 0.5rem;">Recommendation Strategy:</h6>
         <ul style="color: #6c757d; margin: 0; padding-left: 1.5rem;">
-          <li>Position this product prominently in the <strong>${department}</strong> section</li>
-          <li>Consider cross-merchandising with complementary ${commodity.toLowerCase()} products</li>
-          <li>Monitor performance and adjust placement based on actual sales data</li>
-          ${parseFloat(confidence) >= 0.7 ? '<li>This high-confidence recommendation is suitable for promotional campaigns</li>' : '<li>Test with smaller inventory quantities before major promotions</li>'}
+          <li>Spotlight <strong>${displayBrand}</strong> within the <strong>${departmentEscaped}</strong> aisle using merchandising that highlights the ${displaySize} pack.</li>
+          <li>Bundle with complementary ${commodityLowerEscaped}${subCommodityLowerEscaped ? ` / ${subCommodityLowerEscaped}` : ''} items to drive cross-basket value.</li>
+          <li>Coordinate with <strong>${displayManufacturer}</strong> on co-branded offers that leverage the ${formattedRevenue} upside.</li>
+          <li>Engage the ${households} households already purchasing this item with personalized follow-up campaigns.</li>
+          ${strategyPromo}
         </ul>
       </div>
     </div>
   `;
-  
+
   showDetailModal(title, body);
 }
 
@@ -2450,21 +3010,34 @@ function getCsrfToken() {
   return (document.cookie.split('; ').find(r=>r.startsWith('csrftoken='))||'').split('=')[1]||'';
 }
 
-function updatePredictiveCharts(predictions) {
-  // Update Customer Lifetime Value Chart
-  const clvCtx = document.getElementById('clvChart');
-  if (clvCtx && predictions.length > 0) {
-    if (charts.clv) charts.clv.destroy();
-    
-    charts.clv = new Chart(clvCtx, {
-      type: 'doughnut',
+function updatePredictiveCharts(predictions, algorithm) {
+  if (!predictions || predictions.length === 0) return;
+
+  // Update Revenue Impact Chart
+  const revenueContainer = document.getElementById('revenueImpactChart');
+  if (revenueContainer) {
+    // Get top 6 departments by predicted revenue
+    const topDepts = predictions.slice(0, 6);
+    const revenueData = topDepts.map(p => p.avg_value * p.customers * p.predicted_growth);
+    const labels = topDepts.map(p => p.department);
+    const colors = topDepts.map(p => DEPARTMENT_CONFIG[p.department]?.color || '#6C757D');
+
+    revenueContainer.innerHTML = `<canvas id="revenueChart" height="250"></canvas>`;
+    const ctx = document.getElementById('revenueChart');
+
+    if (charts.revenue) charts.revenue.destroy();
+    charts.revenue = new Chart(ctx, {
+      type: 'bar',
       data: {
-        labels: predictions.slice(0, 5).map(p => p.department),
+        labels: labels,
         datasets: [{
-          data: predictions.slice(0, 5).map(p => p.avg_value),
-          backgroundColor: predictions.slice(0, 5).map(p => 
-            DEPARTMENT_CONFIG[p.department]?.color || '#6C757D'
-          )
+          label: 'Predicted Revenue Impact ($)',
+          data: revenueData,
+          backgroundColor: colors.map(c => c + '80'), // Add transparency
+          borderColor: colors,
+          borderWidth: 2,
+          borderRadius: 8,
+          borderSkipped: false
         }]
       },
       options: {
@@ -2472,12 +3045,123 @@ function updatePredictiveCharts(predictions) {
         maintainAspectRatio: false,
         plugins: {
           legend: {
-            position: 'bottom',
-            labels: {
-              boxWidth: 12,
-              font: {
-                size: 10
+            display: false
+          },
+          title: {
+            display: true,
+            text: `${algorithm.replace('_', ' ').toUpperCase()} Model Revenue Predictions`,
+            font: { size: 14, weight: 'bold' },
+            color: '#2d3748'
+          },
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                return `Revenue Impact: $${context.parsed.y.toLocaleString()}`;
               }
+            }
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            title: {
+              display: true,
+              text: 'Predicted Revenue ($)',
+              color: '#4a5568',
+              font: { weight: 'bold' }
+            },
+            ticks: {
+              callback: function(value) {
+                return '$' + value.toLocaleString();
+              }
+            }
+          },
+          x: {
+            title: {
+              display: true,
+              text: 'Department Categories',
+              color: '#4a5568',
+              font: { weight: 'bold' }
+            }
+          }
+        }
+      }
+    });
+  }
+
+  // Update Customer Segment Chart
+  const segmentContainer = document.getElementById('customerSegmentChart');
+  if (segmentContainer) {
+    const segmentData = topDepts.map(p => ({
+      department: p.department,
+      confidence: p.confidence * 100,
+      growth: p.predicted_growth * 100
+    }));
+
+    segmentContainer.innerHTML = `<canvas id="segmentChart" height="250"></canvas>`;
+    const ctx2 = document.getElementById('segmentChart');
+
+    if (charts.segment) charts.segment.destroy();
+    charts.segment = new Chart(ctx2, {
+      type: 'radar',
+      data: {
+        labels: segmentData.map(s => s.department),
+        datasets: [{
+          label: 'Model Confidence (%)',
+          data: segmentData.map(s => s.confidence),
+          borderColor: '#667eea',
+          backgroundColor: 'rgba(102, 126, 234, 0.2)',
+          pointBackgroundColor: '#667eea',
+          pointBorderColor: '#fff',
+          pointHoverBackgroundColor: '#fff',
+          pointHoverBorderColor: '#667eea',
+          borderWidth: 3
+        }, {
+          label: 'Growth Potential (%)',
+          data: segmentData.map(s => s.growth),
+          borderColor: '#38a169',
+          backgroundColor: 'rgba(56, 161, 105, 0.2)',
+          pointBackgroundColor: '#38a169',
+          pointBorderColor: '#fff',
+          pointHoverBackgroundColor: '#fff',
+          pointHoverBorderColor: '#38a169',
+          borderWidth: 3
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: 'top',
+            labels: {
+              padding: 20,
+              usePointStyle: true,
+              font: { weight: 'bold' }
+            }
+          },
+          title: {
+            display: true,
+            text: 'Prediction Confidence vs Growth Potential',
+            font: { size: 14, weight: 'bold' },
+            color: '#2d3748'
+          }
+        },
+        scales: {
+          r: {
+            beginAtZero: true,
+            max: 120,
+            ticks: {
+              stepSize: 20,
+              callback: function(value) {
+                return value + '%';
+              }
+            },
+            grid: {
+              color: 'rgba(0, 0, 0, 0.1)'
+            },
+            angleLines: {
+              color: 'rgba(0, 0, 0, 0.1)'
             }
           }
         }
