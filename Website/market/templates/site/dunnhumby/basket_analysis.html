@@ -863,12 +863,12 @@ html, body {
         </div>
         <div class="col-md-6">
           <div class="chart-container">
-            <h5><i class="fas fa-users"></i> Customer Segment Performance</h5>
-            <div id="customerSegmentChart" style="min-height: 250px;">
+            <h5><i class="fas fa-calendar-alt"></i> Purchase Probability Trends</h5>
+            <div id="purchaseTrendsChart" style="min-height: 250px;">
               <div class="text-center py-5 text-muted">
-                <i class="fas fa-users fa-3x mb-3" style="color: #e2e8f0;"></i>
-                <h6 style="color: #a0aec0;">Segment Performance</h6>
-                <p style="color: #cbd5e0; font-size: 0.9rem;">Analyze customer segments and their predicted purchase behavior</p>
+                <i class="fas fa-chart-line fa-3x mb-3" style="color: #e2e8f0;"></i>
+                <h6 style="color: #a0aec0;">Time-Based Predictions</h6>
+                <p style="color: #cbd5e0; font-size: 0.9rem;">Forecast purchase probability over 1 month, 3 months, and 1 year periods</p>
               </div>
             </div>
           </div>
@@ -1786,6 +1786,7 @@ function loadPredictiveResults(algorithm) {
       console.log(`Found ${data.predictions.length} predictions:`, data.predictions);
       console.log('Calling updatePredictiveCharts with real data...');
       updatePredictiveCharts(data.predictions, algorithm);
+      generateTimeBasedInsights(data.predictions, algorithm);
     } else {
       console.error('No predictions found in API response!');
       console.error('API Response details:', {
@@ -1807,7 +1808,7 @@ function loadPredictiveResults(algorithm) {
 // Show error in chart containers when no real data is available
 function showChartError(message) {
   const revenueContainer = document.getElementById('revenueImpactChart');
-  const segmentContainer = document.getElementById('customerSegmentChart');
+  const trendsContainer = document.getElementById('purchaseTrendsChart');
 
   const errorHtml = `
     <div class="text-center py-5 text-danger">
@@ -1818,7 +1819,7 @@ function showChartError(message) {
   `;
 
   if (revenueContainer) revenueContainer.innerHTML = errorHtml;
-  if (segmentContainer) segmentContainer.innerHTML = errorHtml;
+  if (trendsContainer) trendsContainer.innerHTML = errorHtml;
 }
 
 function loadModelPerformance(algorithm) {
@@ -3203,9 +3204,9 @@ function updatePredictiveCharts(predictions, algorithm) {
     });
   }
 
-  // Update Customer Segment Chart
-  const segmentContainer = document.getElementById('customerSegmentChart');
-  if (segmentContainer) {
+  // Update Purchase Probability Trends Chart
+  const trendsContainer = document.getElementById('purchaseTrendsChart');
+  if (trendsContainer) {
     console.log('Updating segment chart with real data:', topDepts);
 
     // Ensure we have valid data for each department
@@ -3214,58 +3215,69 @@ function updatePredictiveCharts(predictions, algorithm) {
 
     if (validDepts.length === 0) {
       console.error('No valid department data for segment chart');
-      document.getElementById('customerSegmentChart').innerHTML = `
+      document.getElementById('purchaseTrendsChart').innerHTML = `
         <div class="text-center py-5 text-warning">
           <i class="fas fa-database fa-3x mb-3"></i>
           <h6>Insufficient Real Data</h6>
-          <p>Need departments with confidence and growth predictions from trained model.</p>
+          <p>Need departments with time-based forecasts from trained model.</p>
         </div>
       `;
       return;
     }
 
-    const segmentData = validDepts.map(p => {
-      const confidence = (p.confidence || 0) * 100;
-      const growth = (p.predicted_growth || 0) * 100;
-      console.log(`Real data - ${p.department}: confidence=${confidence.toFixed(1)}%, growth=${growth.toFixed(1)}%`);
-      return {
-        department: p.department,
-        confidence: Math.min(Math.max(confidence, 0), 100),
-        growth: Math.min(Math.max(growth, 0), 200)
-      };
+    // Extract time-based forecast data with both probability and revenue
+    const timeLabels = ['1 Month', '3 Months', '1 Year'];
+    const datasets = [];
+
+    validDepts.slice(0, 4).forEach((dept, index) => {
+      const forecasts = dept.forecasts || {};
+      const probabilities = [
+        (forecasts['1_month']?.probability || 0) * 100,
+        (forecasts['3_months']?.probability || 0) * 100,
+        (forecasts['1_year']?.probability || 0) * 100
+      ];
+
+      const revenues = [
+        forecasts['1_month']?.revenue_forecast || 0,
+        forecasts['3_months']?.revenue_forecast || 0,
+        forecasts['1_year']?.revenue_forecast || 0
+      ];
+
+      console.log(`Real forecast data - ${dept.department}:`, {
+        '1_month': `${probabilities[0].toFixed(1)}% / $${revenues[0].toLocaleString()}`,
+        '3_months': `${probabilities[1].toFixed(1)}% / $${revenues[1].toLocaleString()}`,
+        '1_year': `${probabilities[2].toFixed(1)}% / $${revenues[2].toLocaleString()}`
+      });
+
+      const colors = ['#667eea', '#38a169', '#e53e3e', '#d69e2e'];
+      const color = colors[index % colors.length];
+
+      datasets.push({
+        label: `${dept.department} Purchase Probability`,
+        data: probabilities,
+        borderColor: color,
+        backgroundColor: color + '20',
+        pointBackgroundColor: color,
+        pointBorderColor: '#fff',
+        pointHoverBackgroundColor: '#fff',
+        pointHoverBorderColor: color,
+        borderWidth: 3,
+        pointRadius: 6,
+        tension: 0.4,
+        yAxisID: 'y',
+        revenues: revenues // Store revenue data for tooltips
+      });
     });
 
-    segmentContainer.innerHTML = `<canvas id="segmentChart" height="250"></canvas>`;
-    const ctx2 = document.getElementById('segmentChart');
+    trendsContainer.innerHTML = `<canvas id="trendsChart" height="250"></canvas>`;
+    const ctx2 = document.getElementById('trendsChart');
 
-    if (charts.segment) charts.segment.destroy();
-    charts.segment = new Chart(ctx2, {
-      type: 'radar',
+    if (charts.trends) charts.trends.destroy();
+    charts.trends = new Chart(ctx2, {
+      type: 'line',
       data: {
-        labels: segmentData.map(s => s.department),
-        datasets: [{
-          label: 'Model Confidence (%)',
-          data: segmentData.map(s => s.confidence),
-          borderColor: '#667eea',
-          backgroundColor: 'rgba(102, 126, 234, 0.2)',
-          pointBackgroundColor: '#667eea',
-          pointBorderColor: '#fff',
-          pointHoverBackgroundColor: '#fff',
-          pointHoverBorderColor: '#667eea',
-          borderWidth: 3,
-          pointRadius: 6
-        }, {
-          label: 'Growth Potential (%)',
-          data: segmentData.map(s => s.growth),
-          borderColor: '#38a169',
-          backgroundColor: 'rgba(56, 161, 105, 0.2)',
-          pointBackgroundColor: '#38a169',
-          pointBorderColor: '#fff',
-          pointHoverBackgroundColor: '#fff',
-          pointHoverBorderColor: '#38a169',
-          borderWidth: 3,
-          pointRadius: 6
-        }]
+        labels: timeLabels,
+        datasets: datasets
       },
       options: {
         responsive: true,
@@ -3274,53 +3286,239 @@ function updatePredictiveCharts(predictions, algorithm) {
           legend: {
             position: 'top',
             labels: {
-              padding: 20,
+              padding: 15,
               usePointStyle: true,
-              font: { weight: 'bold' }
+              font: { weight: 'bold', size: 11 }
             }
           },
           title: {
             display: true,
-            text: `${algorithm.replace('_', ' ').toUpperCase()} Model: Confidence vs Growth Analysis`,
+            text: `${algorithm.replace('_', ' ').toUpperCase()} Model: Purchase Probability Over Time`,
             font: { size: 14, weight: 'bold' },
             color: '#2d3748'
-          }
-        },
-        scales: {
-          r: {
-            beginAtZero: true,
-            max: 150,
-            ticks: {
-              stepSize: 25,
-              callback: function(value) {
-                return value + '%';
+          },
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                return `${context.dataset.label}: ${context.parsed.y.toFixed(1)}% probability`;
               },
-              font: {
-                size: 10
-              }
-            },
-            grid: {
-              color: 'rgba(0, 0, 0, 0.1)'
-            },
-            angleLines: {
-              color: 'rgba(0, 0, 0, 0.1)'
-            },
-            pointLabels: {
-              font: {
-                size: 11,
-                weight: 'bold'
+              afterLabel: function(context) {
+                const deptIndex = datasets.findIndex(d => d.label === context.dataset.label);
+                const dept = validDepts[deptIndex];
+                if (dept && dept.forecasts) {
+                  const timeKey = context.dataIndex === 0 ? '1_month' :
+                                 context.dataIndex === 1 ? '3_months' : '1_year';
+                  const revenue = dept.forecasts[timeKey]?.revenue_forecast || 0;
+                  return `Expected Revenue: $${revenue.toLocaleString()}`;
+                }
+                return '';
               }
             }
           }
         },
+        scales: {
+          y: {
+            beginAtZero: true,
+            max: 100,
+            title: {
+              display: true,
+              text: 'Purchase Probability (%)',
+              color: '#4a5568',
+              font: { weight: 'bold' }
+            },
+            ticks: {
+              callback: function(value) {
+                return value + '%';
+              }
+            },
+            grid: {
+              color: 'rgba(0, 0, 0, 0.1)'
+            }
+          },
+          x: {
+            title: {
+              display: true,
+              text: 'Time Period',
+              color: '#4a5568',
+              font: { weight: 'bold' }
+            },
+            grid: {
+              color: 'rgba(0, 0, 0, 0.05)'
+            }
+          }
+        },
         interaction: {
-          intersect: false
+          intersect: false,
+          mode: 'index'
         }
       }
     });
 
-    console.log('Segment chart created successfully');
+    console.log('Purchase probability trends chart created successfully');
   }
+}
+
+function generateTimeBasedInsights(predictions, algorithm) {
+  console.log('Generating time-based insights for algorithm:', algorithm);
+  console.log('Predictions data:', predictions);
+
+  if (!predictions || predictions.length === 0) {
+    console.error('No predictions available for insights generation');
+    return;
+  }
+
+  // Find the container where insights will be displayed
+  let insightsContainer = document.getElementById('timeBasedInsights');
+  if (!insightsContainer) {
+    // Create insights container if it doesn't exist
+    const chartsContainer = document.querySelector('#predictive .row.g-4');
+    if (chartsContainer) {
+      const insightsDiv = document.createElement('div');
+      insightsDiv.className = 'col-12';
+      insightsDiv.innerHTML = `
+        <div class="chart-container">
+          <h5 class="mb-3"><i class="fas fa-clock"></i> Time-Based Forecast Insights</h5>
+          <div id="timeBasedInsights"></div>
+        </div>
+      `;
+      chartsContainer.appendChild(insightsDiv);
+      insightsContainer = document.getElementById('timeBasedInsights');
+    }
+  }
+
+  if (!insightsContainer) {
+    console.error('Could not find or create insights container');
+    return;
+  }
+
+  // Analyze top departments with forecasts
+  const topDepts = predictions.slice(0, 4).filter(p => p.forecasts);
+
+  if (topDepts.length === 0) {
+    insightsContainer.innerHTML = `
+      <div class="alert alert-warning">
+        <i class="fas fa-exclamation-triangle"></i> No time-based forecast data available.
+      </div>
+    `;
+    return;
+  }
+
+  // Generate insights based on forecast trends
+  const insights = [];
+
+  topDepts.forEach((dept, index) => {
+    const forecasts = dept.forecasts;
+    const month1 = forecasts['1_month'] || {};
+    const month3 = forecasts['3_months'] || {};
+    const year1 = forecasts['1_year'] || {};
+
+    const probTrend = {
+      short: (month1.probability || 0) * 100,
+      medium: (month3.probability || 0) * 100,
+      long: (year1.probability || 0) * 100
+    };
+
+    const revenueTrend = {
+      short: month1.revenue_forecast || 0,
+      medium: month3.revenue_forecast || 0,
+      long: year1.revenue_forecast || 0
+    };
+
+    // Analyze trends
+    let trendType = 'stable';
+    let insight = '';
+    let recommendation = '';
+
+    if (probTrend.long > probTrend.medium && probTrend.medium > probTrend.short) {
+      trendType = 'growing';
+      insight = `${dept.department} shows strong growth potential with purchase probability increasing from ${probTrend.short.toFixed(1)}% to ${probTrend.long.toFixed(1)}% over the year.`;
+      recommendation = `Increase inventory and marketing investment for ${dept.department} to capitalize on growth trend.`;
+    } else if (probTrend.short > probTrend.medium && probTrend.medium > probTrend.long) {
+      trendType = 'declining';
+      insight = `${dept.department} shows declining trend with purchase probability dropping from ${probTrend.short.toFixed(1)}% to ${probTrend.long.toFixed(1)}% over the year.`;
+      recommendation = `Review product mix and pricing strategy for ${dept.department} to address declining demand.`;
+    } else {
+      trendType = 'stable';
+      insight = `${dept.department} maintains stable performance with consistent purchase probability around ${probTrend.medium.toFixed(1)}%.`;
+      recommendation = `Maintain current strategy for ${dept.department} while exploring opportunities for growth.`;
+    }
+
+    insights.push({
+      department: dept.department,
+      type: trendType,
+      insight: insight,
+      recommendation: recommendation,
+      forecasts: {
+        probability: probTrend,
+        revenue: revenueTrend
+      }
+    });
+  });
+
+  // Generate HTML for insights
+  const insightsHtml = insights.map((insight, index) => {
+    const iconMap = {
+      growing: 'fas fa-arrow-trend-up text-success',
+      declining: 'fas fa-arrow-trend-down text-danger',
+      stable: 'fas fa-minus text-warning'
+    };
+
+    const colorMap = {
+      growing: 'border-success',
+      declining: 'border-danger',
+      stable: 'border-warning'
+    };
+
+    return `
+      <div class="col-md-6 mb-3">
+        <div class="card ${colorMap[insight.type]} border-start border-3 h-100">
+          <div class="card-body">
+            <div class="d-flex align-items-center mb-2">
+              <i class="${iconMap[insight.type]} me-2" style="font-size: 1.2rem;"></i>
+              <h6 class="card-title mb-0">${insight.department} Department</h6>
+            </div>
+            <p class="card-text small text-muted mb-2">${insight.insight}</p>
+            <div class="row g-2 mb-2">
+              <div class="col-4">
+                <small class="text-muted">1 Month</small><br>
+                <strong>${insight.forecasts.probability.short.toFixed(1)}%</strong><br>
+                <span class="text-success small">$${insight.forecasts.revenue.short.toLocaleString()}</span>
+              </div>
+              <div class="col-4">
+                <small class="text-muted">3 Months</small><br>
+                <strong>${insight.forecasts.probability.medium.toFixed(1)}%</strong><br>
+                <span class="text-success small">$${insight.forecasts.revenue.medium.toLocaleString()}</span>
+              </div>
+              <div class="col-4">
+                <small class="text-muted">1 Year</small><br>
+                <strong>${insight.forecasts.probability.long.toFixed(1)}%</strong><br>
+                <span class="text-success small">$${insight.forecasts.revenue.long.toLocaleString()}</span>
+              </div>
+            </div>
+            <div class="alert alert-light small mb-0 py-2">
+              <i class="fas fa-lightbulb text-warning me-1"></i>
+              <strong>Recommendation:</strong> ${insight.recommendation}
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  insightsContainer.innerHTML = `
+    <div class="row">
+      ${insightsHtml}
+    </div>
+    <div class="alert alert-info mt-3">
+      <i class="fas fa-info-circle me-2"></i>
+      <strong>${algorithm.replace('_', ' ').toUpperCase()} Model Forecasts:</strong>
+      These predictions are based on real transaction data using the ${algorithm} algorithm.
+      Probability percentages represent likelihood of customer purchases, while revenue forecasts
+      estimate potential department performance over each time period.
+    </div>
+  `;
+
+  console.log('Time-based insights generated successfully');
 }
 
 function updateAccuracyChart(performance) {

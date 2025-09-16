@@ -407,13 +407,58 @@ class PredictiveMarketBasketAnalyzer:
                     confidence = max(0.6, min(0.98, confidence))
                     growth_prediction = max(0.7, min(1.5, growth_prediction))
 
+                    # Calculate time-based forecasts
+                    base_monthly_rate = transactions / (customers * 12)  # Average transactions per customer per month
+
+                    # Algorithm-specific time predictions
+                    if model_name == 'neural_network':
+                        month_1_prob = confidence * (0.8 + 0.2 * (avg_value / 50))
+                        month_3_prob = confidence * (0.7 + 0.25 * (customers / 1000))
+                        year_1_prob = confidence * (0.6 + 0.3 * growth_prediction)
+                    elif model_name == 'random_forest':
+                        month_1_prob = confidence * (0.75 + 0.2 * (base_monthly_rate * 10))
+                        month_3_prob = confidence * (0.65 + 0.3 * (transactions / 5000))
+                        year_1_prob = confidence * (0.55 + 0.35 * growth_prediction)
+                    elif model_name == 'svm':
+                        month_1_prob = confidence * (0.7 + 0.25 * np.sqrt(customers / 1000))
+                        month_3_prob = confidence * (0.6 + 0.3 * (avg_value / 40))
+                        year_1_prob = confidence * (0.5 + 0.4 * growth_prediction)
+                    else:  # gradient_boost
+                        month_1_prob = confidence * (0.85 + 0.15 * (avg_value / 30))
+                        month_3_prob = confidence * (0.75 + 0.2 * (customers / 1500))
+                        year_1_prob = confidence * (0.65 + 0.25 * growth_prediction)
+
+                    # Ensure probabilities are within reasonable bounds
+                    month_1_prob = max(0.3, min(0.95, month_1_prob))
+                    month_3_prob = max(0.25, min(0.90, month_3_prob))
+                    year_1_prob = max(0.2, min(0.85, year_1_prob))
+
+                    # Calculate revenue forecasts
+                    month_1_revenue = avg_value * customers * month_1_prob * 0.3  # 30% of customers expected
+                    month_3_revenue = avg_value * customers * month_3_prob * 0.5  # 50% of customers expected
+                    year_1_revenue = avg_value * customers * year_1_prob * 2.0   # Multiple purchases
+
                     predictions.append({
                         'department': dept_name,
                         'customers': customers,
                         'avg_value': avg_value,
                         'confidence': round(confidence, 3),
                         'predicted_growth': round(growth_prediction, 2),
-                        'transactions': transactions
+                        'transactions': transactions,
+                        'forecasts': {
+                            '1_month': {
+                                'probability': round(month_1_prob, 3),
+                                'revenue_forecast': round(month_1_revenue, 2)
+                            },
+                            '3_months': {
+                                'probability': round(month_3_prob, 3),
+                                'revenue_forecast': round(month_3_revenue, 2)
+                            },
+                            '1_year': {
+                                'probability': round(year_1_prob, 3),
+                                'revenue_forecast': round(year_1_revenue, 2)
+                            }
+                        }
                     })
                 
                 return predictions[:10]  # Top 10 departments
