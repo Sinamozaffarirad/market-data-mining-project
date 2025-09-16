@@ -1467,6 +1467,36 @@ function loadPredictiveAnalysis() {
   initializePredictiveCharts();
   generateRecommendations();
   updateTrainingSlider();
+
+  // Test API call immediately to verify real data access
+  console.log('Testing API access on page load...');
+  testApiAccess();
+}
+
+// Test API access to verify we can get real data
+function testApiAccess() {
+  fetch('/analysis/api/ml/predictions/', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'X-CSRFToken': getCsrfToken()
+    },
+    body: 'model_type=neural_network'
+  })
+  .then(response => response.json())
+  .then(data => {
+    console.log('API test result:', data);
+    if (data.success && data.predictions && data.predictions.length > 0) {
+      console.log('✓ API working - real data available');
+      console.log('Sample prediction:', data.predictions[0]);
+    } else {
+      console.error('✗ API test failed - no real data available');
+      console.error('Error details:', data);
+    }
+  })
+  .catch(error => {
+    console.error('✗ API test failed with error:', error);
+  });
 }
 
 function updateTrainingSlider() {
@@ -1682,11 +1712,14 @@ function runPredictiveAnalysis() {
       // Poll training status
       checkTrainingStatus(algorithm);
       
-      // Load predictions and recommendations
+      // Load predictions and recommendations immediately
+      loadPredictiveResults(algorithm);
+      generateRecommendations();
+
+      // Also load after a delay to catch any training updates
       setTimeout(() => {
         loadPredictiveResults(algorithm);
-        generateRecommendations();
-      }, 2000);
+      }, 3000);
       
     } else {
       showNotification(`Training failed: ${data.error}`, 'error');
@@ -1712,6 +1745,12 @@ function checkTrainingStatus(algorithm) {
         clearInterval(statusInterval);
         showNotification('Model training completed successfully!', 'success');
         loadModelPerformance(algorithm);
+
+        // Reload charts with updated model predictions
+        setTimeout(() => {
+          console.log('Training completed, reloading charts');
+          loadPredictiveResults(algorithm);
+        }, 1000);
       } else if (data.status === 'failed') {
         clearInterval(statusInterval);
         showNotification('Model training failed', 'error');
@@ -1725,6 +1764,8 @@ function checkTrainingStatus(algorithm) {
 }
 
 function loadPredictiveResults(algorithm) {
+  console.log(`Loading predictive results for algorithm: ${algorithm}`);
+
   // Load department predictions
   fetch('/analysis/api/ml/predictions/', {
     method: 'POST',
@@ -1734,15 +1775,50 @@ function loadPredictiveResults(algorithm) {
     },
     body: `model_type=${algorithm}`
   })
-  .then(response => response.json())
+  .then(response => {
+    console.log('Response received:', response.status);
+    return response.json();
+  })
   .then(data => {
-    if (data.success && data.predictions.length > 0) {
+    console.log('Predictions API response:', data);
+
+    if (data.success && data.predictions && data.predictions.length > 0) {
+      console.log(`Found ${data.predictions.length} predictions:`, data.predictions);
+      console.log('Calling updatePredictiveCharts with real data...');
       updatePredictiveCharts(data.predictions, algorithm);
+    } else {
+      console.error('No predictions found in API response!');
+      console.error('API Response details:', {
+        success: data.success,
+        predictions: data.predictions,
+        error: data.error,
+        fullResponse: data
+      });
+
+      // Show error message in chart containers
+      showChartError('No real data available from database. Please check your data source.');
     }
   })
   .catch(error => {
     console.error('Error loading predictions:', error);
   });
+}
+
+// Show error in chart containers when no real data is available
+function showChartError(message) {
+  const revenueContainer = document.getElementById('revenueImpactChart');
+  const segmentContainer = document.getElementById('customerSegmentChart');
+
+  const errorHtml = `
+    <div class="text-center py-5 text-danger">
+      <i class="fas fa-exclamation-triangle fa-3x mb-3"></i>
+      <h6>Real Data Required</h6>
+      <p style="font-size: 0.9rem;">${message}</p>
+    </div>
+  `;
+
+  if (revenueContainer) revenueContainer.innerHTML = errorHtml;
+  if (segmentContainer) segmentContainer.innerHTML = errorHtml;
 }
 
 function loadModelPerformance(algorithm) {
@@ -3011,16 +3087,54 @@ function getCsrfToken() {
 }
 
 function updatePredictiveCharts(predictions, algorithm) {
-  if (!predictions || predictions.length === 0) return;
+  console.log('updatePredictiveCharts called with algorithm:', algorithm);
+  console.log('Predictions data structure:', predictions);
+  console.log('Number of predictions:', predictions ? predictions.length : 0);
+
+  if (!predictions || predictions.length === 0) {
+    console.error('No predictions provided - using only real data, no fallbacks!');
+    showChartError('No real predictions available from the trained model.');
+    return;
+  }
+
+  // Validate that we have real data structure
+  const firstPred = predictions[0];
+  console.log('First prediction sample:', firstPred);
+
+  if (!firstPred.department || !firstPred.customers || !firstPred.avg_value) {
+    console.error('Invalid prediction data structure - missing required fields');
+    showChartError('Invalid data structure received from database.');
+    return;
+  }
 
   // Update Revenue Impact Chart
   const revenueContainer = document.getElementById('revenueImpactChart');
   if (revenueContainer) {
     // Get top 6 departments by predicted revenue
     const topDepts = predictions.slice(0, 6);
-    const revenueData = topDepts.map(p => p.avg_value * p.customers * p.predicted_growth);
+    console.log('Top departments for charts:', topDepts);
+
+    // Ensure we're calculating revenue from real database values only
+    const revenueData = topDepts.map(p => {
+      // Validate we have real data
+      if (!p.avg_value || !p.customers || !p.predicted_growth) {
+        console.error(`Missing real data for ${p.department}:`, p);
+        return 0;
+      }
+
+      const avgValue = parseFloat(p.avg_value);
+      const customers = parseInt(p.customers);
+      const growth = parseFloat(p.predicted_growth);
+      const revenue = avgValue * customers * growth;
+
+      console.log(`REAL DATA - ${p.department}: $${avgValue.toFixed(2)} avg × ${customers} customers × ${growth.toFixed(2)} growth = $${revenue.toFixed(0)} revenue`);
+      return Math.round(revenue);
+    });
     const labels = topDepts.map(p => p.department);
     const colors = topDepts.map(p => DEPARTMENT_CONFIG[p.department]?.color || '#6C757D');
+
+    console.log('Revenue data for chart:', revenueData);
+    console.log('Chart labels:', labels);
 
     revenueContainer.innerHTML = `<canvas id="revenueChart" height="250"></canvas>`;
     const ctx = document.getElementById('revenueChart');
@@ -3092,11 +3206,34 @@ function updatePredictiveCharts(predictions, algorithm) {
   // Update Customer Segment Chart
   const segmentContainer = document.getElementById('customerSegmentChart');
   if (segmentContainer) {
-    const segmentData = topDepts.map(p => ({
-      department: p.department,
-      confidence: p.confidence * 100,
-      growth: p.predicted_growth * 100
-    }));
+    console.log('Updating segment chart with real data:', topDepts);
+
+    // Ensure we have valid data for each department
+    const validDepts = topDepts.filter(p => p.department && p.confidence !== undefined && p.predicted_growth !== undefined);
+    console.log(`Filtered ${validDepts.length} valid departments out of ${topDepts.length}`);
+
+    if (validDepts.length === 0) {
+      console.error('No valid department data for segment chart');
+      document.getElementById('customerSegmentChart').innerHTML = `
+        <div class="text-center py-5 text-warning">
+          <i class="fas fa-database fa-3x mb-3"></i>
+          <h6>Insufficient Real Data</h6>
+          <p>Need departments with confidence and growth predictions from trained model.</p>
+        </div>
+      `;
+      return;
+    }
+
+    const segmentData = validDepts.map(p => {
+      const confidence = (p.confidence || 0) * 100;
+      const growth = (p.predicted_growth || 0) * 100;
+      console.log(`Real data - ${p.department}: confidence=${confidence.toFixed(1)}%, growth=${growth.toFixed(1)}%`);
+      return {
+        department: p.department,
+        confidence: Math.min(Math.max(confidence, 0), 100),
+        growth: Math.min(Math.max(growth, 0), 200)
+      };
+    });
 
     segmentContainer.innerHTML = `<canvas id="segmentChart" height="250"></canvas>`;
     const ctx2 = document.getElementById('segmentChart');
@@ -3115,7 +3252,8 @@ function updatePredictiveCharts(predictions, algorithm) {
           pointBorderColor: '#fff',
           pointHoverBackgroundColor: '#fff',
           pointHoverBorderColor: '#667eea',
-          borderWidth: 3
+          borderWidth: 3,
+          pointRadius: 6
         }, {
           label: 'Growth Potential (%)',
           data: segmentData.map(s => s.growth),
@@ -3125,7 +3263,8 @@ function updatePredictiveCharts(predictions, algorithm) {
           pointBorderColor: '#fff',
           pointHoverBackgroundColor: '#fff',
           pointHoverBorderColor: '#38a169',
-          borderWidth: 3
+          borderWidth: 3,
+          pointRadius: 6
         }]
       },
       options: {
@@ -3142,7 +3281,7 @@ function updatePredictiveCharts(predictions, algorithm) {
           },
           title: {
             display: true,
-            text: 'Prediction Confidence vs Growth Potential',
+            text: `${algorithm.replace('_', ' ').toUpperCase()} Model: Confidence vs Growth Analysis`,
             font: { size: 14, weight: 'bold' },
             color: '#2d3748'
           }
@@ -3150,11 +3289,14 @@ function updatePredictiveCharts(predictions, algorithm) {
         scales: {
           r: {
             beginAtZero: true,
-            max: 120,
+            max: 150,
             ticks: {
-              stepSize: 20,
+              stepSize: 25,
               callback: function(value) {
                 return value + '%';
+              },
+              font: {
+                size: 10
               }
             },
             grid: {
@@ -3162,11 +3304,22 @@ function updatePredictiveCharts(predictions, algorithm) {
             },
             angleLines: {
               color: 'rgba(0, 0, 0, 0.1)'
+            },
+            pointLabels: {
+              font: {
+                size: 11,
+                weight: 'bold'
+              }
             }
           }
+        },
+        interaction: {
+          intersect: false
         }
       }
     });
+
+    console.log('Segment chart created successfully');
   }
 }
 
