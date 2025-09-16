@@ -214,6 +214,88 @@
   border: 1px solid #e9ecef;
 }
 
+.recommendations-scroll-container {
+  max-height: 420px;
+  overflow-y: auto;
+  padding-right: 0.75rem;
+  margin-right: -0.25rem;
+  padding-bottom: 0.5rem;
+}
+
+.recommendations-scroll-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.recommendations-scroll-container::-webkit-scrollbar-thumb {
+  background: rgba(102, 126, 234, 0.35);
+  border-radius: 4px;
+}
+
+.recommendations-scroll-container::-webkit-scrollbar-track {
+  background: rgba(248, 249, 250, 0.7);
+}
+
+.recommendation-card {
+  border-radius: 18px;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.08);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(248, 249, 252, 0.98));
+  height: 100%;
+}
+
+.recommendation-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 18px 35px rgba(99, 102, 241, 0.25);
+}
+
+.recommendation-card .card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  height: 100%;
+}
+
+.recommendation-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 0.35rem;
+  margin-top: 0.25rem;
+}
+
+.recommendation-meta span {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.7rem;
+  color: #6c757d;
+}
+
+.product-id-badge {
+  background: rgba(15, 23, 42, 0.08);
+  color: #1f2937;
+  border-radius: 999px;
+  font-size: 0.65rem;
+  padding: 0.2rem 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.recommendation-stat {
+  background: rgba(237, 242, 247, 0.9);
+  border-radius: 12px;
+  padding: 0.5rem 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  color: #475569;
+}
+
+.recommendation-stat i {
+  color: #6366f1;
+}
+
 .association-rules-container {
   padding: 1rem;
   border: 1px solid #e9ecef;
@@ -730,8 +812,10 @@ html, body {
             </button>
           </div>
         </div>
-        <div class="row g-3" id="recommendedProducts">
-          <!-- Dynamic content -->
+        <div class="recommendations-scroll-container">
+          <div class="row g-3" id="recommendedProducts">
+            <!-- Dynamic content -->
+          </div>
         </div>
       </div>
     </div>
@@ -1405,7 +1489,7 @@ function initializePredictiveCharts() {
 function generateRecommendations() {
   const algorithm = document.getElementById('mlAlgorithm').value;
   const container = document.getElementById('recommendedProducts');
-  
+
   if (container) {
     container.innerHTML = '<div class="col-12 text-center"><i class="fas fa-spinner fa-spin fa-2x"></i><p>Loading AI-powered recommendations...</p></div>';
   }
@@ -1422,34 +1506,72 @@ function generateRecommendations() {
   .then(response => response.json())
   .then(data => {
     if (data.success && data.recommendations.length > 0) {
-      const html = data.recommendations.map(rec => `
-        <div class="col-md-6 col-lg-3">
-          <div class="card h-100 recommendation-card" 
-               style="border-left: 4px solid ${DEPARTMENT_CONFIG[rec.department]?.color || '#6C757D'}; cursor: pointer; transition: all 0.3s ease;" 
-               data-product-id="${rec.product_id}" 
-               data-department="${rec.department}" 
-               data-commodity="${rec.commodity || 'All Products'}" 
-               data-confidence="${rec.confidence}" 
-               data-revenue-impact="${rec.revenue_impact}"
-               onmouseover="this.style.transform='translateY(-3px)'; this.style.boxShadow='0 12px 30px rgba(0,0,0,0.2)'"
-               onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow=''"
-               onclick="showRecommendationDetails('${rec.product_id}', '${rec.department}', '${rec.commodity || 'All Products'}', '${rec.confidence}', '${rec.revenue_impact}')">
-            <div class="card-body">
-              <div class="d-flex align-items-center mb-2">
-                ${createDepartmentBadge(rec.department)}
-                <span class="ms-auto badge bg-success">${(rec.confidence * 100).toFixed(0)}%</span>
+      const html = data.recommendations.map(rec => {
+        const departmentColor = DEPARTMENT_CONFIG[rec.department]?.color || '#6C757D';
+        const brand = escapeHtml(rec.brand || 'Unknown Brand');
+        const commodityName = escapeHtml(rec.commodity || 'All Products');
+        const subCommodity = rec.sub_commodity ? escapeHtml(rec.sub_commodity) : '';
+        const manufacturer = escapeHtml(rec.manufacturer || 'Unknown Manufacturer');
+        const size = escapeHtml(rec.size || 'N/A');
+        const households = Number(rec.customer_count || 0).toLocaleString();
+        const formattedRevenueImpact = Number(rec.revenue_impact || 0).toLocaleString();
+        const formattedAvgValue = Number(rec.avg_value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const formattedTotalValue = Number(rec.total_value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const formattedTotalQuantity = Number(rec.total_quantity || 0).toLocaleString();
+        const commodityBadge = createCommodityBadge(rec.commodity || 'All Products');
+        const subtitle = subCommodity ? `${commodityName} • ${subCommodity}` : commodityName;
+
+        return `
+          <div class="col-12 col-md-6 col-xl-4">
+            <div class="recommendation-card h-100"
+                 style="border-left: 4px solid ${departmentColor}; cursor: pointer;"
+                 data-product-id="${escapeHtml(rec.product_id)}"
+                 data-department="${escapeHtml(rec.department || '')}"
+                 data-commodity="${escapeHtml(rec.commodity || '')}"
+                 data-sub-commodity="${escapeHtml(rec.sub_commodity || '')}"
+                 data-brand="${escapeHtml(rec.brand || '')}"
+                 data-size="${escapeHtml(rec.size || '')}"
+                 data-manufacturer="${escapeHtml(rec.manufacturer || '')}"
+                 data-confidence="${rec.confidence}"
+                 data-revenue-impact="${rec.revenue_impact}"
+                 data-customer-count="${rec.customer_count || 0}"
+                 data-avg-value="${rec.avg_value || 0}"
+                 data-total-value="${rec.total_value || 0}"
+                 data-total-quantity="${rec.total_quantity || 0}">
+              <div class="card-body">
+                <div class="d-flex align-items-center mb-2 gap-2">
+                  ${createDepartmentBadge(rec.department || 'MISC. TRANS.')}
+                  <span class="product-id-badge">ID ${escapeHtml(rec.product_id)}</span>
+                  <span class="ms-auto badge bg-success">${(Number(rec.confidence) * 100).toFixed(0)}%</span>
+                </div>
+                <h6 class="card-title mb-0">${brand}</h6>
+                <small class="text-muted d-block">${subtitle}</small>
+                <div class="mt-3 mb-2">
+                  <span class="fw-bold text-primary fs-5">+$${formattedRevenueImpact}</span>
+                  <div class="text-muted small">Predicted Revenue Impact</div>
+                </div>
+                <div class="recommendation-stat"><i class="fas fa-industry"></i><span><strong>Manufacturer:</strong> ${manufacturer}</span></div>
+                <div class="recommendation-meta">
+                  <span><i class="fas fa-box-open me-1 text-primary"></i><strong> Size:</strong> ${size}</span>
+                  <span><i class="fas fa-users me-1 text-primary"></i><strong> Households:</strong> ${households}</span>
+                  <span><i class="fas fa-shopping-basket me-1 text-primary"></i><strong> Total Units:</strong> ${formattedTotalQuantity}</span>
+                  <span><i class="fas fa-coins me-1 text-primary"></i><strong> Total Sales:</strong> $${formattedTotalValue}</span>
+                  <span><i class="fas fa-receipt me-1 text-primary"></i><strong> Avg. Basket:</strong> $${formattedAvgValue}</span>
+                </div>
+                <div class="mt-auto text-muted small pt-2">
+                  ${commodityBadge}
+                  <div class="mt-2"><i class="fas fa-mouse-pointer"></i> Click for full profile</div>
+                </div>
               </div>
-              <h6 class="card-title text-truncate">${rec.commodity || 'All Products'}</h6>
-              <div class="fw-bold text-primary fs-5">+$${rec.revenue_impact.toLocaleString()}</div>
-              <div class="text-muted small">Predicted Revenue Impact</div>
-              <div class="text-muted small mt-1">Product ID: ${rec.product_id}</div>
-              <div class="text-muted small mt-1"><i class="fas fa-mouse-pointer"></i> Click for details</div>
             </div>
           </div>
-        </div>
-      `).join('');
-      
-      if (container) container.innerHTML = html;
+        `;
+      }).join('');
+
+      if (container) {
+        container.innerHTML = html;
+        initializeRecommendationCards(container);
+      }
     } else {
       if (container) {
         container.innerHTML = '<div class="col-12 text-center text-muted"><i class="fas fa-exclamation-triangle fa-2x mb-2"></i><p>No recommendations available. Try training the model first.</p></div>';
@@ -1461,6 +1583,39 @@ function generateRecommendations() {
     if (container) {
       container.innerHTML = '<div class="col-12 text-center text-danger"><i class="fas fa-exclamation-circle fa-2x mb-2"></i><p>Error loading recommendations</p></div>';
     }
+  });
+}
+
+function initializeRecommendationCards(scope = document) {
+  if (!scope || !scope.querySelectorAll) {
+    return;
+  }
+
+  const cards = scope.querySelectorAll('.recommendation-card');
+  cards.forEach(card => {
+    if (card.dataset.listenerAttached === 'true') {
+      return;
+    }
+
+    card.addEventListener('click', () => {
+      showRecommendationDetails(
+        card.dataset.productId,
+        card.dataset.department,
+        card.dataset.commodity,
+        card.dataset.confidence,
+        card.dataset.revenueImpact,
+        card.dataset.manufacturer,
+        card.dataset.brand,
+        card.dataset.subCommodity,
+        card.dataset.size,
+        card.dataset.customerCount,
+        card.dataset.avgValue,
+        card.dataset.totalValue,
+        card.dataset.totalQuantity
+      );
+    });
+
+    card.dataset.listenerAttached = 'true';
   });
 }
 
@@ -2085,22 +2240,7 @@ function attachPopupEventListeners(sectionType) {
       });
     });
   } else if (sectionType === 'recommendations') {
-    // Attach recommendation card click handlers
-    const recommendationCards = expandedContent.querySelectorAll('.recommendation-card');
-    recommendationCards.forEach(card => {
-      card.style.cursor = 'pointer';
-      card.addEventListener('click', function() {
-        const productId = this.dataset.productId;
-        const department = this.dataset.department;
-        const commodity = this.dataset.commodity;
-        const confidence = this.dataset.confidence;
-        const revenueImpact = this.dataset.revenueImpact;
-
-        if (productId) {
-          showRecommendationDetails(productId, department, commodity, confidence, revenueImpact);
-        }
-      });
-    });
+    initializeRecommendationCards(expandedContent);
   } else if (sectionType === 'differential') {
     // Attach differential insight card click handlers
     const insightCards = expandedContent.querySelectorAll('.differential-insight-card');
@@ -2430,45 +2570,91 @@ function showDifferentialInsightDetails(title, description, impact, recommendati
   showDetailModal(`${impactIcon} Differential Analysis Insight`, body);
 }
 
-function showRecommendationDetails(productId, department, commodity, confidence, revenueImpact) {
+
+function showRecommendationDetails(
+  productId,
+  department,
+  commodity,
+  confidence,
+  revenueImpact,
+  manufacturer,
+  brand,
+  subCommodity,
+  size,
+  customerCount,
+  avgValue,
+  totalValue,
+  totalQuantity
+) {
   const title = `🛒 Product Recommendation Details`;
-  
-  // Parse confidence as a percentage
-  const confidencePercent = (parseFloat(confidence) * 100).toFixed(1);
-  
-  // Format revenue impact
-  const formattedRevenue = revenueImpact ? `$${parseInt(revenueImpact).toLocaleString()}` : 'N/A';
-  
-  // Create department and commodity badges
-  const deptBadge = createDepartmentBadge(department || 'N/A');
-  const commodityBadge = createCommodityBadge(commodity || 'N/A');
-  
-  // Get confidence interpretation
+
+  const parsedConfidence = parseFloat(confidence || 0);
+  const confidencePercent = (parsedConfidence * 100).toFixed(1);
+  const formattedRevenue = revenueImpact ? `$${Number(revenueImpact).toLocaleString()}` : 'N/A';
+
+  const normalizedDepartment = department && department !== 'undefined' && department !== '' ? department : 'MISC. TRANS.';
+  const normalizedCommodity = commodity && commodity !== 'undefined' && commodity !== '' ? commodity : 'All Products';
+  const normalizedBrand = brand && brand !== 'undefined' && brand !== '' ? brand : 'Unknown Brand';
+  const normalizedManufacturer = manufacturer && manufacturer !== 'undefined' && manufacturer !== '' ? manufacturer : 'Not Provided';
+  const normalizedSubCommodity = subCommodity && subCommodity !== 'undefined' && subCommodity !== '' ? subCommodity : 'N/A';
+  const normalizedSize = size && size !== 'undefined' && size !== '' ? size : 'N/A';
+
+  const deptBadge = createDepartmentBadge(normalizedDepartment);
+  const commodityBadge = createCommodityBadge(normalizedCommodity);
+
+  const safeProductId = escapeHtml(productId || 'N/A');
+  const displayBrand = escapeHtml(normalizedBrand);
+  const displayManufacturer = escapeHtml(normalizedManufacturer);
+  const displaySubCommodity = escapeHtml(normalizedSubCommodity);
+  const displaySize = escapeHtml(normalizedSize);
+  const displayCommodity = escapeHtml(normalizedCommodity);
+
+  const householdsNum = customerCount ? parseInt(customerCount, 10) || 0 : 0;
+  const avgValueNum = avgValue ? parseFloat(avgValue) || 0 : 0;
+  const totalValueNum = totalValue ? parseFloat(totalValue) || 0 : 0;
+  const totalQuantityNum = totalQuantity ? parseFloat(totalQuantity) || 0 : 0;
+
+  const households = householdsNum.toLocaleString();
+  const formattedAvgValue = `$${avgValueNum.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const formattedTotalValue = `$${totalValueNum.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const formattedTotalQuantity = totalQuantityNum.toLocaleString();
+  const revenuePerUnitValue = totalQuantityNum > 0 ? totalValueNum / totalQuantityNum : null;
+  const formattedRevenuePerUnit = revenuePerUnitValue !== null ? `$${revenuePerUnitValue.toFixed(2)}` : 'N/A';
+  const subtitleText = normalizedSubCommodity !== 'N/A' ? `${displayCommodity} • ${displaySubCommodity}` : displayCommodity;
+
+  const commodityLowerEscaped = escapeHtml(normalizedCommodity.toLowerCase());
+  const subCommodityLowerEscaped = normalizedSubCommodity !== 'N/A' ? escapeHtml(normalizedSubCommodity.toLowerCase()) : '';
+  const departmentEscaped = escapeHtml(normalizedDepartment);
+
   let confidenceLevel = 'Low';
   let confidenceColor = '#dc3545';
-  let confidenceDesc = 'This recommendation has low confidence. Consider additional market research.';
-  
-  if (parseFloat(confidence) >= 0.8) {
+  let confidenceDesc = `This recommendation has low confidence. Consider additional validation before expanding <strong>${displayBrand}</strong>.`;
+
+  if (parsedConfidence >= 0.8) {
     confidenceLevel = 'Very High';
     confidenceColor = '#28a745';
-    confidenceDesc = 'This is a highly confident recommendation based on strong predictive patterns.';
-  } else if (parseFloat(confidence) >= 0.65) {
+    confidenceDesc = `<strong>${displayBrand}</strong> shows very strong predictive signals with consistent purchase behavior across engaged households.`;
+  } else if (parsedConfidence >= 0.65) {
     confidenceLevel = 'High';
     confidenceColor = '#20c997';
-    confidenceDesc = 'This recommendation shows good confidence with reliable predictive indicators.';
-  } else if (parseFloat(confidence) >= 0.5) {
+    confidenceDesc = `Predictive indicators for <strong>${displayBrand}</strong> are reliable and align well with recent shopping patterns.`;
+  } else if (parsedConfidence >= 0.5) {
     confidenceLevel = 'Medium';
     confidenceColor = '#ffc107';
-    confidenceDesc = 'This recommendation has moderate confidence. Consider combining with other insights.';
+    confidenceDesc = `<strong>${displayBrand}</strong> has moderate confidence. Pair with supporting campaigns and monitor response closely.`;
   }
-  
+
+  const strategyPromo = parsedConfidence >= 0.7
+    ? '<li>This high-confidence recommendation is ideal for feature placement and promotional campaigns.</li>'
+    : '<li>Run controlled tests before scaling major promotions to confirm shopper response.</li>';
+
   const body = `
     <div class="recommendation-details" style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
       <div class="row mb-4">
         <div class="col-md-6">
           <div class="detail-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 1.5rem; border-radius: 15px; text-align: center;">
             <h4 style="margin: 0; font-weight: 600;">Product ID</h4>
-            <h2 style="margin: 0.5rem 0 0 0; font-size: 2.5rem; font-weight: 700;">${productId}</h2>
+            <h2 style="margin: 0.5rem 0 0 0; font-size: 2.5rem; font-weight: 700;">${safeProductId}</h2>
           </div>
         </div>
         <div class="col-md-6">
@@ -2479,7 +2665,7 @@ function showRecommendationDetails(productId, department, commodity, confidence,
           </div>
         </div>
       </div>
-      
+
       <div class="row mb-4">
         <div class="col-md-6">
           <div style="background: #f8f9fa; padding: 1.5rem; border-radius: 10px; border-left: 4px solid #007bff;">
@@ -2489,12 +2675,32 @@ function showRecommendationDetails(productId, department, commodity, confidence,
         </div>
         <div class="col-md-6">
           <div style="background: #f8f9fa; padding: 1.5rem; border-radius: 10px; border-left: 4px solid #28a745;">
-            <h5 style="color: #495057; margin-bottom: 1rem;"><i class="fas fa-boxes"></i> Commodity</h5>
-            <div>${commodityBadge}</div>
+            <h5 style="color: #495057; margin-bottom: 1rem;"><i class="fas fa-boxes"></i> Commodity Profile</h5>
+            <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+              ${commodityBadge}
+              <span style="color: #6c757d; font-size: 0.85rem;">${subtitleText}</span>
+            </div>
           </div>
         </div>
       </div>
-      
+
+      <div class="row mb-4">
+        <div class="col-md-6">
+          <div style="background: #f8f9fa; padding: 1.5rem; border-radius: 10px; border-left: 4px solid #6610f2;">
+            <h5 style="color: #495057; margin-bottom: 0.75rem;"><i class="fas fa-tag"></i> Brand & Manufacturer</h5>
+            <p style="margin: 0; color: #495057;"><strong>Brand:</strong> ${displayBrand}</p>
+            <p style="margin: 0.35rem 0 0 0; color: #495057;"><strong>Manufacturer:</strong> ${displayManufacturer}</p>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div style="background: #f8f9fa; padding: 1.5rem; border-radius: 10px; border-left: 4px solid #fd7e14;">
+            <h5 style="color: #495057; margin-bottom: 0.75rem;"><i class="fas fa-ruler-combined"></i> Product Attributes</h5>
+            <p style="margin: 0; color: #495057;"><strong>Size / Pack:</strong> ${displaySize}</p>
+            <p style="margin: 0.35rem 0 0 0; color: #495057;"><strong>Sub-Commodity:</strong> ${displaySubCommodity}</p>
+          </div>
+        </div>
+      </div>
+
       <div class="row mb-4">
         <div class="col-12">
           <div style="background: linear-gradient(135deg, #28a745, #20c997); color: white; padding: 1.5rem; border-radius: 10px; text-align: center;">
@@ -2504,22 +2710,63 @@ function showRecommendationDetails(productId, department, commodity, confidence,
           </div>
         </div>
       </div>
-      
+
+      <div class="row g-3 mb-4">
+        <div class="col-sm-6 col-lg-3">
+          <div style="background: #f8f9fa; padding: 1.25rem; border-radius: 12px; border-left: 4px solid #6366f1;">
+            <h6 style="margin: 0; color: #4b5563; font-weight: 600;">Household Reach</h6>
+            <h3 style="margin: 0.5rem 0; color: #1f2937;">${households}</h3>
+            <p style="margin: 0; font-size: 0.8rem; color: #6b7280;">Unique shoppers purchasing this item</p>
+          </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+          <div style="background: #f8f9fa; padding: 1.25rem; border-radius: 12px; border-left: 4px solid #0d6efd;">
+            <h6 style="margin: 0; color: #4b5563; font-weight: 600;">Total Sales Value</h6>
+            <h3 style="margin: 0.5rem 0; color: #1f2937;">${formattedTotalValue}</h3>
+            <p style="margin: 0; font-size: 0.8rem; color: #6b7280;">Historical sales captured in the dataset</p>
+          </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+          <div style="background: #f8f9fa; padding: 1.25rem; border-radius: 12px; border-left: 4px solid #198754;">
+            <h6 style="margin: 0; color: #4b5563; font-weight: 600;">Total Units Sold</h6>
+            <h3 style="margin: 0.5rem 0; color: #1f2937;">${formattedTotalQuantity}</h3>
+            <p style="margin: 0; font-size: 0.8rem; color: #6b7280;">Units purchased across all baskets</p>
+          </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+          <div style="background: #f8f9fa; padding: 1.25rem; border-radius: 12px; border-left: 4px solid #fd7e14;">
+            <h6 style="margin: 0; color: #4b5563; font-weight: 600;">Avg Basket Value</h6>
+            <h3 style="margin: 0.5rem 0; color: #1f2937;">${formattedAvgValue}</h3>
+            <p style="margin: 0; font-size: 0.8rem; color: #6b7280;">Average spend when this product is included</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="row mb-4">
+        <div class="col-12">
+          <div style="background: #fef9ef; padding: 1.25rem; border-radius: 12px; border-left: 4px solid #ffc107;">
+            <h6 style="margin: 0 0 0.75rem 0; color: #84550a; font-weight: 600;"><i class="fas fa-balance-scale"></i> Revenue per Unit</h6>
+            <p style="margin: 0; color: #6c757d; line-height: 1.5;">Average revenue per unit: <strong>${formattedRevenuePerUnit}</strong>. Use this to evaluate pricing and promotional discounts without eroding margin.</p>
+          </div>
+        </div>
+      </div>
+
       <div style="background: #e9ecef; padding: 1.5rem; border-radius: 10px;">
         <h5 style="color: #495057; margin-bottom: 1rem;"><i class="fas fa-lightbulb"></i> AI Analysis</h5>
-        <p style="color: #6c757d; margin-bottom: 1rem; line-height: 1.6;">${confidenceDesc}</p>
-        
+        <p style="color: #6c757d; margin-bottom: 1rem; line-height: 1.6;">${confidenceDesc} Household spend averages ${formattedAvgValue} with lifetime sales of ${formattedTotalValue}, supporting the predicted lift of ${formattedRevenue}.</p>
+
         <h6 style="color: #495057; margin-bottom: 0.5rem;">Recommendation Strategy:</h6>
         <ul style="color: #6c757d; margin: 0; padding-left: 1.5rem;">
-          <li>Position this product prominently in the <strong>${department}</strong> section</li>
-          <li>Consider cross-merchandising with complementary ${commodity.toLowerCase()} products</li>
-          <li>Monitor performance and adjust placement based on actual sales data</li>
-          ${parseFloat(confidence) >= 0.7 ? '<li>This high-confidence recommendation is suitable for promotional campaigns</li>' : '<li>Test with smaller inventory quantities before major promotions</li>'}
+          <li>Spotlight <strong>${displayBrand}</strong> within the <strong>${departmentEscaped}</strong> aisle using merchandising that highlights the ${displaySize} pack.</li>
+          <li>Bundle with complementary ${commodityLowerEscaped}${subCommodityLowerEscaped ? ` / ${subCommodityLowerEscaped}` : ''} items to drive cross-basket value.</li>
+          <li>Coordinate with <strong>${displayManufacturer}</strong> on co-branded offers that leverage the ${formattedRevenue} upside.</li>
+          <li>Engage the ${households} households already purchasing this item with personalized follow-up campaigns.</li>
+          ${strategyPromo}
         </ul>
       </div>
     </div>
   `;
-  
+
   showDetailModal(title, body);
 }
 
