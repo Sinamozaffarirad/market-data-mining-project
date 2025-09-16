@@ -40,16 +40,62 @@
             <div class="row g-3">
               {% for rule in rules %}
               <div class="col-12 col-sm-6 col-md-4 col-lg-3">
-                <div class="card h-100 shadow-sm rule-card" style="cursor:pointer;" data-ant="{{ rule.antecedent|join:', ' }}" data-con="{{ rule.consequent|join:', ' }}" data-sup="{{ rule.support|floatformat:4 }}" data-conf="{{ rule.confidence|floatformat:4 }}" data-lift="{{ rule.lift|floatformat:4 }}" data-type="{{ rule.rule_type|default:'frequent_itemset' }}">
+                <div class="card h-100 shadow-sm rule-card"
+                     style="border-left: 4px solid {% if rule.antecedent_details.0.department == 'GROCERY' %}#2E86C1{% elif rule.antecedent_details.0.department == 'DRUG GM' %}#A569BD{% elif rule.antecedent_details.0.department == 'PRODUCE' %}#27AE60{% elif rule.antecedent_details.0.department == 'DAIRY' %}#F39C12{% elif rule.antecedent_details.0.department == 'MEAT-PCKGD' %}#E74C3C{% elif rule.antecedent_details.0.department == 'FROZEN GROCERY' %}#85C1E9{% elif rule.antecedent_details.0.department == 'BAKERY' %}#D4AC0D{% elif rule.antecedent_details.0.department == 'BEVERAGE' %}#17A2B8{% else %}#6C757D{% endif %}; cursor: pointer; transition: all 0.3s ease;"
+                     data-ant="{{ rule.antecedent|join:', ' }}"
+                     data-con="{{ rule.consequent|join:', ' }}"
+                     data-sup="{{ rule.support|floatformat:4 }}"
+                     data-conf="{{ rule.confidence|floatformat:4 }}"
+                     data-lift="{{ rule.lift|floatformat:4 }}"
+                     data-type="{{ rule.rule_type|default:'frequent_itemset' }}"
+                     onmouseover="this.style.transform='translateY(-3px)'; this.style.boxShadow='0 12px 30px rgba(0,0,0,0.2)'"
+                     onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow=''">
                   <div class="card-body">
-                    <div class="d-flex justify-content-between mb-2">
-                      <div class="fw-semibold">{{ rule.antecedent|join:', ' }}</div>
-                      <i class="fa-solid fa-arrow-right"></i>
+                    <!-- Antecedent Product -->
+                    <div class="d-flex align-items-center mb-2">
+                      <span class="department-badge" style="background: {% if rule.antecedent_details.0.department == 'GROCERY' %}linear-gradient(135deg, #2E86C1, #3498DB){% elif rule.antecedent_details.0.department == 'DRUG GM' %}linear-gradient(135deg, #A569BD, #BB8FCE){% elif rule.antecedent_details.0.department == 'PRODUCE' %}linear-gradient(135deg, #27AE60, #2ECC71){% elif rule.antecedent_details.0.department == 'DAIRY' %}linear-gradient(135deg, #F39C12, #F8C471){% elif rule.antecedent_details.0.department == 'MEAT-PCKGD' %}linear-gradient(135deg, #E74C3C, #EC7063){% elif rule.antecedent_details.0.department == 'FROZEN GROCERY' %}linear-gradient(135deg, #85C1E9, #AED6F1){% elif rule.antecedent_details.0.department == 'BAKERY' %}linear-gradient(135deg, #D4AC0D, #F1C40F){% elif rule.antecedent_details.0.department == 'BEVERAGE' %}linear-gradient(135deg, #17A2B8, #20C997){% else %}linear-gradient(135deg, #6C757D, #ADB5BD){% endif %}; color: white; padding: 4px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;">
+                        {% if rule.antecedent_details.0.department == 'GROCERY' %}🛒{% elif rule.antecedent_details.0.department == 'DRUG GM' %}🩹{% elif rule.antecedent_details.0.department == 'PRODUCE' %}🥬{% elif rule.antecedent_details.0.department == 'DAIRY' %}🥛{% elif rule.antecedent_details.0.department == 'MEAT-PCKGD' %}🥩{% elif rule.antecedent_details.0.department == 'FROZEN GROCERY' %}❄️{% elif rule.antecedent_details.0.department == 'BAKERY' %}🍞{% elif rule.antecedent_details.0.department == 'BEVERAGE' %}🥤{% else %}📦{% endif %} {{ rule.antecedent_details.0.department }}
+                      </span>
                     </div>
-                    <div class="mb-2">{{ rule.consequent|join:', ' }}</div>
-                    <div class="d-flex justify-content-between small text-muted"><span>Support</span><span>{{ rule.support|floatformat:4 }}</span></div>
-                    <div class="d-flex justify-content-between small text-muted"><span>Confidence</span><span>{{ rule.confidence|floatformat:4 }}</span></div>
-                    <div class="d-flex justify-content-between"><span class="text-muted small">Lift</span><span class="badge bg-success">{{ rule.lift|floatformat:4 }}</span></div>
+                    <h6 class="card-title text-truncate mb-1" title="{{ rule.antecedent_details.0.commodity }}">
+                      {{ rule.antecedent_details.0.commodity|truncatechars:30 }}
+                    </h6>
+                    <div class="text-muted small mb-2">ID: {{ rule.antecedent|join:', ' }} • {{ rule.antecedent_details.0.brand }}</div>
+
+                    <!-- Arrow Separator -->
+                    <div class="text-center mb-2">
+                      <i class="fas fa-long-arrow-alt-down text-primary" style="font-size: 1.2rem;"></i>
+                    </div>
+
+                    <!-- Consequent Product -->
+                    <div class="mb-2">
+                      <span class="department-badge" style="background: {% if rule.consequent_details.0.department == 'GROCERY' %}linear-gradient(135deg, #2E86C1, #3498DB){% elif rule.consequent_details.0.department == 'DRUG GM' %}linear-gradient(135deg, #A569BD, #BB8FCE){% elif rule.consequent_details.0.department == 'PRODUCE' %}linear-gradient(135deg, #27AE60, #2ECC71){% elif rule.consequent_details.0.department == 'DAIRY' %}linear-gradient(135deg, #F39C12, #F8C471){% elif rule.consequent_details.0.department == 'MEAT-PCKGD' %}linear-gradient(135deg, #E74C3C, #EC7063){% elif rule.consequent_details.0.department == 'FROZEN GROCERY' %}linear-gradient(135deg, #85C1E9, #AED6F1){% elif rule.consequent_details.0.department == 'BAKERY' %}linear-gradient(135deg, #D4AC0D, #F1C40F){% elif rule.consequent_details.0.department == 'BEVERAGE' %}linear-gradient(135deg, #17A2B8, #20C997){% else %}linear-gradient(135deg, #6C757D, #ADB5BD){% endif %}; color: white; padding: 4px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;">
+                        {% if rule.consequent_details.0.department == 'GROCERY' %}🛒{% elif rule.consequent_details.0.department == 'DRUG GM' %}🩹{% elif rule.consequent_details.0.department == 'PRODUCE' %}🥬{% elif rule.consequent_details.0.department == 'DAIRY' %}🥛{% elif rule.consequent_details.0.department == 'MEAT-PCKGD' %}🥩{% elif rule.consequent_details.0.department == 'FROZEN GROCERY' %}❄️{% elif rule.consequent_details.0.department == 'BAKERY' %}🍞{% elif rule.consequent_details.0.department == 'BEVERAGE' %}🥤{% else %}📦{% endif %} {{ rule.consequent_details.0.department }}
+                      </span>
+                    </div>
+                    <h6 class="card-title text-truncate mb-1" title="{{ rule.consequent_details.0.commodity }}">
+                      {{ rule.consequent_details.0.commodity|truncatechars:30 }}
+                    </h6>
+                    <div class="text-muted small mb-2">ID: {{ rule.consequent|join:', ' }} • {{ rule.consequent_details.0.brand }}</div>
+
+                    <!-- Statistics -->
+                    <div class="mt-2 pt-2 border-top">
+                      <div class="d-flex justify-content-between small">
+                        <span class="text-muted">Support:</span>
+                        <span class="fw-bold">{{ rule.support|floatformat:3 }}</span>
+                      </div>
+                      <div class="d-flex justify-content-between small">
+                        <span class="text-muted">Confidence:</span>
+                        <span class="fw-bold">{{ rule.confidence|floatformat:3 }}</span>
+                      </div>
+                      <div class="d-flex justify-content-between">
+                        <span class="text-muted small">Lift:</span>
+                        <span class="badge bg-success">{{ rule.lift|floatformat:2 }}</span>
+                      </div>
+                    </div>
+                    <div class="text-muted small mt-2 text-center">
+                      <i class="fas fa-mouse-pointer"></i> Click for details
+                    </div>
                   </div>
                 </div>
               </div>
@@ -68,13 +114,54 @@
 document.addEventListener('DOMContentLoaded', function(){
   document.querySelectorAll('.rule-card').forEach(el=>{
     el.addEventListener('click', ()=>{
-      const title = `${el.dataset.ant} → ${el.dataset.con}`;
-      const body = `<div class="row g-3">
-        <div class=\"col-6\"><div class=\"border rounded p-2\"><div class=\"text-muted small\">Support</div><div class=\"fw-bold\">${el.dataset.sup}</div></div></div>
-        <div class=\"col-6\"><div class=\"border rounded p-2\"><div class=\"text-muted small\">Confidence</div><div class=\"fw-bold\">${el.dataset.conf}</div></div></div>
-        <div class=\"col-6\"><div class=\"border rounded p-2\"><div class=\"text-muted small\">Lift</div><div class=\"fw-bold\">${el.dataset.lift}</div></div></div>
-        <div class=\"col-6\"><div class=\"border rounded p-2\"><div class=\"text-muted small\">Type</div><div class=\"fw-bold\">${el.dataset.type}</div></div></div>
-      </div>`;
+      const title = `🔗 Association Rule: ${el.dataset.ant} → ${el.dataset.con}`;
+      const body = `
+        <div class="row g-3">
+          <div class="col-12">
+            <div class="alert alert-info">
+              <h6><i class="fas fa-info-circle"></i> Rule Interpretation</h6>
+              <p class="mb-0">When customers buy product <strong>${el.dataset.ant}</strong>, they also tend to buy product <strong>${el.dataset.con}</strong></p>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="card border-primary">
+              <div class="card-body text-center">
+                <div class="text-primary h4">${el.dataset.sup}</div>
+                <div class="text-muted small">Support</div>
+                <small class="text-muted d-block">Frequency of both items together</small>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="card border-warning">
+              <div class="card-body text-center">
+                <div class="text-warning h4">${el.dataset.conf}</div>
+                <div class="text-muted small">Confidence</div>
+                <small class="text-muted d-block">Reliability of the rule</small>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="card border-success">
+              <div class="card-body text-center">
+                <div class="text-success h4">${el.dataset.lift}</div>
+                <div class="text-muted small">Lift</div>
+                <small class="text-muted d-block">Strength of association</small>
+              </div>
+            </div>
+          </div>
+          <div class="col-12">
+            <div class="bg-light p-3 rounded">
+              <h6><i class="fas fa-lightbulb text-warning"></i> Business Insights</h6>
+              <ul class="mb-0">
+                <li><strong>Cross-selling opportunity:</strong> Promote product ${el.dataset.con} to customers buying ${el.dataset.ant}</li>
+                <li><strong>Store layout:</strong> Consider placing these products near each other</li>
+                <li><strong>Bundle pricing:</strong> Create attractive package deals for these items</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      `;
       showDetailModal(title, body);
     })
   })

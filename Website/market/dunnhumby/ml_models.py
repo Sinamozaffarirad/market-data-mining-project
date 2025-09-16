@@ -184,16 +184,23 @@ class PredictiveMarketBasketAnalyzer:
         # Train each model
         for model_name, model in self.models.items():
             print(f"Training {model_name}...")
-            
+
             try:
                 if model_name == 'svm':
                     # Use smaller sample for SVM due to computational complexity
-                    sample_idx = np.random.choice(len(X_train_scaled), 
-                                                 min(2000, len(X_train_scaled)), 
+                    sample_idx = np.random.choice(len(X_train_scaled),
+                                                 min(2000, len(X_train_scaled)),
                                                  replace=False)
                     model.fit(X_train_scaled[sample_idx], y_train.iloc[sample_idx])
+                elif model_name == 'random_forest':
+                    # Ensure random forest has proper parameters
+                    model.set_params(n_estimators=100, max_depth=10, min_samples_split=5, random_state=42)
+                    model.fit(X_train_scaled, y_train)
+                    print(f"Random Forest trained with {model.n_estimators} estimators")
                 else:
                     model.fit(X_train_scaled, y_train)
+
+                print(f"{model_name} training completed successfully")
                 
                 # Get predictions
                 if model_name == 'svm':
@@ -215,11 +222,16 @@ class PredictiveMarketBasketAnalyzer:
                 if hasattr(model, 'feature_importances_'):
                     importance = model.feature_importances_
                     self.feature_importance[model_name] = dict(zip(feature_names, importance))
+                    if model_name == 'random_forest':
+                        top_features = sorted(zip(feature_names, importance), key=lambda x: x[1], reverse=True)[:5]
+                        print(f"Random Forest top features: {top_features}")
                 
                 print(f"{model_name} trained successfully!")
                 
             except Exception as e:
                 print(f"Error training {model_name}: {e}")
+                import traceback
+                traceback.print_exc()
                 self.model_metrics[model_name] = {
                     'accuracy': 0, 'precision': 0, 'recall': 0, 'f1': 0
                 }
@@ -239,13 +251,29 @@ class PredictiveMarketBasketAnalyzer:
             with connection.cursor() as cursor:
                 # Get candidate products for prediction
                 cursor.execute("""
-                    SELECT TOP 50 p.product_id, p.department, p.commodity_desc,
-                           COUNT(DISTINCT t.household_key) as customer_count,
-                           AVG(t.sales_value) as avg_value
+                    SELECT TOP 50
+                        p.product_id,
+                        p.department,
+                        p.commodity_desc,
+                        p.brand,
+                        p.sub_commodity_desc,
+                        p.curr_size_of_product,
+                        p.manufacturer,
+                        COUNT(DISTINCT t.household_key) AS customer_count,
+                        AVG(t.sales_value) AS avg_value,
+                        SUM(t.sales_value) AS total_value,
+                        SUM(COALESCE(t.quantity, 0)) AS total_quantity
                     FROM transactions t
                     JOIN product p ON t.product_id = p.product_id
                     WHERE p.department IS NOT NULL
-                    GROUP BY p.product_id, p.department, p.commodity_desc
+                    GROUP BY
+                        p.product_id,
+                        p.department,
+                        p.commodity_desc,
+                        p.brand,
+                        p.sub_commodity_desc,
+                        p.curr_size_of_product,
+                        p.manufacturer
                     ORDER BY customer_count DESC
                 """)
                 
@@ -256,8 +284,10 @@ class PredictiveMarketBasketAnalyzer:
                 for i, product in enumerate(products[:min(30, len(products))]):
                     
                     # Convert Decimal to float for numpy operations
-                    customer_count = float(product[3])
-                    avg_value = float(product[4])
+                    customer_count = float(product[7])
+                    avg_value = float(product[8]) if product[8] is not None else 0.0
+                    total_value = float(product[9]) if product[9] is not None else 0.0
+                    total_quantity = float(product[10]) if product[10] is not None else 0.0
                     
                     # Model-specific confidence calculation based on model characteristics
                     base_accuracy = self.model_metrics.get(model_name, {}).get('accuracy', 0.75)
@@ -307,6 +337,14 @@ class PredictiveMarketBasketAnalyzer:
                         'product_id': product[0],
                         'department': product[1],
                         'commodity': product[2],
+                        'brand': product[3],
+                        'sub_commodity': product[4],
+                        'size': product[5],
+                        'manufacturer': product[6],
+                        'customer_count': int(round(customer_count)),
+                        'avg_value': round(float(avg_value), 2) if avg_value else 0.0,
+                        'total_value': round(float(total_value), 2) if total_value else 0.0,
+                        'total_quantity': int(round(total_quantity)),
                         'confidence': round(float(confidence), 3),
                         'revenue_impact': revenue_impact
                     })
