@@ -4,6 +4,7 @@ from decimal import Decimal
 
 class Transaction(models.Model):
     """Transaction data from Dunnhumby dataset"""
+    id = models.BigAutoField(primary_key=True) 
     household_key = models.IntegerField()
     basket_id = models.BigIntegerField()
     day = models.IntegerField()
