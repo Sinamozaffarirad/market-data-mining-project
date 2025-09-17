@@ -64,6 +64,7 @@
     .nav-brand {
       display: flex;
       align-items: center;
+      gap: 1rem;
       color: white;
       text-decoration: none;
       font-weight: 800;
@@ -77,26 +78,17 @@
       transform: scale(1.05);
     }
 
-    .nav-brand-logo {
+    .nav-brand-icon {
+      font-size: 2rem;
+      background: white;
+      color: #667eea;
+      border-radius: 12px;
+      width: 40px;
+      height: 40px;
       display: flex;
       align-items: center;
-      background: rgba(255, 255, 255, 0.2);
-      padding: 8px 16px;
-      border-radius: 8px;
-      backdrop-filter: blur(10px);
-      border: 1px solid rgba(255, 255, 255, 0.3);
-    }
-
-    .nav-brand-logo i {
-      font-size: 1.4rem;
-      color: white;
-      margin-right: 8px;
-    }
-
-    .nav-brand-logo span {
-      color: white;
-      font-weight: 700;
-      font-size: 1.1rem;
+      justify-content: center;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     }
 
     .nav-links {
@@ -232,17 +224,10 @@
         font-size: 1.2rem;
       }
 
-      .nav-brand-logo {
-        padding: 6px 12px;
-      }
-
-      .nav-brand-logo i {
-        font-size: 1.2rem;
-        margin-right: 6px;
-      }
-
-      .nav-brand-logo span {
-        font-size: 0.95rem;
+      .nav-brand-icon {
+        width: 35px;
+        height: 35px;
+        font-size: 1.5rem;
       }
 
       .content {
@@ -277,10 +262,10 @@
   <nav class="modern-nav fade-up">
     <div class="nav-container">
       <a href="/analysis/" class="nav-brand">
-        <div class="nav-brand-logo">
+        <div class="nav-brand-icon">
           <i class="fas fa-chart-line"></i>
-          <span>Market Analytics</span>
         </div>
+        <span>Market Analytics</span>
       </a>
       
       <div class="nav-links" id="navLinks">
