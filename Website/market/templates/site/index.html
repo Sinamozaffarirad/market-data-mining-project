@@ -399,12 +399,12 @@
 
 <!-- Analysis Tools Grid -->
 <div class="tools-grid">
-  <div class="row g-4">
+  <div class="d-flex flex-wrap g-4 justify-content-start">
     {% for tool in analysis_tools %}
-    <div class="col-12 col-md-6 col-lg-3">
+    <div class="p-2" style="flex: 0 0 20%; max-width: 20%;">
       <a href="{{ tool.url }}" class="tool-card fade-in stagger-animation" style="--animation-order: {{ forloop.counter|add:4 }};">
         <div class="tool-content text-center">
-          <div class="tool-icon">{{ tool.icon }}</div>
+          <div class="tool-icon">{{ tool.icon|safe }}</div>
           <h5 class="tool-title">{{ tool.title }}</h5>
           <p class="tool-description">{{ tool.description }}</p>
           <span class="tool-launch">
@@ -415,8 +415,10 @@
       </a>
     </div>
     {% endfor %}
-  </div>
+    </div>
 </div>
+
+
 
 <!-- Chart Section -->
 <div class="chart-section fade-in">

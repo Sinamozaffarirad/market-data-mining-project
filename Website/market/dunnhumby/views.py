@@ -3,6 +3,7 @@ from django.db import models
 from django.http import JsonResponse, HttpResponse
 from django.shortcuts import render
 from django.db import connection
+from django.urls import reverse
 from django.db.models import Sum, Count, Avg, Max, Q
 from math import sqrt
 from .models import (
@@ -102,6 +103,7 @@ def site_index(request):
         { 'title': 'Association Rules', 'description': 'Market basket association rules', 'url': 'association-rules/', 'icon': '🔗' },
         { 'title': 'Customer Segments', 'description': 'RFM segments & behavior', 'url': 'customer-segments/', 'icon': '👥' },
         { 'title': 'Data Management', 'description': 'View, edit, import/export data', 'url': 'data-management/', 'icon': '⚙️' },
+        { 'title': 'Customer Insights', 'description': 'Explore and manage your customer data in detail', 'url': reverse('customers:search'), 'icon': '👤' },
     ]
     return render(request, 'site/index.html', { 'analysis_tools': tools })
 
