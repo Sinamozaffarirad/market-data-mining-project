@@ -1,161 +1,658 @@
 {% extends "site/base.html" %}
 {% block title %}Data Management{% endblock %}
+
+{% block extra_css %}
+<style>
+.metric-value { font-size: 1.5rem; font-weight: 700; color: var(--primary); }
+.metric-label { font-size: 0.8rem; text-transform: uppercase; color: var(--text-secondary); }
+.table-selector, .filter-section {
+    background: var(--bg-tertiary, #f8f9fa);
+    padding: 1.25rem;
+    border-radius: var(--radius-lg, .75rem);
+    margin-bottom: 1.5rem;
+}
+.filter-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1rem;
+}
+.loading-spinner {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 3px solid rgba(0,0,0,0.1);
+    border-radius: 50%;
+    border-top-color: var(--primary);
+    animation: spin 1s ease-in-out infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.data-table-container {
+    overflow-x: auto;
+}
+.table thead th {
+    position: sticky;
+    top: 0;
+    background: var(--primary-dark);
+    color: white;
+}
+.editable {
+    cursor: pointer;
+    position: relative;
+    transition: background-color 0.2s ease;
+}
+.editable:hover {
+    background-color: rgba(65, 118, 144, 0.1);
+}
+.editable:hover::after {
+    content: '✏️';
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.8em;
+}
+#addRecordBtn {
+    margin-left: 1rem;
+}
+</style>
+{% endblock %}
+
 {% block content %}
+<div class="container-fluid fade-in">
+    <!-- Header -->
+    <div class="hero-section text-center mb-4">
+        <h1 class="hero-title"><i class="fas fa-database"></i> Advanced Database Management</h1>
+        <p class="hero-subtitle">View, filter, and manage your datasets in real-time.</p>
+    </div>
 
-<div class="row g-4">
-  <div class="col-12">
+    <!-- Stats Row -->
+    <div class="row g-3 mb-4 text-center">
+        <div class="col-6 col-md-4 col-lg-2"><div class="card h-100 shadow-sm"><div class="card-body"><div class="metric-value" id="stat-transactions">{{ data_stats.total_transactions|default:0 }}</div><div class="metric-label">Transactions</div></div></div></div>
+        <div class="col-6 col-md-4 col-lg-2"><div class="card h-100 shadow-sm"><div class="card-body"><div class="metric-value">{{ data_stats.total_products|default:0 }}</div><div class="metric-label">Products</div></div></div></div>
+        <div class="col-6 col-md-4 col-lg-2"><div class="card h-100 shadow-sm"><div class="card-body"><div class="metric-value">{{ data_stats.total_households|default:0 }}</div><div class="metric-label">Households</div></div></div></div>
+        <div class="col-6 col-md-4 col-lg-2"><div class="card h-100 shadow-sm"><div class="card-body"><div class="metric-value">{{ data_stats.total_campaigns|default:0 }}</div><div class="metric-label">Campaigns</div></div></div></div>
+        <div class="col-6 col-md-4 col-lg-2"><div class="card h-100 shadow-sm"><div class="card-body"><div class="metric-value">{{ data_stats.basket_analyses|default:0 }}</div><div class="metric-label">Analyses</div></div></div></div>
+        <div class="col-6 col-md-4 col-lg-2"><div class="card h-100 shadow-sm"><div class="card-body"><div class="metric-value">{{ data_stats.association_rules|default:0 }}</div><div class="metric-label">Rules</div></div></div></div>
+    </div>
+
+    <!-- Data Viewer Card -->
     <div class="card shadow-sm">
-      <div class="card-header" style="background:var(--gradient-primary); color:#fff; font-weight:700;">
-        <i class="fas fa-database"></i> Advanced Database Management System
-      </div>
-      <div class="card-body">
-        <!-- Stats row -->
-        <div class="row g-4 mb-4">
-          <div class="col-6 col-md-4 col-lg-2"><div class="card h-100 shadow-sm"><div class="card-body text-center"><div class="metric-value">{{ data_stats.total_transactions|default:0 }}</div><div class="metric-label">Transactions</div></div></div></div>
-          <div class="col-6 col-md-4 col-lg-2"><div class="card h-100 shadow-sm"><div class="card-body text-center"><div class="metric-value">{{ data_stats.total_products|default:0 }}</div><div class="metric-label">Products</div></div></div></div>
-          <div class="col-6 col-md-4 col-lg-2"><div class="card h-100 shadow-sm"><div class="card-body text-center"><div class="metric-value">{{ data_stats.total_households|default:0 }}</div><div class="metric-label">Households</div></div></div></div>
-          <div class="col-6 col-md-4 col-lg-2"><div class="card h-100 shadow-sm"><div class="card-body text-center"><div class="metric-value">{{ data_stats.total_campaigns|default:0 }}</div><div class="metric-label">Campaigns</div></div></div></div>
-          <div class="col-6 col-md-4 col-lg-2"><div class="card h-100 shadow-sm"><div class="card-body text-center"><div class="metric-value">{{ data_stats.basket_analyses|default:0 }}</div><div class="metric-label">Analyses</div></div></div></div>
-          <div class="col-6 col-md-4 col-lg-2"><div class="card h-100 shadow-sm"><div class="card-body text-center"><div class="metric-value">{{ data_stats.association_rules|default:0 }}</div><div class="metric-label">Rules</div></div></div></div>
+        <div class="card-header bg-light fw-bold fs-5">
+            <i class="fas fa-table"></i> Data Viewer & Editor
         </div>
+        <div class="card-body">
+            <!-- Table Selector -->
+            <div class="table-selector">
+                <div class="row align-items-end g-3">
+                    <div class="col-md-4">
+                        <label for="viewTableSelect" class="form-label fw-bold">Select Table:</label>
+                        <select id="viewTableSelect" class="form-select" onchange="selectTable()">
+                            <option value="">-- Select a table --</option>
+                            <option value="transactions">Transactions</option>
+                            <option value="products">Products</option>
+                            <option value="households">Households</option>
+                            <option value="campaigns">Campaigns</option>
+                            <option value="basket_analysis">Basket Analysis</option>
+                            <option value="customer_segments">Customer Segments</option>
+                            <option value="association_rules">Association Rules</option>
+                        </select>
+                    </div>
+                     <div class="col-md-5">
+                        <label for="globalSearch" class="form-label fw-bold">Global Search:</label>
+                        <input type="text" id="globalSearch" class="form-control" placeholder="Search across relevant fields...">
+                    </div>
+                    <div class="col-md-3 d-flex">
+                        <button type="button" class="btn btn-success" id="addRecordBtn" onclick="openAddModal()" disabled>
+                            <i class="fas fa-plus"></i> Add New
+                        </button>
+                        <button type="button" class="btn btn-warning ms-2" onclick="openDataExporter()">
+                            <i class="fas fa-file-export"></i> Export
+                        </button>
+                    </div>
+                </div>
+            </div>
 
-        <!-- Actions -->
-        <div class="row g-4">
-          <div class="col-12 col-md-6 col-lg-3">
-            <div class="card h-100 shadow-sm">
-              <div class="card-body text-center">
-                <div class="tool-icon"><i class="fas fa-search"></i></div>
-                <h5>View & Filter Data</h5>
-                <p class="text-muted">Browse records with pagination and search</p>
-                <button type="button" class="btn btn-primary" onclick="openDataViewer()"><i class="fas fa-table"></i> View Data</button>
-              </div>
+            <!-- Dynamic Filters -->
+            <div class="filter-section" id="filterSection" style="display:none;">
+                <h5 class="d-flex align-items-center gap-2"><i class="fas fa-filter"></i> <span>Filters</span></h5>
+                <div class="filter-grid" id="filterGrid"></div>
+                <div class="mt-3 d-flex gap-2">
+                    <button type="button" class="btn btn-primary" onclick="applyFilters()">
+                        <i class="fas fa-check"></i> Apply Filters
+                    </button>
+                    <button type="button" class="btn btn-secondary" onclick="clearFilters()">
+                        <i class="fas fa-times"></i> Clear Filters
+                    </button>
+                </div>
             </div>
-          </div>
-          <div class="col-12 col-md-6 col-lg-3">
-            <div class="card h-100 shadow-sm">
-              <div class="card-body text-center">
-                <div class="tool-icon"><i class="fas fa-download"></i></div>
-                <h5>Export</h5>
-                <p class="text-muted">Download current table as CSV</p>
-                <button type="button" class="btn btn-warning" onclick="openDataExporter()"><i class="fas fa-file-export"></i> Export CSV</button>
-              </div>
+
+            <!-- Data Table -->
+            <div class="data-table-container">
+                <div id="loadingSpinner" class="text-center p-5" style="display:none;">
+                    <div class="loading-spinner"></div>
+                    <p class="mt-2 text-muted">Loading data...</p>
+                </div>
+                <table class="table table-hover table-striped table-sm align-middle" id="dataTable" style="display:none;">
+                    <thead id="tableHeader"></thead>
+                    <tbody id="tableBody"></tbody>
+                </table>
             </div>
-          </div>
+
+            <!-- Pagination -->
+            <div class="pagination-controls d-flex justify-content-between align-items-center mt-3" id="paginationControls" style="display:none;">
+                <div class="pagination-info" id="paginationInfo"></div>
+                <div class="pagination-buttons btn-group">
+                    <button type="button" class="btn btn-outline-secondary" onclick="previousPage()" id="prevButton">
+                        <i class="fas fa-chevron-left"></i> Previous
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" onclick="nextPage()" id="nextButton">
+                        Next <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
+            </div>
         </div>
+    </div>
+</div>
+
+<!-- Add/Edit Modal -->
+<div class="modal fade" id="crudModal" tabindex="-1" aria-labelledby="crudModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="crudModalLabel">Modal title</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <form id="crudForm"></form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-primary" id="saveCrudBtn">Save changes</button>
       </div>
     </div>
   </div>
 </div>
 
-<!-- Data Viewer Modal -->
-<div id="dataViewerModal" class="modal">
-  <div class="modal-content">
-    <div class="modal-header">
-      <h3><i class="fas fa-table"></i> Data Viewer</h3>
-      <span class="close" onclick="closeModal('dataViewerModal')">&times;</span>
-    </div>
-    <div class="table-selector">
-      <label for="viewTableSelect"><strong>Select Table:</strong></label>
-      <select id="viewTableSelect" onchange="loadTableData()">
-        <option value="">-- Select a table --</option>
-        <option value="transactions">Transactions</option>
-        <option value="products">Products</option>
-        <option value="households">Households</option>
-        <option value="campaigns">Campaigns</option>
-        <option value="basket_analysis">Basket Analysis</option>
-        <option value="customer_segments">Customer Segments</option>
-        <option value="association_rules">Association Rules</option>
-      </select>
-    </div>
-    <div class="filter-section">
-      <h4 class="d-flex align-items-center gap-2"><i class="fas fa-filter"></i> <span>Filters</span></h4>
-      <div class="row g-3" id="filterGrid"></div>
-      <div class="mt-3 d-flex gap-2">
-        <button type="button" class="btn btn-primary" onclick="applyFilters()"><i class="fas fa-search"></i> Apply Filters</button>
-        <button type="button" class="btn btn-secondary" onclick="clearFilters()"><i class="fas fa-times"></i> Clear Filters</button>
+<!-- Confirmation Modal -->
+<div class="modal fade" id="confirmModal" tabindex="-1" aria-labelledby="confirmModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="confirmModalLabel">Confirm Deletion</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-    </div>
-    <div class="data-table-container">
-      <div id="loadingSpinner" style="text-align:center; padding: var(--space-2xl); display:none;"><div class="loading-spinner"></div><p>Loading data...</p></div>
-      <table class="table table-hover table-striped table-sm align-middle" id="dataTable" style="display:none;"><thead id="tableHeader"></thead><tbody id="tableBody"></tbody></table>
-    </div>
-    <div class="pagination-controls" id="paginationControls" style="display:none;">
-      <div class="pagination-info" id="paginationInfo"></div>
-      <div class="pagination-buttons">
-        <button type="button" class="btn btn-sm btn-secondary" onclick="previousPage()"><i class="fas fa-chevron-left"></i> Previous</button>
-        <button type="button" class="btn btn-sm btn-secondary" onclick="nextPage()">Next <i class="fas fa-chevron-right"></i></button>
+      <div class="modal-body">
+        Are you sure you want to delete this record? This action cannot be undone.
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-danger" id="confirmDeleteBtn">Delete</button>
       </div>
     </div>
   </div>
-  <style>
-    /* Bring modal helpers used in enhanced admin page for consistency */
-    .modal{display:none;position:fixed;z-index:10000;left:0;top:0;width:100%;height:100%;background-color:rgba(0,0,0,.5);backdrop-filter:blur(5px);} .modal-content{background:var(--bg-secondary);margin:2% auto;padding:var(--space-xl);border-radius:var(--radius-lg);width:90%;max-width:1200px;max-height:90vh;overflow-y:auto;box-shadow:var(--shadow-xl);} .modal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-lg);padding-bottom:var(--space-md);border-bottom:1px solid var(--border-color);} .close{color:var(--text-secondary);font-size:2rem;font-weight:bold;cursor:pointer}
-    .data-table{width:100%;border-collapse:collapse} .data-table th{background:var(--primary-color);color:#fff;padding:var(--space-md);text-align:left;font-weight:600;position:sticky;top:0;} .data-table td{padding:var(--space-md);border-bottom:1px solid var(--border-color);}
-  </style>
 </div>
 
-<script>
-// The same client logic as in admin, but hitting /analysis/api/* endpoints.
-let currentTable = '';
-let currentPage = 1; let totalPages = 1; let pageSize = 50;
-function getCookie(name){let v=null; if(document.cookie&&document.cookie!==''){const c=document.cookie.split(';');for(let i=0;i<c.length;i++){const x=c[i].trim(); if(x.substring(0,name.length+1)===(name+'=')){v=decodeURIComponent(x.substring(name.length+1));break;}}}return v;}
-const csrftoken = getCookie('csrftoken');
-const schemaCache = {};
-function openDataViewer(){document.getElementById('dataViewerModal').style.display='block';}
-function openDataExporter(){ if(!currentTable){ alert('Open viewer and select a table first.'); return; } const form = document.createElement('form'); form.method='POST'; form.action='/analysis/api/export/'; form.style.display='none'; form.innerHTML=`<input type="hidden" name="csrfmiddlewaretoken" value="${csrftoken}"><input type="hidden" name="table_name" value="${currentTable}"><input type="hidden" name="filters" value="{}">`; document.body.appendChild(form); form.submit(); }
-function closeModal(id){document.getElementById(id).style.display='none';}
-async function ensureSchema(table){
-  if(schemaCache[table]) return schemaCache[table];
-  const res = await fetch(`/analysis/api/schema/?table=${encodeURIComponent(table)}`);
-  const json = await res.json();
-  schemaCache[table] = json.fields || [];
-  return schemaCache[table];
-}
-function buildFilterControls(fields){
-  const grid=document.getElementById('filterGrid'); grid.innerHTML='';
-  // Global search
-  grid.insertAdjacentHTML('beforeend', `<div class="col-12 col-md-4"><label class="form-label" for="globalSearch">Search</label><input class="form-control" type="text" id="globalSearch" placeholder="Type to search"></div>`);
-  fields.forEach(f=>{
-    if(f.type==='number'){
-      grid.insertAdjacentHTML('beforeend', `<div class="col-6 col-md-3"><label class="form-label" for="${f.name}_min">${f.name} (min)</label><input class="form-control" type="number" id="${f.name}_min"></div>`);
-      grid.insertAdjacentHTML('beforeend', `<div class="col-6 col-md-3"><label class="form-label" for="${f.name}_max">${f.name} (max)</label><input class="form-control" type="number" id="${f.name}_max"></div>`);
-    } else {
-      grid.insertAdjacentHTML('beforeend', `<div class="col-12 col-md-3"><label class="form-label" for="${f.name}">${f.name}</label><input class="form-control" type="text" id="${f.name}" placeholder="Contains..."></div>`);
-    }
-  });
-}
-function collectFilters(){
-  const fields = schemaCache[currentTable] || [];
-  const out = {};
-  fields.forEach(f=>{
-    if(f.type==='number'){
-      const vmin = document.getElementById(`${f.name}_min`)?.value; if(vmin) out[`${f.name}_min`] = vmin;
-      const vmax = document.getElementById(`${f.name}_max`)?.value; if(vmax) out[`${f.name}_max`] = vmax;
-    } else {
-      const v = document.getElementById(f.name)?.value; if(v) out[f.name] = v;
-    }
-  });
-  return out;
-}
-async function loadTableData(){
-  const tableSelect=document.getElementById('viewTableSelect');
-  currentTable=tableSelect.value;
-  if(!currentTable){document.getElementById('dataTable').style.display='none'; document.getElementById('paginationControls').style.display='none'; return;}
-  document.getElementById('loadingSpinner').style.display='block';
-  document.getElementById('dataTable').style.display='none';
-  // ensure schema and build filters once per table
-  const fields = await ensureSchema(currentTable);
-  if(!document.getElementById('globalSearch')){ buildFilterControls(fields); }
-  try{ const form=new FormData(); form.append('csrfmiddlewaretoken', csrftoken); form.append('table_name', currentTable); form.append('page', String(currentPage)); form.append('limit', String(pageSize)); const search=(document.getElementById('globalSearch')||{value:''}).value; form.append('search', search); form.append('filters', JSON.stringify(collectFilters())); const res=await fetch('/analysis/api/table/', {method:'POST', body:form}); const json=await res.json(); buildTable(json); totalPages=json.pages||1; document.getElementById('loadingSpinner').style.display='none'; document.getElementById('dataTable').style.display='table'; document.getElementById('paginationControls').style.display='flex'; updatePaginationInfo(json);}catch(e){console.error(e); document.getElementById('loadingSpinner').style.display='none';}}
-function buildTable(json){ const header=document.getElementById('tableHeader'); const body=document.getElementById('tableBody'); header.innerHTML=''; body.innerHTML=''; if(!json||!json.data||!json.data.length){ body.innerHTML='<tr><td class="text-muted">No records</td></tr>'; return;} const keys=Object.keys(json.data[0]); const hr=document.createElement('tr'); keys.forEach(k=>{const th=document.createElement('th'); th.textContent=k.replace(/_/g,' ').toUpperCase(); th.style.position='sticky'; th.style.top='0'; th.style.background='var(--primary-color)'; th.style.color='#fff'; hr.appendChild(th);}); header.appendChild(hr); json.data.forEach(row=>{const tr=document.createElement('tr'); const recordId=row.id||row.product_id||row.household_key||row.pk||''; keys.forEach(k=>{const td=document.createElement('td'); td.textContent=row[k]; if(recordId && currentTable!=='transactions'){ td.classList.add('editable'); td.onclick=()=>editCell(td, recordId, k);} tr.appendChild(td);}); body.appendChild(tr);}); }
-function editCell(cell, recordId, field){ const val=cell.textContent; const input=document.createElement('input'); input.type='text'; input.value=val; input.style.width='100%'; input.addEventListener('blur', async ()=>{ cell.textContent=input.value; const payload=new FormData(); payload.append('csrfmiddlewaretoken', csrftoken); payload.append('table_name', currentTable); payload.append('record_id', String(recordId)); payload.append('field_data', JSON.stringify({[field]: input.value})); try{ await fetch('/analysis/api/update/', {method:'POST', body:payload}); }catch(e){ console.error(e);} }); input.addEventListener('keypress', e=>{ if(e.key==='Enter') input.blur();}); cell.innerHTML=''; cell.appendChild(input); input.focus(); }
-function applyFilters(){ currentPage=1; loadTableData(); }
-function clearFilters(){ const grid=document.getElementById('filterGrid'); grid.querySelectorAll('input').forEach(i=>i.value=''); currentPage=1; loadTableData(); }
-function previousPage(){ if(currentPage>1){ currentPage--; loadTableData(); }}
-function nextPage(){ if(currentPage<totalPages){ currentPage++; loadTableData(); }}
-function updatePaginationInfo(json){ const info=document.getElementById('paginationInfo'); const total=(json&&json.total)?json.total:0; const start=(currentPage-1)*pageSize+1; const end=Math.min(currentPage*pageSize,total); info.textContent=`Showing ${start}-${end} of ${total} records`; const prevBtn=document.querySelector('#paginationControls .btn.btn-sm.btn-secondary:first-child'); const nextBtn=document.querySelector('#paginationControls .btn.btn-sm.btn-secondary:last-child'); if(prevBtn) prevBtn.disabled = currentPage<=1; if(nextBtn) nextBtn.disabled = currentPage>=totalPages; }
-window.onclick=function(e){ const m=document.getElementById('dataViewerModal'); if(e.target===m){ m.style.display='none'; }}
-</script>
-<!-- Ensure CSRF cookie is set by rendering token once -->
+
+<!-- CSRF Token for AJAX -->
 <form style="display:none;">{% csrf_token %}</form>
 {% endblock %}
+
+{% block footer %}
+<script>
+// State management
+let currentTable = '';
+let currentPage = 1;
+let totalPages = 1;
+const pageSize = 50;
+const schemaCache = {};
+const tableDataCache = {}; // Cache to hold current page data
+const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+let crudModal, confirmModal;
+
+document.addEventListener("DOMContentLoaded", function() {
+    crudModal = new bootstrap.Modal(document.getElementById('crudModal'));
+    confirmModal = new bootstrap.Modal(document.getElementById('confirmModal'));
+});
+
+
+function openDataExporter() {
+    if (!currentTable) {
+        showNotification('Please select a table to export.', 'warning');
+        return;
+    }
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '/analysis/api/export/';
+    form.style.display = 'none';
+    form.innerHTML = `<input type="hidden" name="csrfmiddlewaretoken" value="${csrftoken}">
+                      <input type="hidden" name="table_name" value="${currentTable}">
+                      <input type="hidden" name="filters" value="${JSON.stringify(collectFilters())}">`;
+    document.body.appendChild(form);
+    form.submit();
+    document.body.removeChild(form);
+}
+
+async function selectTable() {
+    currentTable = document.getElementById('viewTableSelect').value;
+    currentPage = 1;
+    // Enable or disable the 'Add New' button
+    const addBtn = document.getElementById('addRecordBtn');
+    if (addBtn) {
+        addBtn.disabled = !currentTable;
+    }
+    await loadSchemaAndFilters();
+    await loadTableData();
+}
+
+async function loadSchemaAndFilters(purpose = 'filter') {
+    const filterSection = document.getElementById('filterSection');
+    const filterGrid = document.getElementById('filterGrid');
+    
+    if (!currentTable) {
+        filterSection.style.display = 'none';
+        return;
+    }
+    
+    const cacheKey = `${currentTable}-${purpose}`;
+    if (!schemaCache[cacheKey]) {
+        try {
+            const res = await fetch(`/analysis/api/schema/?table=${encodeURIComponent(currentTable)}&purpose=${purpose}`);
+            const json = await res.json();
+            if (json.error) throw new Error(json.error);
+            schemaCache[cacheKey] = json.fields || [];
+        } catch (e) {
+            showNotification(`Error fetching schema: ${e.message}`, 'error');
+            schemaCache[cacheKey] = [];
+        }
+    }
+    
+    const fields = schemaCache[cacheKey];
+    
+    if (purpose === 'filter') {
+        filterGrid.innerHTML = ''; // Clear previous filters
+        if (fields.length > 0) {
+            fields.forEach(f => {
+                let filterHtml = '';
+                if (f.type === 'number') {
+                    filterHtml = `
+                        <div class="col">
+                            <label class="form-label" for="${f.name}_min">${f.label} (Min)</label>
+                            <input class="form-control form-control-sm" type="number" id="${f.name}_min">
+                        </div>
+                        <div class="col">
+                            <label class="form-label" for="${f.name}_max">${f.label} (Max)</label>
+                            <input class="form-control form-control-sm" type="number" id="${f.name}_max">
+                        </div>
+                    `;
+                } else {
+                    filterHtml = `
+                        <div class="col">
+                            <label class="form-label" for="${f.name}">${f.label}</label>
+                            <input class="form-control form-control-sm" type="text" id="${f.name}" placeholder="Contains...">
+                        </div>
+                    `;
+                }
+                filterGrid.innerHTML += filterHtml;
+            });
+            filterSection.style.display = 'block';
+        } else {
+            filterSection.style.display = 'none';
+        }
+    }
+    return fields;
+}
+
+function collectFilters() {
+    const fields = schemaCache[`${currentTable}-filter`] || [];
+    const filters = {};
+    fields.forEach(f => {
+        if (f.type === 'number') {
+            const minVal = document.getElementById(`${f.name}_min`)?.value;
+            if (minVal) filters[`${f.name}_min`] = minVal;
+            const maxVal = document.getElementById(`${f.name}_max`)?.value;
+            if (maxVal) filters[`${f.name}_max`] = maxVal;
+        } else {
+            const val = document.getElementById(f.name)?.value;
+            if (val) filters[f.name] = val;
+        }
+    });
+    return filters;
+}
+
+async function loadTableData() {
+    if (!currentTable) {
+        document.getElementById('dataTable').style.display = 'none';
+        document.getElementById('paginationControls').style.display = 'none';
+        return;
+    }
+
+    document.getElementById('loadingSpinner').style.display = 'block';
+    document.getElementById('dataTable').style.display = 'none';
+    document.getElementById('paginationControls').style.display = 'none';
+
+    try {
+        const form = new FormData();
+        form.append('csrfmiddlewaretoken', csrftoken);
+        form.append('table_name', currentTable);
+        form.append('page', String(currentPage));
+        form.append('limit', String(pageSize));
+        form.append('search', document.getElementById('globalSearch').value);
+        form.append('filters', JSON.stringify(collectFilters()));
+
+        const res = await fetch('/analysis/api/table/', { method: 'POST', body: form });
+        const json = await res.json();
+
+        if (json.error) throw new Error(json.error);
+
+        tableDataCache[currentTable] = json.data; // Store data for easy access
+        buildTable(json);
+        totalPages = json.pages || 1;
+        updatePaginationInfo(json);
+        document.getElementById('dataTable').style.display = 'table';
+        document.getElementById('paginationControls').style.display = 'flex';
+
+    } catch (e) {
+        showNotification(`Error loading data: ${e.message}`, 'error');
+        document.getElementById('tableBody').innerHTML = `<tr><td colspan="100%" class="text-center text-danger">Failed to load data.</td></tr>`;
+        document.getElementById('dataTable').style.display = 'table';
+    } finally {
+        document.getElementById('loadingSpinner').style.display = 'none';
+    }
+}
+
+
+
+function buildTable(json) {
+    const header = document.getElementById('tableHeader');
+    const body = document.getElementById('tableBody');
+    header.innerHTML = '';
+    body.innerHTML = '';
+
+    if (!json.data || json.data.length === 0) {
+        body.innerHTML = '<tr><td colspan="100%" class="text-center p-4 text-muted">No records found.</td></tr>';
+        return;
+    }
+
+    const keys = Object.keys(json.data[0]);
+    const headerRow = document.createElement('tr');
+    keys.forEach(k => {
+        const th = document.createElement('th');
+        th.textContent = k.replace(/_/g, ' ').toUpperCase();
+        headerRow.appendChild(th);
+    });
+    
+    // Always show ACTIONS header if a table is selected
+    if (currentTable) {
+        const th = document.createElement('th');
+        th.textContent = 'ACTIONS';
+        headerRow.appendChild(th);
+    }
+    header.appendChild(headerRow);
+
+    json.data.forEach((row, index) => {
+        const tr = document.createElement('tr');
+        const recordId = row.id || row.product_id || row.household_key || row.pk || index; // Use index as a fallback key
+        tr.dataset.recordId = recordId;
+
+        keys.forEach(k => {
+            const td = document.createElement('td');
+            td.textContent = row[k];
+            tr.appendChild(td);
+        });
+
+        // Add Actions cell based on table type
+        if (currentTable) {
+            const td = document.createElement('td');
+            if (currentTable === 'transactions') {
+                // For transactions, ONLY show the Delete button
+                td.innerHTML = `<button class="btn btn-sm btn-outline-danger" onclick="confirmDelete('${recordId}')">Delete</button>`;
+            } else {
+                // For all other tables, show both Edit and Delete buttons
+                td.innerHTML = `
+                    <button class="btn btn-sm btn-outline-primary" onclick="openEditModal('${recordId}')">Edit</button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="confirmDelete('${recordId}')">Delete</button>
+                `;
+            }
+            tr.appendChild(td);
+        }
+        body.appendChild(tr);
+    });
+}
+
+function editCell(cell, recordId, field) {
+    const originalValue = cell.textContent;
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = originalValue;
+    input.className = 'form-control form-control-sm';
+    
+    const saveChanges = async () => {
+        const newValue = input.value;
+        cell.textContent = newValue; // Optimistically update UI
+
+        const payload = new FormData();
+        payload.append('csrfmiddlewaretoken', csrftoken);
+        payload.append('table_name', currentTable);
+        payload.append('record_id', String(recordId));
+        payload.append('field_data', JSON.stringify({ [field]: newValue }));
+        
+        try {
+            const response = await fetch('/analysis/api/update/', { method: 'POST', body: payload });
+            const result = await response.json();
+            if (!result.success) {
+                cell.textContent = originalValue; // Revert on failure
+                showNotification(`Update failed: ${result.error}`, 'error');
+            } else {
+                showNotification('Record updated successfully!', 'success');
+            }
+        } catch (e) {
+            cell.textContent = originalValue; // Revert on network error
+            showNotification(`Update failed: ${e.message}`, 'error');
+        }
+    };
+    
+    input.addEventListener('blur', saveChanges);
+    input.addEventListener('keypress', e => {
+        if (e.key === 'Enter') input.blur();
+        if (e.key === 'Escape') {
+            cell.textContent = originalValue;
+            input.removeEventListener('blur', saveChanges);
+        }
+    });
+
+    cell.innerHTML = '';
+    cell.appendChild(input);
+    input.focus();
+}
+
+
+function applyFilters() {
+    currentPage = 1;
+    loadTableData();
+}
+
+function clearFilters() {
+    const filterGrid = document.getElementById('filterGrid');
+    if (filterGrid) {
+        filterGrid.querySelectorAll('input').forEach(i => i.value = '');
+    }
+    document.getElementById('globalSearch').value = '';
+    applyFilters();
+}
+
+function previousPage() { if (currentPage > 1) { currentPage--; loadTableData(); } }
+function nextPage() { if (currentPage < totalPages) { currentPage++; loadTableData(); } }
+
+function updatePaginationInfo(json) {
+    const info = document.getElementById('paginationInfo');
+    const total = json.total || 0;
+    const start = total > 0 ? (currentPage - 1) * pageSize + 1 : 0;
+    const end = Math.min(currentPage * pageSize, total);
+    info.textContent = `Showing ${start}-${end} of ${total} records`;
+
+    document.getElementById('prevButton').disabled = !json.has_prev;
+    document.getElementById('nextButton').disabled = !json.has_next;
+}
+
+// --- CRUD Functions ---
+
+async function openAddModal() {
+    document.getElementById('crudModalLabel').textContent = `Add New Record to ${currentTable}`;
+    const form = document.getElementById('crudForm');
+    form.innerHTML = '<div class="text-center"><div class="loading-spinner"></div></div>';
+    form.dataset.recordId = ''; // Clear record ID for "add" mode
+
+    crudModal.show();
+    
+    const fields = await loadSchemaAndFilters('form');
+    form.innerHTML = ''; // Clear spinner
+    fields.forEach(field => {
+        form.innerHTML += `
+            <div class="mb-3">
+                <label for="form_${field.name}" class="form-label">${field.label}</label>
+                <input type="${field.type}" class="form-control" id="form_${field.name}" data-field-name="${field.name}">
+            </div>
+        `;
+    });
+
+    document.getElementById('saveCrudBtn').onclick = saveCrudForm;
+}
+
+async function openEditModal(recordId) {
+    document.getElementById('crudModalLabel').textContent = `Edit Record ${recordId} in ${currentTable}`;
+    const form = document.getElementById('crudForm');
+    form.innerHTML = '<div class="text-center"><div class="loading-spinner"></div></div>';
+    form.dataset.recordId = recordId;
+
+    crudModal.show();
+
+    const fields = await loadSchemaAndFilters('form');
+    const recordData = tableDataCache[currentTable]?.find(row => String(row.id || row.product_id || row.household_key || row.pk) === String(recordId));
+    
+    if (!recordData) {
+        showNotification('Could not find record data to edit.', 'error');
+        crudModal.hide();
+        return;
+    }
+
+    form.innerHTML = '';
+    const pk_field_map = {
+        'products': 'product_id',
+        'households': 'household_key',
+        'campaigns': 'campaign',
+    };
+    const pk_field = pk_field_map[currentTable] || 'id';
+
+    fields.forEach(field => {
+        const value = recordData[field.name] || '';
+        const isDisabled = field.name === pk_field ? 'disabled' : '';
+        form.innerHTML += `
+            <div class="mb-3">
+                <label for="form_${field.name}" class="form-label">${field.label}</label>
+                <input type="${field.type}" class="form-control" id="form_${field.name}" data-field-name="${field.name}" value="${value}" ${isDisabled}>
+            </div>
+        `;
+    });
+
+    document.getElementById('saveCrudBtn').onclick = saveCrudForm;
+}
+
+async function saveCrudForm() {
+    const form = document.getElementById('crudForm');
+    const recordId = form.dataset.recordId;
+    const isEditing = !!recordId;
+
+    const fieldData = {};
+    form.querySelectorAll('input').forEach(input => {
+        fieldData[input.dataset.fieldName] = input.value;
+    });
+
+    // NOTE: The create endpoint doesn't exist yet. This will fail for "Add" mode.
+    // We will add `api_create_record` view in the next step.
+    const url = isEditing ? '/analysis/api/update/' : '/analysis/api/create/'; 
+    const payload = new FormData();
+    payload.append('csrfmiddlewaretoken', csrftoken);
+    payload.append('table_name', currentTable);
+    if (isEditing) {
+        payload.append('record_id', recordId);
+    }
+    payload.append('field_data', JSON.stringify(fieldData));
+    
+    try {
+        const response = await fetch(url, { method: 'POST', body: payload });
+        const result = await response.json();
+        if (response.ok && result.success) {
+            showNotification(isEditing ? 'Record updated successfully!' : 'Record created successfully!', 'success');
+            crudModal.hide();
+            loadTableData(); // Refresh table
+        } else {
+            throw new Error(result.error || 'An unknown error occurred.');
+        }
+    } catch (e) {
+        showNotification(`Save failed: ${e.message}`, 'error');
+    }
+}
+
+function confirmDelete(recordId) {
+    const confirmBtn = document.getElementById('confirmDeleteBtn');
+    confirmBtn.onclick = () => deleteRecord(recordId);
+    confirmModal.show();
+}
+
+async function deleteRecord(recordId) {
+    confirmModal.hide();
+
+    const payload = new FormData();
+    payload.append('csrfmiddlewaretoken', csrftoken);
+    payload.append('table_name', currentTable);
+    payload.append('record_id', recordId);
+
+    try {
+        const response = await fetch('/analysis/api/delete/', { method: 'POST', body: payload });
+        const result = await response.json();
+
+        if (result.success) {
+            showNotification('Record deleted successfully!', 'success');
+            loadTableData(); // Refresh table
+        } else {
+            throw new Error(result.error);
+        }
+    } catch(e) {
+        showNotification(`Deletion failed: ${e.message}`, 'error');
+    }
+}
+
+
+// Global notification helper from base.html
+function showNotification(message, type = 'info', duration = 3000) {
+  const container = document.querySelector('.toast-container') || document.body;
+  const notificationId = 'toast-' + Date.now();
+  const notification = document.createElement('div');
+  const alertClass = `alert-${type}`;
+  notification.className = `alert ${alertClass} alert-dismissible fade show`;
+  notification.id = notificationId;
+  notification.style.position = 'fixed';
+  notification.style.top = '80px';
+  notification.style.right = '20px';
+  notification.style.zIndex = '1056';
+  notification.innerHTML = `${message}<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>`;
+  container.appendChild(notification);
+  setTimeout(() => {
+    // Bootstrap 5.1+ uses a static method to get instance
+    const toastEl = document.getElementById(notificationId);
+    if(toastEl) {
+        const toast = bootstrap.Toast.getOrCreateInstance(toastEl);
+        toast.hide();
+    }
+  }, duration);
+}
+
+document.getElementById('globalSearch').addEventListener('keyup', (event) => {
+    if (event.key === 'Enter') {
+        applyFilters();
+    }
+});
+</script>
+{% endblock %}
+

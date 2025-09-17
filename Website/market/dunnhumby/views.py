@@ -1,8 +1,9 @@
 from django.contrib.auth.decorators import login_required
+from django.db import models
 from django.http import JsonResponse, HttpResponse
 from django.shortcuts import render
 from django.db import connection
-from django.db.models import Sum, Count, Avg, Max
+from django.db.models import Sum, Count, Avg, Max, Q
 from math import sqrt
 from .models import (
     Transaction, DunnhumbyProduct, Household, Campaign, Coupon,
@@ -107,7 +108,7 @@ def site_index(request):
 
 @login_required(login_url='/admin/login/')
 def basket_analysis(request):
-    basket_stats = Transaction.objects.values('basket_id').annotate(
+    basket_stats = Transaction.objects.values('basket_id', 'household_key').annotate(
         total_items=Sum('quantity'),
         total_value=Sum('sales_value'),
         unique_products=Count('product_id', distinct=True)
@@ -180,89 +181,129 @@ def data_management(request):
 def api_get_table_data(request):
     if request.method != 'POST':
         return JsonResponse({'error': 'POST required'}, status=405)
-    table_name = request.POST.get('table_name')
-    page = int(request.POST.get('page', 1))
-    limit = int(request.POST.get('limit', 50))
-    search = request.POST.get('search', '')
-    filters = json.loads(request.POST.get('filters', '{}')) if request.POST.get('filters') else {}
 
-    model_map = {
-        'transactions': Transaction,
-        'products': DunnhumbyProduct,
-        'households': Household,
-        'campaigns': Campaign,
-        'basket_analysis': BasketAnalysis,
-        'association_rules': AssociationRule,
-        'customer_segments': CustomerSegment,
-    }
-    model = model_map.get(table_name)
-    if not model:
-        return JsonResponse({'error': 'Table not found'}, status=400)
+    try:
+        table_name = request.POST.get('table_name')
+        page = int(request.POST.get('page', 1))
+        limit = int(request.POST.get('limit', 50))
+        search = request.POST.get('search', '')
+        filters = json.loads(request.POST.get('filters', '{}')) if request.POST.get('filters') else {}
 
-    offset = (page - 1) * limit
+        model_map = {
+            'transactions': Transaction,
+            'products': DunnhumbyProduct,
+            'households': Household,
+            'campaigns': Campaign,
+            'basket_analysis': BasketAnalysis,
+            'association_rules': AssociationRule,
+            'customer_segments': CustomerSegment,
+        }
+        model = model_map.get(table_name)
+        if not model:
+            return JsonResponse({'error': 'Table not found'}, status=400)
 
-    if table_name == 'transactions':
-        queryset = model.objects.values(
-            'basket_id', 'household_key', 'product_id', 'quantity',
-            'sales_value', 'day', 'week_no', 'store_id'
-        ).order_by('basket_id', 'product_id', 'day')
-        if search:
-            queryset = queryset.filter(basket_id__icontains=search)
-        # numeric and text filters
+        # Define which fields to select for each table
+        field_sets = {
+            'transactions': ['basket_id', 'household_key', 'product_id', 'quantity', 'sales_value', 'day', 'week_no', 'store_id'],
+            'products': ['product_id', 'commodity_desc', 'brand', 'department', 'manufacturer'],
+            'households': ['household_key', 'age_desc', 'income_desc', 'homeowner_desc', 'hh_comp_desc'],
+        }
+        
+        # Always start with a values() queryset to get dictionaries
+        if table_name in field_sets:
+            queryset = model.objects.values(*field_sets[table_name])
+        else:
+            # For other tables, get all fields as values
+            queryset = model.objects.values()
+
+        # Generic Search Logic
+        searchable_fields = {
+            'transactions': ['basket_id', 'household_key', 'product_id'],
+            'products': ['commodity_desc', 'brand', 'department', 'manufacturer'],
+            'households': ['household_key', 'age_desc', 'income_desc', 'homeowner_desc', 'hh_comp_desc'],
+            'campaigns': ['description'],
+            'customer_segments': ['rfm_segment', 'household_key']
+        }
+        if search and table_name in searchable_fields:
+            q_objects = Q()
+            for field in searchable_fields.get(table_name, []):
+                try:
+                    # Check if field type is numeric before attempting numeric search
+                    is_numeric_field = 'int' in model._meta.get_field(field).get_internal_type().lower()
+                    if search.isnumeric() and is_numeric_field:
+                         q_objects |= Q(**{f"{field}": search})
+                    else:
+                         q_objects |= Q(**{f"{field}__icontains": search})
+                except (AttributeError, ValueError):
+                    # Fallback for non-model fields or casting issues
+                    q_objects |= Q(**{f"{field}__icontains": search})
+            if q_objects:
+                queryset = queryset.filter(q_objects)
+
+
+        # Generic Filter Logic
+        filter_mappings = {
+            'household_key_min': 'household_key__gte',
+            'household_key_max': 'household_key__lte',
+            'product_id_min': 'product_id__gte',
+            'product_id_max': 'product_id__lte',
+            'sales_value_min': 'sales_value__gte',
+            'sales_value_max': 'sales_value__lte',
+            'day_min': 'day__gte',
+            'day_max': 'day__lte',
+            'department': 'department__icontains',
+            'brand': 'brand__icontains',
+            'age_desc': 'age_desc__icontains',
+            'income_desc': 'income_desc__icontains',
+            'description': 'description__icontains',
+            'rfm_segment': 'rfm_segment__icontains'
+        }
+        
         if filters:
-            if 'household_key' in filters:
-                queryset = queryset.filter(household_key__icontains=filters['household_key'])
-            if 'product_id' in filters:
-                queryset = queryset.filter(product_id__icontains=filters['product_id'])
-            if 'sales_value_min' in filters:
-                queryset = queryset.filter(sales_value__gte=float(filters['sales_value_min']))
-            if 'sales_value_max' in filters:
-                queryset = queryset.filter(sales_value__lte=float(filters['sales_value_max']))
-            if 'day_min' in filters:
-                queryset = queryset.filter(day__gte=int(filters['day_min']))
-            if 'day_max' in filters:
-                queryset = queryset.filter(day__lte=int(filters['day_max']))
-    elif table_name == 'products':
-        queryset = model.objects.values(
-            'product_id', 'commodity_desc', 'brand', 'department', 'manufacturer'
-        ).order_by('product_id')
-        if search:
-            queryset = queryset.filter(commodity_desc__icontains=search)
-        if filters:
-            if 'department' in filters:
-                queryset = queryset.filter(department__icontains=filters['department'])
-            if 'brand' in filters:
-                queryset = queryset.filter(brand__icontains=filters['brand'])
-    elif table_name == 'households':
-        queryset = model.objects.values(
-            'household_key', 'age_desc', 'income_desc', 'homeowner_desc', 'hh_comp_desc'
-        ).order_by('household_key')
-        if search:
-            queryset = queryset.filter(household_key__icontains=search)
-        if filters:
-            if 'age_desc' in filters:
-                queryset = queryset.filter(age_desc__icontains=filters['age_desc'])
-            if 'income_desc' in filters:
-                queryset = queryset.filter(income_desc__icontains=filters['income_desc'])
-    else:
-        queryset = model.objects.all().order_by('pk')
+            filter_kwargs = {}
+            for key, value in filters.items():
+                if key in filter_mappings and value:
+                    filter_kwargs[filter_mappings[key]] = value
+            if filter_kwargs:
+                queryset = queryset.filter(**filter_kwargs)
+        
+        # Ordering
+        ordering_fields = {
+            'transactions': ('-day', 'basket_id'),
+            'products': ('product_id',),
+            'households': ('household_key',),
+            'customer_segments': ('-total_spend',)
+        }
+        if table_name in ordering_fields:
+            queryset = queryset.order_by(*ordering_fields[table_name])
+        elif hasattr(model._meta, 'pk'):
+             queryset = queryset.order_by(model._meta.pk.name)
 
-    total_count = queryset.count()
-    data = list(queryset[offset:offset + limit])
-    return JsonResponse({
-        'data': data,
-        'total': total_count,
-        'page': page,
-        'pages': (total_count + limit - 1) // limit,
-        'has_next': offset + limit < total_count,
-        'has_prev': page > 1
-    })
+
+        total_count = queryset.count()
+        offset = (page - 1) * limit
+        
+        # Simple slicing now works because queryset is always a ValuesQuerySet
+        data = list(queryset[offset:offset + limit])
+
+        return JsonResponse({
+            'data': data,
+            'total': total_count,
+            'page': page,
+            'pages': (total_count + limit - 1) // limit,
+            'has_next': offset + limit < total_count,
+            'has_prev': page > 1
+        })
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
 
 
 @login_required(login_url='/admin/login/')
 def api_table_schema(request):
-    """Return a minimal schema for a table to build dynamic filters client-side."""
+    """Return a schema for a table to build dynamic filters or forms client-side."""
     table = request.GET.get('table')
+    purpose = request.GET.get('purpose', 'filter') # 'filter' or 'form'
+    
     model_map = {
         'transactions': Transaction,
         'products': DunnhumbyProduct,
@@ -281,23 +322,35 @@ def api_table_schema(request):
         if t in ('IntegerField','BigIntegerField','SmallIntegerField','PositiveIntegerField','FloatField','DecimalField'): return 'number'
         return 'text'
 
-    fields = []
-    include = []
-    if table == 'transactions':
-        include = ['basket_id','household_key','product_id','quantity','sales_value','day','week_no','store_id']
-    elif table == 'products':
-        include = ['product_id','commodity_desc','brand','department','manufacturer']
-    elif table == 'households':
-        include = ['household_key','age_desc','income_desc','homeowner_desc','hh_comp_desc']
-    else:
-        include = [f.name for f in model._meta.fields]
-
-    # Map to types
+    fields_to_include = []
+    if purpose == 'form':
+        # For forms, we usually want all non-pk, editable fields
+        fields_to_include = [f.name for f in model._meta.fields if not f.primary_key and f.editable]
+        # For specific tables, we might need to add the PK field for creation
+        if table == 'products':
+            fields_to_include.insert(0, 'product_id')
+        elif table == 'households':
+            fields_to_include.insert(0, 'household_key')
+    else: # purpose == 'filter'
+        filterable_fields = {
+            'transactions': ['household_key', 'product_id', 'sales_value', 'day'],
+            'products': ['department', 'brand'],
+            'households': ['age_desc', 'income_desc'],
+            'campaigns': ['description'],
+            'customer_segments': ['rfm_segment']
+        }
+        fields_to_include = filterable_fields.get(table, [])
+    
     meta = {f.name: f for f in model._meta.fields}
-    for name in include:
+    fields = []
+    for name in fields_to_include:
         f = meta.get(name)
-        ftype = field_type(f) if f else 'text'
-        fields.append({'name': name, 'type': ftype})
+        if f:
+            ftype = field_type(f)
+            # Use verbose_name for a user-friendly label, fallback to name
+            label = getattr(f, 'verbose_name', name).title()
+            fields.append({'name': name, 'type': ftype, 'label': label})
+            
     return JsonResponse({'fields': fields})
 
 
@@ -1311,6 +1364,35 @@ def api_segment_details(request):
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
+@login_required(login_url='/admin/login/')
+def api_create_record(request):
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+
+    table_name = request.POST.get('table_name')
+    field_data = json.loads(request.POST.get('field_data', '{}'))
+
+    model_map = {
+        'transactions': Transaction,
+        'products': DunnhumbyProduct,
+        'households': Household,
+        'campaigns': Campaign,
+        'basket_analysis': BasketAnalysis,
+        'association_rules': AssociationRule,
+        'customer_segments': CustomerSegment,
+    }
+    model = model_map.get(table_name)
+    if not model:
+        return JsonResponse({'success': False, 'error': 'Unsupported table for creation'}, status=400)
+
+    try:
+        # Create a new model instance and save it
+        new_record = model(**field_data)
+        new_record.save()
+        return JsonResponse({'success': True, 'message': 'Record created successfully.'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
 
 @login_required(login_url='/admin/login/')
 def api_update_record(request):
@@ -1321,6 +1403,7 @@ def api_update_record(request):
     field_data = json.loads(request.POST.get('field_data', '{}'))
 
     model_map = {
+        # 'transactions': Transaction,
         'products': DunnhumbyProduct,
         'households': Household,
         'campaigns': Campaign,
@@ -1333,19 +1416,67 @@ def api_update_record(request):
         return JsonResponse({'success': False, 'error': 'Unsupported table'}, status=400)
 
     try:
+        pk_field_map = {
+            'products': 'product_id',
+            'households': 'household_key',
+            'campaigns': 'campaign',
+        }
+        pk_field = pk_field_map.get(table_name, 'pk')
+
+        # Find the record to update
+        record = model.objects.get(**{pk_field: record_id})
+
+        # Do not allow changing the primary key during an update
+        if pk_field in field_data:
+            del field_data[pk_field]
+
+        # Update fields
+        for key, value in field_data.items():
+            setattr(record, key, value)
+        
+        record.save()
+        return JsonResponse({'success': True})
+    except model.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Record not found'}, status=404)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=400)
+
+@login_required(login_url='/admin/login/')
+def api_delete_record(request):
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+        
+    table_name = request.POST.get('table_name')
+    record_id = request.POST.get('record_id')
+
+    # Important: Do not allow deleting from core tables like transactions
+    editable_tables = {
+        'transactions': Transaction,
+        'products': DunnhumbyProduct,
+        'households': Household,
+        'campaigns': Campaign,
+        'basket_analysis': BasketAnalysis,
+        'association_rules': AssociationRule,
+        'customer_segments': CustomerSegment,
+    }
+    model = editable_tables.get(table_name)
+    if not model:
+        return JsonResponse({'success': False, 'error': 'Deletion from this table is not permitted'}, status=403)
+
+    try:
         if table_name == 'products':
             record = model.objects.get(product_id=record_id)
         elif table_name == 'households':
             record = model.objects.get(household_key=record_id)
         else:
             record = model.objects.get(pk=record_id)
-        for k, v in field_data.items():
-            if hasattr(record, k):
-                setattr(record, k, v)
-        record.save()
-        return JsonResponse({'success': True})
+        
+        record.delete()
+        return JsonResponse({'success': True, 'message': 'Record deleted successfully.'})
+    except model.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Record not found'}, status=404)
     except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)}, status=400)
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
 
 @login_required(login_url='/admin/login/')
@@ -1552,3 +1683,4 @@ def training_status_api(request):
     """Get current training status"""
     global ml_training_status
     return JsonResponse(ml_training_status)
+
