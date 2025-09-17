@@ -64,7 +64,6 @@
     .nav-brand {
       display: flex;
       align-items: center;
-      gap: 1rem;
       color: white;
       text-decoration: none;
       font-weight: 800;
@@ -78,23 +77,26 @@
       transform: scale(1.05);
     }
 
-    .nav-brand-icon {
-      font-size: 2rem;
-      background: white;
-      color: #667eea;
-      border-radius: 12px;
-      width: 40px;
-      height: 40px;
+    .nav-brand-logo {
       display: flex;
       align-items: center;
-      justify-content: center;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      background: rgba(255, 255, 255, 0.2);
+      padding: 8px 16px;
+      border-radius: 8px;
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.3);
     }
 
-    .nav-brand-icon-inline {
-      font-size: 1.8rem;
+    .nav-brand-logo i {
+      font-size: 1.4rem;
       color: white;
-      margin-right: 0.5rem;
+      margin-right: 8px;
+    }
+
+    .nav-brand-logo span {
+      color: white;
+      font-weight: 700;
+      font-size: 1.1rem;
     }
 
     .nav-links {
@@ -108,14 +110,18 @@
 
     .nav-link {
       position: relative;
-      padding: 0.75rem 1.5rem;
+      padding: 0.75rem 1.2rem;
       color: rgba(255, 255, 255, 0.9);
       text-decoration: none;
       font-weight: 600;
-      font-size: 0.95rem;
+      font-size: 0.9rem;
       border-radius: 12px;
       transition: all 0.3s ease;
       white-space: nowrap;
+    }
+
+    .nav-link i {
+      font-size: 0.85rem;
     }
 
     .nav-link::before {
@@ -225,18 +231,20 @@
       .nav-brand {
         font-size: 1.2rem;
       }
-      
-      .nav-brand-icon {
-        width: 35px;
-        height: 35px;
-        font-size: 1.5rem;
+
+      .nav-brand-logo {
+        padding: 6px 12px;
       }
 
-      .nav-brand-icon-inline {
-        font-size: 1.3rem;
-        margin-right: 0.3rem;
+      .nav-brand-logo i {
+        font-size: 1.2rem;
+        margin-right: 6px;
       }
-      
+
+      .nav-brand-logo span {
+        font-size: 0.95rem;
+      }
+
       .content {
         padding: 1rem;
       }
@@ -269,8 +277,10 @@
   <nav class="modern-nav fade-up">
     <div class="nav-container">
       <a href="/analysis/" class="nav-brand">
-        <i class="fas fa-chart-line nav-brand-icon-inline"></i>
-        <span>Market Analytics</span>
+        <div class="nav-brand-logo">
+          <i class="fas fa-chart-line"></i>
+          <span>Market Analytics</span>
+        </div>
       </a>
       
       <div class="nav-links" id="navLinks">
