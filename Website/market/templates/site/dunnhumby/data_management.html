@@ -89,7 +89,7 @@
                         <label for="viewTableSelect" class="form-label fw-bold">Select Table:</label>
                         <select id="viewTableSelect" class="form-select" onchange="selectTable()">
                             <option value="">-- Select a table --</option>
-                            <option value="transactions">Transactions (Read-Only)</option>
+                            <option value="transactions">Transactions</option>
                             <option value="products">Products</option>
                             <option value="households">Households</option>
                             <option value="campaigns">Campaigns</option>
@@ -239,7 +239,7 @@ async function selectTable() {
     // Enable or disable the 'Add New' button
     const addBtn = document.getElementById('addRecordBtn');
     if (addBtn) {
-        addBtn.disabled = !currentTable || currentTable === 'transactions';
+        addBtn.disabled = !currentTable;
     }
     await loadSchemaAndFilters();
     await loadTableData();
@@ -362,6 +362,7 @@ async function loadTableData() {
 }
 
 
+
 function buildTable(json) {
     const header = document.getElementById('tableHeader');
     const body = document.getElementById('tableBody');
@@ -380,7 +381,9 @@ function buildTable(json) {
         th.textContent = k.replace(/_/g, ' ').toUpperCase();
         headerRow.appendChild(th);
     });
-     if (currentTable && currentTable !== 'transactions') {
+    
+    // Always show ACTIONS header if a table is selected
+    if (currentTable) {
         const th = document.createElement('th');
         th.textContent = 'ACTIONS';
         headerRow.appendChild(th);
@@ -398,13 +401,19 @@ function buildTable(json) {
             tr.appendChild(td);
         });
 
-        // Add Actions cell if table is editable
-        if (currentTable && currentTable !== 'transactions') {
+        // Add Actions cell based on table type
+        if (currentTable) {
             const td = document.createElement('td');
-            td.innerHTML = `
-                <button class="btn btn-sm btn-outline-primary" onclick="openEditModal('${recordId}')">Edit</button>
-                <button class="btn btn-sm btn-outline-danger" onclick="confirmDelete('${recordId}')">Delete</button>
-            `;
+            if (currentTable === 'transactions') {
+                // For transactions, ONLY show the Delete button
+                td.innerHTML = `<button class="btn btn-sm btn-outline-danger" onclick="confirmDelete('${recordId}')">Delete</button>`;
+            } else {
+                // For all other tables, show both Edit and Delete buttons
+                td.innerHTML = `
+                    <button class="btn btn-sm btn-outline-primary" onclick="openEditModal('${recordId}')">Edit</button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="confirmDelete('${recordId}')">Delete</button>
+                `;
+            }
             tr.appendChild(td);
         }
         body.appendChild(tr);
@@ -528,12 +537,20 @@ async function openEditModal(recordId) {
     }
 
     form.innerHTML = '';
+    const pk_field_map = {
+        'products': 'product_id',
+        'households': 'household_key',
+        'campaigns': 'campaign',
+    };
+    const pk_field = pk_field_map[currentTable] || 'id';
+
     fields.forEach(field => {
         const value = recordData[field.name] || '';
+        const isDisabled = field.name === pk_field ? 'disabled' : '';
         form.innerHTML += `
             <div class="mb-3">
                 <label for="form_${field.name}" class="form-label">${field.label}</label>
-                <input type="${field.type}" class="form-control" id="form_${field.name}" data-field-name="${field.name}" value="${value}">
+                <input type="${field.type}" class="form-control" id="form_${field.name}" data-field-name="${field.name}" value="${value}" ${isDisabled}>
             </div>
         `;
     });

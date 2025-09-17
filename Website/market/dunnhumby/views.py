@@ -292,6 +292,11 @@ def api_table_schema(request):
     if purpose == 'form':
         # For forms, we usually want all non-pk, editable fields
         fields_to_include = [f.name for f in model._meta.fields if not f.primary_key and f.editable]
+        # For specific tables, we might need to add the PK field for creation
+        if table == 'products':
+            fields_to_include.insert(0, 'product_id')
+        elif table == 'households':
+            fields_to_include.insert(0, 'household_key')
     else: # purpose == 'filter'
         filterable_fields = {
             'transactions': ['household_key', 'product_id', 'sales_value', 'day'],
@@ -431,6 +436,35 @@ def api_segment_details(request):
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
+@login_required(login_url='/admin/login/')
+def api_create_record(request):
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+
+    table_name = request.POST.get('table_name')
+    field_data = json.loads(request.POST.get('field_data', '{}'))
+
+    model_map = {
+        'transactions': Transaction,
+        'products': DunnhumbyProduct,
+        'households': Household,
+        'campaigns': Campaign,
+        'basket_analysis': BasketAnalysis,
+        'association_rules': AssociationRule,
+        'customer_segments': CustomerSegment,
+    }
+    model = model_map.get(table_name)
+    if not model:
+        return JsonResponse({'success': False, 'error': 'Unsupported table for creation'}, status=400)
+
+    try:
+        # Create a new model instance and save it
+        new_record = model(**field_data)
+        new_record.save()
+        return JsonResponse({'success': True, 'message': 'Record created successfully.'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
 
 @login_required(login_url='/admin/login/')
 def api_update_record(request):
@@ -441,6 +475,7 @@ def api_update_record(request):
     field_data = json.loads(request.POST.get('field_data', '{}'))
 
     model_map = {
+        # 'transactions': Transaction,
         'products': DunnhumbyProduct,
         'households': Household,
         'campaigns': Campaign,
@@ -453,17 +488,28 @@ def api_update_record(request):
         return JsonResponse({'success': False, 'error': 'Unsupported table'}, status=400)
 
     try:
-        if table_name == 'products':
-            record = model.objects.get(product_id=record_id)
-        elif table_name == 'households':
-            record = model.objects.get(household_key=record_id)
-        else:
-            record = model.objects.get(pk=record_id)
-        for k, v in field_data.items():
-            if hasattr(record, k):
-                setattr(record, k, v)
+        pk_field_map = {
+            'products': 'product_id',
+            'households': 'household_key',
+            'campaigns': 'campaign',
+        }
+        pk_field = pk_field_map.get(table_name, 'pk')
+
+        # Find the record to update
+        record = model.objects.get(**{pk_field: record_id})
+
+        # Do not allow changing the primary key during an update
+        if pk_field in field_data:
+            del field_data[pk_field]
+
+        # Update fields
+        for key, value in field_data.items():
+            setattr(record, key, value)
+        
         record.save()
         return JsonResponse({'success': True})
+    except model.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Record not found'}, status=404)
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=400)
 
@@ -477,6 +523,7 @@ def api_delete_record(request):
 
     # Important: Do not allow deleting from core tables like transactions
     editable_tables = {
+        'transactions': Transaction,
         'products': DunnhumbyProduct,
         'households': Household,
         'campaigns': Campaign,
