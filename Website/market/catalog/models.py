@@ -12,11 +12,12 @@ class Product(models.Model):
     def __str__(self):
         return f"{self.name} ({self.sku})"
 
-
-
 class Order(models.Model):
-    customer   = models.ForeignKey("customers.CustomerProfile",
-                                   on_delete=models.CASCADE)
+    customer = models.ForeignKey(
+        "customers.CustomerProfile",
+        on_delete=models.CASCADE,
+        related_name='orders'
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     @property
@@ -27,10 +28,9 @@ class Order(models.Model):
             or Decimal("0")
         )
 
-
 class OrderItem(models.Model):
     order    = models.ForeignKey(Order, related_name="items",
-                                 on_delete=models.CASCADE)
+                                   on_delete=models.CASCADE)
     product  = models.ForeignKey(Product, on_delete=models.PROTECT)
     qty      = models.PositiveSmallIntegerField()
     price    = models.DecimalField(max_digits=9, decimal_places=2)
