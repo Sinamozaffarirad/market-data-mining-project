@@ -1,3 +1,4 @@
+# customers/models.py
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 
@@ -7,12 +8,23 @@ class User(AbstractUser):
 
 
 class CustomerProfile(models.Model):
-    user          = models.OneToOneField(User, on_delete=models.CASCADE)
-    joined_at     = models.DateTimeField(auto_now_add=True)
-    last_seen     = models.DateTimeField(null=True, blank=True)
-    churn_score   = models.FloatField(default=0.0)   # 0 … 1
-    # cached fields you’ll compute nightly
-    spend_90d     = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    # The model is renamed, but the fields match the 'household' table.
+    household_key = models.CharField(
+        max_length=50,
+        primary_key=True
+    )
+    age_desc = models.CharField(max_length=50, blank=True, null=True)
+    marital_status_code = models.CharField(max_length=10, blank=True, null=True)
+    income_desc = models.CharField(max_length=50, blank=True, null=True)
+    homeowner_desc = models.CharField(max_length=50, blank=True, null=True)
+    hh_comp_desc = models.CharField(max_length=50, blank=True, null=True)
+    household_size_desc = models.CharField(max_length=50, blank=True, null=True)
+    kid_category_desc = models.CharField(max_length=50, blank=True, null=True)
+
+    class Meta:
+        db_table = 'household'
+        verbose_name = 'Customer Profile'
+        verbose_name_plural = 'Customer Profiles'
 
     def __str__(self):
-        return self.user.get_full_name() or self.user.username
+        return f"Profile for Household {self.household_key}"

@@ -1,0 +1,32 @@
+{% extends "site/base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="container d-flex justify-content-center align-items-center" style="min-height: 70vh;">
+  <div class="card shadow-lg p-4" style="max-width: 400px; width: 100%;">
+    <h3 class="text-center mb-4 fw-bold">Search Customer</h3>
+
+    {% if messages %}
+      {% for message in messages %}
+        <div class="alert alert-danger">{{ message }}</div>
+      {% endfor %}
+    {% endif %}
+
+
+    <form method="get" action="">
+      <div class="mb-3">
+        <label for="household_key" class="form-label">Enter Household Key</label>
+        <input 
+          type="text" 
+          class="form-control" 
+          id="household_key" 
+          name="household_key" 
+          placeholder="e.g. 12345"
+          required
+        >
+      </div>
+      <button type="submit" class="btn btn-primary w-100">Search</button>
+    </form>
+  </div>
+</div>
+{% endblock %}
