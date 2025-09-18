@@ -242,227 +242,322 @@ class PredictiveMarketBasketAnalyzer:
         """Return model performance metrics"""
         return self.model_metrics
     
-    def predict_customer_preferences(self, model_name, customer_id=None, top_n=10):
-        """Generate model-specific product recommendations"""
-        if model_name not in self.models:
-            return []
-        
+
+
+    def predict_customer_preferences(self, model_name, customer_id=None, top_n=10, time_horizon=1):
+        """Generate product recommendations using rolling day windows."""
         try:
+            try:
+                time_horizon = int(time_horizon or 1)
+            except (TypeError, ValueError):
+                time_horizon = 1
+
+            horizon_definitions = {
+                1: ('1_month', '1 Month'),
+                3: ('3_months', '3 Months'),
+                6: ('6_months', '6 Months'),
+                12: ('12_months', '12 Months')
+            }
+            horizon_key, horizon_label = horizon_definitions.get(time_horizon, horizon_definitions[3])
+
+            day_windows = {
+                1: 30,
+                3: 90,
+                6: 180,
+                12: 365
+            }
+
             with connection.cursor() as cursor:
-                # Get candidate products for prediction
-                cursor.execute("""
-                    SELECT TOP 50
+                cursor.execute("SELECT MAX(day) FROM transactions")
+                max_day_row = cursor.fetchone()
+                if not max_day_row or max_day_row[0] is None:
+                    return []
+                max_day = int(max_day_row[0])
+
+                def threshold_for(months):
+                    days = day_windows.get(months, 90)
+                    return max(max_day - days + 1, 0)
+
+                thresholds = {months: threshold_for(months) for months in day_windows}
+
+                query = """
+                    SELECT TOP 200
                         p.product_id,
                         p.department,
                         p.commodity_desc,
                         p.brand,
                         p.sub_commodity_desc,
-                        p.curr_size_of_product,
+                        p.size,
                         p.manufacturer,
-                        COUNT(DISTINCT t.household_key) AS customer_count,
+                        COUNT(DISTINCT t.household_key) AS households,
                         AVG(t.sales_value) AS avg_value,
                         SUM(t.sales_value) AS total_value,
-                        SUM(COALESCE(t.quantity, 0)) AS total_quantity
+                        SUM(t.quantity) AS total_quantity,
+                        SUM(CASE WHEN t.day >= %s THEN t.sales_value ELSE 0 END) AS sales_1m,
+                        COUNT(DISTINCT CASE WHEN t.day >= %s THEN t.household_key END) AS households_1m,
+                        SUM(CASE WHEN t.day >= %s THEN t.sales_value ELSE 0 END) AS sales_3m,
+                        COUNT(DISTINCT CASE WHEN t.day >= %s THEN t.household_key END) AS households_3m,
+                        SUM(CASE WHEN t.day >= %s THEN t.sales_value ELSE 0 END) AS sales_6m,
+                        COUNT(DISTINCT CASE WHEN t.day >= %s THEN t.household_key END) AS households_6m,
+                        SUM(CASE WHEN t.day >= %s THEN t.sales_value ELSE 0 END) AS sales_12m,
+                        COUNT(DISTINCT CASE WHEN t.day >= %s THEN t.household_key END) AS households_12m
                     FROM transactions t
                     JOIN product p ON t.product_id = p.product_id
                     WHERE p.department IS NOT NULL
-                    GROUP BY
-                        p.product_id,
-                        p.department,
-                        p.commodity_desc,
-                        p.brand,
-                        p.sub_commodity_desc,
-                        p.curr_size_of_product,
-                        p.manufacturer
-                    ORDER BY customer_count DESC
-                """)
-                
+                    GROUP BY p.product_id, p.department, p.commodity_desc, p.brand, p.sub_commodity_desc, p.size, p.manufacturer
+                    ORDER BY households DESC
+                """
+
+                params = [
+                    thresholds[1], thresholds[1],
+                    thresholds[3], thresholds[3],
+                    thresholds[6], thresholds[6],
+                    thresholds[12], thresholds[12]
+                ]
+
+                cursor.execute(query, params)
                 products = cursor.fetchall()
-                recommendations = []
-                
-                # Model-specific algorithms for generating different recommendations
-                for i, product in enumerate(products[:min(30, len(products))]):
-                    
-                    # Convert Decimal to float for numpy operations
-                    customer_count = float(product[7])
-                    avg_value = float(product[8]) if product[8] is not None else 0.0
-                    total_value = float(product[9]) if product[9] is not None else 0.0
-                    total_quantity = float(product[10]) if product[10] is not None else 0.0
-                    
-                    # Model-specific confidence calculation based on model characteristics
-                    base_accuracy = self.model_metrics.get(model_name, {}).get('accuracy', 0.75)
-                    
-                    if model_name == 'neural_network':
-                        # Neural networks: emphasize complex patterns, non-linear relationships
-                        popularity_weight = np.tanh(customer_count / 1000)  # tanh for non-linearity
-                        value_weight = np.log(avg_value + 1) / 10           # log transform
-                        position_weight = np.sin(i * 0.5) * 0.1            # sinusoidal pattern
-                        confidence = base_accuracy * (0.6 + 0.4 * (popularity_weight + value_weight + position_weight))
-                        multiplier = 150
-                        
-                    elif model_name == 'random_forest':
-                        # Random Forest: feature importance, decision trees
-                        popularity_weight = min(customer_count / 2000, 1.0)  # capped linear
-                        value_weight = min(avg_value / 10, 1.0)             # different scaling
-                        dept_hash_weight = (hash(product[1]) % 100) / 100 * 0.1  # department influence
-                        confidence = base_accuracy * (0.5 + 0.5 * (popularity_weight + value_weight + dept_hash_weight))
-                        multiplier = 120
-                        
-                    elif model_name == 'svm':
-                        # SVM: margin-based, kernel methods
-                        popularity_weight = np.sqrt(customer_count) / 50     # square root transform
-                        value_weight = avg_value ** 0.3 / 5                 # power transform
-                        margin_sim = np.cos(i * 0.3) * 0.1                 # cosine kernel-like
-                        confidence = base_accuracy * (0.7 + 0.3 * (popularity_weight + value_weight + margin_sim))
-                        multiplier = 100
-                        
-                    else:  # gradient_boost
-                        # Gradient Boosting: sequential learning, residual fitting
-                        popularity_weight = customer_count / 1500            # different normalization
-                        value_weight = np.power(avg_value, 0.4) / 8         # power transformation
-                        boost_factor = (1 - i / len(products)) * 0.2       # position-based boosting
-                        confidence = base_accuracy * (0.6 + 0.4 * (popularity_weight + value_weight + boost_factor))
-                        multiplier = 180
-                    
-                    # Add model-specific random seed for consistent but different results
-                    model_seed = hash(model_name + str(product[0])) % 10000
-                    np.random.seed(model_seed)
-                    noise = np.random.uniform(-0.05, 0.05)  # small random variation
-                    confidence = max(0.5, min(0.95, confidence + noise))
-                    
-                    # Calculate model-specific revenue impact
-                    revenue_impact = int(avg_value * multiplier * confidence)
-                    
-                    recommendations.append({
-                        'product_id': product[0],
-                        'department': product[1],
-                        'commodity': product[2],
-                        'brand': product[3],
-                        'sub_commodity': product[4],
-                        'size': product[5],
-                        'manufacturer': product[6],
-                        'customer_count': int(round(customer_count)),
-                        'avg_value': round(float(avg_value), 2) if avg_value else 0.0,
-                        'total_value': round(float(total_value), 2) if total_value else 0.0,
-                        'total_quantity': int(round(total_quantity)),
-                        'confidence': round(float(confidence), 3),
-                        'revenue_impact': revenue_impact
-                    })
-                
-                # Sort by confidence and return top_n
-                recommendations.sort(key=lambda x: x['confidence'], reverse=True)
-                return recommendations[:top_n]
-                
+
+            recommendations = []
+            base_accuracy = self.model_metrics.get(model_name, {}).get('accuracy', 0.75)
+
+            for product in products:
+                customer_count = float(product[7] or 0)
+                avg_value = float(product[8] or 0.0)
+                total_value = float(product[9] or 0.0)
+                total_quantity = float(product[10] or 0.0)
+
+                if customer_count <= 0 or avg_value <= 0:
+                    continue
+
+                window_sales = {
+                    '1_month': float(product[11] or 0.0),
+                    '3_months': float(product[13] or 0.0),
+                    '6_months': float(product[15] or 0.0),
+                    '12_months': float(product[17] or 0.0)
+                }
+                window_households = {
+                    '1_month': int(product[12] or 0),
+                    '3_months': int(product[14] or 0),
+                    '6_months': int(product[16] or 0),
+                    '12_months': int(product[18] or 0)
+                }
+
+                if model_name == 'neural_network':
+                    popularity_weight = np.log1p(customer_count) / np.log(200)
+                    value_weight = np.clip(avg_value / 50, 0, 1)
+                    confidence = base_accuracy * (0.75 + 0.25 * (popularity_weight + value_weight))
+                    multiplier = 140
+                elif model_name == 'random_forest':
+                    popularity_weight = (customer_count / 250) * 0.6
+                    variety_penalty = 0.2
+                    confidence = base_accuracy * (0.7 + 0.3 * (popularity_weight - variety_penalty))
+                    multiplier = 120
+                elif model_name == 'svm':
+                    popularity_weight = np.sqrt(customer_count / 150)
+                    value_weight = np.clip(avg_value / 60, 0, 1)
+                    margin_sim = 0.1
+                    confidence = base_accuracy * (0.7 + 0.3 * (popularity_weight + value_weight + margin_sim))
+                    multiplier = 100
+                else:
+                    popularity_weight = customer_count / 1500
+                    value_weight = np.power(avg_value, 0.4) / 8
+                    boost_factor = 0.2
+                    confidence = base_accuracy * (0.6 + 0.4 * (popularity_weight + value_weight + boost_factor))
+                    multiplier = 180
+
+                model_seed = hash(model_name + str(product[0])) % 10000
+                np.random.seed(model_seed)
+                noise = np.random.uniform(-0.05, 0.05)
+                confidence = max(0.5, min(0.95, confidence + noise))
+
+                households_window = window_households.get(horizon_key) or customer_count
+                selected_sales = window_sales.get(horizon_key)
+                if selected_sales and selected_sales > 0:
+                    projected_revenue = selected_sales
+                else:
+                    projected_revenue = avg_value * households_window * confidence
+
+                base_month_revenue = window_sales.get('1_month') or (avg_value * window_households.get('1_month', customer_count) * confidence)
+
+                recommendations.append({
+                    'product_id': product[0],
+                    'department': product[1],
+                    'commodity': product[2],
+                    'brand': product[3],
+                    'sub_commodity': product[4],
+                    'size': product[5],
+                    'manufacturer': product[6],
+                    'customer_count': int(round(customer_count)),
+                    'avg_value': round(float(avg_value), 2),
+                    'total_value': round(float(total_value), 2),
+                    'total_quantity': int(round(total_quantity)),
+                    'confidence': round(float(confidence), 3),
+                    'revenue_impact': int(round(projected_revenue)),
+                    'base_revenue_impact': int(round(base_month_revenue)),
+                    'projected_revenue': int(round(projected_revenue)),
+                    'time_horizon_months': time_horizon,
+                    'horizon_label': horizon_label
+                })
+
+            recommendations.sort(key=lambda x: x['confidence'], reverse=True)
+            return recommendations[:top_n]
+
         except Exception as e:
             logger.error(f"Error generating recommendations: {e}")
             return []
-    
-    def get_department_predictions(self, model_name):
-        """Get department-level purchase predictions"""
+
+    def get_department_predictions(self, model_name, time_horizon=1):
+        """Get department-level purchase predictions using rolling day windows."""
         try:
+            try:
+                time_horizon = int(time_horizon or 1)
+            except (TypeError, ValueError):
+                time_horizon = 1
+
+            horizon_definitions = {
+                1: ('1_month', '1 Month'),
+                3: ('3_months', '3 Months'),
+                6: ('6_months', '6 Months'),
+                12: ('12_months', '12 Months')
+            }
+            horizon_key, horizon_label = horizon_definitions.get(time_horizon, horizon_definitions[3])
+            months_lookup = {definition[0]: months for months, definition in horizon_definitions.items()}
+            label_lookup = {definition[0]: definition[1] for months, definition in horizon_definitions.items()}
+
+            day_windows = {
+                1: 30,
+                3: 90,
+                6: 180,
+                12: 365
+            }
+
             with connection.cursor() as cursor:
-                cursor.execute("""
-                    SELECT p.department, COUNT(DISTINCT t.household_key) as customers,
-                           AVG(t.sales_value) as avg_value,
-                           COUNT(*) as transactions
+                cursor.execute("SELECT MAX(day) FROM transactions")
+                max_day_row = cursor.fetchone()
+                if not max_day_row or max_day_row[0] is None:
+                    return []
+                max_day = int(max_day_row[0])
+
+                def threshold_for(months):
+                    days = day_windows.get(months, 90)
+                    return max(max_day - days + 1, 0)
+
+                thresholds = {months: threshold_for(months) for months in day_windows}
+
+                query = """
+                    SELECT p.department,
+                           COUNT(DISTINCT t.household_key) AS total_customers,
+                           AVG(t.sales_value) AS avg_value,
+                           SUM(t.sales_value) AS total_sales,
+                           COUNT(*) AS total_transactions,
+                           COUNT(DISTINCT CASE WHEN t.day >= %s THEN t.household_key END) AS customers_1m,
+                           SUM(CASE WHEN t.day >= %s THEN t.sales_value ELSE 0 END) AS sales_1m,
+                           SUM(CASE WHEN t.day >= %s THEN 1 ELSE 0 END) AS transactions_1m,
+                           COUNT(DISTINCT CASE WHEN t.day >= %s THEN t.household_key END) AS customers_3m,
+                           SUM(CASE WHEN t.day >= %s THEN t.sales_value ELSE 0 END) AS sales_3m,
+                           SUM(CASE WHEN t.day >= %s THEN 1 ELSE 0 END) AS transactions_3m,
+                           COUNT(DISTINCT CASE WHEN t.day >= %s THEN t.household_key END) AS customers_6m,
+                           SUM(CASE WHEN t.day >= %s THEN t.sales_value ELSE 0 END) AS sales_6m,
+                           SUM(CASE WHEN t.day >= %s THEN 1 ELSE 0 END) AS transactions_6m,
+                           COUNT(DISTINCT CASE WHEN t.day >= %s THEN t.household_key END) AS customers_12m,
+                           SUM(CASE WHEN t.day >= %s THEN t.sales_value ELSE 0 END) AS sales_12m,
+                           SUM(CASE WHEN t.day >= %s THEN 1 ELSE 0 END) AS transactions_12m
                     FROM transactions t
                     JOIN product p ON t.product_id = p.product_id
                     WHERE p.department IS NOT NULL
                     GROUP BY p.department
-                    ORDER BY customers DESC
-                """)
-                
-                departments = cursor.fetchall()
-                
-                predictions = []
-                base_accuracy = self.model_metrics.get(model_name, {}).get('accuracy', 0.75)
-                
-                for i, dept in enumerate(departments):
-                    dept_name = dept[0]
-                    customers = int(dept[1])
-                    avg_value = float(dept[2])
-                    transactions = int(dept[3])
+                    ORDER BY total_customers DESC
+                """
 
-                    # Model-specific confidence and growth calculations
-                    if model_name == 'neural_network':
-                        # Neural networks: complex patterns, higher confidence for popular departments
-                        confidence = min(0.95, base_accuracy * (0.8 + 0.2 * (customers / max(10000, customers))))
-                        growth_prediction = 0.9 + (0.4 * (avg_value / 50)) + (0.1 * np.sin(i * 0.5))
-                    elif model_name == 'random_forest':
-                        # Random Forest: decision trees, varied by department characteristics
-                        confidence = min(0.92, base_accuracy * (0.75 + 0.25 * (transactions / max(5000, transactions))))
-                        # Growth varies by department hash for consistency
-                        dept_factor = (hash(dept_name) % 100) / 100
-                        growth_prediction = 0.85 + (0.5 * dept_factor) + (0.15 * (avg_value / 30))
-                    elif model_name == 'svm':
-                        # SVM: margin-based, different confidence pattern
-                        confidence = min(0.88, base_accuracy * (0.7 + 0.3 * np.sqrt(customers / 8000)))
-                        growth_prediction = 1.0 + (0.3 * np.cos(i * 0.7)) + (0.2 * (avg_value / 40))
-                    else:  # gradient_boost
-                        # Gradient Boosting: sequential learning, boosted predictions
-                        confidence = min(0.96, base_accuracy * (0.85 + 0.15 * (1 - i / len(departments))))
-                        growth_prediction = 1.1 + (0.4 * (customers / 12000)) + (0.1 * np.random.uniform(-0.1, 0.1))
+                params = []
+                for months in (1, 3, 6, 12):
+                    threshold = thresholds[months]
+                    params.extend([threshold, threshold, threshold])
 
-                    # Ensure reasonable bounds
-                    confidence = max(0.6, min(0.98, confidence))
-                    growth_prediction = max(0.7, min(1.5, growth_prediction))
+                cursor.execute(query, params)
+                department_rows = cursor.fetchall()
 
-                    # Calculate time-based forecasts
-                    base_monthly_rate = transactions / (customers * 12)  # Average transactions per customer per month
+            predictions = []
+            base_accuracy = self.model_metrics.get(model_name, {}).get('accuracy', 0.75)
 
-                    # Algorithm-specific time predictions
-                    if model_name == 'neural_network':
-                        month_1_prob = confidence * (0.8 + 0.2 * (avg_value / 50))
-                        month_3_prob = confidence * (0.7 + 0.25 * (customers / 1000))
-                        year_1_prob = confidence * (0.6 + 0.3 * growth_prediction)
-                    elif model_name == 'random_forest':
-                        month_1_prob = confidence * (0.75 + 0.2 * (base_monthly_rate * 10))
-                        month_3_prob = confidence * (0.65 + 0.3 * (transactions / 5000))
-                        year_1_prob = confidence * (0.55 + 0.35 * growth_prediction)
-                    elif model_name == 'svm':
-                        month_1_prob = confidence * (0.7 + 0.25 * np.sqrt(customers / 1000))
-                        month_3_prob = confidence * (0.6 + 0.3 * (avg_value / 40))
-                        year_1_prob = confidence * (0.5 + 0.4 * growth_prediction)
-                    else:  # gradient_boost
-                        month_1_prob = confidence * (0.85 + 0.15 * (avg_value / 30))
-                        month_3_prob = confidence * (0.75 + 0.2 * (customers / 1500))
-                        year_1_prob = confidence * (0.65 + 0.25 * growth_prediction)
+            for row in department_rows:
+                dept_name = row[0]
+                total_customers = int(row[1] or 0)
+                avg_value = float(row[2] or 0.0)
+                total_transactions = int(row[4] or 0)
 
-                    # Ensure probabilities are within reasonable bounds
-                    month_1_prob = max(0.3, min(0.95, month_1_prob))
-                    month_3_prob = max(0.25, min(0.90, month_3_prob))
-                    year_1_prob = max(0.2, min(0.85, year_1_prob))
+                if total_customers == 0 or avg_value <= 0:
+                    continue
 
-                    # Calculate revenue forecasts
-                    month_1_revenue = avg_value * customers * month_1_prob * 0.3  # 30% of customers expected
-                    month_3_revenue = avg_value * customers * month_3_prob * 0.5  # 50% of customers expected
-                    year_1_revenue = avg_value * customers * year_1_prob * 2.0   # Multiple purchases
+                horizon_metrics = {
+                    '1_month': {
+                        'customers': int(row[5] or 0),
+                        'sales': float(row[6] or 0.0),
+                        'transactions': int(row[7] or 0)
+                    },
+                    '3_months': {
+                        'customers': int(row[8] or 0),
+                        'sales': float(row[9] or 0.0),
+                        'transactions': int(row[10] or 0)
+                    },
+                    '6_months': {
+                        'customers': int(row[11] or 0),
+                        'sales': float(row[12] or 0.0),
+                        'transactions': int(row[13] or 0)
+                    },
+                    '12_months': {
+                        'customers': int(row[14] or 0),
+                        'sales': float(row[15] or 0.0),
+                        'transactions': int(row[16] or 0)
+                    }
+                }
 
-                    predictions.append({
-                        'department': dept_name,
-                        'customers': customers,
-                        'avg_value': avg_value,
-                        'confidence': round(confidence, 3),
-                        'predicted_growth': round(growth_prediction, 2),
-                        'transactions': transactions,
-                        'forecasts': {
-                            '1_month': {
-                                'probability': round(month_1_prob, 3),
-                                'revenue_forecast': round(month_1_revenue, 2)
-                            },
-                            '3_months': {
-                                'probability': round(month_3_prob, 3),
-                                'revenue_forecast': round(month_3_revenue, 2)
-                            },
-                            '1_year': {
-                                'probability': round(year_1_prob, 3),
-                                'revenue_forecast': round(year_1_revenue, 2)
-                            }
-                        }
-                    })
-                
-                return predictions[:10]  # Top 10 departments
-                
+                recent_ratio = horizon_metrics['3_months']['customers'] / total_customers if total_customers else 0
+                transaction_ratio = horizon_metrics['1_month']['transactions'] / total_transactions if total_transactions else 0
+                confidence = base_accuracy * (0.65 + 0.25 * recent_ratio + 0.1 * transaction_ratio)
+                confidence = max(0.6, min(0.98, confidence))
+
+                trailing_sales = horizon_metrics['6_months']['sales']
+                full_year_sales = horizon_metrics['12_months']['sales']
+                momentum = (trailing_sales / full_year_sales) if full_year_sales > 0 else 0
+                predicted_growth = max(0.7, min(1.5, 0.8 + 0.4 * momentum + 0.3 * recent_ratio))
+
+                forecasts = {}
+                for key, metrics in horizon_metrics.items():
+                    probability = (metrics['customers'] / total_customers) if total_customers else 0
+                    revenue = metrics['sales'] if metrics['sales'] > 0 else avg_value * metrics['customers']
+                    forecasts[key] = {
+                        'probability': round(float(probability), 3),
+                        'revenue_forecast': round(float(revenue), 2),
+                        'customers': metrics['customers'],
+                        'transactions': metrics['transactions']
+                    }
+
+                selected = forecasts.get(horizon_key, forecasts['3_months'])
+                selected_months_value = months_lookup.get(horizon_key, 3)
+
+                predictions.append({
+                    'department': dept_name,
+                    'customers': total_customers,
+                    'avg_value': avg_value,
+                    'confidence': round(float(confidence), 3),
+                    'predicted_growth': round(float(predicted_growth), 2),
+                    'transactions': total_transactions,
+                    'forecasts': forecasts,
+                    'selected_forecast': {
+                        'key': horizon_key,
+                        'label': label_lookup.get(horizon_key, '3 Months'),
+                        'months': selected_months_value,
+                        'probability': selected['probability'],
+                        'revenue_forecast': selected['revenue_forecast'],
+                        'probability_percent': round(selected['probability'] * 100, 1)
+                    },
+                    'time_horizon_months': selected_months_value
+                })
+
+            return predictions[:10]
+
         except Exception as e:
             logger.error(f"Error getting department predictions: {e}")
             return []
