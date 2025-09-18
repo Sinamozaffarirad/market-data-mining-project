@@ -1620,51 +1620,70 @@ def train_ml_models(request):
 @csrf_exempt
 def get_predictions(request):
     """Get department-level predictions"""
-    # Get parameters from POST data
     model_type = request.POST.get('model_type', 'neural_network')
+    time_horizon_param = request.POST.get('time_horizon') or request.GET.get('time_horizon')
     try:
-        predictions = ml_analyzer.get_department_predictions(model_type)
+        time_horizon = int(time_horizon_param) if time_horizon_param else None
+    except (TypeError, ValueError):
+        time_horizon = None
+
+    valid_horizons = {1, 3, 6, 12}
+    selected_horizon = time_horizon if (time_horizon in valid_horizons) else 3
+
+    try:
+        predictions = ml_analyzer.get_department_predictions(model_type, selected_horizon)
+        response_horizon = predictions[0].get('time_horizon_months', selected_horizon) if predictions else selected_horizon
         return JsonResponse({
             'success': True,
             'status': 'success',
             'model_type': model_type,
+            'time_horizon_months': response_horizon,
             'predictions': predictions
         })
     except Exception as e:
         return JsonResponse({
             'success': False,
             'error': f'Prediction error: {str(e)}',
-            'predictions': []
+            'predictions': [],
+            'time_horizon_months': selected_horizon
         })
-
 
 @csrf_exempt
 def get_recommendations(request):
     """Get AI-powered product recommendations"""
-    # Get parameters from POST data
     model_type = request.POST.get('model_type', 'neural_network')
     top_n = int(request.POST.get('top_n', 10))
+    time_horizon_param = request.POST.get('time_horizon') or request.GET.get('time_horizon')
+    try:
+        time_horizon = int(time_horizon_param) if time_horizon_param else None
+    except (TypeError, ValueError):
+        time_horizon = None
+
+    valid_horizons = {1, 3, 6, 12}
+    selected_horizon = time_horizon if (time_horizon in valid_horizons) else 3
+
     try:
         customer_id = request.POST.get('customer_id')
-        
+
         recommendations = ml_analyzer.predict_customer_preferences(
-            model_type, customer_id, top_n
+            model_type, customer_id, top_n, selected_horizon
         )
-        
+
         return JsonResponse({
             'success': True,
             'status': 'success',
             'model_type': model_type,
             'customer_id': customer_id,
+            'time_horizon_months': selected_horizon,
             'recommendations': recommendations
         })
     except Exception as e:
         return JsonResponse({
             'success': False,
             'error': f'Recommendation error: {str(e)}',
+            'time_horizon_months': selected_horizon,
             'recommendations': []
         })
-
 
 @csrf_exempt
 def get_model_performance(request):
