@@ -1546,26 +1546,34 @@ ml_training_status = {'is_training': False, 'progress': 0, 'message': ''}
 
 @csrf_exempt
 def predictive_analysis_api(request):
-    """API endpoint for predictive market basket analysis"""
+    """API endpoint for predictive market basket analysis - returns department predictions"""
     if request.method != 'POST':
         return JsonResponse({'error': 'POST method required'}, status=405)
-    
+
     try:
-        action = request.POST.get('action', 'predict')
         model_type = request.POST.get('model_type', 'neural_network')
-        training_size = float(request.POST.get('training_size', 0.8))
-        
-        if action == 'train':
-            return train_ml_models(request, model_type, training_size)
-        elif action == 'predict':
-            return get_predictions(request, model_type)
-        elif action == 'recommendations':
-            return get_recommendations(request, model_type)
-        elif action == 'performance':
-            return get_model_performance(request)
-        else:
-            return JsonResponse({'error': 'Invalid action'}, status=400)
-            
+
+        # Get time horizon parameter
+        time_horizon_param = request.POST.get('time_horizon') or request.GET.get('time_horizon')
+        try:
+            time_horizon = int(time_horizon_param) if time_horizon_param else None
+        except (TypeError, ValueError):
+            time_horizon = None
+
+        valid_horizons = {1, 3, 6, 12}
+        selected_horizon = time_horizon if (time_horizon in valid_horizons) else 3
+
+        # Get department predictions specifically
+        department_predictions = ml_analyzer.get_department_predictions(model_type, selected_horizon)
+
+        return JsonResponse({
+            'success': True,
+            'status': 'success',
+            'model_type': model_type,
+            'time_horizon_months': selected_horizon,
+            'department_predictions': department_predictions
+        })
+
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
