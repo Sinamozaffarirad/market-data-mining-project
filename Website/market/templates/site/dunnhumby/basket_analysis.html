@@ -861,7 +861,12 @@ html, body {
       <div class="row g-2">
         <div class="col-md-6">
           <div class="chart-container">
-            <h5><i class="fas fa-chart-bar"></i> Revenue Impact by Department</h5>
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <h5 class="mb-0"><i class="fas fa-chart-bar"></i> Revenue Impact by Department</h5>
+              <button class="btn btn-outline-primary btn-sm" onclick="expandSection('revenue')" title="View in Popup">
+                <i class="fas fa-expand-arrows-alt"></i> Expand
+              </button>
+            </div>
             <div id="revenueImpactChart" style="min-height: 250px;">
               <div class="text-center py-5 text-muted">
                 <i class="fas fa-chart-bar fa-3x mb-3" style="color: #e2e8f0;"></i>
@@ -873,7 +878,12 @@ html, body {
         </div>
         <div class="col-md-6">
           <div class="chart-container">
-            <h5><i class="fas fa-calendar-alt"></i> Purchase Probability Trends</h5>
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <h5 class="mb-0"><i class="fas fa-calendar-alt"></i> Purchase Probability Trends</h5>
+              <button class="btn btn-outline-primary btn-sm" onclick="expandSection('trends')" title="View in Popup">
+                <i class="fas fa-expand-arrows-alt"></i> Expand
+              </button>
+            </div>
             <div id="purchaseTrendsChart" style="min-height: 250px;">
               <div class="text-center py-5 text-muted">
                 <i class="fas fa-chart-line fa-3x mb-3" style="color: #e2e8f0;"></i>
@@ -1486,7 +1496,7 @@ function loadPredictiveAnalysis() {
 // Test API access to verify we can get real data
 function testApiAccess() {
   const defaultHorizon = getSelectedHorizon();
-  fetch('/analysis/api/ml/predictions/', {
+  fetch('{% url "dunnhumby_site:get_predictions" %}', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
@@ -1541,7 +1551,7 @@ function generateRecommendations(timeHorizon) {
     </div>`;
   }
 
-  fetch('/analysis/api/ml/recommendations/', {
+  fetch('{% url "dunnhumby_site:get_recommendations" %}', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
@@ -1732,7 +1742,7 @@ function runPredictiveAnalysis() {
 
   showNotification(`Training ${algorithm.replace('_', ' ')} model for ${horizonLabel} forecasts...`, 'info');
 
-  fetch('/analysis/api/ml/train/', {
+  fetch('{% url "dunnhumby_site:train_ml_models" %}', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
@@ -1767,14 +1777,31 @@ function runPredictiveAnalysis() {
 
 
 function checkTrainingStatus(algorithm) {
+  let checkCount = 0;
+  const maxChecks = 20; // Maximum 1 minute of checking (20 * 3 seconds)
+
   const statusInterval = setInterval(() => {
-    fetch('/analysis/api/ml/training-status/', {
+    checkCount++;
+
+    // Timeout after maxChecks attempts
+    if (checkCount > maxChecks) {
+      clearInterval(statusInterval);
+      showNotification('Training status check timed out. Please refresh and try again.', 'warning');
+      return;
+    }
+
+    fetch('{% url "dunnhumby_site:training_status_api" %}', {
       method: 'GET',
       headers: {
         'X-CSRFToken': getCsrfToken()
       }
     })
-    .then(response => response.json())
+    .then(response => {
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      return response.json();
+    })
     .then(data => {
       if (data.status === 'completed') {
         clearInterval(statusInterval);
@@ -1791,10 +1818,12 @@ function checkTrainingStatus(algorithm) {
         clearInterval(statusInterval);
         showNotification('Model training failed', 'error');
       }
+      // If status is still 'training', continue checking
     })
     .catch(error => {
       console.error('Error checking training status:', error);
       clearInterval(statusInterval);
+      showNotification('Error checking training status. Please try again.', 'error');
     });
   }, 3000);
 }
@@ -1805,16 +1834,25 @@ function loadPredictiveResults(algorithm, timeHorizon) {
   const horizonLabel = getHorizonLabel(horizon);
   console.log(`Loading predictive results for algorithm: ${algorithm}, horizon: ${horizonLabel}`);
 
-  fetch('/analysis/api/ml/predictions/', {
+  // Add timeout to prevent hanging
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+
+  fetch('{% url "dunnhumby_site:get_predictions" %}', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
       'X-CSRFToken': getCsrfToken()
     },
-    body: `model_type=${algorithm}&time_horizon=${horizon}`
+    body: `model_type=${algorithm}&time_horizon=${horizon}`,
+    signal: controller.signal
   })
   .then(response => {
+    clearTimeout(timeoutId); // Clear timeout on successful response
     console.log('Response received:', response.status);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
     return response.json();
   })
   .then(data => {
@@ -1838,7 +1876,16 @@ function loadPredictiveResults(algorithm, timeHorizon) {
     }
   })
   .catch(error => {
+    clearTimeout(timeoutId); // Clear timeout on error
     console.error('Error loading predictions:', error);
+
+    if (error.name === 'AbortError') {
+      showNotification('Request timed out. Please try again.', 'warning');
+    } else {
+      showNotification('Error loading predictions. Please try again.', 'error');
+    }
+
+    showChartError(`Failed to load predictions: ${error.message}`);
   });
 }
 
@@ -1860,7 +1907,7 @@ function showChartError(message) {
 }
 
 function loadModelPerformance(algorithm) {
-  fetch('/analysis/api/ml/performance/', {
+  fetch('{% url "dunnhumby_site:get_model_performance" %}', {
     method: 'GET',
     headers: {
       'X-CSRFToken': getCsrfToken()
@@ -2291,8 +2338,11 @@ function generateDifferentialInsightsFromAPI(insights, compareBy, statTest) {
 }
 
 function expandSection(sectionType) {
-  let title, content, container;
-  
+  let title = '';
+  let content = '';
+  let container = null;
+  let onShown = null;
+
   switch(sectionType) {
     case 'department':
       title = 'All Department Level Association Rules';
@@ -2314,32 +2364,84 @@ function expandSection(sectionType) {
       title = 'All Differential Analysis Insights';
       container = document.getElementById('differentialInsights');
       break;
+    case 'revenue':
+      title = 'Revenue Impact by Department';
+      content = 
+        <div class="ratio ratio-16x9">
+          <canvas id="expandedRevenueChart"></canvas>
+        </div>
+      ;
+      onShown = () => {
+        const sourceChart = charts?.revenue;
+        const target = document.getElementById('expandedRevenueChart');
+        if (sourceChart && target) {
+          new Chart(target.getContext('2d'), {
+            type: sourceChart.config.type,
+            data: JSON.parse(JSON.stringify(sourceChart.config.data)),
+            options: {
+              ...sourceChart.config.options,
+              responsive: true,
+              maintainAspectRatio: false
+            }
+          });
+        }
+      };
+      break;
+    case 'trends':
+      title = 'Purchase Probability Trends';
+      content = 
+        <div class="ratio ratio-16x9">
+          <canvas id="expandedTrendsChart"></canvas>
+        </div>
+      ;
+      onShown = () => {
+        const sourceChart = charts?.trends;
+        const target = document.getElementById('expandedTrendsChart');
+        if (sourceChart && target) {
+          new Chart(target.getContext('2d'), {
+            type: sourceChart.config.type,
+            data: JSON.parse(JSON.stringify(sourceChart.config.data)),
+            options: {
+              ...sourceChart.config.options,
+              responsive: true,
+              maintainAspectRatio: false
+            }
+          });
+        }
+      };
+      break;
   }
-  
+
   if (container) {
-    let content = container.innerHTML;
-    
-    // For baskets, recommendations, and differential, wrap in proper bootstrap grid
+    content = container.innerHTML;
     if (sectionType === 'baskets' || sectionType === 'recommendations' || sectionType === 'differential') {
-      content = `<div class="row g-3">${content}</div>`;
+      content = <div class="row g-3"></div>;
     }
-    
-    const modalContent = `
-      <div id="expandedContent" style="max-height: 70vh; overflow-y: auto; padding: 1rem; background: #f8f9fa; border-radius: 10px;">
-        ${content}
-      </div>
-    `;
-    
-    showDetailModal(title, modalContent);
-    
-    // Re-attach event listeners after modal is shown
-    setTimeout(() => {
-      attachPopupEventListeners(sectionType);
-    }, 200);
   }
+
+  if (!content) {
+    console.warn('No content available for expandSection', sectionType);
+    return;
+  }
+
+  const modalContent = 
+    <div id="expandedContent" style="max-height: 70vh; overflow-y: auto; padding: 1rem; background: #f8f9fa; border-radius: 10px;">
+      
+    </div>
+  ;
+
+  showDetailModal(title || 'Detailed View', modalContent);
+
+  setTimeout(() => {
+    if (sectionType === 'baskets' || sectionType === 'recommendations' || sectionType === 'differential') {
+      attachPopupEventListeners(sectionType);
+    }
+    if (typeof onShown === 'function') {
+      onShown();
+    }
+  }, 200);
 }
 
-// Attach event listeners to popup content
 function attachPopupEventListeners(sectionType) {
   const expandedContent = document.getElementById('expandedContent');
   if (!expandedContent) return;
@@ -2361,7 +2463,7 @@ function attachPopupEventListeners(sectionType) {
           formData.append('csrfmiddlewaretoken', csrftoken);
           formData.append('basket_id', basketId);
           
-          const response = await fetch('/analysis/api/basket/', {
+          const response = await fetch('{% url "dunnhumby_site:api_basket_details" %}', {
             method: 'POST',
             body: formData
           });
@@ -3109,7 +3211,7 @@ document.addEventListener('DOMContentLoaded', function() {
         formData.append('csrfmiddlewaretoken', csrftoken);
         formData.append('basket_id', basketId);
         
-        const response = await fetch('/analysis/api/basket/', {
+        const response = await fetch('{% url "dunnhumby_site:api_basket_details" %}', {
           method: 'POST',
           body: formData
         });
@@ -3148,6 +3250,46 @@ function getCsrfToken() {
   return (document.cookie.split('; ').find(r=>r.startsWith('csrftoken='))||'').split('=')[1]||'';
 }
 
+// Essential modal function that was missing
+function showDetailModal(title, content) {
+  // Remove existing modal if any
+  const existingModal = document.getElementById('detailModal');
+  if (existingModal) {
+    existingModal.remove();
+  }
+
+  // Create modal HTML
+  const modalHtml = `
+    <div class="modal fade" id="detailModal" tabindex="-1" aria-labelledby="detailModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="detailModalLabel">${title}</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            ${content}
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Add modal to page
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+  // Show modal
+  const modal = new bootstrap.Modal(document.getElementById('detailModal'));
+  modal.show();
+
+  // Clean up modal when hidden
+  document.getElementById('detailModal').addEventListener('hidden.bs.modal', function() {
+    this.remove();
+  });
+}
 
 function getSelectedHorizon() {
   const select = document.getElementById('predictionHorizon');
