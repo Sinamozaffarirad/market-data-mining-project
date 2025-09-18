@@ -825,7 +825,7 @@ html, body {
       <div class="interactive-controls">
         <h5><i class="fas fa-robot"></i> Machine Learning Configuration</h5>
         <div class="row g-2">
-          <div class="col-md-6">
+          <div class="col-md-4">
             <label class="form-label control-label">Algorithm:</label>
             <select class="form-select" id="mlAlgorithm">
               <option value="neural_network">Neural Network</option>
@@ -834,7 +834,16 @@ html, body {
               <option value="svm">Support Vector Machine</option>
             </select>
           </div>
-          <div class="col-md-6">
+          <div class="col-md-4">
+            <label class="form-label control-label">Prediction Horizon:</label>
+            <select class="form-select" id="predictionHorizon">
+              <option value="1">1 Month</option>
+              <option value="3" selected>3 Months</option>
+              <option value="6">6 Months</option>
+              <option value="12">12 Months</option>
+            </select>
+          </div>
+          <div class="col-md-4">
             <div class="control-group">
               <label class="control-label">Training Size:</label>
               <input type="range" class="form-range control-slider" id="trainingSizeSlider" min="0.6" max="0.9" step="0.05" value="0.8">
@@ -1526,20 +1535,22 @@ function initializePredictiveCharts() {
 
 function generateRecommendations() {
   const algorithm = document.getElementById('mlAlgorithm').value;
+  const timeHorizon = getSelectedHorizon();
+  const horizonLabel = getHorizonLabel(timeHorizon);
   const container = document.getElementById('recommendedProducts');
 
   if (container) {
-    container.innerHTML = '<div class="col-12 text-center"><i class="fas fa-spinner fa-spin fa-2x mb-2" style="color: #667eea;"></i><h6 style="color: #4a5568;">Training Model & Generating Recommendations...</h6><p style="color: #a0aec0;">Using ' + algorithm.replace('_', ' ').toUpperCase() + ' algorithm to analyze purchase patterns</p></div>';
+    container.innerHTML = '<div class="col-12 text-center"><i class="fas fa-spinner fa-spin fa-2x mb-2" style="color: #667eea;"></i><h6 style="color: #4a5568;">Generating ' + horizonLabel + ' Recommendations...</h6><p style="color: #a0aec0;">Using ' + algorithm.replace('_', ' ').toUpperCase() + ' algorithm for ' + horizonLabel.toLowerCase() + ' predictions</p></div>';
   }
-  
-  // Call ML API for recommendations
+
+  // Call ML API for recommendations with time horizon
   fetch('/analysis/api/ml/recommendations/', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
       'X-CSRFToken': getCsrfToken()
     },
-    body: `model_type=${algorithm}&top_n=8`
+    body: `model_type=${algorithm}&top_n=8&time_horizon=${timeHorizon}`
   })
   .then(response => response.json())
   .then(data => {
@@ -1701,8 +1712,10 @@ function initializeRecommendationCards(scope = document) {
 function runPredictiveAnalysis() {
   const algorithm = document.getElementById('mlAlgorithm').value;
   const trainingSize = document.getElementById('trainingSizeSlider').value;
-  
-  showNotification(`Training ${algorithm.replace('_', ' ')} model...`, 'info');
+  const timeHorizon = getSelectedHorizon();
+  const horizonLabel = getHorizonLabel(timeHorizon);
+
+  showNotification(`Training ${algorithm.replace('_', ' ')} model for ${horizonLabel.toLowerCase()} predictions...`, 'info');
   
   // First, train the ML models
   fetch('/analysis/api/ml/train/', {
@@ -1711,7 +1724,7 @@ function runPredictiveAnalysis() {
       'Content-Type': 'application/x-www-form-urlencoded',
       'X-CSRFToken': getCsrfToken()
     },
-    body: `model_type=${algorithm}&training_size=${trainingSize}`
+    body: `model_type=${algorithm}&training_size=${trainingSize}&time_horizon=${timeHorizon}`
   })
   .then(response => response.json())
   .then(data => {
@@ -3042,9 +3055,24 @@ function getBusinessValue(ant, con, lift, type) {
 // Basket card interactions
 document.addEventListener('DOMContentLoaded', function() {
   const csrftoken = (document.cookie.split('; ').find(r=>r.startsWith('csrftoken='))||'').split('=')[1]||'';
-  
+
   // Initialize descriptive analysis by default
   loadDescriptiveAnalysis();
+
+  // Wire up Prediction Horizon selector change handler
+  const horizonSelect = document.getElementById('predictionHorizon');
+  if (horizonSelect) {
+    horizonSelect.addEventListener('change', () => {
+      const algorithmSelect = document.getElementById('mlAlgorithm');
+      const algorithmValue = algorithmSelect ? algorithmSelect.value : 'neural_network';
+      const horizonValue = getSelectedHorizon();
+      const horizonLabelText = getHorizonLabel(horizonValue).toLowerCase();
+      showNotification('Updating forecasts for ' + horizonLabelText + ' horizon...', 'info');
+
+      // Refresh predictions and recommendations with new horizon
+      generateRecommendations();
+    });
+  }
   
   // Basket card clicks
   document.querySelectorAll('.basket-card').forEach(card => {
@@ -3101,6 +3129,25 @@ function showDetailModal(title, content) {
   // Simple alert fallback - much more reliable than complex modal
   const cleanContent = content.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ');
   alert(title + '\n\n' + cleanContent);
+}
+
+// Prediction Horizon helper functions
+function getSelectedHorizon() {
+  const select = document.getElementById('predictionHorizon');
+  const value = select ? parseInt(select.value, 10) : NaN;
+  if ([1, 3, 6, 12].includes(value)) {
+    return value;
+  }
+  return 3; // Default to 3 months
+}
+
+function getHorizonLabel(months) {
+  const value = Number(months);
+  if (value === 1) return '1 Month';
+  if (value === 3) return '3 Months';
+  if (value === 6) return '6 Months';
+  if (value === 12) return '12 Months';
+  return `${value || 3} Months`;
 }
 
 function updatePredictiveCharts(predictions, algorithm) {
