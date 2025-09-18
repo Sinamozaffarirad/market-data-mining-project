@@ -215,7 +215,8 @@
 }
 
 .recommendations-scroll-container {
-  max-height: 420px;
+  min-height: 400px !important;
+  max-height: 600px !important;
   overflow-y: auto;
   padding-right: 0.75rem;
   margin-right: -0.25rem;
@@ -691,7 +692,12 @@ html, body {
 
       <!-- Interactive Controls -->
       <div class="interactive-controls">
-        <h5><i class="fas fa-sliders-h"></i> Algorithm Parameters</h5>
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h5 class="mb-0"><i class="fas fa-sliders-h"></i> Algorithm Parameters</h5>
+          <button class="btn btn-outline-info btn-sm" onclick="showDescriptiveHelp()" title="Configuration Help">
+            <i class="fas fa-question-circle"></i> Help
+          </button>
+        </div>
         <div class="row g-2">
           <div class="col-md-6">
             <div class="control-group">
@@ -806,7 +812,6 @@ html, body {
         {% endfor %}
         </div>
       </div>
-    </div>
 
       <!-- High-Value Products Analysis -->
       <div class="chart-container">
@@ -907,6 +912,7 @@ html, body {
           </div>
         </div>
       </div>
+    </div>
 
     <!-- Predictive Analysis Tab -->
     <div id="predictive" class="tab-content">
@@ -923,7 +929,12 @@ html, body {
 
       <!-- ML Algorithm Selection -->
       <div class="interactive-controls">
-        <h5><i class="fas fa-robot"></i> Machine Learning Configuration</h5>
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h5 class="mb-0"><i class="fas fa-robot"></i> Machine Learning Configuration</h5>
+          <button class="btn btn-outline-info btn-sm" onclick="showPredictiveHelp()" title="Configuration Help">
+            <i class="fas fa-question-circle"></i> Help
+          </button>
+        </div>
         <div class="row g-2">
           <div class="col-md-4">
             <label class="form-label control-label">Algorithm:</label>
@@ -959,9 +970,14 @@ html, body {
       <!-- Prediction Results -->
       <div class="row g-2">
         <div class="col-md-6">
-          <div class="chart-container">
-            <h5><i class="fas fa-chart-bar"></i> Revenue Impact by Department</h5>
-            <div id="revenueImpactChart" style="min-height: 250px;">
+          <div class="chart-container" style="min-height: 500px;">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <h5 class="mb-0"><i class="fas fa-chart-bar"></i> Revenue Impact by Department</h5>
+              <button class="btn btn-outline-primary btn-sm" onclick="expandChart('revenueImpactChart')" title="View Chart in Popup">
+                <i class="fas fa-expand-arrows-alt"></i> Expand
+              </button>
+            </div>
+            <div id="revenueImpactChart" style="min-height: 400px;">
               <div class="text-center py-5 text-muted">
                 <i class="fas fa-chart-bar fa-3x mb-3" style="color: #e2e8f0;"></i>
                 <h6 style="color: #a0aec0;">Revenue Impact Analysis</h6>
@@ -971,9 +987,14 @@ html, body {
           </div>
         </div>
         <div class="col-md-6">
-          <div class="chart-container">
-            <h5><i class="fas fa-calendar-alt"></i> Purchase Probability Trends</h5>
-            <div id="purchaseTrendsChart" style="min-height: 250px;">
+          <div class="chart-container" style="min-height: 500px;">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <h5 class="mb-0"><i class="fas fa-calendar-alt"></i> Purchase Probability Trends</h5>
+              <button class="btn btn-outline-primary btn-sm" onclick="expandChart('purchaseTrendsChart')" title="View Chart in Popup">
+                <i class="fas fa-expand-arrows-alt"></i> Expand
+              </button>
+            </div>
+            <div id="purchaseTrendsChart" style="min-height: 400px;">
               <div class="text-center py-5 text-muted">
                 <i class="fas fa-chart-line fa-3x mb-3" style="color: #e2e8f0;"></i>
                 <h6 style="color: #a0aec0;">Time-Based Predictions</h6>
@@ -985,7 +1006,7 @@ html, body {
       </div>
 
       <!-- Recommended Products -->
-      <div class="chart-container">
+      <div class="chart-container" style="min-height: 800px !important;">
         <div class="d-flex justify-content-between align-items-center mb-3">
           <h5 class="mb-0"><i class="fas fa-lightbulb"></i> AI-Powered Product Recommendations</h5>
           <div>
@@ -994,10 +1015,10 @@ html, body {
             </button>
           </div>
         </div>
-        <div class="recommendations-scroll-container">
+        <div class="recommendations-scroll-container" style="min-height: 670px !important; max-height: 870px !important; height: 400px !important;">
           <div class="row g-3" id="recommendedProducts">
             <div class="col-12">
-              <div class="text-center py-4 text-muted">
+              <div class="text-center py-5 text-muted" style="min-height: 300px; display: flex; flex-direction: column; justify-content: center; align-items: center;">
                 <i class="fas fa-robot fa-3x mb-3" style="color: #cbd5e0;"></i>
                 <h5 style="color: #718096;">AI Recommendations Ready</h5>
                 <p style="color: #a0aec0;">Click "Train & Predict" to generate machine learning-powered product recommendations.</p>
@@ -1083,9 +1104,20 @@ html, body {
       <!-- Comparison Results -->
       <div class="row g-2">
         <div class="col-md-8">
-          <div class="chart-container">
-            <h5><i class="fas fa-chart-bar"></i> Comparative Analysis Results</h5>
-            <canvas id="comparisonChart" height="250"></canvas>
+          <div class="chart-container" style="min-height: 850px;">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <h5 class="mb-0"><i class="fas fa-chart-bar"></i> Comparative Analysis Results</h5>
+              <button class="btn btn-outline-primary btn-sm" onclick="expandChart('comparisonChart')" title="View Chart in Popup">
+                <i class="fas fa-expand-arrows-alt"></i> Expand
+              </button>
+            </div>
+            <div id="comparisonChartContainer" style="min-height: 600px;">
+              <div class="text-center py-5 text-muted">
+                <i class="fas fa-chart-bar fa-3x mb-3" style="color: #e2e8f0;"></i>
+                <h6 style="color: #a0aec0;">Comparative Analysis Ready</h6>
+                <p style="color: #cbd5e0; font-size: 0.9rem;">Click "Compare Patterns" to generate comparative analysis results</p>
+              </div>
+            </div>
           </div>
         </div>
         <div class="col-md-4">
@@ -1583,7 +1615,6 @@ function updateMetrics() {
 // Predictive Analysis Functions
 function loadPredictiveAnalysis() {
   initializePredictiveCharts();
-  generateRecommendations();
   updateTrainingSlider();
 
   // Test API call immediately to verify real data access
@@ -1997,10 +2028,14 @@ function loadDifferentialAnalysis() {
 
 
 function initializeComparisonChart() {
-  const ctx = document.getElementById('comparisonChart');
-  if (!ctx) {
+  const container = document.getElementById('comparisonChartContainer');
+  if (!container) {
     return;
   }
+
+  // Create canvas inside container
+  container.innerHTML = `<canvas id="comparisonChart" height="680"></canvas>`;
+  const ctx = document.getElementById('comparisonChart');
 
   if (charts.comparison) {
     charts.comparison.destroy();
@@ -2509,6 +2544,160 @@ function showTopProductDetails(datasetSource) {
 }
 
 
+function expandChart(chartId) {
+  let title, content, container;
+
+  switch(chartId) {
+    case 'revenueImpactChart':
+      title = 'Revenue Impact by Department - Expanded View';
+      container = document.getElementById('revenueImpactChart');
+      break;
+    case 'purchaseTrendsChart':
+      title = 'Purchase Probability Trends - Expanded View';
+      container = document.getElementById('purchaseTrendsChart');
+      break;
+    case 'comparisonChart':
+      title = 'Comparative Analysis Results - Expanded View';
+      container = document.getElementById('comparisonChartContainer') || document.getElementById('comparisonChart');
+      break;
+    case 'comparisonChartContainer':
+      title = 'Comparative Analysis Results - Expanded View';
+      container = document.getElementById('comparisonChartContainer');
+      break;
+    default:
+      console.warn('Unknown chart ID:', chartId);
+      title = 'Chart Analysis - Expanded View';
+      container = document.getElementById(chartId);
+      break;
+  }
+
+  console.log('ExpandChart called with:', chartId, 'Title:', title, 'Container found:', !!container);
+  if (container) {
+    // For charts, we'll create a larger canvas version
+    const canvas = container.querySelector('canvas');
+    console.log('Expanding chart:', chartId, 'Canvas found:', !!canvas, 'Container:', container);
+
+    if (canvas) {
+      content = `
+        <div style="background: white; padding: 2rem; border-radius: 15px; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
+          <canvas id="${chartId}_expanded" height="600" style="max-width: 100%; max-height: 70vh;"></canvas>
+        </div>
+      `;
+    } else {
+      // Fallback for non-canvas content (placeholder or other content)
+      content = `
+        <div style="background: white; padding: 2rem; border-radius: 15px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); min-height: 600px;">
+          <div class="text-center py-5">
+            <h4 style="color: #667eea; margin-bottom: 2rem;">📊 ${title || 'Chart Analysis'}</h4>
+            <div style="font-size: 1.2rem; color: #6b7280;">
+              ${container.innerHTML || '<p>Chart will appear here after running analysis</p>'}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    const modalContent = `
+      <div id="expandedChartContent" style="max-height: 80vh; overflow-y: auto;">
+        ${content}
+      </div>
+    `;
+
+    showDetailModal(title || 'Chart Analysis', modalContent);
+
+    // Re-create the chart in the expanded canvas if it exists
+    setTimeout(() => {
+      recreateExpandedChart(chartId);
+    }, 300);
+  }
+}
+
+function recreateExpandedChart(chartId) {
+  console.log('Recreating expanded chart for:', chartId);
+
+  const expandedCanvas = document.getElementById(chartId + '_expanded');
+  const chartKey = getChartKey(chartId);
+  const originalChart = charts[chartKey];
+
+  console.log('Expanded canvas:', !!expandedCanvas, 'Chart key:', chartKey, 'Original chart:', !!originalChart);
+
+  if (!expandedCanvas) {
+    console.log('No expanded canvas found for:', chartId + '_expanded');
+    return;
+  }
+
+  if (!originalChart) {
+    console.log('No original chart found for key:', chartKey);
+    return;
+  }
+
+  // Create a new chart with the same data but larger size
+  const newChart = new Chart(expandedCanvas, {
+    type: originalChart.config.type,
+    data: originalChart.data,
+    options: {
+      ...originalChart.options,
+      responsive: true,
+      maintainAspectRatio: false,
+      devicePixelRatio: window.devicePixelRatio || 2,
+      plugins: {
+        ...originalChart.options.plugins,
+        title: {
+          ...originalChart.options.plugins?.title,
+          font: { size: 20, weight: 'bold' },
+          padding: 30
+        },
+        legend: {
+          ...originalChart.options.plugins?.legend,
+          labels: {
+            ...originalChart.options.plugins?.legend?.labels,
+            font: { weight: 'bold', size: 16 },
+            padding: 25
+          }
+        }
+      },
+      scales: originalChart.options.scales ? {
+        ...originalChart.options.scales,
+        y: {
+          ...originalChart.options.scales.y,
+          title: {
+            ...originalChart.options.scales.y?.title,
+            font: { weight: 'bold', size: 16 }
+          },
+          ticks: {
+            ...originalChart.options.scales.y?.ticks,
+            font: { size: 14 }
+          }
+        },
+        x: {
+          ...originalChart.options.scales.x,
+          title: {
+            ...originalChart.options.scales.x?.title,
+            font: { weight: 'bold', size: 16 }
+          },
+          ticks: {
+            ...originalChart.options.scales.x?.ticks,
+            font: { size: 14 }
+          }
+        }
+      } : undefined
+    }
+  });
+}
+
+function getChartKey(chartId) {
+  switch(chartId) {
+    case 'revenueImpactChart':
+      return 'revenue';
+    case 'purchaseTrendsChart':
+      return 'trends';
+    case 'comparisonChart':
+      return 'comparison';
+    default:
+      return null;
+  }
+}
+
 function expandSection(sectionType) {
   let title, content, container;
   
@@ -2741,6 +2930,82 @@ function updateAnalysisPreview() {
   if (previewText) {
     previewText.textContent = `Will compare shopping patterns between ${comparisons[compareBy]} using ${tests[statTest]}.`;
   }
+}
+
+function showDescriptiveHelp() {
+  const helpContent = `
+    <div class="row g-3">
+      <div class="col-md-6">
+        <h6 class="fw-bold mb-2"><i class="fas fa-sliders-h text-success me-2"></i>Support & Confidence</h6>
+        <div class="help-option mb-2">
+          <strong>Min Support</strong>
+          <small class="d-block text-muted">Percentage of baskets that must contain an itemset before it is treated as frequent. Start near 5% when exploring and lower gradually to surface niche patterns.</small>
+        </div>
+        <div class="help-option">
+          <strong>Min Confidence</strong>
+          <small class="d-block text-muted">How often the consequent appears when the antecedent is present. Raise confidence to focus on proven pairings or relax it to uncover exploratory cross-sells.</small>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <h6 class="fw-bold mb-2"><i class="fas fa-lightbulb text-warning me-2"></i>Best Practices</h6>
+        <div class="help-option mb-2">
+          <strong>Run Apriori</strong>
+          <small class="d-block text-muted">Executes the algorithm and refreshes association rules, metrics, and high-value basket insights with the latest thresholds.</small>
+        </div>
+        <div class="help-option mb-2">
+          <strong>Balance Support & Confidence</strong>
+          <small class="d-block text-muted">Higher support highlights store-wide behaviour; lower support reveals emerging, high-lift opportunities worth testing.</small>
+        </div>
+        <div class="help-option">
+          <strong>Review Lift</strong>
+          <small class="d-block text-muted">Lift above 1.0 signals relationships that outperform random chance and deserve merchandising or promotion attention.</small>
+        </div>
+      </div>
+    </div>
+    <div class="alert alert-success mt-3">
+      <small><strong>Manager Tip:</strong> Start with support >= 5% and confidence >= 60% for a clean rule set, then relax thresholds to uncover secondary pairings.</small>
+    </div>
+  `;
+
+  showDetailModal('Descriptive Configuration Help', helpContent);
+}
+
+function showPredictiveHelp() {
+  const helpContent = `
+    <div class="row g-3">
+      <div class="col-md-6">
+        <h6 class="fw-bold mb-2"><i class="fas fa-robot text-primary me-2"></i>Algorithm & Horizon</h6>
+        <div class="help-option mb-2">
+          <strong>Algorithm</strong>
+          <small class="d-block text-muted">Select the model family that best fits your use case. Neural Networks capture complex patterns, Random Forest balances accuracy and speed, while SVMs excel with smaller feature sets.</small>
+        </div>
+        <div class="help-option">
+          <strong>Prediction Horizon</strong>
+          <small class="d-block text-muted">Controls how far ahead to forecast. Short horizons react quickly to changes, longer horizons support seasonal and promotional planning.</small>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <h6 class="fw-bold mb-2"><i class="fas fa-sliders-h text-info me-2"></i>Training Settings</h6>
+        <div class="help-option mb-2">
+          <strong>Training Size</strong>
+          <small class="d-block text-muted">Adjust how much historical data trains the model. Larger samples improve stability; smaller samples adapt faster to recent behaviour.</small>
+        </div>
+        <div class="help-option mb-2">
+          <strong>Train & Predict</strong>
+          <small class="d-block text-muted">Runs training, updates predictive charts, and refreshes the AI recommendation grid with the latest output.</small>
+        </div>
+        <div class="help-option">
+          <strong>Model Monitoring</strong>
+          <small class="d-block text-muted">Review accuracy metrics after training and retrain whenever promotions, assortments, or customer behaviour shift.</small>
+        </div>
+      </div>
+    </div>
+    <div class="alert alert-primary mt-3">
+      <small><strong>Manager Tip:</strong> Use shorter horizons with smaller training sets for rapid weekly experiments, and larger sets with longer horizons for quarterly planning.</small>
+    </div>
+  `;
+
+  showDetailModal('Predictive Configuration Help', helpContent);
 }
 
 function showConfigurationHelp() {
@@ -3472,7 +3737,7 @@ function updatePredictiveCharts(predictions, algorithm) {
     console.log('Revenue data for chart:', revenueData);
     console.log('Chart labels:', labels);
 
-    revenueContainer.innerHTML = `<canvas id="revenueChart" height="250"></canvas>`;
+    revenueContainer.innerHTML = `<canvas id="revenueChart" height="400"></canvas>`;
     const ctx = document.getElementById('revenueChart');
 
     if (charts.revenue) charts.revenue.destroy();
@@ -3493,6 +3758,7 @@ function updatePredictiveCharts(predictions, algorithm) {
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        devicePixelRatio: window.devicePixelRatio || 2,
         plugins: {
           legend: {
             display: false
@@ -3500,10 +3766,16 @@ function updatePredictiveCharts(predictions, algorithm) {
           title: {
             display: true,
             text: `${algorithm.replace('_', ' ').toUpperCase()} Model Revenue Predictions`,
-            font: { size: 14, weight: 'bold' },
-            color: '#2d3748'
+            font: { size: 16, weight: 'bold' },
+            color: '#2d3748',
+            padding: 20
           },
           tooltip: {
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            titleFont: { size: 14, weight: 'bold' },
+            bodyFont: { size: 13 },
+            cornerRadius: 8,
+            padding: 12,
             callbacks: {
               label: function(context) {
                 return `Revenue Impact: $${context.parsed.y.toLocaleString()}`;
@@ -3518,12 +3790,17 @@ function updatePredictiveCharts(predictions, algorithm) {
               display: true,
               text: 'Predicted Revenue ($)',
               color: '#4a5568',
-              font: { weight: 'bold' }
+              font: { weight: 'bold', size: 14 }
             },
             ticks: {
+              color: '#6b7280',
+              font: { size: 12 },
               callback: function(value) {
                 return '$' + value.toLocaleString();
               }
+            },
+            grid: {
+              color: 'rgba(107, 114, 128, 0.2)'
             }
           },
           x: {
@@ -3531,7 +3808,15 @@ function updatePredictiveCharts(predictions, algorithm) {
               display: true,
               text: 'Department Categories',
               color: '#4a5568',
-              font: { weight: 'bold' }
+              font: { weight: 'bold', size: 14 }
+            },
+            ticks: {
+              color: '#6b7280',
+              font: { size: 11, weight: '500' },
+              maxRotation: 45
+            },
+            grid: {
+              display: false
             }
           }
         }
@@ -3628,7 +3913,7 @@ function updatePredictiveCharts(predictions, algorithm) {
       });
     });
 
-    trendsContainer.innerHTML = `<canvas id="trendsChart" height="250"></canvas>`;
+    trendsContainer.innerHTML = `<canvas id="trendsChart" height="400"></canvas>`;
     const ctx2 = document.getElementById('trendsChart');
 
     if (charts.trends) charts.trends.destroy();
@@ -3641,22 +3926,29 @@ function updatePredictiveCharts(predictions, algorithm) {
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        devicePixelRatio: window.devicePixelRatio || 2,
         plugins: {
           legend: {
             position: 'top',
             labels: {
-              padding: 15,
+              padding: 20,
               usePointStyle: true,
-              font: { weight: 'bold', size: 11 }
+              font: { weight: 'bold', size: 13 }
             }
           },
           title: {
             display: true,
             text: `${algorithm.replace('_', ' ').toUpperCase()} Model: Purchase Probability Over Time`,
-            font: { size: 14, weight: 'bold' },
-            color: '#2d3748'
+            font: { size: 16, weight: 'bold' },
+            color: '#2d3748',
+            padding: 20
           },
           tooltip: {
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            titleFont: { size: 14, weight: 'bold' },
+            bodyFont: { size: 13 },
+            cornerRadius: 8,
+            padding: 12,
             callbacks: {
               label: function(context) {
                 return `${context.dataset.label}: ${context.parsed.y.toFixed(1)}% probability`;
@@ -3684,15 +3976,17 @@ function updatePredictiveCharts(predictions, algorithm) {
               display: true,
               text: 'Purchase Probability (%)',
               color: '#4a5568',
-              font: { weight: 'bold' }
+              font: { weight: 'bold', size: 14 }
             },
             ticks: {
+              color: '#6b7280',
+              font: { size: 12 },
               callback: function(value) {
                 return value + '%';
               }
             },
             grid: {
-              color: 'rgba(0, 0, 0, 0.1)'
+              color: 'rgba(107, 114, 128, 0.2)'
             }
           },
           x: {
@@ -3700,10 +3994,14 @@ function updatePredictiveCharts(predictions, algorithm) {
               display: true,
               text: 'Time Period',
               color: '#4a5568',
-              font: { weight: 'bold' }
+              font: { weight: 'bold', size: 14 }
+            },
+            ticks: {
+              color: '#6b7280',
+              font: { size: 12, weight: '500' }
             },
             grid: {
-              color: 'rgba(0, 0, 0, 0.05)'
+              display: false
             }
           }
         },
@@ -3945,3 +4243,5 @@ function updateAccuracyChart(performance) {
 </script>
 
 {% endblock %}
+
+
