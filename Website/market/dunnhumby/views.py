@@ -121,16 +121,46 @@ def basket_analysis(request):
         total_transactions=Count('product_id')
     ).order_by('-total_sales')[:10]
 
-    top_products = Transaction.objects.values('product_id').annotate(
+    product_stats = Transaction.objects.values('product_id').annotate(
         frequency=Count('product_id'),
         total_sales=Sum('sales_value')
-    ).order_by('-frequency')[:20]
+    ).filter(product_id__isnull=False)
+
+    top_products_frequency_raw = list(product_stats.order_by('-frequency')[:20])
+    top_products_sales_raw = list(product_stats.order_by('-total_sales')[:20])
+
+    product_ids = {item['product_id'] for item in top_products_frequency_raw + top_products_sales_raw}
+    product_details = {
+        item['product_id']: item for item in DunnhumbyProduct.objects.filter(product_id__in=product_ids).values(
+            'product_id', 'brand', 'department', 'commodity_desc', 'sub_commodity_desc', 'manufacturer'
+        )
+    }
+
+    def _enrich_product_records(records):
+        enriched = []
+        for record in records:
+            details = product_details.get(record['product_id'], {})
+            enriched.append({
+                'product_id': record['product_id'],
+                'frequency': record['frequency'],
+                'total_sales': float(record['total_sales'] or 0),
+                'brand': details.get('brand') or 'Unknown Brand',
+                'department': details.get('department') or 'MISC. TRANS.',
+                'commodity_desc': details.get('commodity_desc') or 'All Products',
+                'sub_commodity_desc': details.get('sub_commodity_desc') or '',
+                'manufacturer': details.get('manufacturer') or ''
+            })
+        return enriched
+
+    top_products_frequency = _enrich_product_records(top_products_frequency_raw)
+    top_products_sales = _enrich_product_records(top_products_sales_raw)
 
     return render(request, 'site/dunnhumby/basket_analysis.html', {
         'title': 'Shopping Basket Analysis',
         'basket_stats': basket_stats,
         'dept_analysis': dept_analysis,
-        'top_products': top_products,
+        'top_products_frequency': top_products_frequency,
+        'top_products_sales': top_products_sales,
     })
 
 
