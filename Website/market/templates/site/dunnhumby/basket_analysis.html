@@ -1499,7 +1499,7 @@ function testApiAccess() {
       'Content-Type': 'application/x-www-form-urlencoded',
       'X-CSRFToken': getCsrfToken()
     },
-    body: 'model_type=neural_network'
+    body: `model_type=neural_network&time_horizon=${getSelectedHorizon()}`
   })
   .then(response => response.json())
   .then(data => {
@@ -1741,6 +1741,7 @@ function runPredictiveAnalysis() {
       // Also load after a delay to catch any training updates
       setTimeout(() => {
         loadPredictiveResults(algorithm);
+        generateRecommendations();
       }, 3000);
       
     } else {
@@ -1786,16 +1787,18 @@ function checkTrainingStatus(algorithm) {
 }
 
 function loadPredictiveResults(algorithm) {
-  console.log(`Loading predictive results for algorithm: ${algorithm}`);
+  const timeHorizon = getSelectedHorizon();
+  const horizonLabel = getHorizonLabel(timeHorizon);
+  console.log(`Loading predictive results for algorithm: ${algorithm}, horizon: ${horizonLabel}`);
 
-  // Load department predictions
+  // Load department predictions with time horizon
   fetch('/analysis/api/ml/predictions/', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
       'X-CSRFToken': getCsrfToken()
     },
-    body: `model_type=${algorithm}`
+    body: `model_type=${algorithm}&time_horizon=${timeHorizon}`
   })
   .then(response => {
     console.log('Response received:', response.status);
@@ -3070,6 +3073,7 @@ document.addEventListener('DOMContentLoaded', function() {
       showNotification('Updating forecasts for ' + horizonLabelText + ' horizon...', 'info');
 
       // Refresh predictions and recommendations with new horizon
+      loadPredictiveResults(algorithmValue);
       generateRecommendations();
     });
   }
@@ -3151,7 +3155,9 @@ function getHorizonLabel(months) {
 }
 
 function updatePredictiveCharts(predictions, algorithm) {
-  console.log('updatePredictiveCharts called with algorithm:', algorithm);
+  const timeHorizon = getSelectedHorizon();
+  const horizonLabel = getHorizonLabel(timeHorizon);
+  console.log('updatePredictiveCharts called with algorithm:', algorithm, 'horizon:', horizonLabel);
   console.log('Predictions data structure:', predictions);
   console.log('Number of predictions:', predictions ? predictions.length : 0);
 
@@ -3159,6 +3165,16 @@ function updatePredictiveCharts(predictions, algorithm) {
     console.error('No predictions provided - using only real data, no fallbacks!');
     showChartError('No real predictions available from the trained model.');
     return;
+  }
+
+  // Update chart titles to show current time horizon
+  const revenueTitle = document.querySelector('#revenueImpactChart').parentElement.querySelector('h5');
+  const trendsTitle = document.querySelector('#purchaseTrendsChart').parentElement.querySelector('h5');
+  if (revenueTitle) {
+    revenueTitle.innerHTML = `<i class="fas fa-chart-bar"></i> Revenue Impact by Department (${horizonLabel})`;
+  }
+  if (trendsTitle) {
+    trendsTitle.innerHTML = `<i class="fas fa-calendar-alt"></i> Purchase Probability Trends (${horizonLabel})`;
   }
 
   // Validate that we have real data structure
