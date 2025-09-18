@@ -1791,8 +1791,8 @@ function loadPredictiveResults(algorithm) {
   const horizonLabel = getHorizonLabel(timeHorizon);
   console.log(`Loading predictive results for algorithm: ${algorithm}, horizon: ${horizonLabel}`);
 
-  // Load department predictions with time horizon
-  fetch('/analysis/api/ml/predictions/', {
+  // Load department predictions for charts
+  fetch('/analysis/api/ml/predictive/', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
@@ -1801,32 +1801,56 @@ function loadPredictiveResults(algorithm) {
     body: `model_type=${algorithm}&time_horizon=${timeHorizon}`
   })
   .then(response => {
-    console.log('Response received:', response.status);
+    console.log('Department API response status:', response.status);
     return response.json();
   })
-  .then(data => {
-    console.log('Predictions API response:', data);
+  .then(departmentData => {
+    console.log('Department predictions API response:', departmentData);
 
-    if (data.success && data.predictions && data.predictions.length > 0) {
-      console.log(`Found ${data.predictions.length} predictions:`, data.predictions);
-      console.log('Calling updatePredictiveCharts with real data...');
-      updatePredictiveCharts(data.predictions, algorithm);
-      generateTimeBasedInsights(data.predictions, algorithm);
+    // Handle department predictions for charts
+    if (departmentData.success && departmentData.department_predictions && departmentData.department_predictions.length > 0) {
+      console.log(`Found ${departmentData.department_predictions.length} department predictions`);
+      console.log('First department sample:', departmentData.department_predictions[0]);
+      console.log('Calling updatePredictiveCharts with department data...');
+      updatePredictiveCharts(departmentData.department_predictions, algorithm);
     } else {
-      console.error('No predictions found in API response!');
-      console.error('API Response details:', {
-        success: data.success,
-        predictions: data.predictions,
-        error: data.error,
-        fullResponse: data
+      console.error('No department predictions found!');
+      console.error('Department API Response details:', {
+        success: departmentData.success,
+        department_predictions: departmentData.department_predictions,
+        error: departmentData.error
       });
-
-      // Show error message in chart containers
-      showChartError('No real data available from database. Please check your data source.');
+      showChartError('No department predictions found. Please ensure the model is trained.');
     }
   })
   .catch(error => {
-    console.error('Error loading predictions:', error);
+    console.error('Error loading department predictions:', error);
+    showChartError('Error loading department predictions. Please try again.');
+  });
+
+  // Also load product recommendations for insights
+  fetch('/analysis/api/ml/predictions/', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'X-CSRFToken': getCsrfToken()
+    },
+    body: `model_type=${algorithm}&time_horizon=${timeHorizon}`
+  })
+  .then(response => response.json())
+  .then(productData => {
+    console.log('Product predictions API response:', productData);
+
+    // Handle product recommendations for insights
+    if (productData.success && productData.predictions && productData.predictions.length > 0) {
+      console.log(`Found ${productData.predictions.length} product recommendations`);
+      generateTimeBasedInsights(productData.predictions, algorithm);
+    } else {
+      console.error('No product predictions found!');
+    }
+  })
+  .catch(error => {
+    console.error('Error loading product predictions:', error);
   });
 }
 
@@ -3187,27 +3211,27 @@ function updatePredictiveCharts(predictions, algorithm) {
     return;
   }
 
+  // Get top 6 departments by predicted revenue (used by both charts)
+  const topDepts = predictions.slice(0, 6);
+  console.log('Top departments for charts:', topDepts);
+
   // Update Revenue Impact Chart
   const revenueContainer = document.getElementById('revenueImpactChart');
   if (revenueContainer) {
-    // Get top 6 departments by predicted revenue
-    const topDepts = predictions.slice(0, 6);
-    console.log('Top departments for charts:', topDepts);
 
-    // Ensure we're calculating revenue from real database values only
+    // Use the time-horizon specific revenue forecast from the backend
     const revenueData = topDepts.map(p => {
-      // Validate we have real data
-      if (!p.avg_value || !p.customers || !p.predicted_growth) {
-        console.error(`Missing real data for ${p.department}:`, p);
+      // Validate we have real data and selected forecast
+      if (!p.selected_forecast || !p.selected_forecast.revenue_forecast) {
+        console.error(`Missing selected forecast data for ${p.department}:`, p);
         return 0;
       }
 
-      const avgValue = parseFloat(p.avg_value);
-      const customers = parseInt(p.customers);
-      const growth = parseFloat(p.predicted_growth);
-      const revenue = avgValue * customers * growth;
+      const revenue = parseFloat(p.selected_forecast.revenue_forecast);
+      const horizonLabel = p.selected_forecast.label || 'Unknown';
+      const months = p.selected_forecast.months || 0;
 
-      console.log(`REAL DATA - ${p.department}: $${avgValue.toFixed(2)} avg × ${customers} customers × ${growth.toFixed(2)} growth = $${revenue.toFixed(0)} revenue`);
+      console.log(`HORIZON-SPECIFIC DATA - ${p.department} (${horizonLabel}): $${revenue.toFixed(0)} revenue for ${months}-month forecast`);
       return Math.round(revenue);
     });
     const labels = topDepts.map(p => p.department);
@@ -3289,18 +3313,37 @@ function updatePredictiveCharts(predictions, algorithm) {
     console.log('Updating segment chart with real data:', topDepts);
 
     // Ensure we have valid data for each department
-    const validDepts = topDepts.filter(p => p.department && p.confidence !== undefined && p.predicted_growth !== undefined);
+    const validDepts = topDepts.filter(p => {
+      const hasBasicData = p.department && p.confidence !== undefined;
+      const hasForecasts = p.forecasts && Object.keys(p.forecasts).length > 0;
+      console.log(`Department ${p.department}: basic=${hasBasicData}, forecasts=${hasForecasts}`, p.forecasts);
+      return hasBasicData && hasForecasts;
+    });
     console.log(`Filtered ${validDepts.length} valid departments out of ${topDepts.length}`);
 
+    // If no departments with forecasts, check if we have any departments at all
     if (validDepts.length === 0) {
-      console.error('No valid department data for segment chart');
-      document.getElementById('purchaseTrendsChart').innerHTML = `
-        <div class="text-center py-5 text-warning">
-          <i class="fas fa-database fa-3x mb-3"></i>
-          <h6>Insufficient Real Data</h6>
-          <p>Need departments with time-based forecasts from trained model.</p>
-        </div>
-      `;
+      console.error('No valid department data for trends chart');
+      console.log('Sample department data:', topDepts[0]);
+
+      if (topDepts.length > 0) {
+        // Show a message that forecasts are missing but departments exist
+        document.getElementById('purchaseTrendsChart').innerHTML = `
+          <div class="text-center py-5 text-warning">
+            <i class="fas fa-chart-line fa-3x mb-3"></i>
+            <h6>Missing Forecast Data</h6>
+            <p>Departments found (${topDepts.length}) but missing time-based forecasts. Check ML model training.</p>
+          </div>
+        `;
+      } else {
+        document.getElementById('purchaseTrendsChart').innerHTML = `
+          <div class="text-center py-5 text-danger">
+            <i class="fas fa-database fa-3x mb-3"></i>
+            <h6>No Department Data</h6>
+            <p>No department predictions available from API.</p>
+          </div>
+        `;
+      }
       return;
     }
 

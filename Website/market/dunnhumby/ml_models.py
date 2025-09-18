@@ -369,14 +369,25 @@ class PredictiveMarketBasketAnalyzer:
 
                 households_window = window_households.get(horizon_key) or customer_count
                 selected_sales = window_sales.get(horizon_key)
+
+                # Calculate more conservative product-level revenue projections
                 if selected_sales and selected_sales > 0:
-                    projected_revenue = selected_sales
+                    base_revenue = selected_sales
                 else:
-                    projected_revenue = avg_value * households_window * confidence
+                    base_revenue = avg_value * households_window
+
+                # Apply conservative scaling for individual products
+                growth_factor = 1.0 + (confidence - 0.5) * 0.5  # Growth between 0.75x and 1.25x
+                projected_revenue = base_revenue * growth_factor
+
+                # Cap individual product revenue to reasonable bounds
+                min_product_revenue = base_revenue * 0.8  # At least 80% of base
+                max_product_revenue = base_revenue * 1.5  # At most 150% of base
+                projected_revenue = max(min_product_revenue, min(max_product_revenue, projected_revenue))
 
                 base_month_revenue = window_sales.get('1_month')
                 if not base_month_revenue or base_month_revenue <= 0:
-                    base_month_revenue = avg_value * max(window_households.get('1_month', customer_count), 1) * confidence
+                    base_month_revenue = avg_value * max(window_households.get('1_month', customer_count), 1) * 0.8
 
                 recommendations.append({
                     'product_id': product[0],
@@ -524,10 +535,21 @@ class PredictiveMarketBasketAnalyzer:
                 forecasts = {}
                 for key, metrics in horizon_metrics.items():
                     probability = (metrics['customers'] / total_customers) if total_customers else 0
-                    revenue = metrics['sales'] if metrics['sales'] > 0 else avg_value * metrics['customers']
+
+                    # Use projected revenue calculation similar to products for consistency
+                    base_revenue = metrics['sales'] if metrics['sales'] > 0 else avg_value * metrics['customers']
+
+                    # Apply growth and confidence scaling
+                    projected_revenue = base_revenue * predicted_growth * confidence
+
+                    # Ensure department revenue is at least the sum of recent historical sales
+                    min_revenue = base_revenue * 0.9  # At least 90% of historical
+                    max_revenue = base_revenue * 3.0  # At most 300% of historical
+                    projected_revenue = max(min_revenue, min(max_revenue, projected_revenue))
+
                     forecasts[key] = {
                         'probability': round(float(probability), 3),
-                        'revenue_forecast': round(float(revenue), 2),
+                        'revenue_forecast': round(float(projected_revenue), 2),
                         'customers': metrics['customers'],
                         'transactions': metrics['transactions']
                     }
