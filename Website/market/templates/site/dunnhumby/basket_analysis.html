@@ -3433,8 +3433,9 @@ function updatePredictiveCharts(predictions, algorithm) {
                 const deptIndex = datasets.findIndex(d => d.label === context.dataset.label);
                 const dept = validDepts[deptIndex];
                 if (dept && dept.forecasts) {
-                  const timeKey = context.dataIndex === 0 ? '1_month' :
-                                 context.dataIndex === 1 ? '3_months' : '1_year';
+                  // Map dataIndex to correct time keys (0=1_month, 1=3_months, 2=6_months, 3=12_months)
+                  const timeKeys = ['1_month', '3_months', '6_months', '12_months'];
+                  const timeKey = timeKeys[context.dataIndex];
                   const revenue = dept.forecasts[timeKey]?.revenue_forecast || 0;
                   return `Expected Revenue: $${revenue.toLocaleString()}`;
                 }
