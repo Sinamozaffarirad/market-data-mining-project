@@ -791,7 +791,7 @@ html, body {
               ${{ b.total_value|floatformat:2 }}
             </div>
             <div style="color: #718096; font-size: 0.9rem;">
-              Total Value / Qty {{ b.total_items }}
+              Total Value • Qty {{ b.total_items }}
             </div>
           </div>
         </div>
@@ -825,7 +825,7 @@ html, body {
       <div class="interactive-controls">
         <h5><i class="fas fa-robot"></i> Machine Learning Configuration</h5>
         <div class="row g-2">
-          <div class="col-lg-4 col-md-6">
+          <div class="col-md-6">
             <label class="form-label control-label">Algorithm:</label>
             <select class="form-select" id="mlAlgorithm">
               <option value="neural_network">Neural Network</option>
@@ -834,22 +834,12 @@ html, body {
               <option value="svm">Support Vector Machine</option>
             </select>
           </div>
-          <div class="col-lg-4 col-md-6">
+          <div class="col-md-6">
             <div class="control-group">
               <label class="control-label">Training Size:</label>
               <input type="range" class="form-range control-slider" id="trainingSizeSlider" min="0.6" max="0.9" step="0.05" value="0.8">
               <span class="control-value" id="trainingSizeValue">80%</span>
             </div>
-          </div>
-          <div class="col-lg-4 col-md-6">
-            <label class="form-label control-label">Prediction Horizon:</label>
-            <select class="form-select" id="predictionHorizon">
-              <option value="1">1 Month</option>
-              <option value="3" selected>3 Months</option>
-              <option value="6">6 Months</option>
-              <option value="12">12 Months</option>
-            </select>
-            <div class="form-text text-muted">Controls the time window used for revenue, probability, and recommendation forecasts.</div>
           </div>
         </div>
         <button class="btn btn-primary mt-2" onclick="runPredictiveAnalysis()">
@@ -861,16 +851,11 @@ html, body {
       <div class="row g-2">
         <div class="col-md-6">
           <div class="chart-container">
-            <div class="d-flex justify-content-between align-items-center mb-2">
-              <h5 class="mb-0"><i class="fas fa-chart-bar"></i> Revenue Impact by Department</h5>
-              <button class="btn btn-outline-primary btn-sm" onclick="expandSection('revenue')" title="View in Popup">
-                <i class="fas fa-expand-arrows-alt"></i> Expand
-              </button>
-            </div>
+            <h5><i class="fas fa-chart-bar"></i> Revenue Impact by Department</h5>
             <div id="revenueImpactChart" style="min-height: 250px;">
               <div class="text-center py-5 text-muted">
                 <i class="fas fa-chart-bar fa-3x mb-3" style="color: #e2e8f0;"></i>
-                <h6 style="color: #a0aec0;">Revenue Impact Analysis (select a prediction horizon above)</h6>
+                <h6 style="color: #a0aec0;">Revenue Impact Analysis</h6>
                 <p style="color: #cbd5e0; font-size: 0.9rem;">Train your model to see predicted revenue impact by department</p>
               </div>
             </div>
@@ -878,17 +863,12 @@ html, body {
         </div>
         <div class="col-md-6">
           <div class="chart-container">
-            <div class="d-flex justify-content-between align-items-center mb-2">
-              <h5 class="mb-0"><i class="fas fa-calendar-alt"></i> Purchase Probability Trends</h5>
-              <button class="btn btn-outline-primary btn-sm" onclick="expandSection('trends')" title="View in Popup">
-                <i class="fas fa-expand-arrows-alt"></i> Expand
-              </button>
-            </div>
+            <h5><i class="fas fa-calendar-alt"></i> Purchase Probability Trends</h5>
             <div id="purchaseTrendsChart" style="min-height: 250px;">
               <div class="text-center py-5 text-muted">
                 <i class="fas fa-chart-line fa-3x mb-3" style="color: #e2e8f0;"></i>
                 <h6 style="color: #a0aec0;">Time-Based Predictions</h6>
-                <p style="color: #cbd5e0; font-size: 0.9rem;">Forecast purchase probability over 1, 3, 6, and 12 month periods</p>
+                <p style="color: #cbd5e0; font-size: 0.9rem;">Forecast purchase probability over 1 month, 3 months, and 1 year periods</p>
               </div>
             </div>
           </div>
@@ -1095,13 +1075,11 @@ function switchTab(tabName) {
     targetTab.classList.add('active');
   }
 
-  // Add active class to the button that matches this tab
+  // Add active class to the correct button based on tab name
   const buttons = document.querySelectorAll('.tab-btn');
   buttons.forEach(btn => {
-    const btnText = btn.textContent || btn.innerText;
-    if ((tabName === 'descriptive' && btnText.includes('Descriptive')) ||
-        (tabName === 'predictive' && btnText.includes('Predictive')) ||
-        (tabName === 'differential' && btnText.includes('Differential'))) {
+    const onclick = btn.getAttribute('onclick');
+    if (onclick && onclick.includes(`'${tabName}'`)) {
       btn.classList.add('active');
     }
   });
@@ -1285,7 +1263,7 @@ function renderDifferentialInsightCard(insight, compareBy, statTest) {
         </div>
         <div style="color: #a0aec0; font-size: 0.75rem; display: flex; align-items: center; gap: 8px;">
           <span><i class="fas fa-chart-bar"></i> ${escapeHtml(statLabel)}</span>
-          <span> / </span>
+          <span>•</span>
           <span><i class="fas fa-filter"></i> ${escapeHtml(compareLabel)}</span>
         </div>
       </div>
@@ -1433,11 +1411,10 @@ function updateSliderValues() {
 }
 
 function runDescriptiveAnalysis() {
-  try {
-    const supportValue = document.getElementById('supportSlider')?.value || 0.05;
-    const confidenceValue = document.getElementById('confidenceSlider')?.value || 0.6;
-
-    showNotification(`Running Apriori algorithm (min_support=${supportValue}, min_confidence=${confidenceValue})...`, 'info');
+  const supportValue = document.getElementById('supportSlider')?.value || 0.05;
+  const confidenceValue = document.getElementById('confidenceSlider')?.value || 0.6;
+  
+  showNotification(`Running Apriori algorithm (min_support=${supportValue}, min_confidence=${confidenceValue})...`, 'info');
   
   // Show loading state for both containers
   const loadingHtml = `
@@ -1464,11 +1441,6 @@ function runDescriptiveAnalysis() {
     
     showNotification(`Apriori completed! Found ${total} strong association rules (${deptRules} department + ${commodityRules} commodity).`, 'success');
   }, Math.random() * 2000 + 1500);
-
-  } catch (error) {
-    console.error('Error in runDescriptiveAnalysis:', error);
-    showNotification('Error running descriptive analysis. Please try again.', 'error');
-  }
 }
 
 function updateMetrics() {
@@ -1502,7 +1474,7 @@ function updateMetrics() {
 // Predictive Analysis Functions
 function loadPredictiveAnalysis() {
   initializePredictiveCharts();
-  generateRecommendations(getSelectedHorizon());
+  generateRecommendations();
   updateTrainingSlider();
 
   // Test API call immediately to verify real data access
@@ -1512,28 +1484,27 @@ function loadPredictiveAnalysis() {
 
 // Test API access to verify we can get real data
 function testApiAccess() {
-  const defaultHorizon = getSelectedHorizon();
-  fetch('{% url "dunnhumby_site:get_predictions" %}', {
+  fetch('/analysis/api/ml/predictions/', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
       'X-CSRFToken': getCsrfToken()
     },
-    body: 'model_type=neural_network&time_horizon=' + defaultHorizon
+    body: 'model_type=neural_network'
   })
   .then(response => response.json())
   .then(data => {
     console.log('API test result:', data);
     if (data.success && data.predictions && data.predictions.length > 0) {
-      console.log('[OK] API working - real data available');
+      console.log('✓ API working - real data available');
       console.log('Sample prediction:', data.predictions[0]);
     } else {
-      console.error('[WARN] API test failed - no real data available');
+      console.error('✗ API test failed - no real data available');
       console.error('Error details:', data);
     }
   })
   .catch(error => {
-    console.error('[ERROR] API test failed with error:', error);
+    console.error('✗ API test failed with error:', error);
   });
 }
 
@@ -1553,28 +1524,22 @@ function initializePredictiveCharts() {
   console.log('Predictive charts initialized - waiting for model training');
 }
 
-
-function generateRecommendations(timeHorizon) {
+function generateRecommendations() {
   const algorithm = document.getElementById('mlAlgorithm').value;
   const container = document.getElementById('recommendedProducts');
-  const horizon = Number(timeHorizon || getSelectedHorizon());
-  const horizonLabel = getHorizonLabel(horizon);
 
   if (container) {
-    container.innerHTML = `<div class="col-12 text-center">
-      <i class="fas fa-spinner fa-spin fa-2x mb-2" style="color: #667eea;"></i>
-      <h6 style="color: #4a5568;">Generating ${horizonLabel.toLowerCase()} recommendations...</h6>
-      <p style="color: #a0aec0;">Using ${algorithm.replace('_', ' ').toUpperCase()} model calibrated for ${horizonLabel.toLowerCase()} impact</p>
-    </div>`;
+    container.innerHTML = '<div class="col-12 text-center"><i class="fas fa-spinner fa-spin fa-2x mb-2" style="color: #667eea;"></i><h6 style="color: #4a5568;">Training Model & Generating Recommendations...</h6><p style="color: #a0aec0;">Using ' + algorithm.replace('_', ' ').toUpperCase() + ' algorithm to analyze purchase patterns</p></div>';
   }
-
-  fetch('{% url "dunnhumby_site:get_recommendations" %}', {
+  
+  // Call ML API for recommendations
+  fetch('/analysis/api/ml/recommendations/', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
       'X-CSRFToken': getCsrfToken()
     },
-    body: `model_type=${algorithm}&top_n=8&time_horizon=${horizon}`
+    body: `model_type=${algorithm}&top_n=8`
   })
   .then(response => response.json())
   .then(data => {
@@ -1587,19 +1552,12 @@ function generateRecommendations(timeHorizon) {
         const manufacturer = escapeHtml(rec.manufacturer || 'Unknown Manufacturer');
         const size = escapeHtml(rec.size || 'N/A');
         const households = Number(rec.customer_count || 0).toLocaleString();
-        const projectedRevenue = Number((rec.revenue_impact ?? rec.projected_revenue) || 0);
-        const baseRevenue = Number(rec.base_revenue_impact ?? projectedRevenue);
-        const formattedProjectedRevenue = projectedRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 });
-        const formattedBaseRevenue = baseRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 });
+        const formattedRevenueImpact = Number(rec.revenue_impact || 0).toLocaleString();
         const formattedAvgValue = Number(rec.avg_value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         const formattedTotalValue = Number(rec.total_value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         const formattedTotalQuantity = Number(rec.total_quantity || 0).toLocaleString();
         const commodityBadge = createCommodityBadge(rec.commodity || 'All Products');
-        const subtitle = subCommodity ? `${commodityName} / ${subCommodity}` : commodityName;
-        const confidencePercent = (Number(rec.confidence) * 100).toFixed(1);
-        const baselineNote = Math.abs(projectedRevenue - baseRevenue) > 1
-          ? `<div class="text-muted small">Baseline (per month): $${formattedBaseRevenue}</div>`
-          : '';
+        const subtitle = subCommodity ? `${commodityName} • ${subCommodity}` : commodityName;
 
         return `
           <div class="col-12 col-md-6 col-xl-4">
@@ -1613,21 +1571,18 @@ function generateRecommendations(timeHorizon) {
                  data-size="${escapeHtml(rec.size || '')}"
                  data-manufacturer="${escapeHtml(rec.manufacturer || '')}"
                  data-confidence="${rec.confidence}"
-                 data-revenue-impact="${projectedRevenue}"
-                 data-base-revenue-impact="${baseRevenue}"
-                 data-horizon="${horizon}"
-                 data-horizon-label="${horizonLabel}"
+                 data-revenue-impact="${rec.revenue_impact}"
                  data-customer-count="${rec.customer_count || 0}"
                  data-avg-value="${rec.avg_value || 0}"
                  data-total-value="${rec.total_value || 0}"
                  data-total-quantity="${rec.total_quantity || 0}"
-                 onmouseover="this.style.boxShadow='0 20px 40px rgba(99, 102, 241, 0.25)'"
-                 onmouseout="this.style.boxShadow=''">
-              <div class="card-body d-flex flex-column">
+                 onmouseover="this.style.borderLeft='6px solid ' + '${departmentColor}'; this.style.boxShadow='0 20px 40px rgba(99, 102, 241, 0.25)'"
+                 onmouseout="this.style.borderLeft='6px solid ' + '${departmentColor}'; this.style.boxShadow=''">
+              <div class="card-body">
                 <div class="d-flex align-items-center mb-3 gap-2">
                   ${createDepartmentBadge(rec.department || 'MISC. TRANS.')}
                   <span class="product-id-badge" style="background: linear-gradient(135deg, #e3f2fd, #bbdefb); color: #1976d2; padding: 4px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: 600;">ID ${escapeHtml(rec.product_id)}</span>
-                  <span class="badge rounded-pill bg-success bg-opacity-10 text-success ms-auto" style="padding: 6px 12px; font-weight: 700;">${confidencePercent}%</span>
+                  <span class="ms-auto badge" style="background: linear-gradient(135deg, #4CAF50, #66BB6A); color: white; padding: 6px 12px; border-radius: 15px; font-weight: 700; box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3);">${(Number(rec.confidence) * 100).toFixed(0)}%</span>
                 </div>
 
                 <div class="mb-3">
@@ -1636,15 +1591,11 @@ function generateRecommendations(timeHorizon) {
                 </div>
 
                 <div class="revenue-highlight mb-3" style="background: linear-gradient(135deg, rgba(102, 126, 234, 0.1), rgba(67, 56, 202, 0.05)); padding: 1rem; border-radius: 12px; border-left: 4px solid #667eea;">
-                  <div class="d-flex align-items-center justify-content-between gap-2">
-                    <div class="d-flex align-items-center gap-2">
-                      <i class="fas fa-chart-line" style="color: #667eea; font-size: 1.2rem;"></i>
-                      <span class="fw-bold text-primary" style="font-size: 1.4rem;">+$${formattedProjectedRevenue}</span>
-                    </div>
-                    <span class="badge rounded-pill bg-primary bg-opacity-10 text-primary fw-semibold">${horizonLabel}</span>
+                  <div class="d-flex align-items-center gap-2">
+                    <i class="fas fa-chart-line" style="color: #667eea; font-size: 1.2rem;"></i>
+                    <span class="fw-bold text-primary" style="font-size: 1.4rem; color: #667eea !important;">+$${formattedRevenueImpact}</span>
                   </div>
-                  <div class="text-muted small mt-1" style="font-weight: 500;">Projected revenue impact over ${horizonLabel.toLowerCase()}.</div>
-                  ${baselineNote}
+                  <div class="text-muted small mt-1" style="font-weight: 500;">Predicted Revenue Impact</div>
                 </div>
 
                 <div class="product-details mb-3" style="background: rgba(248, 250, 252, 0.8); padding: 0.75rem; border-radius: 10px;">
@@ -1662,10 +1613,7 @@ function generateRecommendations(timeHorizon) {
                 </div>
 
                 <div class="mt-auto">
-                  <div class="mb-2 d-flex align-items-center gap-2">
-                    ${commodityBadge}
-                    <span class="badge bg-light text-primary border border-primary-subtle">${horizonLabel} focus</span>
-                  </div>
+                  <div class="mb-2">${commodityBadge}</div>
                   <div class="click-indicator" style="text-align: center; padding: 0.5rem; background: linear-gradient(135deg, rgba(102, 126, 234, 0.05), rgba(67, 56, 202, 0.02)); border-radius: 8px; border: 1px dashed rgba(102, 126, 234, 0.3);">
                     <i class="fas fa-mouse-pointer" style="color: #667eea;"></i>
                     <span style="color: #667eea; font-weight: 600; font-size: 0.85rem; margin-left: 0.5rem;">Click for detailed analytics</span>
@@ -1750,39 +1698,38 @@ function initializeRecommendationCards(scope = document) {
   });
 }
 
-
 function runPredictiveAnalysis() {
-  try {
-    const algorithm = document.getElementById('mlAlgorithm')?.value || 'neural_network';
-    const trainingSize = document.getElementById('trainingSizeSlider')?.value || 0.8;
-    const timeHorizon = getSelectedHorizon();
-    const horizonLabel = getHorizonLabel(timeHorizon).toLowerCase();
-
-    showNotification(`Training ${algorithm.replace('_', ' ')} model for ${horizonLabel} forecasts...`, 'info');
-
-  fetch('{% url "dunnhumby_site:train_ml_models" %}', {
+  const algorithm = document.getElementById('mlAlgorithm').value;
+  const trainingSize = document.getElementById('trainingSizeSlider').value;
+  
+  showNotification(`Training ${algorithm.replace('_', ' ')} model...`, 'info');
+  
+  // First, train the ML models
+  fetch('/analysis/api/ml/train/', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
       'X-CSRFToken': getCsrfToken()
     },
-    body: `model_type=${algorithm}&training_size=${trainingSize}&time_horizon=${timeHorizon}`
+    body: `model_type=${algorithm}&training_size=${trainingSize}`
   })
   .then(response => response.json())
   .then(data => {
     if (data.success) {
       showNotification('Model training started successfully!', 'success');
-
+      
+      // Poll training status
       checkTrainingStatus(algorithm);
+      
+      // Load predictions and recommendations immediately
+      loadPredictiveResults(algorithm);
+      generateRecommendations();
 
-      loadPredictiveResults(algorithm, timeHorizon);
-      generateRecommendations(timeHorizon);
-
+      // Also load after a delay to catch any training updates
       setTimeout(() => {
-        const refreshedHorizon = getSelectedHorizon();
-        loadPredictiveResults(algorithm, refreshedHorizon);
+        loadPredictiveResults(algorithm);
       }, 3000);
-
+      
     } else {
       showNotification(`Training failed: ${data.error}`, 'error');
     }
@@ -1791,91 +1738,54 @@ function runPredictiveAnalysis() {
     console.error('Error training model:', error);
     showNotification('Error starting model training', 'error');
   });
-
-  } catch (error) {
-    console.error('Error in runPredictiveAnalysis:', error);
-    showNotification('Error running predictive analysis. Please try again.', 'error');
-  }
 }
 
-
 function checkTrainingStatus(algorithm) {
-  let checkCount = 0;
-  const maxChecks = 20; // Maximum 1 minute of checking (20 * 3 seconds)
-
   const statusInterval = setInterval(() => {
-    checkCount++;
-
-    // Timeout after maxChecks attempts
-    if (checkCount > maxChecks) {
-      clearInterval(statusInterval);
-      showNotification('Training status check timed out. Please refresh and try again.', 'warning');
-      return;
-    }
-
-    fetch('{% url "dunnhumby_site:training_status_api" %}', {
+    fetch('/analysis/api/ml/training-status/', {
       method: 'GET',
       headers: {
         'X-CSRFToken': getCsrfToken()
       }
     })
-    .then(response => {
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-      return response.json();
-    })
+    .then(response => response.json())
     .then(data => {
       if (data.status === 'completed') {
         clearInterval(statusInterval);
         showNotification('Model training completed successfully!', 'success');
         loadModelPerformance(algorithm);
 
+        // Reload charts with updated model predictions
         setTimeout(() => {
           console.log('Training completed, reloading charts');
-          const refreshedHorizon = getSelectedHorizon();
-          loadPredictiveResults(algorithm, refreshedHorizon);
-          generateRecommendations(refreshedHorizon);
+          loadPredictiveResults(algorithm);
         }, 1000);
       } else if (data.status === 'failed') {
         clearInterval(statusInterval);
         showNotification('Model training failed', 'error');
       }
-      // If status is still 'training', continue checking
     })
     .catch(error => {
       console.error('Error checking training status:', error);
       clearInterval(statusInterval);
-      showNotification('Error checking training status. Please try again.', 'error');
     });
   }, 3000);
 }
 
+function loadPredictiveResults(algorithm) {
+  console.log(`Loading predictive results for algorithm: ${algorithm}`);
 
-function loadPredictiveResults(algorithm, timeHorizon) {
-  const horizon = Number(timeHorizon || getSelectedHorizon());
-  const horizonLabel = getHorizonLabel(horizon);
-  console.log(`Loading predictive results for algorithm: ${algorithm}, horizon: ${horizonLabel}`);
-
-  // Add timeout to prevent hanging
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
-
-  fetch('{% url "dunnhumby_site:get_predictions" %}', {
+  // Load department predictions
+  fetch('/analysis/api/ml/predictions/', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
       'X-CSRFToken': getCsrfToken()
     },
-    body: `model_type=${algorithm}&time_horizon=${horizon}`,
-    signal: controller.signal
+    body: `model_type=${algorithm}`
   })
   .then(response => {
-    clearTimeout(timeoutId); // Clear timeout on successful response
     console.log('Response received:', response.status);
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
     return response.json();
   })
   .then(data => {
@@ -1884,8 +1794,8 @@ function loadPredictiveResults(algorithm, timeHorizon) {
     if (data.success && data.predictions && data.predictions.length > 0) {
       console.log(`Found ${data.predictions.length} predictions:`, data.predictions);
       console.log('Calling updatePredictiveCharts with real data...');
-      updatePredictiveCharts(data.predictions, algorithm, horizon);
-      generateTimeBasedInsights(data.predictions, algorithm, horizon);
+      updatePredictiveCharts(data.predictions, algorithm);
+      generateTimeBasedInsights(data.predictions, algorithm);
     } else {
       console.error('No predictions found in API response!');
       console.error('API Response details:', {
@@ -1895,20 +1805,12 @@ function loadPredictiveResults(algorithm, timeHorizon) {
         fullResponse: data
       });
 
-      showChartError(`No real data available for the ${horizonLabel.toLowerCase()} horizon. Please check your data source.`);
+      // Show error message in chart containers
+      showChartError('No real data available from database. Please check your data source.');
     }
   })
   .catch(error => {
-    clearTimeout(timeoutId); // Clear timeout on error
     console.error('Error loading predictions:', error);
-
-    if (error.name === 'AbortError') {
-      showNotification('Request timed out. Please try again.', 'warning');
-    } else {
-      showNotification('Error loading predictions. Please try again.', 'error');
-    }
-
-    showChartError(`Failed to load predictions: ${error.message}`);
   });
 }
 
@@ -1930,7 +1832,7 @@ function showChartError(message) {
 }
 
 function loadModelPerformance(algorithm) {
-  fetch('{% url "dunnhumby_site:get_model_performance" %}', {
+  fetch('/analysis/api/ml/performance/', {
     method: 'GET',
     headers: {
       'X-CSRFToken': getCsrfToken()
@@ -2230,12 +2132,11 @@ function generateDifferentialInsights() {
 
 
 function runDifferentialAnalysis() {
-  try {
-    const compareBy = document.getElementById('compareBy')?.value || 'time';
-    const statTest = document.getElementById('statTest')?.value || 'chi_square';
-    const statNote = document.getElementById('statNote');
+  const compareBy = document.getElementById('compareBy')?.value || 'time';
+  const statTest = document.getElementById('statTest')?.value || 'chi_square';
+  const statNote = document.getElementById('statNote');
 
-    showNotification(`Running ${statTest.replace('_', ' ')} test for ${compareBy.replace('_', ' ')} comparison...`, 'info');
+  showNotification(`Running ${statTest.replace('_', ' ')} test for ${compareBy.replace('_', ' ')} comparison...`, 'info');
 
   if (statNote) {
     statNote.textContent = `Computing ${statTest.replace('_', ' ')} test using live data...`;
@@ -2343,11 +2244,6 @@ function runDifferentialAnalysis() {
 
       initializeComparisonChart();
     });
-
-  } catch (error) {
-    console.error('Error in runDifferentialAnalysis:', error);
-    showNotification('Error running differential analysis. Please try again.', 'error');
-  }
 }
 
 
@@ -2367,11 +2263,8 @@ function generateDifferentialInsightsFromAPI(insights, compareBy, statTest) {
 }
 
 function expandSection(sectionType) {
-  let title = '';
-  let content = '';
-  let container = null;
-  let onShown = null;
-
+  let title, content, container;
+  
   switch(sectionType) {
     case 'department':
       title = 'All Department Level Association Rules';
@@ -2393,84 +2286,32 @@ function expandSection(sectionType) {
       title = 'All Differential Analysis Insights';
       container = document.getElementById('differentialInsights');
       break;
-    case 'revenue':
-      title = 'Revenue Impact by Department';
-      content = 
-        <div class="ratio ratio-16x9">
-          <canvas id="expandedRevenueChart"></canvas>
-        </div>
-      ;
-      onShown = () => {
-        const sourceChart = charts?.revenue;
-        const target = document.getElementById('expandedRevenueChart');
-        if (sourceChart && target) {
-          new Chart(target.getContext('2d'), {
-            type: sourceChart.config.type,
-            data: JSON.parse(JSON.stringify(sourceChart.config.data)),
-            options: {
-              ...sourceChart.config.options,
-              responsive: true,
-              maintainAspectRatio: false
-            }
-          });
-        }
-      };
-      break;
-    case 'trends':
-      title = 'Purchase Probability Trends';
-      content = 
-        <div class="ratio ratio-16x9">
-          <canvas id="expandedTrendsChart"></canvas>
-        </div>
-      ;
-      onShown = () => {
-        const sourceChart = charts?.trends;
-        const target = document.getElementById('expandedTrendsChart');
-        if (sourceChart && target) {
-          new Chart(target.getContext('2d'), {
-            type: sourceChart.config.type,
-            data: JSON.parse(JSON.stringify(sourceChart.config.data)),
-            options: {
-              ...sourceChart.config.options,
-              responsive: true,
-              maintainAspectRatio: false
-            }
-          });
-        }
-      };
-      break;
   }
-
+  
   if (container) {
-    content = container.innerHTML;
+    let content = container.innerHTML;
+    
+    // For baskets, recommendations, and differential, wrap in proper bootstrap grid
     if (sectionType === 'baskets' || sectionType === 'recommendations' || sectionType === 'differential') {
-      content = <div class="row g-3"></div>;
+      content = `<div class="row g-3">${content}</div>`;
     }
-  }
-
-  if (!content) {
-    console.warn('No content available for expandSection', sectionType);
-    return;
-  }
-
-  const modalContent = 
-    <div id="expandedContent" style="max-height: 70vh; overflow-y: auto; padding: 1rem; background: #f8f9fa; border-radius: 10px;">
-      
-    </div>
-  ;
-
-  showDetailModal(title || 'Detailed View', modalContent);
-
-  setTimeout(() => {
-    if (sectionType === 'baskets' || sectionType === 'recommendations' || sectionType === 'differential') {
+    
+    const modalContent = `
+      <div id="expandedContent" style="max-height: 70vh; overflow-y: auto; padding: 1rem; background: #f8f9fa; border-radius: 10px;">
+        ${content}
+      </div>
+    `;
+    
+    showDetailModal(title, modalContent);
+    
+    // Re-attach event listeners after modal is shown
+    setTimeout(() => {
       attachPopupEventListeners(sectionType);
-    }
-    if (typeof onShown === 'function') {
-      onShown();
-    }
-  }, 200);
+    }, 200);
+  }
 }
 
+// Attach event listeners to popup content
 function attachPopupEventListeners(sectionType) {
   const expandedContent = document.getElementById('expandedContent');
   if (!expandedContent) return;
@@ -2492,7 +2333,7 @@ function attachPopupEventListeners(sectionType) {
           formData.append('csrfmiddlewaretoken', csrftoken);
           formData.append('basket_id', basketId);
           
-          const response = await fetch('{% url "dunnhumby_site:api_basket_details" %}', {
+          const response = await fetch('/analysis/api/basket/', {
             method: 'POST',
             body: formData
           });
@@ -2893,15 +2734,7 @@ function showRecommendationDetails(
 
   const parsedConfidence = parseFloat(confidence || 0);
   const confidencePercent = (parsedConfidence * 100).toFixed(1);
-  const projectedRevenueValue = revenueImpact ? Number(revenueImpact) : 0;
-  const formattedProjectedRevenue = projectedRevenueValue ? `$${projectedRevenueValue.toLocaleString()}` : 'N/A';
-  const baselineRevenueValue = baseRevenueImpact ? Number(baseRevenueImpact) : null;
-  const formattedBaselineRevenue = baselineRevenueValue !== null ? `$${baselineRevenueValue.toLocaleString()}` : 'N/A';
-  const resolvedHorizonLabel = horizonLabel && horizonLabel !== 'undefined' && horizonLabel !== '' ? horizonLabel : getHorizonLabel(horizonMonths || getSelectedHorizon());
-  const horizonLabelSafe = escapeHtml(resolvedHorizonLabel);
-  const horizonLabelLower = resolvedHorizonLabel.toLowerCase();
-  const horizonLabelLowerEscaped = escapeHtml(horizonLabelLower);
-  const baselineMarkup = baselineRevenueValue !== null ? `<p style="margin: 0.35rem 0 0 0; font-size: 0.85rem; opacity: 0.85;">Baseline per month: ${formattedBaselineRevenue}</p>` : '';
+  const formattedRevenue = revenueImpact ? `$${Number(revenueImpact).toLocaleString()}` : 'N/A';
 
   const normalizedDepartment = department && department !== 'undefined' && department !== '' ? department : 'MISC. TRANS.';
   const normalizedCommodity = commodity && commodity !== 'undefined' && commodity !== '' ? commodity : 'All Products';
@@ -2931,7 +2764,7 @@ function showRecommendationDetails(
   const formattedTotalQuantity = totalQuantityNum.toLocaleString();
   const revenuePerUnitValue = totalQuantityNum > 0 ? totalValueNum / totalQuantityNum : null;
   const formattedRevenuePerUnit = revenuePerUnitValue !== null ? `$${revenuePerUnitValue.toFixed(2)}` : 'N/A';
-  const subtitleText = normalizedSubCommodity !== 'N/A' ? `${displayCommodity} / ${displaySubCommodity}` : displayCommodity;
+  const subtitleText = normalizedSubCommodity !== 'N/A' ? `${displayCommodity} • ${displaySubCommodity}` : displayCommodity;
 
   const commodityLowerEscaped = escapeHtml(normalizedCommodity.toLowerCase());
   const subCommodityLowerEscaped = normalizedSubCommodity !== 'N/A' ? escapeHtml(normalizedSubCommodity.toLowerCase()) : '';
@@ -2966,7 +2799,6 @@ function showRecommendationDetails(
           <div class="detail-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 1.5rem; border-radius: 15px; text-align: center;">
             <h4 style="margin: 0; font-weight: 600;">Product ID</h4>
             <h2 style="margin: 0.5rem 0 0 0; font-size: 2.5rem; font-weight: 700;">${safeProductId}</h2>
-            <p style="margin: 0.75rem 0 0 0; font-size: 0.85rem; opacity: 0.85;">Focus horizon: ${horizonLabelSafe}</p>
           </div>
         </div>
         <div class="col-md-6">
@@ -3016,10 +2848,9 @@ function showRecommendationDetails(
       <div class="row mb-4">
         <div class="col-12">
           <div style="background: linear-gradient(135deg, #28a745, #20c997); color: white; padding: 1.5rem; border-radius: 10px; text-align: center;">
-            <h5 style="margin: 0 0 0.5rem 0;"><i class="fas fa-dollar-sign"></i> Projected ${horizonLabelSafe} Revenue Impact</h5>
-            <h3 style="margin: 0; font-size: 2rem; font-weight: 700;">${formattedProjectedRevenue}</h3>
-            <p style="margin: 0.5rem 0 0 0; font-size: 0.9rem; opacity: 0.9;">Estimated incremental revenue over the ${horizonLabelLowerEscaped} horizon.</p>
-            ${baselineMarkup}
+            <h5 style="margin: 0 0 0.5rem 0;"><i class="fas fa-dollar-sign"></i> Predicted Revenue Impact</h5>
+            <h3 style="margin: 0; font-size: 2rem; font-weight: 700;">${formattedRevenue}</h3>
+            <p style="margin: 0.5rem 0 0 0; font-size: 0.9rem; opacity: 0.9;">Estimated additional revenue from this recommendation</p>
           </div>
         </div>
       </div>
@@ -3066,13 +2897,13 @@ function showRecommendationDetails(
 
       <div style="background: #e9ecef; padding: 1.5rem; border-radius: 10px;">
         <h5 style="color: #495057; margin-bottom: 1rem;"><i class="fas fa-lightbulb"></i> AI Analysis</h5>
-        <p style="color: #6c757d; margin-bottom: 1rem; line-height: 1.6;">${confidenceDesc} Household spend averages ${formattedAvgValue} with lifetime sales of ${formattedTotalValue}, supporting the predicted lift of ${formattedProjectedRevenue}.</p>
+        <p style="color: #6c757d; margin-bottom: 1rem; line-height: 1.6;">${confidenceDesc} Household spend averages ${formattedAvgValue} with lifetime sales of ${formattedTotalValue}, supporting the predicted lift of ${formattedRevenue}.</p>
 
         <h6 style="color: #495057; margin-bottom: 0.5rem;">Recommendation Strategy:</h6>
         <ul style="color: #6c757d; margin: 0; padding-left: 1.5rem;">
           <li>Spotlight <strong>${displayBrand}</strong> within the <strong>${departmentEscaped}</strong> aisle using merchandising that highlights the ${displaySize} pack.</li>
           <li>Bundle with complementary ${commodityLowerEscaped}${subCommodityLowerEscaped ? ` / ${subCommodityLowerEscaped}` : ''} items to drive cross-basket value.</li>
-          <li>Coordinate with <strong>${displayManufacturer}</strong> on co-branded offers that leverage the ${formattedProjectedRevenue} upside.</li>
+          <li>Coordinate with <strong>${displayManufacturer}</strong> on co-branded offers that leverage the ${formattedRevenue} upside.</li>
           <li>Engage the ${households} households already purchasing this item with personalized follow-up campaigns.</li>
           ${strategyPromo}
         </ul>
@@ -3209,48 +3040,11 @@ function getBusinessValue(ant, con, lift, type) {
 }
 
 // Basket card interactions
-// Global error handler to prevent page crashes
-window.addEventListener('error', function(event) {
-  console.error('Global JavaScript error:', event.error);
-  if (typeof showNotification === 'function') {
-    showNotification('A JavaScript error occurred. Please refresh the page if features stop working.', 'warning');
-  }
-  return true; // Prevent default browser error handling
-});
-
-// Global unhandled promise rejection handler
-window.addEventListener('unhandledrejection', function(event) {
-  console.error('Unhandled Promise Rejection:', event.reason);
-  if (typeof showNotification === 'function') {
-    showNotification('A background operation failed. Some features may not work correctly.', 'warning');
-  }
-  event.preventDefault(); // Prevent console errors
-});
-
 document.addEventListener('DOMContentLoaded', function() {
   const csrftoken = (document.cookie.split('; ').find(r=>r.startsWith('csrftoken='))||'').split('=')[1]||'';
-
-  // Initialize descriptive analysis by default with error handling
-  try {
-    loadDescriptiveAnalysis();
-  } catch (error) {
-    console.error('Error loading descriptive analysis:', error);
-    showNotification('Error initializing page. Please refresh.', 'error');
-  }
-
-  const horizonSelect = document.getElementById('predictionHorizon');
-  if (horizonSelect) {
-    horizonSelect.addEventListener('change', () => {
-      const algorithmSelect = document.getElementById('mlAlgorithm');
-      const algorithmValue = algorithmSelect ? algorithmSelect.value : 'neural_network';
-      const horizonValue = getSelectedHorizon();
-      const horizonLabelText = getHorizonLabel(horizonValue).toLowerCase();
-      showNotification('Updating forecasts for ' + horizonLabelText + ' horizon...', 'info');
-      loadPredictiveResults(algorithmValue, horizonValue);
-      generateRecommendations(horizonValue);
-    });
-  }
-
+  
+  // Initialize descriptive analysis by default
+  loadDescriptiveAnalysis();
   
   // Basket card clicks
   document.querySelectorAll('.basket-card').forEach(card => {
@@ -3263,7 +3057,7 @@ document.addEventListener('DOMContentLoaded', function() {
         formData.append('csrfmiddlewaretoken', csrftoken);
         formData.append('basket_id', basketId);
         
-        const response = await fetch('{% url "dunnhumby_site:api_basket_details" %}', {
+        const response = await fetch('/analysis/api/basket/', {
           method: 'POST',
           body: formData
         });
@@ -3302,103 +3096,15 @@ function getCsrfToken() {
   return (document.cookie.split('; ').find(r=>r.startsWith('csrftoken='))||'').split('=')[1]||'';
 }
 
-// Essential modal function that was missing
+// Simple modal function to prevent errors
 function showDetailModal(title, content) {
-  // Remove existing modal if any
-  const existingModal = document.getElementById('detailModal');
-  if (existingModal) {
-    existingModal.remove();
-  }
-
-  // Create modal HTML
-  const modalHtml = `
-    <div class="modal fade" id="detailModal" tabindex="-1" aria-labelledby="detailModalLabel" aria-hidden="true">
-      <div class="modal-dialog modal-lg modal-dialog-scrollable">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title" id="detailModalLabel">${title}</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-          </div>
-          <div class="modal-body">
-            ${content}
-          </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
-
-  // Add modal to page
-  document.body.insertAdjacentHTML('beforeend', modalHtml);
-
-  // Show modal with error handling
-  try {
-    if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
-      const modal = new bootstrap.Modal(document.getElementById('detailModal'));
-      modal.show();
-
-      // Clean up modal when hidden
-      document.getElementById('detailModal').addEventListener('hidden.bs.modal', function() {
-        this.remove();
-      });
-    } else {
-      // Fallback if Bootstrap isn't available - show as a simple popup
-      console.warn('Bootstrap not available, showing simple modal');
-      const modal = document.getElementById('detailModal');
-      modal.style.display = 'block';
-      modal.classList.add('show');
-      modal.style.backgroundColor = 'rgba(0,0,0,0.5)';
-
-      // Add close functionality
-      const closeButtons = modal.querySelectorAll('[data-bs-dismiss="modal"], .btn-close');
-      closeButtons.forEach(btn => {
-        btn.addEventListener('click', () => {
-          modal.remove();
-        });
-      });
-    }
-  } catch (error) {
-    console.error('Error showing modal:', error);
-    // Fallback: show content in alert or simple div
-    alert(title + '\n\n' + content.replace(/<[^>]*>/g, ''));
-  }
+  // Simple alert fallback - much more reliable than complex modal
+  const cleanContent = content.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ');
+  alert(title + '\n\n' + cleanContent);
 }
 
-function getSelectedHorizon() {
-  const select = document.getElementById('predictionHorizon');
-  const value = select ? parseInt(select.value, 10) : NaN;
-  if ([1, 3, 6, 12].includes(value)) {
-    return value;
-  }
-  return 3;
-}
-
-function getHorizonLabel(months) {
-  const value = Number(months);
-  if (value === 1) return '1 Month';
-  if (value === 3) return '3 Months';
-  if (value === 6) return '6 Months';
-  if (value === 12) return '12 Months';
-  return `${value || 3} Months`;
-}
-
-function getHorizonKey(months) {
-  const value = Number(months);
-  if (value === 1) return '1_month';
-  if (value === 6) return '6_months';
-  if (value === 12) return '12_months';
-  return '3_months';
-}
-
-
-function updatePredictiveCharts(predictions, algorithm, timeHorizon) {
-  const horizon = Number(timeHorizon || getSelectedHorizon());
-  const horizonKey = getHorizonKey(horizon);
-  const horizonLabel = getHorizonLabel(horizon);
-
-  console.log('updatePredictiveCharts called with algorithm:', algorithm, 'horizon:', horizonLabel);
+function updatePredictiveCharts(predictions, algorithm) {
+  console.log('updatePredictiveCharts called with algorithm:', algorithm);
   console.log('Predictions data structure:', predictions);
   console.log('Number of predictions:', predictions ? predictions.length : 0);
 
@@ -3408,52 +3114,44 @@ function updatePredictiveCharts(predictions, algorithm, timeHorizon) {
     return;
   }
 
-  const enrichedPredictions = predictions.map(pred => {
-    const forecasts = pred.forecasts || {};
-    let selected = pred.selected_forecast;
+  // Validate that we have real data structure
+  const firstPred = predictions[0];
+  console.log('First prediction sample:', firstPred);
 
-    if (!selected || selected.key !== horizonKey) {
-      const fallback = forecasts[horizonKey];
-      if (fallback) {
-        selected = {
-          key: horizonKey,
-          label: horizonLabel,
-          months: horizon,
-          probability: fallback.probability,
-          revenue_forecast: fallback.revenue_forecast,
-          probability_percent: Math.round((fallback.probability || 0) * 1000) / 10
-        };
-      }
-    }
-
-    return {
-      ...pred,
-      forecasts,
-      selectedForHorizon: selected
-    };
-  }).filter(pred => pred.selectedForHorizon);
-
-  if (!enrichedPredictions.length) {
-    showChartError(`No forecast data available for ${horizonLabel.toLowerCase()} horizon.`);
+  if (!firstPred.department || !firstPred.customers || !firstPred.avg_value) {
+    console.error('Invalid prediction data structure - missing required fields');
+    showChartError('Invalid data structure received from database.');
     return;
   }
 
-  const sortedByRevenue = [...enrichedPredictions].sort((a, b) => {
-    const aRevenue = Number(a.selectedForHorizon?.revenue_forecast || 0);
-    const bRevenue = Number(b.selectedForHorizon?.revenue_forecast || 0);
-    return bRevenue - aRevenue;
-  });
-  const topDepts = sortedByRevenue.slice(0, 6);
-
+  // Update Revenue Impact Chart
   const revenueContainer = document.getElementById('revenueImpactChart');
   if (revenueContainer) {
+    // Get top 6 departments by predicted revenue
+    const topDepts = predictions.slice(0, 6);
+    console.log('Top departments for charts:', topDepts);
+
+    // Ensure we're calculating revenue from real database values only
     const revenueData = topDepts.map(p => {
-      const revenue = Number(p.selectedForHorizon?.revenue_forecast || 0);
-      console.log(`REAL DATA - ${p.department}: horizon ${horizonLabel}, revenue = $${revenue.toFixed(0)}`);
+      // Validate we have real data
+      if (!p.avg_value || !p.customers || !p.predicted_growth) {
+        console.error(`Missing real data for ${p.department}:`, p);
+        return 0;
+      }
+
+      const avgValue = parseFloat(p.avg_value);
+      const customers = parseInt(p.customers);
+      const growth = parseFloat(p.predicted_growth);
+      const revenue = avgValue * customers * growth;
+
+      console.log(`REAL DATA - ${p.department}: $${avgValue.toFixed(2)} avg × ${customers} customers × ${growth.toFixed(2)} growth = $${revenue.toFixed(0)} revenue`);
       return Math.round(revenue);
     });
     const labels = topDepts.map(p => p.department);
     const colors = topDepts.map(p => DEPARTMENT_CONFIG[p.department]?.color || '#6C757D');
+
+    console.log('Revenue data for chart:', revenueData);
+    console.log('Chart labels:', labels);
 
     revenueContainer.innerHTML = `<canvas id="revenueChart" height="250"></canvas>`;
     const ctx = document.getElementById('revenueChart');
@@ -3464,11 +3162,11 @@ function updatePredictiveCharts(predictions, algorithm, timeHorizon) {
       data: {
         labels: labels,
         datasets: [{
-          label: `Projected Revenue (${horizonLabel})`,
+          label: 'Predicted Revenue Impact ($)',
           data: revenueData,
-          backgroundColor: colors,
-          borderColor: colors.map(color => color.replace('0.8', '1')),
-          borderWidth: 1,
+          backgroundColor: colors.map(c => c + '80'), // Add transparency
+          borderColor: colors,
+          borderWidth: 2,
           borderRadius: 8,
           borderSkipped: false
         }]
@@ -3482,14 +3180,14 @@ function updatePredictiveCharts(predictions, algorithm, timeHorizon) {
           },
           title: {
             display: true,
-            text: `${algorithm.replace('_', ' ').toUpperCase()} Revenue Predictions (${horizonLabel})`,
+            text: `${algorithm.replace('_', ' ').toUpperCase()} Model Revenue Predictions`,
             font: { size: 14, weight: 'bold' },
             color: '#2d3748'
           },
           tooltip: {
             callbacks: {
               label: function(context) {
-                return `Projected Revenue (${horizonLabel}): $${context.parsed.y.toLocaleString()}`;
+                return `Revenue Impact: $${context.parsed.y.toLocaleString()}`;
               }
             }
           }
@@ -3499,7 +3197,7 @@ function updatePredictiveCharts(predictions, algorithm, timeHorizon) {
             beginAtZero: true,
             title: {
               display: true,
-              text: 'Projected Revenue ($)',
+              text: 'Predicted Revenue ($)',
               color: '#4a5568',
               font: { weight: 'bold' }
             },
@@ -3522,141 +3220,161 @@ function updatePredictiveCharts(predictions, algorithm, timeHorizon) {
     });
   }
 
+  // Update Purchase Probability Trends Chart
   const trendsContainer = document.getElementById('purchaseTrendsChart');
   if (trendsContainer) {
-    const timelineKeys = ['1_month', '3_months', '6_months', '12_months'];
-    const timeLabels = ['1 Month', '3 Months', '6 Months', '12 Months'];
-    const selectedIndex = timelineKeys.indexOf(horizonKey);
+    console.log('Updating segment chart with real data:', topDepts);
 
-    const validDepts = topDepts.filter(p => p.forecasts && timelineKeys.every(key => p.forecasts[key]));
+    // Ensure we have valid data for each department
+    const validDepts = topDepts.filter(p => p.department && p.confidence !== undefined && p.predicted_growth !== undefined);
     console.log(`Filtered ${validDepts.length} valid departments out of ${topDepts.length}`);
 
-    if (!validDepts.length) {
-      trendsContainer.innerHTML = `
+    if (validDepts.length === 0) {
+      console.error('No valid department data for segment chart');
+      document.getElementById('purchaseTrendsChart').innerHTML = `
         <div class="text-center py-5 text-warning">
           <i class="fas fa-database fa-3x mb-3"></i>
-          <h6>Forecast Data Required</h6>
-          <p>Train the model to produce ${horizonLabel.toLowerCase()} forecast data.</p>
+          <h6>Insufficient Real Data</h6>
+          <p>Need departments with time-based forecasts from trained model.</p>
         </div>
       `;
-    } else {
-      const datasets = validDepts.slice(0, 4).map((dept, index) => {
-        const colors = ['#667eea', '#38a169', '#e53e3e', '#d69e2e'];
-        const color = colors[index % colors.length];
-        const probabilities = timelineKeys.map(key => (dept.forecasts[key]?.probability || 0) * 100);
-        const revenues = timelineKeys.map(key => dept.forecasts[key]?.revenue_forecast || 0);
+      return;
+    }
 
-        console.log(`Real forecast data - ${dept.department}:`, {
-          '1_month': `${probabilities[0].toFixed(1)}% / $${revenues[0].toLocaleString()}`,
-          '3_months': `${probabilities[1].toFixed(1)}% / $${revenues[1].toLocaleString()}`,
-          '6_months': `${probabilities[2].toFixed(1)}% / $${revenues[2].toLocaleString()}`,
-          '12_months': `${probabilities[3].toFixed(1)}% / $${revenues[3].toLocaleString()}`
-        });
+    // Extract time-based forecast data with both probability and revenue
+    const timeLabels = ['1 Month', '3 Months', '1 Year'];
+    const datasets = [];
 
-        return {
-          label: `${dept.department} Purchase Probability`,
-          data: probabilities,
-          revenues: revenues,
-          borderColor: color,
-          backgroundColor: color + '20',
-          pointBackgroundColor: color,
-          pointBorderColor: '#fff',
-          pointHoverBackgroundColor: '#fff',
-          pointHoverBorderColor: color,
-          borderWidth: 3,
-          tension: 0.4,
-          pointRadius: ctx => ctx.dataIndex === selectedIndex ? 7 : 4,
-          pointHoverRadius: ctx => ctx.dataIndex === selectedIndex ? 9 : 6,
-          yAxisID: 'y'
-        };
+    validDepts.slice(0, 4).forEach((dept, index) => {
+      const forecasts = dept.forecasts || {};
+      const probabilities = [
+        (forecasts['1_month']?.probability || 0) * 100,
+        (forecasts['3_months']?.probability || 0) * 100,
+        (forecasts['1_year']?.probability || 0) * 100
+      ];
+
+      const revenues = [
+        forecasts['1_month']?.revenue_forecast || 0,
+        forecasts['3_months']?.revenue_forecast || 0,
+        forecasts['1_year']?.revenue_forecast || 0
+      ];
+
+      console.log(`Real forecast data - ${dept.department}:`, {
+        '1_month': `${probabilities[0].toFixed(1)}% / $${revenues[0].toLocaleString()}`,
+        '3_months': `${probabilities[1].toFixed(1)}% / $${revenues[1].toLocaleString()}`,
+        '1_year': `${probabilities[2].toFixed(1)}% / $${revenues[2].toLocaleString()}`
       });
 
-      trendsContainer.innerHTML = `<canvas id="trendsChart" height="250"></canvas>`;
-      const ctx2 = document.getElementById('trendsChart');
+      const colors = ['#667eea', '#38a169', '#e53e3e', '#d69e2e'];
+      const color = colors[index % colors.length];
 
-      if (charts.trends) charts.trends.destroy();
-      charts.trends = new Chart(ctx2, {
-        type: 'line',
-        data: {
-          labels: timeLabels,
-          datasets: datasets
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: {
-              position: 'top',
-              labels: {
-                padding: 15,
-                usePointStyle: true,
-                font: { weight: 'bold', size: 11 }
+      datasets.push({
+        label: `${dept.department} Purchase Probability`,
+        data: probabilities,
+        borderColor: color,
+        backgroundColor: color + '20',
+        pointBackgroundColor: color,
+        pointBorderColor: '#fff',
+        pointHoverBackgroundColor: '#fff',
+        pointHoverBorderColor: color,
+        borderWidth: 3,
+        pointRadius: 6,
+        tension: 0.4,
+        yAxisID: 'y',
+        revenues: revenues // Store revenue data for tooltips
+      });
+    });
+
+    trendsContainer.innerHTML = `<canvas id="trendsChart" height="250"></canvas>`;
+    const ctx2 = document.getElementById('trendsChart');
+
+    if (charts.trends) charts.trends.destroy();
+    charts.trends = new Chart(ctx2, {
+      type: 'line',
+      data: {
+        labels: timeLabels,
+        datasets: datasets
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: 'top',
+            labels: {
+              padding: 15,
+              usePointStyle: true,
+              font: { weight: 'bold', size: 11 }
+            }
+          },
+          title: {
+            display: true,
+            text: `${algorithm.replace('_', ' ').toUpperCase()} Model: Purchase Probability Over Time`,
+            font: { size: 14, weight: 'bold' },
+            color: '#2d3748'
+          },
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                return `${context.dataset.label}: ${context.parsed.y.toFixed(1)}% probability`;
+              },
+              afterLabel: function(context) {
+                const deptIndex = datasets.findIndex(d => d.label === context.dataset.label);
+                const dept = validDepts[deptIndex];
+                if (dept && dept.forecasts) {
+                  const timeKey = context.dataIndex === 0 ? '1_month' :
+                                 context.dataIndex === 1 ? '3_months' : '1_year';
+                  const revenue = dept.forecasts[timeKey]?.revenue_forecast || 0;
+                  return `Expected Revenue: $${revenue.toLocaleString()}`;
+                }
+                return '';
               }
-            },
+            }
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            max: 100,
             title: {
               display: true,
-              text: `${algorithm.replace('_', ' ').toUpperCase()} Purchase Probability Trend (Selected: ${horizonLabel})`,
-              font: { size: 14, weight: 'bold' },
-              color: '#2d3748'
+              text: 'Purchase Probability (%)',
+              color: '#4a5568',
+              font: { weight: 'bold' }
             },
-            tooltip: {
-              callbacks: {
-                label: function(context) {
-                  return `${context.dataset.label}: ${context.parsed.y.toFixed(1)}% probability`;
-                },
-                afterLabel: function(context) {
-                  const dataset = context.dataset;
-                  const revenue = dataset.revenues?.[context.dataIndex] || 0;
-                  return `Projected Revenue: $${Number(revenue).toLocaleString()}`;
-                }
-              }
-            }
-          },
-          scales: {
-            y: {
-              beginAtZero: true,
-              max: 100,
-              title: {
-                display: true,
-                text: 'Purchase Probability (%)',
-                color: '#4a5568',
-                font: { weight: 'bold' }
-              },
-              ticks: {
-                callback: function(value) {
-                  return value + '%';
-                }
-              },
-              grid: {
-                color: 'rgba(0, 0, 0, 0.1)'
+            ticks: {
+              callback: function(value) {
+                return value + '%';
               }
             },
-            x: {
-              title: {
-                display: true,
-                text: 'Time Horizon',
-                color: '#4a5568',
-                font: { weight: 'bold' }
-              },
-              grid: {
-                color: 'rgba(0, 0, 0, 0.05)'
-              }
+            grid: {
+              color: 'rgba(0, 0, 0, 0.1)'
             }
           },
-          interaction: {
-            intersect: false,
-            mode: 'index'
+          x: {
+            title: {
+              display: true,
+              text: 'Time Period',
+              color: '#4a5568',
+              font: { weight: 'bold' }
+            },
+            grid: {
+              color: 'rgba(0, 0, 0, 0.05)'
+            }
           }
+        },
+        interaction: {
+          intersect: false,
+          mode: 'index'
         }
-      });
-    }
+      }
+    });
 
     console.log('Purchase probability trends chart created successfully');
   }
 }
 
-
-function generateTimeBasedInsights(predictions, algorithm, timeHorizon) {
+function generateTimeBasedInsights(predictions, algorithm) {
   console.log('Generating time-based insights for algorithm:', algorithm);
   console.log('Predictions data:', predictions);
 
@@ -3665,18 +3383,10 @@ function generateTimeBasedInsights(predictions, algorithm, timeHorizon) {
     return;
   }
 
-  const horizon = Number(timeHorizon || getSelectedHorizon());
-  const horizonKey = getHorizonKey(horizon);
-  const horizonLabel = getHorizonLabel(horizon);
-  const forecastSequence = [
-    { key: '1_month', label: '1 Month' },
-    { key: '3_months', label: '3 Months' },
-    { key: '6_months', label: '6 Months' },
-    { key: '12_months', label: '12 Months' }
-  ];
-
+  // Find the container where insights will be displayed
   let insightsContainer = document.getElementById('timeBasedInsights');
   if (!insightsContainer) {
+    // Create insights container if it doesn't exist
     const chartsContainer = document.querySelector('#predictive .row.g-4');
     if (chartsContainer) {
       const insightsDiv = document.createElement('div');
@@ -3697,6 +3407,7 @@ function generateTimeBasedInsights(predictions, algorithm, timeHorizon) {
     return;
   }
 
+  // Analyze top departments with forecasts
   const topDepts = predictions.slice(0, 4).filter(p => p.forecasts);
 
   if (topDepts.length === 0) {
@@ -3708,47 +3419,60 @@ function generateTimeBasedInsights(predictions, algorithm, timeHorizon) {
     return;
   }
 
-  const insights = topDepts.map(dept => {
-    const summary = forecastSequence.map(step => ({
-      ...step,
-      probability: (dept.forecasts[step.key]?.probability || 0) * 100,
-      revenue: dept.forecasts[step.key]?.revenue_forecast || 0
-    }));
-    const selected = summary.find(item => item.key === horizonKey) || summary[1];
+  // Generate insights based on forecast trends
+  const insights = [];
 
-    const startProb = summary[0].probability;
-    const endProb = summary[summary.length - 1].probability;
-    const trendDiff = endProb - startProb;
+  topDepts.forEach((dept, index) => {
+    const forecasts = dept.forecasts;
+    const month1 = forecasts['1_month'] || {};
+    const month3 = forecasts['3_months'] || {};
+    const year1 = forecasts['1_year'] || {};
 
+    const probTrend = {
+      short: (month1.probability || 0) * 100,
+      medium: (month3.probability || 0) * 100,
+      long: (year1.probability || 0) * 100
+    };
+
+    const revenueTrend = {
+      short: month1.revenue_forecast || 0,
+      medium: month3.revenue_forecast || 0,
+      long: year1.revenue_forecast || 0
+    };
+
+    // Analyze trends
     let trendType = 'stable';
     let insight = '';
     let recommendation = '';
 
-    if (trendDiff > 5) {
+    if (probTrend.long > probTrend.medium && probTrend.medium > probTrend.short) {
       trendType = 'growing';
-      insight = `${dept.department} shows growth from ${startProb.toFixed(1)}% to ${endProb.toFixed(1)}% probability across the year.`;
-      recommendation = `Increase inventory and targeted marketing for ${dept.department} to capture ${horizonLabel.toLowerCase()} demand.`;
-    } else if (trendDiff < -5) {
+      insight = `${dept.department} shows strong growth potential with purchase probability increasing from ${probTrend.short.toFixed(1)}% to ${probTrend.long.toFixed(1)}% over the year.`;
+      recommendation = `Increase inventory and marketing investment for ${dept.department} to capitalize on growth trend.`;
+    } else if (probTrend.short > probTrend.medium && probTrend.medium > probTrend.long) {
       trendType = 'declining';
-      insight = `${dept.department} trends down from ${startProb.toFixed(1)}% to ${endProb.toFixed(1)}% probability.`;
-      recommendation = `Reassess pricing and promotions for ${dept.department} to stabilise ${horizonLabel.toLowerCase()} performance.`;
+      insight = `${dept.department} shows declining trend with purchase probability dropping from ${probTrend.short.toFixed(1)}% to ${probTrend.long.toFixed(1)}% over the year.`;
+      recommendation = `Review product mix and pricing strategy for ${dept.department} to address declining demand.`;
     } else {
       trendType = 'stable';
-      insight = `${dept.department} maintains a stable outlook near ${selected.probability.toFixed(1)}% probability.`;
-      recommendation = `Maintain current strategy for ${dept.department} while exploring targeted boosts around ${horizonLabel.toLowerCase()}.`;
+      insight = `${dept.department} maintains stable performance with consistent purchase probability around ${probTrend.medium.toFixed(1)}%.`;
+      recommendation = `Maintain current strategy for ${dept.department} while exploring opportunities for growth.`;
     }
 
-    return {
+    insights.push({
       department: dept.department,
       type: trendType,
-      insight,
-      recommendation,
-      summary,
-      selected
-    };
+      insight: insight,
+      recommendation: recommendation,
+      forecasts: {
+        probability: probTrend,
+        revenue: revenueTrend
+      }
+    });
   });
 
-  const insightsHtml = insights.map(insight => {
+  // Generate HTML for insights
+  const insightsHtml = insights.map((insight, index) => {
     const iconMap = {
       growing: 'fas fa-arrow-trend-up text-success',
       declining: 'fas fa-arrow-trend-down text-danger',
@@ -3761,19 +3485,6 @@ function generateTimeBasedInsights(predictions, algorithm, timeHorizon) {
       stable: 'border-warning'
     };
 
-    const forecastBlocks = insight.summary.map(step => {
-      const isSelected = step.key === horizonKey;
-      return `
-        <div class="col-6 col-md-3">
-          <div class="p-2 border rounded ${isSelected ? 'border-primary bg-primary bg-opacity-10' : 'border-light'}">
-            <small class="text-muted">${step.label}</small><br>
-            <strong>${step.probability.toFixed(1)}%</strong><br>
-            <span class="text-success small">$${Number(step.revenue).toLocaleString()}</span>
-          </div>
-        </div>
-      `;
-    }).join('');
-
     return `
       <div class="col-md-6 mb-3">
         <div class="card ${colorMap[insight.type]} border-start border-3 h-100">
@@ -3784,11 +3495,25 @@ function generateTimeBasedInsights(predictions, algorithm, timeHorizon) {
             </div>
             <p class="card-text small text-muted mb-2">${insight.insight}</p>
             <div class="row g-2 mb-2">
-              ${forecastBlocks}
+              <div class="col-4">
+                <small class="text-muted">1 Month</small><br>
+                <strong>${insight.forecasts.probability.short.toFixed(1)}%</strong><br>
+                <span class="text-success small">$${insight.forecasts.revenue.short.toLocaleString()}</span>
+              </div>
+              <div class="col-4">
+                <small class="text-muted">3 Months</small><br>
+                <strong>${insight.forecasts.probability.medium.toFixed(1)}%</strong><br>
+                <span class="text-success small">$${insight.forecasts.revenue.medium.toLocaleString()}</span>
+              </div>
+              <div class="col-4">
+                <small class="text-muted">1 Year</small><br>
+                <strong>${insight.forecasts.probability.long.toFixed(1)}%</strong><br>
+                <span class="text-success small">$${insight.forecasts.revenue.long.toLocaleString()}</span>
+              </div>
             </div>
             <div class="alert alert-light small mb-0 py-2">
               <i class="fas fa-lightbulb text-warning me-1"></i>
-              <strong>${horizonLabel} Recommendation:</strong> ${insight.recommendation}
+              <strong>Recommendation:</strong> ${insight.recommendation}
             </div>
           </div>
         </div>
@@ -3803,7 +3528,9 @@ function generateTimeBasedInsights(predictions, algorithm, timeHorizon) {
     <div class="alert alert-info mt-3">
       <i class="fas fa-info-circle me-2"></i>
       <strong>${algorithm.replace('_', ' ').toUpperCase()} Model Forecasts:</strong>
-      Insights and revenue figures are generated from real transaction data for the ${horizonLabel.toLowerCase()} horizon.
+      These predictions are based on real transaction data using the ${algorithm} algorithm.
+      Probability percentages represent likelihood of customer purchases, while revenue forecasts
+      estimate potential department performance over each time period.
     </div>
   `;
 
@@ -3874,4 +3601,3 @@ function updateAccuracyChart(performance) {
 </script>
 
 {% endblock %}
-
