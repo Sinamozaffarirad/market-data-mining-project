@@ -481,22 +481,52 @@
     
     // Notification System
     function showNotification(message, type = 'info', duration = 3000) {
+      let container = document.getElementById('global-notification-stack');
+      if (!container) {
+        container = document.createElement('div');
+        container.id = 'global-notification-stack';
+        Object.assign(container.style, {
+          position: 'fixed',
+          top: '90px',
+          right: '20px',
+          zIndex: '9999',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '12px',
+          maxWidth: '360px'
+        });
+        document.body.appendChild(container);
+      }
+
       const notification = document.createElement('div');
-      notification.className = `alert alert-${type} alert-dismissible fade show`;
-      notification.style.position = 'fixed';
-      notification.style.top = '100px';
-      notification.style.right = '20px';
-      notification.style.zIndex = '9999';
-      notification.style.minWidth = '300px';
-      notification.innerHTML = `
-        ${message}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-      `;
-      
-      document.body.appendChild(notification);
-      
+      notification.className = 'alert alert-' + type + ' alert-dismissible fade show shadow-sm';
+      notification.style.margin = '0';
+      notification.style.display = 'flex';
+      notification.style.alignItems = 'center';
+      notification.style.gap = '12px';
+
+      const messageWrapper = document.createElement('div');
+      messageWrapper.className = 'flex-grow-1';
+      messageWrapper.innerHTML = message;
+      notification.appendChild(messageWrapper);
+
+      const closeButton = document.createElement('button');
+      closeButton.type = 'button';
+      closeButton.className = 'btn-close';
+      closeButton.setAttribute('data-bs-dismiss', 'alert');
+      closeButton.addEventListener('click', () => {
+        notification.classList.remove('show');
+        setTimeout(() => notification.remove(), 150);
+      });
+      notification.appendChild(closeButton);
+
+      container.appendChild(notification);
+
       setTimeout(() => {
-        notification.remove();
+        if (notification) {
+          notification.classList.remove('show');
+          setTimeout(() => notification.remove(), 200);
+        }
       }, duration);
     }
     
@@ -572,3 +602,4 @@
   </style>
 </body>
 </html>
+
