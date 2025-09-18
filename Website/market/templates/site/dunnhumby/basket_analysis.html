@@ -1083,18 +1083,29 @@ function switchTab(tabName) {
   document.querySelectorAll('.tab-content').forEach(content => {
     content.classList.remove('active');
   });
-  
+
   // Remove active class from all buttons
   document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.classList.remove('active');
   });
-  
+
   // Show selected tab content
-  document.getElementById(tabName).classList.add('active');
-  
-  // Add active class to clicked button
-  event.target.closest('.tab-btn').classList.add('active');
-  
+  const targetTab = document.getElementById(tabName);
+  if (targetTab) {
+    targetTab.classList.add('active');
+  }
+
+  // Add active class to the button that matches this tab
+  const buttons = document.querySelectorAll('.tab-btn');
+  buttons.forEach(btn => {
+    const btnText = btn.textContent || btn.innerText;
+    if ((tabName === 'descriptive' && btnText.includes('Descriptive')) ||
+        (tabName === 'predictive' && btnText.includes('Predictive')) ||
+        (tabName === 'differential' && btnText.includes('Differential'))) {
+      btn.classList.add('active');
+    }
+  });
+
   // Initialize tab-specific content
   initializeTab(tabName);
 }
@@ -1422,10 +1433,11 @@ function updateSliderValues() {
 }
 
 function runDescriptiveAnalysis() {
-  const supportValue = document.getElementById('supportSlider')?.value || 0.05;
-  const confidenceValue = document.getElementById('confidenceSlider')?.value || 0.6;
-  
-  showNotification(`Running Apriori algorithm (min_support=${supportValue}, min_confidence=${confidenceValue})...`, 'info');
+  try {
+    const supportValue = document.getElementById('supportSlider')?.value || 0.05;
+    const confidenceValue = document.getElementById('confidenceSlider')?.value || 0.6;
+
+    showNotification(`Running Apriori algorithm (min_support=${supportValue}, min_confidence=${confidenceValue})...`, 'info');
   
   // Show loading state for both containers
   const loadingHtml = `
@@ -1452,6 +1464,11 @@ function runDescriptiveAnalysis() {
     
     showNotification(`Apriori completed! Found ${total} strong association rules (${deptRules} department + ${commodityRules} commodity).`, 'success');
   }, Math.random() * 2000 + 1500);
+
+  } catch (error) {
+    console.error('Error in runDescriptiveAnalysis:', error);
+    showNotification('Error running descriptive analysis. Please try again.', 'error');
+  }
 }
 
 function updateMetrics() {
@@ -1735,12 +1752,13 @@ function initializeRecommendationCards(scope = document) {
 
 
 function runPredictiveAnalysis() {
-  const algorithm = document.getElementById('mlAlgorithm').value;
-  const trainingSize = document.getElementById('trainingSizeSlider').value;
-  const timeHorizon = getSelectedHorizon();
-  const horizonLabel = getHorizonLabel(timeHorizon).toLowerCase();
+  try {
+    const algorithm = document.getElementById('mlAlgorithm')?.value || 'neural_network';
+    const trainingSize = document.getElementById('trainingSizeSlider')?.value || 0.8;
+    const timeHorizon = getSelectedHorizon();
+    const horizonLabel = getHorizonLabel(timeHorizon).toLowerCase();
 
-  showNotification(`Training ${algorithm.replace('_', ' ')} model for ${horizonLabel} forecasts...`, 'info');
+    showNotification(`Training ${algorithm.replace('_', ' ')} model for ${horizonLabel} forecasts...`, 'info');
 
   fetch('{% url "dunnhumby_site:train_ml_models" %}', {
     method: 'POST',
@@ -1773,6 +1791,11 @@ function runPredictiveAnalysis() {
     console.error('Error training model:', error);
     showNotification('Error starting model training', 'error');
   });
+
+  } catch (error) {
+    console.error('Error in runPredictiveAnalysis:', error);
+    showNotification('Error running predictive analysis. Please try again.', 'error');
+  }
 }
 
 
@@ -2207,11 +2230,12 @@ function generateDifferentialInsights() {
 
 
 function runDifferentialAnalysis() {
-  const compareBy = document.getElementById('compareBy')?.value || 'time';
-  const statTest = document.getElementById('statTest')?.value || 'chi_square';
-  const statNote = document.getElementById('statNote');
+  try {
+    const compareBy = document.getElementById('compareBy')?.value || 'time';
+    const statTest = document.getElementById('statTest')?.value || 'chi_square';
+    const statNote = document.getElementById('statNote');
 
-  showNotification(`Running ${statTest.replace('_', ' ')} test for ${compareBy.replace('_', ' ')} comparison...`, 'info');
+    showNotification(`Running ${statTest.replace('_', ' ')} test for ${compareBy.replace('_', ' ')} comparison...`, 'info');
 
   if (statNote) {
     statNote.textContent = `Computing ${statTest.replace('_', ' ')} test using live data...`;
@@ -2319,6 +2343,11 @@ function runDifferentialAnalysis() {
 
       initializeComparisonChart();
     });
+
+  } catch (error) {
+    console.error('Error in runDifferentialAnalysis:', error);
+    showNotification('Error running differential analysis. Please try again.', 'error');
+  }
 }
 
 
@@ -3180,11 +3209,34 @@ function getBusinessValue(ant, con, lift, type) {
 }
 
 // Basket card interactions
+// Global error handler to prevent page crashes
+window.addEventListener('error', function(event) {
+  console.error('Global JavaScript error:', event.error);
+  if (typeof showNotification === 'function') {
+    showNotification('A JavaScript error occurred. Please refresh the page if features stop working.', 'warning');
+  }
+  return true; // Prevent default browser error handling
+});
+
+// Global unhandled promise rejection handler
+window.addEventListener('unhandledrejection', function(event) {
+  console.error('Unhandled Promise Rejection:', event.reason);
+  if (typeof showNotification === 'function') {
+    showNotification('A background operation failed. Some features may not work correctly.', 'warning');
+  }
+  event.preventDefault(); // Prevent console errors
+});
+
 document.addEventListener('DOMContentLoaded', function() {
   const csrftoken = (document.cookie.split('; ').find(r=>r.startsWith('csrftoken='))||'').split('=')[1]||'';
-  
-  // Initialize descriptive analysis by default
-  loadDescriptiveAnalysis();
+
+  // Initialize descriptive analysis by default with error handling
+  try {
+    loadDescriptiveAnalysis();
+  } catch (error) {
+    console.error('Error loading descriptive analysis:', error);
+    showNotification('Error initializing page. Please refresh.', 'error');
+  }
 
   const horizonSelect = document.getElementById('predictionHorizon');
   if (horizonSelect) {
@@ -3281,14 +3333,37 @@ function showDetailModal(title, content) {
   // Add modal to page
   document.body.insertAdjacentHTML('beforeend', modalHtml);
 
-  // Show modal
-  const modal = new bootstrap.Modal(document.getElementById('detailModal'));
-  modal.show();
+  // Show modal with error handling
+  try {
+    if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+      const modal = new bootstrap.Modal(document.getElementById('detailModal'));
+      modal.show();
 
-  // Clean up modal when hidden
-  document.getElementById('detailModal').addEventListener('hidden.bs.modal', function() {
-    this.remove();
-  });
+      // Clean up modal when hidden
+      document.getElementById('detailModal').addEventListener('hidden.bs.modal', function() {
+        this.remove();
+      });
+    } else {
+      // Fallback if Bootstrap isn't available - show as a simple popup
+      console.warn('Bootstrap not available, showing simple modal');
+      const modal = document.getElementById('detailModal');
+      modal.style.display = 'block';
+      modal.classList.add('show');
+      modal.style.backgroundColor = 'rgba(0,0,0,0.5)';
+
+      // Add close functionality
+      const closeButtons = modal.querySelectorAll('[data-bs-dismiss="modal"], .btn-close');
+      closeButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+          modal.remove();
+        });
+      });
+    }
+  } catch (error) {
+    console.error('Error showing modal:', error);
+    // Fallback: show content in alert or simple div
+    alert(title + '\n\n' + content.replace(/<[^>]*>/g, ''));
+  }
 }
 
 function getSelectedHorizon() {
