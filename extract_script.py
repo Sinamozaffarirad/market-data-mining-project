@@ -1,0 +1,1 @@
+from pathlib import Path\nimport re\npath = Path('templates/site/dunnhumby/basket_analysis.html')\nmatch = re.search(r'<script>([\\s\\S]*?)</script>', path.read_text(encoding='utf-8'))\nPath('tmp_basket_script.js').write_text(match.group(1), encoding='utf-8')
