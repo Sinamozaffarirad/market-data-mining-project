@@ -3288,28 +3288,33 @@ function updatePredictiveCharts(predictions, algorithm) {
       return;
     }
 
-    // Extract time-based forecast data with both probability and revenue
-    const timeLabels = ['1 Month', '3 Months', '1 Year'];
+    // Extract time-based forecast data with proper future predictions
+    const timeLabels = ['1 Month', '3 Months', '6 Months', '12 Months'];
     const datasets = [];
 
     validDepts.slice(0, 4).forEach((dept, index) => {
       const forecasts = dept.forecasts || {};
+
+      // Use actual future probability predictions from the new system
       const probabilities = [
         (forecasts['1_month']?.probability || 0) * 100,
         (forecasts['3_months']?.probability || 0) * 100,
-        (forecasts['1_year']?.probability || 0) * 100
+        (forecasts['6_months']?.probability || 0) * 100,
+        (forecasts['12_months']?.probability || 0) * 100
       ];
 
       const revenues = [
         forecasts['1_month']?.revenue_forecast || 0,
         forecasts['3_months']?.revenue_forecast || 0,
-        forecasts['1_year']?.revenue_forecast || 0
+        forecasts['6_months']?.revenue_forecast || 0,
+        forecasts['12_months']?.revenue_forecast || 0
       ];
 
       console.log(`Real forecast data - ${dept.department}:`, {
         '1_month': `${probabilities[0].toFixed(1)}% / $${revenues[0].toLocaleString()}`,
         '3_months': `${probabilities[1].toFixed(1)}% / $${revenues[1].toLocaleString()}`,
-        '1_year': `${probabilities[2].toFixed(1)}% / $${revenues[2].toLocaleString()}`
+        '6_months': `${probabilities[2].toFixed(1)}% / $${revenues[2].toLocaleString()}`,
+        '12_months': `${probabilities[3].toFixed(1)}% / $${revenues[3].toLocaleString()}`
       });
 
       const colors = ['#667eea', '#38a169', '#e53e3e', '#d69e2e'];
