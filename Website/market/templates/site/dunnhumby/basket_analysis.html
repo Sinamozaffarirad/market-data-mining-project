@@ -808,6 +808,106 @@ html, body {
       </div>
     </div>
 
+      <!-- High-Value Products Analysis -->
+      <div class="chart-container">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h5 class="mb-0"><i class="fas fa-star"></i> High-Value Products Analysis</h5>
+          <div class="d-flex align-items-center gap-2">
+            <div class="btn-group btn-group-sm" role="group" aria-label="Product ranking toggle">
+              <button type="button" class="btn btn-outline-primary active" data-product-filter="frequency" onclick="switchTopProductsView('frequency')">
+                <i class="fas fa-sync-alt"></i> By Transactions
+              </button>
+              <button type="button" class="btn btn-outline-primary" data-product-filter="sales" onclick="switchTopProductsView('sales')">
+                <i class="fas fa-dollar-sign"></i> By Total Sales
+              </button>
+            </div>
+            <button class="btn btn-outline-primary btn-sm" onclick="expandSection('products')" title="View All in Popup">
+              <i class="fas fa-expand-arrows-alt"></i> Expand
+            </button>
+          </div>
+        </div>
+        <div id="topProductsGrid" class="scrollable-section" style="max-height: 400px; overflow-y: auto;">
+          <div class="row g-3" data-products-view="frequency">
+          {% for product in top_products_frequency %}
+            <div class="col-12 col-sm-6 col-lg-4 col-xl-3">
+              <div class="product-card fade-in"
+                   data-product-id="{{ product.product_id }}"
+                   data-brand="{{ product.brand|default:'Unknown Brand' }}"
+                   data-department="{{ product.department|default:'MISC. TRANS.' }}"
+                   data-commodity="{{ product.commodity_desc|default:'All Products' }}"
+                   data-sub-commodity="{{ product.sub_commodity_desc|default:'' }}"
+                   data-manufacturer="{{ product.manufacturer|default:'' }}"
+                   data-frequency="{{ product.frequency }}"
+                   data-total-sales="{{ product.total_sales }}"
+                   onclick="handleTopProductCardClick(this)">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <span class="product-id-badge">ID {{ product.product_id }}</span>
+                  <span class="badge bg-success"><i class="fas fa-sync-alt me-1"></i>{{ product.frequency }}</span>
+                </div>
+                <h6 class="mb-1" style="font-weight: 700; color: #1a202c;">{{ product.brand|default:'Unknown Brand' }}</h6>
+                <div class="text-muted small mb-3">{{ product.commodity_desc|default:'All Products' }}</div>
+                <div class="mb-3">
+                  <div style="font-size: 1.4rem; font-weight: 800; color: #f97316;">{{ product.frequency }}</div>
+                  <small class="text-muted">Total transactions</small>
+                </div>
+                <div class="d-flex justify-content-between text-muted small">
+                  <span><i class="fas fa-dollar-sign text-success me-1"></i>${{ product.total_sales|floatformat:2 }}</span>
+                  <span><i class="fas fa-building text-primary me-1"></i>{{ product.department|default:'MISC. TRANS.' }}</span>
+                </div>
+              </div>
+            </div>
+          {% empty %}
+            <div class="col-12">
+              <div class="text-center py-4 text-muted">
+                <i class="fas fa-box-open fa-3x mb-3"></i>
+                <h5>No product data available</h5>
+                <p>Load transaction data to see high-value products.</p>
+              </div>
+            </div>
+          {% endfor %}
+          </div>
+          <div class="row g-3 d-none" data-products-view="sales">
+          {% for product in top_products_sales %}
+            <div class="col-12 col-sm-6 col-lg-4 col-xl-3">
+              <div class="product-card fade-in"
+                   data-product-id="{{ product.product_id }}"
+                   data-brand="{{ product.brand|default:'Unknown Brand' }}"
+                   data-department="{{ product.department|default:'MISC. TRANS.' }}"
+                   data-commodity="{{ product.commodity_desc|default:'All Products' }}"
+                   data-sub-commodity="{{ product.sub_commodity_desc|default:'' }}"
+                   data-manufacturer="{{ product.manufacturer|default:'' }}"
+                   data-frequency="{{ product.frequency }}"
+                   data-total-sales="{{ product.total_sales }}"
+                   onclick="handleTopProductCardClick(this)">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <span class="product-id-badge">ID {{ product.product_id }}</span>
+                  <span class="badge bg-warning text-dark"><i class="fas fa-dollar-sign me-1"></i>${{ product.total_sales|floatformat:0 }}</span>
+                </div>
+                <h6 class="mb-1" style="font-weight: 700; color: #1a202c;">{{ product.brand|default:'Unknown Brand' }}</h6>
+                <div class="text-muted small mb-3">{{ product.commodity_desc|default:'All Products' }}</div>
+                <div class="mb-3">
+                  <div style="font-size: 1.4rem; font-weight: 800; color: #28a745;">${{ product.total_sales|floatformat:2 }}</div>
+                  <small class="text-muted">Total sales</small>
+                </div>
+                <div class="d-flex justify-content-between text-muted small">
+                  <span><i class="fas fa-sync-alt text-primary me-1"></i>{{ product.frequency }} tx</span>
+                  <span><i class="fas fa-building text-primary me-1"></i>{{ product.department|default:'MISC. TRANS.' }}</span>
+                </div>
+              </div>
+            </div>
+          {% empty %}
+            <div class="col-12">
+              <div class="text-center py-4 text-muted">
+                <i class="fas fa-box-open fa-3x mb-3"></i>
+                <h5>No product sales data available</h5>
+                <p>Load transaction data to view best-selling products.</p>
+              </div>
+            </div>
+          {% endfor %}
+          </div>
+        </div>
+      </div>
+
     <!-- Predictive Analysis Tab -->
     <div id="predictive" class="tab-content">
       <div class="analysis-type-card predictive-card">
@@ -2302,6 +2402,113 @@ function generateDifferentialInsightsFromAPI(insights, compareBy, statTest) {
   }
 }
 
+
+function switchTopProductsView(view) {
+  const grid = document.getElementById('topProductsGrid');
+  if (!grid) return;
+
+  const wrappers = grid.querySelectorAll('[data-products-view]');
+  wrappers.forEach(wrapper => {
+    const isTarget = wrapper.getAttribute('data-products-view') === view;
+    wrapper.classList.toggle('d-none', !isTarget);
+  });
+
+  document.querySelectorAll('[data-product-filter]').forEach(button => {
+    const isActive = button.getAttribute('data-product-filter') === view;
+    button.classList.toggle('active', isActive);
+  });
+
+  initTopProductCards(grid);
+}
+
+function initTopProductCards(scope = document) {
+  if (!scope || !scope.querySelectorAll) return;
+  const cards = scope.querySelectorAll('.product-card');
+  cards.forEach(card => {
+    if (card.dataset.topProductListenerAttached === 'true' && scope === document) {
+      return;
+    }
+
+    card.style.cursor = 'pointer';
+    card.addEventListener('click', () => handleTopProductCardClick(card));
+    card.dataset.topProductListenerAttached = 'true';
+  });
+}
+
+function handleTopProductCardClick(card) {
+  if (!card || !card.dataset) return;
+  showTopProductDetails(card.dataset);
+}
+
+function showTopProductDetails(datasetSource) {
+  if (!datasetSource) return;
+
+  const productId = datasetSource.productId || 'N/A';
+  const brand = datasetSource.brand || 'Unknown Brand';
+  const department = datasetSource.department || 'MISC. TRANS.';
+  const commodity = datasetSource.commodity || 'All Products';
+  const subCommodity = datasetSource.subCommodity || '';
+  const manufacturer = datasetSource.manufacturer || 'Not Provided';
+  const frequency = Number(datasetSource.frequency || 0);
+  const totalSales = Number(datasetSource.totalSales || 0);
+
+  const frequencyDisplay = frequency.toLocaleString();
+  const totalSalesDisplay = totalSales.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  const deptBadge = createDepartmentBadge(department);
+  const commodityBadge = createCommodityBadge(commodity);
+  const subCommodityLine = subCommodity ? `<div class="text-muted small mt-2"><i class="fas fa-tags me-2"></i>${escapeHtml(subCommodity)}</div>` : '';
+  const manufacturerLine = manufacturer && manufacturer !== 'Not Provided'
+    ? `<li><i class="fas fa-industry text-primary me-2"></i><strong>Manufacturer:</strong> ${escapeHtml(manufacturer)}</li>`
+    : '';
+
+  const safeProductId = escapeHtml(productId);
+  const safeBrand = escapeHtml(brand);
+  const safeDepartment = escapeHtml(department);
+  const safeCommodity = escapeHtml(commodity);
+
+  const body = `
+    <div class="top-product-modal">
+      <div class="text-center mb-4">
+        <span class="product-id-badge">ID ${safeProductId}</span>
+        <h4 class="mt-3 mb-0" style="font-weight: 700; color: #1a202c;">${safeBrand}</h4>
+        <div class="d-flex justify-content-center gap-2 mt-3">
+          ${deptBadge}
+          ${commodityBadge}
+        </div>
+        ${subCommodityLine}
+      </div>
+      <div class="row g-3 mb-4">
+        <div class="col-md-6">
+          <div class="p-4 text-center text-white" style="background: linear-gradient(135deg, #f97316, #fb923c); border-radius: 15px;">
+            <div class="text-uppercase small" style="opacity: 0.8;">Transactions</div>
+            <div style="font-size: 2.2rem; font-weight: 700;">${frequencyDisplay}</div>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="p-4 text-center text-white" style="background: linear-gradient(135deg, #22c55e, #16a34a); border-radius: 15px;">
+            <div class="text-uppercase small" style="opacity: 0.8;">Total Sales</div>
+            <div style="font-size: 2.2rem; font-weight: 700;">$${totalSalesDisplay}</div>
+          </div>
+        </div>
+      </div>
+      <div class="card border-0" style="background: #f8fafc; border-radius: 12px;">
+        <div class="card-body">
+          <h6 class="card-title" style="font-weight: 600; color: #475569;">Product Insights</h6>
+          <ul class="mb-0" style="list-style: none; padding: 0; color: #64748b;">
+            ${manufacturerLine}
+            <li><i class="fas fa-building text-primary me-2"></i><strong>Department:</strong> ${safeDepartment}</li>
+            <li><i class="fas fa-box-open text-primary me-2"></i><strong>Commodity:</strong> ${safeCommodity}</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  `;
+
+  showDetailModal(`⭐ Product ${safeProductId} Performance`, body);
+}
+
+
 function expandSection(sectionType) {
   let title, content, container;
   
@@ -2318,6 +2525,10 @@ function expandSection(sectionType) {
       title = 'All High-Value Baskets';
       container = document.getElementById('basketsGrid');
       break;
+    case 'products':
+      title = 'All High-Value Products';
+      container = document.getElementById('topProductsGrid');
+      break;
     case 'recommendations':
       title = 'All AI-Powered Product Recommendations';
       container = document.getElementById('recommendedProducts');
@@ -2329,21 +2540,38 @@ function expandSection(sectionType) {
   }
   
   if (container) {
-    let content = container.innerHTML;
-    
-    // For baskets, recommendations, and differential, wrap in proper bootstrap grid
-    if (sectionType === 'baskets' || sectionType === 'recommendations' || sectionType === 'differential') {
-      content = `<div class="row g-3">${content}</div>`;
+    let content;
+
+    if (sectionType === 'products') {
+      const frequencyWrapper = container.querySelector('[data-products-view="frequency"]');
+      const salesWrapper = container.querySelector('[data-products-view="sales"]');
+      const frequencyContent = frequencyWrapper ? frequencyWrapper.innerHTML : '<div class="text-muted">No high-value products available.</div>';
+      const salesContent = salesWrapper ? salesWrapper.innerHTML : '<div class="text-muted">No high-value products available.</div>';
+      content = `
+        <div class="mb-4">
+          <h6 class="text-primary"><i class="fas fa-sync-alt me-1"></i>Top by Transactions</h6>
+          <div class="row g-3">${frequencyContent}</div>
+        </div>
+        <div>
+          <h6 class="text-success"><i class="fas fa-dollar-sign me-1"></i>Top by Total Sales</h6>
+          <div class="row g-3">${salesContent}</div>
+        </div>
+      `;
+    } else {
+      content = container.innerHTML;
+      if (sectionType === 'baskets' || sectionType === 'recommendations' || sectionType === 'differential') {
+        content = `<div class="row g-3">${content}</div>`;
+      }
     }
-    
+
     const modalContent = `
       <div id="expandedContent" style="max-height: 70vh; overflow-y: auto; padding: 1rem; background: #f8f9fa; border-radius: 10px;">
         ${content}
       </div>
     `;
-    
+
     showDetailModal(title, modalContent);
-    
+
     // Re-attach event listeners after modal is shown
     setTimeout(() => {
       attachPopupEventListeners(sectionType);
@@ -2434,6 +2662,8 @@ function attachPopupEventListeners(sectionType) {
         showDifferentialInsightDetailsFromCard(this);
       });
     });
+  } else if (sectionType === 'products') {
+    initTopProductCards(expandedContent);
   } else {
     // Attach rule card click handlers for department and commodity rules
     const ruleCards = expandedContent.querySelectorAll('.rule-card');
@@ -3085,6 +3315,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // Initialize descriptive analysis by default
   loadDescriptiveAnalysis();
+  initTopProductCards();
+  switchTopProductsView('frequency');
 
   // Wire up Prediction Horizon selector change handler
   const horizonSelect = document.getElementById('predictionHorizon');
