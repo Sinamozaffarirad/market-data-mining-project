@@ -204,6 +204,7 @@
 }
 
 .chart-container {
+  max-height: 900px;
   background: white;
   border-radius: 15px;
   padding: 1.2rem;
@@ -594,6 +595,8 @@
   }
   
   .chart-container {
+    min-height: 700px;
+    max-height: 900px;
     padding: 1rem;
   }
   
@@ -742,14 +745,14 @@ html, body {
       <!-- Association Rules -->
       <div class="chart-container">
         <div class="d-flex justify-content-between align-items-center mb-3">
-          <h5 class="mb-0" id="deptRulesTitle"><i class="fas fa-project-diagram"></i> Association Rules (0/∞) — Department Level</h5>
+          <h5 class="mb-0" id="deptRulesTitle"><i class="fas fa-project-diagram" style="min-height: 400px !important;"></i> Association Rules (0/∞) — Department Level</h5>
           <div>
             <button class="btn btn-outline-primary btn-sm" onclick="expandSection('department')" title="View All in Popup">
               <i class="fas fa-expand-arrows-alt"></i> Expand
             </button>
           </div>
         </div>
-        <div class="association-rules-container scrollable-section" id="associationRules" style="max-height: 400px; overflow-y: auto;">
+        <div class="association-rules-container scrollable-section" id="associationRules" style="min-height:550px max-height: 600px; overflow-y: auto;">
           <div class="text-center py-3 text-muted">
             <i class="fas fa-spinner fa-spin fa-2x mb-2"></i>
             <p>Click "Run Apriori Algorithm" to generate association rules...</p>
@@ -767,7 +770,7 @@ html, body {
             </button>
           </div>
         </div>
-        <div class="association-rules-container scrollable-section" id="associationRulesCommodity" style="max-height: 400px; overflow-y: auto;">
+        <div class="association-rules-container scrollable-section" id="associationRulesCommodity" style="max-height: 500px !important; overflow-y: auto;">
           <div class="text-center py-3 text-muted">
             <i class="fas fa-spinner fa-spin fa-2x mb-2"></i>
             <p>Click "Run Apriori Algorithm" to generate commodity-level rules...</p>
@@ -1140,7 +1143,7 @@ html, body {
       </div>
 
       <!-- Differential Insights -->
-      <div class="chart-container">
+      <div class="chart-container" style="min-height: 600px !important;">
         <div class="d-flex justify-content-between align-items-center mb-3">
           <h5 class="mb-0"><i class="fas fa-microscope"></i> Key Differential Insights</h5>
           <div>
@@ -2549,24 +2552,24 @@ function expandChart(chartId) {
 
   switch(chartId) {
     case 'revenueImpactChart':
-      title = 'Revenue Impact by Department - Expanded View';
+      title = 'Revenue Impact by Department';
       container = document.getElementById('revenueImpactChart');
       break;
     case 'purchaseTrendsChart':
-      title = 'Purchase Probability Trends - Expanded View';
+      title = 'Purchase Probability Trends';
       container = document.getElementById('purchaseTrendsChart');
       break;
     case 'comparisonChart':
-      title = 'Comparative Analysis Results - Expanded View';
+      title = 'Comparative Analysis Results';
       container = document.getElementById('comparisonChartContainer') || document.getElementById('comparisonChart');
       break;
     case 'comparisonChartContainer':
-      title = 'Comparative Analysis Results - Expanded View';
+      title = 'Comparative Analysis Results';
       container = document.getElementById('comparisonChartContainer');
       break;
     default:
       console.warn('Unknown chart ID:', chartId);
-      title = 'Chart Analysis - Expanded View';
+      title = 'Chart Analysis';
       container = document.getElementById(chartId);
       break;
   }
@@ -2575,9 +2578,11 @@ function expandChart(chartId) {
   if (container) {
     // For charts, we'll create a larger canvas version
     const canvas = container.querySelector('canvas');
-    console.log('Expanding chart:', chartId, 'Canvas found:', !!canvas, 'Container:', container);
+    const chartKey = getChartKey(chartId);
+    console.log('Expanding chart:', chartId, 'Canvas found:', !!canvas, 'Container:', container, 'Chart exists:', !!charts[chartKey]);
 
-    if (canvas) {
+    // Always create canvas for expansion if we have a chart or if it's a comparison chart
+    if (canvas || (chartKey === 'comparison' && charts.comparison)) {
       content = `
         <div style="background: white; padding: 2rem; border-radius: 15px; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
           <canvas id="${chartId}_expanded" height="600" style="max-width: 100%; max-height: 70vh;"></canvas>
@@ -2588,7 +2593,7 @@ function expandChart(chartId) {
       content = `
         <div style="background: white; padding: 2rem; border-radius: 15px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); min-height: 600px;">
           <div class="text-center py-5">
-            <h4 style="color: #667eea; margin-bottom: 2rem;">📊 ${title || 'Chart Analysis'}</h4>
+            <h4 style="color: #667eea; margin-bottom: 2rem;">${title || 'Chart Analysis'}</h4>
             <div style="font-size: 1.2rem; color: #6b7280;">
               ${container.innerHTML || '<p>Chart will appear here after running analysis</p>'}
             </div>
@@ -2609,6 +2614,21 @@ function expandChart(chartId) {
     setTimeout(() => {
       recreateExpandedChart(chartId);
     }, 300);
+  } else {
+    console.warn('No container found for chart ID:', chartId);
+    const fallbackContent = `
+      <div id="expandedChartContent" style="max-height: 80vh; overflow-y: auto;">
+        <div style="background: white; padding: 2rem; border-radius: 15px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); min-height: 400px;">
+          <div class="text-center py-5">
+            <h4 style="color: #667eea; margin-bottom: 2rem;">${title || 'Chart Analysis'}</h4>
+            <div style="font-size: 1.2rem; color: #6b7280;">
+              <p>Chart container not found. Please ensure the analysis has been run.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    showDetailModal(title || 'Chart Analysis', fallbackContent);
   }
 }
 
@@ -2623,6 +2643,32 @@ function recreateExpandedChart(chartId) {
 
   if (!expandedCanvas) {
     console.log('No expanded canvas found for:', chartId + '_expanded');
+    return;
+  }
+
+  // Handle comparison chart specially
+  if (chartKey === 'comparison') {
+    console.log('Handling comparison chart expansion');
+    if (originalChart) {
+      recreateComparisonChartExpanded(expandedCanvas);
+    } else {
+      console.log('No comparison chart found, trying to initialize');
+      // Try to recreate from existing data if available
+      setTimeout(() => {
+        if (charts.comparison) {
+          recreateComparisonChartExpanded(expandedCanvas);
+        } else {
+          // Show message that chart needs to be generated first
+          expandedCanvas.style.display = 'none';
+          expandedCanvas.parentElement.innerHTML = `
+            <div class="text-center py-5">
+              <h5 style="color: #667eea; margin-bottom: 1rem;">Chart Not Available</h5>
+              <p style="color: #6b7280;">Please run the comparative analysis first to view the expanded chart.</p>
+            </div>
+          `;
+        }
+      }, 100);
+    }
     return;
   }
 
@@ -2683,6 +2729,97 @@ function recreateExpandedChart(chartId) {
       } : undefined
     }
   });
+}
+
+function recreateComparisonChartExpanded(canvas) {
+  console.log('recreateComparisonChartExpanded called with canvas:', !!canvas, 'charts.comparison:', !!charts.comparison);
+
+  if (!canvas) {
+    console.error('No canvas provided to recreateComparisonChartExpanded');
+    return;
+  }
+
+  if (!charts.comparison) {
+    console.error('No comparison chart found in charts object');
+    return;
+  }
+
+  const originalChart = charts.comparison;
+  console.log('Original chart type:', originalChart.config?.type || 'unknown');
+  console.log('Original chart data:', originalChart.data);
+  console.log('Original chart options:', originalChart.options);
+
+  try {
+    // Create expanded version with enhanced styling
+    const expandedChart = new Chart(canvas, {
+      type: originalChart.config?.type || 'bar',
+      data: {
+        labels: originalChart.data?.labels || [],
+        datasets: originalChart.data?.datasets || []
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        devicePixelRatio: window.devicePixelRatio || 2,
+        plugins: {
+          title: {
+            display: true,
+            text: originalChart.options?.plugins?.title?.text || 'Comparative Analysis Results',
+            font: { size: 20, weight: 'bold' },
+            padding: 30
+          },
+          legend: {
+            display: originalChart.options?.plugins?.legend?.display !== false,
+            position: originalChart.options?.plugins?.legend?.position || 'top',
+            labels: {
+              font: { weight: 'bold', size: 16 },
+              padding: 25
+            }
+          },
+          tooltip: originalChart.options?.plugins?.tooltip || {}
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            title: {
+              display: true,
+              text: originalChart.options?.scales?.y?.title?.text || 'Value',
+              font: { weight: 'bold', size: 16 }
+            },
+            ticks: {
+              font: { size: 14 }
+            }
+          },
+          x: {
+            title: {
+              display: true,
+              text: originalChart.options?.scales?.x?.title?.text || 'Categories',
+              font: { weight: 'bold', size: 16 }
+            },
+            ticks: {
+              font: { size: 14 }
+            }
+          }
+        },
+        interaction: originalChart.options?.interaction || {
+          mode: 'index',
+          intersect: false
+        }
+      }
+    });
+
+    console.log('Successfully created expanded comparison chart:', expandedChart);
+  } catch (error) {
+    console.error('Error creating expanded comparison chart:', error);
+    // Show error message in canvas container
+    canvas.style.display = 'none';
+    canvas.parentElement.innerHTML = `
+      <div class="text-center py-5">
+        <h5 style="color: #dc3545; margin-bottom: 1rem;">Chart Error</h5>
+        <p style="color: #6b7280;">Unable to display expanded chart. Error: ${error.message}</p>
+      </div>
+    `;
+  }
 }
 
 function getChartKey(chartId) {
