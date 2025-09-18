@@ -455,6 +455,12 @@ body.admin {
     margin-top: var(--space-lg) !important;
 }
 
+.admin .chart-container.association-rules-block {
+    height: auto !important;
+    min-height: 650px !important;
+    max-height: none !important;
+}
+
 /* Breadcrumbs */
 .admin .breadcrumbs {
     background: rgba(255, 255, 255, 0.9) !important;

@@ -743,7 +743,7 @@ html, body {
       </div>
 
       <!-- Association Rules -->
-      <div class="chart-container">
+      <div class="chart-container association-rules-block">
         <div class="d-flex justify-content-between align-items-center mb-3">
           <h5 class="mb-0" id="deptRulesTitle"><i class="fas fa-project-diagram" style="min-height: 400px !important;"></i> Association Rules (0/∞) — Department Level</h5>
           <div>
@@ -753,7 +753,7 @@ html, body {
           </div>
         </div>
         <div id="descriptiveInsertAlert" class="alert alert-success d-none" role="alert"></div>
-        <div class="association-rules-container scrollable-section" id="associationRules" style="max-height: 400px; overflow-y: auto;">
+        <div class="association-rules-container scrollable-section" id="associationRules" style="max-height: 950px; overflow-y: auto;">
           <div class="text-center py-3 text-muted">
             <i class="fas fa-spinner fa-spin fa-2x mb-2"></i>
             <p>Click "Run Apriori Algorithm" to generate association rules...</p>
@@ -762,7 +762,7 @@ html, body {
       </div>
 
       <!-- Commodity-level Rules -->
-      <div class="chart-container">
+      <div class="chart-container association-rules-block">
         <div class="d-flex justify-content-between align-items-center mb-3">
           <h5 class="mb-0" id="commodityRulesTitle"><i class="fas fa-boxes-stacked"></i> Association Rules (0/∞) — Commodity Level</h5>
           <div>
@@ -771,7 +771,7 @@ html, body {
             </button>
           </div>
         </div>
-        <div class="association-rules-container scrollable-section" id="associationRulesCommodity" style="max-height: 400px; overflow-y: auto;">
+        <div class="association-rules-container scrollable-section" id="associationRulesCommodity" style="max-height: 650px; overflow-y: auto;">
           <div class="text-center py-3 text-muted">
             <i class="fas fa-spinner fa-spin fa-2x mb-2"></i>
             <p>Click "Run Apriori Algorithm" to generate commodity-level rules...</p>
@@ -1645,18 +1645,41 @@ function buildRulePayload(options) {
 function openInsertConfirm(ruleData) {
   const formatMetric = (value) => (Number.isFinite(value) ? value.toFixed(4) : 'N/A');
 
-  const message = `Store this association rule for future recommendations?\n\n` +
-    `Rule: ${ruleData.antecedent.join(', ')} → ${ruleData.consequent.join(', ')}\n` +
-    `Support: ${formatMetric(ruleData.support)}\n` +
-    `Confidence: ${formatMetric(ruleData.confidence)}\n` +
-    `Lift: ${formatMetric(ruleData.lift)}`;
-
-  if (confirm(message)) {
-    performRuleInsert(ruleData);
-  }
+  const body = `
+    <div class="alert alert-warning">
+      <i class="fas fa-database me-2"></i>
+      Store the rule <strong>${ruleData.antecedent.join(', ')}</strong> &rarr; <strong>${ruleData.consequent.join(', ')}</strong> for future recommendations?
+    </div>
+    <ul class="list-unstyled small mb-3">
+      <li><strong>Support:</strong> ${formatMetric(ruleData.support)}</li>
+      <li><strong>Confidence:</strong> ${formatMetric(ruleData.confidence)}</li>
+      <li><strong>Lift:</strong> ${formatMetric(ruleData.lift)}</li>
+    </ul>
+    <div class="text-end">
+      <button type="button" class="btn btn-secondary me-2" data-bs-dismiss="modal">Cancel</button>
+      <button type="button" class="btn btn-success" id="confirmInsertRuleBtn">
+        <i class="fas fa-database"></i> Insert Rule
+      </button>
+    </div>
+  `;
+  showDetailModal('Confirm Association Rule Insert', body);
+  setTimeout(() => {
+    const confirmBtn = document.getElementById('confirmInsertRuleBtn');
+    if (confirmBtn) {
+      confirmBtn.addEventListener('click', () => performRuleInsert(ruleData), { once: true });
+    }
+  }, 200);
 }
 
 function performRuleInsert(ruleData) {
+  const modalEl = document.getElementById('detailModal');
+  const modalInstance = modalEl ? bootstrap.Modal.getInstance(modalEl) : null;
+  const confirmBtn = document.getElementById('confirmInsertRuleBtn');
+  if (confirmBtn) {
+    confirmBtn.disabled = true;
+    confirmBtn.classList.add('disabled');
+  }
+
   fetch('/analysis/api/association-rules/insert/', {
     method: 'POST',
     headers: {
@@ -1668,15 +1691,30 @@ function performRuleInsert(ruleData) {
     .then(async (response) => {
       const payload = await response.json().catch(() => ({ success: false, error: 'Unexpected response from server.' }));
       if (response.ok && payload.success) {
-        alert(payload.message || 'Rule stored successfully.');
+        showRuleInsertFeedback(payload.message || 'Rule stored successfully.', 'success');
+        if (modalInstance) {
+          modalInstance.hide();
+        }
       } else {
         const errorMessage = payload.error || 'Unable to store the rule.';
-        alert(errorMessage);
+        showRuleInsertFeedback(errorMessage, 'danger');
+        if (modalInstance) {
+          modalInstance.hide();
+        }
       }
     })
     .catch((error) => {
       console.error('Failed to insert association rule', error);
-      alert('Unexpected error while saving the rule.');
+      showRuleInsertFeedback('Unexpected error while saving the rule.', 'danger');
+      if (modalInstance) {
+        modalInstance.hide();
+      }
+    })
+    .finally(() => {
+      if (confirmBtn) {
+        confirmBtn.disabled = false;
+        confirmBtn.classList.remove('disabled');
+      }
     });
 }
 
@@ -3908,6 +3946,7 @@ function getBusinessValue(ant, con, lift, type) {
   return { crossSell, layout, marketing };
 }
 
+
 // Basket card interactions
 document.addEventListener('DOMContentLoaded', function() {
   const csrftoken = (document.cookie.split('; ').find(r=>r.startsWith('csrftoken='))||'').split('=')[1]||'';
@@ -3983,12 +4022,6 @@ function getCsrfToken() {
   return (document.cookie.split('; ').find(r=>r.startsWith('csrftoken='))||'').split('=')[1]||'';
 }
 
-// Simple modal function to prevent errors
-function showDetailModal(title, content) {
-  // Simple alert fallback - much more reliable than complex modal
-  const cleanContent = content.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ');
-  alert(title + '\n\n' + cleanContent);
-}
 
 // Prediction Horizon helper functions
 function getSelectedHorizon() {
