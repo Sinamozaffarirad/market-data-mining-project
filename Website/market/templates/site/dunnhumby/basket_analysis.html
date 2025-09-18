@@ -752,6 +752,7 @@ html, body {
             </button>
           </div>
         </div>
+        <div id="descriptiveInsertAlert" class="alert alert-success d-none" role="alert"></div>
         <div class="association-rules-container scrollable-section" id="associationRules" style="max-height: 400px; overflow-y: auto;">
           <div class="text-center py-3 text-muted">
             <i class="fas fa-spinner fa-spin fa-2x mb-2"></i>
@@ -1447,7 +1448,7 @@ function generateAssociationRules() {
   
   // Department rules HTML (showing count) with click functionality
   const deptRulesHtml = rules.length > 0 ? rules.map(rule => `
-    <div class="rule-card" onclick="showRuleDetails('${rule.antecedent}', '${rule.consequent}', ${rule.support}, ${rule.confidence}, ${rule.lift}, 'department')">
+    <div class="rule-card" data-antecedent="${rule.antecedent}" data-consequent="${rule.consequent}" data-support="${rule.support}" data-confidence="${rule.confidence}" data-lift="${rule.lift}" data-rule-type="department">
       <div class="d-flex align-items-center justify-content-between mb-2">
         <div class="d-flex align-items-center flex-wrap">
           ${createDepartmentBadge(rule.antecedent)}
@@ -1482,6 +1483,7 @@ function generateAssociationRules() {
   const containerDept = document.getElementById('associationRules');
   if(containerDept) {
     containerDept.innerHTML = deptRulesHtml;
+    enhanceRuleCards(containerDept, 'department', supportThreshold, confidenceThreshold);
     // Update section title with count (infinity symbol for unlimited)
     const deptTitle = document.getElementById('deptRulesTitle');
     if(deptTitle) deptTitle.innerHTML = `<i class="fas fa-project-diagram"></i> Association Rules (${rules.length}/∞) — Department Level`;
@@ -1507,7 +1509,7 @@ function generateAssociationRules() {
   ).sort((a,b)=>b.lift-a.lift); // Remove .slice(0,10) to show ALL results
   // Commodity rules HTML (showing count) with click functionality
   const commodityHtml = commodityRules.length > 0 ? commodityRules.map(r=>`
-    <div class="rule-card" onclick="showRuleDetails('${r.ant}', '${r.con}', ${r.support}, ${r.confidence}, ${r.lift}, 'commodity')">
+    <div class="rule-card" data-antecedent="${r.ant}" data-consequent="${r.con}" data-support="${r.support}" data-confidence="${r.confidence}" data-lift="${r.lift}" data-rule-type="commodity">
       <div class="d-flex align-items-center justify-content-between mb-2">
         <div class="d-flex align-items-center flex-wrap">
           ${createCommodityBadge(r.ant)}
@@ -1529,10 +1531,167 @@ function generateAssociationRules() {
   const containerCom = document.getElementById('associationRulesCommodity');
   if(containerCom) {
     containerCom.innerHTML = commodityHtml;
+    enhanceRuleCards(containerCom, 'commodity', supportThreshold, confidenceThreshold);
     // Update section title with count (infinity symbol for unlimited)
     const comTitle = document.getElementById('commodityRulesTitle');
     if(comTitle) comTitle.innerHTML = `<i class="fas fa-boxes-stacked"></i> Association Rules (${commodityRules.length}/∞) — Commodity Level`;
   }
+}
+
+function enhanceRuleCards(container, ruleType, minSupport, minConfidence) {
+  if (!container) {
+    return;
+  }
+  const cards = container.querySelectorAll('.rule-card');
+
+  cards.forEach((card) => {
+    let antecedent = card.dataset.antecedent || '';
+    let consequent = card.dataset.consequent || '';
+    let support = parseFloat(card.dataset.support);
+    let confidence = parseFloat(card.dataset.confidence);
+    let lift = parseFloat(card.dataset.lift);
+    let ruleTypeFromCard = card.dataset.ruleType || ruleType;
+
+    // Add click handler for rule details
+    card.addEventListener('click', function() {
+      showRuleDetails(antecedent, consequent, support, confidence, lift, ruleTypeFromCard);
+    });
+
+    card.dataset.antecedent = antecedent;
+    card.dataset.consequent = consequent;
+    card.dataset.support = support;
+    card.dataset.confidence = confidence;
+    card.dataset.lift = lift;
+    card.dataset.ruleType = ruleTypeFromCard;
+    card.dataset.minSupport = minSupport;
+    card.dataset.minConfidence = minConfidence;
+
+    if (!card.querySelector('.insert-rule-btn')) {
+      const buttonWrapper = document.createElement('div');
+      buttonWrapper.className = 'mt-2';
+
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'btn btn-sm btn-outline-success w-100 insert-rule-btn';
+      button.innerHTML = '<i class="fas fa-database"></i> Insert Rule';
+
+      button.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const payload = buildRulePayload({
+          antecedent,
+          consequent,
+          support,
+          confidence,
+          lift,
+          minSupport,
+          minConfidence,
+          ruleType: ruleTypeFromCard,
+        });
+
+        openInsertConfirm(payload);
+      });
+
+      buttonWrapper.appendChild(button);
+      card.appendChild(buttonWrapper);
+    }
+  });
+}
+
+function buildRulePayload(options) {
+  const toList = (value) => {
+    if (Array.isArray(value)) {
+      return value.map((item) => String(item).trim()).filter(Boolean);
+    }
+    if (typeof value === 'string') {
+      return value.split(',').map((item) => item.trim()).filter(Boolean);
+    }
+    if (value === undefined || value === null) {
+      return [];
+    }
+    return [String(value).trim()].filter(Boolean);
+  };
+
+  const safeNumber = (value) => {
+    const num = parseFloat(value);
+    return Number.isFinite(num) ? num : null;
+  };
+
+  const antecedentList = toList(options.antecedent);
+  const consequentList = toList(options.consequent);
+  const support = safeNumber(options.support) ?? 0;
+  const confidence = safeNumber(options.confidence) ?? 0;
+  const lift = safeNumber(options.lift) ?? 0;
+
+  const sliderSupport = safeNumber(document.getElementById('supportSlider')?.value);
+  const sliderConfidence = safeNumber(document.getElementById('confidenceSlider')?.value);
+
+  const minSupport = safeNumber(options.minSupport) ?? sliderSupport ?? support;
+  const minConfidence = safeNumber(options.minConfidence) ?? sliderConfidence ?? confidence;
+
+  return {
+    antecedent: antecedentList,
+    consequent: consequentList,
+    support,
+    confidence,
+    lift,
+    min_support: minSupport,
+    min_confidence: minConfidence,
+    rule_type: options.ruleType || 'department'
+  };
+}
+
+function openInsertConfirm(ruleData) {
+  const formatMetric = (value) => (Number.isFinite(value) ? value.toFixed(4) : 'N/A');
+
+  const message = `Store this association rule for future recommendations?\n\n` +
+    `Rule: ${ruleData.antecedent.join(', ')} → ${ruleData.consequent.join(', ')}\n` +
+    `Support: ${formatMetric(ruleData.support)}\n` +
+    `Confidence: ${formatMetric(ruleData.confidence)}\n` +
+    `Lift: ${formatMetric(ruleData.lift)}`;
+
+  if (confirm(message)) {
+    performRuleInsert(ruleData);
+  }
+}
+
+function performRuleInsert(ruleData) {
+  fetch('/analysis/api/association-rules/insert/', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': getCsrfToken()
+    },
+    body: JSON.stringify(ruleData)
+  })
+    .then(async (response) => {
+      const payload = await response.json().catch(() => ({ success: false, error: 'Unexpected response from server.' }));
+      if (response.ok && payload.success) {
+        alert(payload.message || 'Rule stored successfully.');
+      } else {
+        const errorMessage = payload.error || 'Unable to store the rule.';
+        alert(errorMessage);
+      }
+    })
+    .catch((error) => {
+      console.error('Failed to insert association rule', error);
+      alert('Unexpected error while saving the rule.');
+    });
+}
+
+function showRuleInsertFeedback(message, variant) {
+  const container = document.getElementById('descriptiveInsertAlert');
+  if (!container) {
+    alert(message);
+    return;
+  }
+  container.textContent = message;
+  container.className = `alert alert-${variant}`;
+  container.classList.remove('d-none');
+  setTimeout(() => {
+    container.classList.add('d-none');
+  }, 5000);
 }
 
 function updateSliderValues() {
@@ -3008,6 +3167,12 @@ function attachPopupEventListeners(sectionType) {
         }
       }
     });
+
+    if (sectionType === 'department' || sectionType === 'commodity') {
+      const supportValue = parseFloat(document.getElementById('supportSlider')?.value || 0) || 0;
+      const confidenceValue = parseFloat(document.getElementById('confidenceSlider')?.value || 0) || 0;
+      enhanceRuleCards(expandedContent, sectionType, supportValue, confidenceValue);
+    }
   }
 }
 
@@ -3667,6 +3832,38 @@ function showRuleDetails(antecedent, consequent, support, confidence, lift, rule
   `;
   
   showDetailModal(title, body);
+
+  setTimeout(() => {
+    const modalBodyRow = document.querySelector('#detailModal .modal-body .row');
+    if (modalBodyRow && !document.getElementById('descriptiveModalInsertBtn')) {
+      const buttonCol = document.createElement('div');
+      buttonCol.className = 'col-12 mt-3';
+      buttonCol.innerHTML = `
+        <div class="text-end">
+          <button type="button" class="btn btn-success" id="descriptiveModalInsertBtn">
+            <i class="fas fa-database"></i> Insert This Rule
+          </button>
+        </div>
+      `;
+      modalBodyRow.appendChild(buttonCol);
+    }
+
+    const modalInsertBtn = document.getElementById('descriptiveModalInsertBtn');
+    if (modalInsertBtn) {
+      modalInsertBtn.addEventListener('click', (event) => {
+        event.preventDefault();
+        const payload = buildRulePayload({
+          antecedent,
+          consequent,
+          support,
+          confidence,
+          lift,
+          ruleType,
+        });
+        openInsertConfirm(payload);
+      }, { once: true });
+    }
+  }, 200);
 }
 
 // Get interpretation based on metrics
@@ -4378,6 +4575,7 @@ function updateAccuracyChart(performance) {
   }
 }
 </script>
+
 
 {% endblock %}
 

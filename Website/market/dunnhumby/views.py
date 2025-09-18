@@ -16,6 +16,7 @@ import json
 from collections import defaultdict
 import threading
 from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
 
 
 def _generate_association_rules(min_support, min_confidence):
@@ -79,7 +80,15 @@ def _generate_association_rules(min_support, min_confidence):
                     'support': support,
                     'confidence': confidence,
                     'lift': lift,
-                    'rule_type': 'frequent_itemset',
+                    'rule_type': 'product',
+                    'min_support_threshold': min_support,
+                    'min_confidence_threshold': min_confidence,
+                    'min_lift_threshold': None,
+                    'source_view': 'analysis.association_rules',
+                    'metadata': {
+                        'antecedent_details': [ant_detail],
+                        'consequent_details': [cons_detail],
+                    },
                 })
     return sorted(rules, key=lambda x: x['lift'], reverse=True)[:50]
 
@@ -208,6 +217,103 @@ def data_management(request):
         'data_stats': _get_data_statistics(),
     })
 
+
+@login_required(login_url='/admin/login/')
+@require_POST
+def api_insert_association_rule(request):
+    if request.content_type == 'application/json':
+        try:
+            payload = json.loads(request.body.decode('utf-8'))
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            return JsonResponse({'success': False, 'error': 'Invalid JSON payload.'}, status=400)
+    else:
+        payload = request.POST
+
+    def _parse_list(value):
+        if isinstance(value, list):
+            return value
+        if value is None:
+            return []
+        if isinstance(value, str):
+            try:
+                parsed = json.loads(value)
+                if isinstance(parsed, list):
+                    return parsed
+            except json.JSONDecodeError:
+                pass
+            return [item.strip() for item in value.split(',') if item.strip()]
+        return []
+
+    def _parse_float(value, fallback=None):
+        if value in (None, ''):
+            return fallback
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return fallback
+
+    try:
+        antecedent = _parse_list(payload.get('antecedent'))
+        consequent = _parse_list(payload.get('consequent'))
+        support = float(payload.get('support'))
+        confidence = float(payload.get('confidence'))
+        lift = float(payload.get('lift'))
+    except (TypeError, ValueError):
+        return JsonResponse({'success': False, 'error': 'Invalid numeric values supplied.'}, status=400)
+
+    if not antecedent or not consequent:
+        return JsonResponse({'success': False, 'error': 'Antecedent and consequent are required.'}, status=400)
+
+    rule_type = payload.get('rule_type') or 'product'
+    if rule_type not in {'product', 'category', 'commodity', 'department'}:
+        rule_type = 'product'
+
+    min_support = _parse_float(payload.get('min_support_threshold') or payload.get('min_support'), support)
+    min_confidence = _parse_float(payload.get('min_confidence_threshold') or payload.get('min_confidence'))
+    min_lift = _parse_float(payload.get('min_lift_threshold') or payload.get('min_lift'))
+    source_view = payload.get('source_view') or payload.get('source') or 'manual.insert'
+
+    metadata = payload.get('metadata')
+    if isinstance(metadata, str):
+        try:
+            metadata = json.loads(metadata)
+        except json.JSONDecodeError:
+            metadata = {'raw': metadata}
+    if metadata is None:
+        metadata = {}
+
+    existing = AssociationRule.objects.filter(
+        antecedent=antecedent,
+        consequent=consequent,
+        rule_type=rule_type
+    ).first()
+
+    if existing:
+        existing.support = support
+        existing.confidence = confidence
+        existing.lift = lift
+        existing.min_support_threshold = min_support
+        existing.min_confidence_threshold = min_confidence
+        existing.min_lift_threshold = min_lift
+        existing.source_view = source_view
+        existing.metadata = metadata
+        existing.save()
+        return JsonResponse({'success': True, 'message': 'Rule updated.'})
+    else:
+        AssociationRule.objects.create(
+            antecedent=antecedent,
+            consequent=consequent,
+            support=support,
+            confidence=confidence,
+            lift=lift,
+            rule_type=rule_type,
+            min_support_threshold=min_support,
+            min_confidence_threshold=min_confidence,
+            min_lift_threshold=min_lift,
+            source_view=source_view,
+            metadata=metadata,
+        )
+        return JsonResponse({'success': True, 'message': 'Rule inserted.'}, status=201)
 
 @login_required(login_url='/admin/login/')
 def api_get_table_data(request):
