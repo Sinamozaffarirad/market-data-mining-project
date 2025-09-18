@@ -169,9 +169,14 @@ class AssociationRule(models.Model):
     rule_type = models.CharField(max_length=20, choices=[
         ('product', 'Product Level'),
         ('category', 'Category Level'),
+        ('commodity', 'Commodity Level'),
         ('department', 'Department Level'),
     ])
     min_support_threshold = models.FloatField()
+    min_confidence_threshold = models.FloatField(null=True, blank=True)
+    min_lift_threshold = models.FloatField(null=True, blank=True)
+    source_view = models.CharField(max_length=64, blank=True, default='')
+    metadata = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

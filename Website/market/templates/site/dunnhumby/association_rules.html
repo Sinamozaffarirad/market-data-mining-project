@@ -36,6 +36,7 @@
             <i class="fas fa-table"></i> Results (sorted by Lift)
           </div>
           <div class="card-body">
+            <div id="ruleInsertAlert" class="alert alert-success d-none" role="alert"></div>
             {% if rules %}
             <div class="row g-3">
               {% for rule in rules %}
@@ -47,7 +48,13 @@
                      data-sup="{{ rule.support|floatformat:4 }}"
                      data-conf="{{ rule.confidence|floatformat:4 }}"
                      data-lift="{{ rule.lift|floatformat:4 }}"
-                     data-type="{{ rule.rule_type|default:'frequent_itemset' }}"
+                     data-ant-list="{{ rule.antecedent|join:'|' }}"
+                     data-con-list="{{ rule.consequent|join:'|' }}"
+                     data-min-support="{{ rule.min_support_threshold|default:'0.01' }}"
+                     data-min-confidence="{{ rule.min_confidence_threshold|default:'' }}"
+                     data-min-lift="{{ rule.min_lift_threshold|default:'' }}"
+                     data-source="{{ rule.source_view|default:'analysis.association_rules' }}"
+                     data-type="{{ rule.rule_type|default:'product' }}"
                      onmouseover="this.style.transform='translateY(-3px)'; this.style.boxShadow='0 12px 30px rgba(0,0,0,0.2)'"
                      onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow=''">
                   <div class="card-body">
@@ -93,6 +100,11 @@
                         <span class="badge bg-success">{{ rule.lift|floatformat:2 }}</span>
                       </div>
                     </div>
+                    <div class="mt-3">
+                      <button type="button" class="btn btn-sm btn-outline-success w-100 insert-rule-btn">
+                        <i class="fas fa-database"></i> Insert Rule
+                      </button>
+                    </div>
                     <div class="text-muted small mt-2 text-center">
                       <i class="fas fa-mouse-pointer"></i> Click for details
                     </div>
@@ -111,22 +123,35 @@
   </div>
 </div>
 <script>
-document.addEventListener('DOMContentLoaded', function(){
-  document.querySelectorAll('.rule-card').forEach(el=>{
-    el.addEventListener('click', ()=>{
-      const title = `🔗 Association Rule: ${el.dataset.ant} → ${el.dataset.con}`;
+document.addEventListener('DOMContentLoaded', () => {
+  const ruleCards = document.querySelectorAll('.rule-card');
+
+  ruleCards.forEach((card) => {
+    const insertButton = card.querySelector('.insert-rule-btn');
+    if (insertButton) {
+      insertButton.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const ruleData = buildRuleData(card);
+        openInsertConfirm(ruleData);
+      });
+    }
+
+    card.addEventListener('click', () => {
+      const ruleData = buildRuleData(card);
+      const title = `🔗 Association Rule: ${card.dataset.ant} → ${card.dataset.con}`;
       const body = `
         <div class="row g-3">
           <div class="col-12">
             <div class="alert alert-info">
               <h6><i class="fas fa-info-circle"></i> Rule Interpretation</h6>
-              <p class="mb-0">When customers buy product <strong>${el.dataset.ant}</strong>, they also tend to buy product <strong>${el.dataset.con}</strong></p>
+              <p class="mb-0">When customers buy product <strong>${card.dataset.ant}</strong>, they also tend to buy product <strong>${card.dataset.con}</strong></p>
             </div>
           </div>
           <div class="col-md-4">
             <div class="card border-primary">
               <div class="card-body text-center">
-                <div class="text-primary h4">${el.dataset.sup}</div>
+                <div class="text-primary h4">${card.dataset.sup}</div>
                 <div class="text-muted small">Support</div>
                 <small class="text-muted d-block">Frequency of both items together</small>
               </div>
@@ -135,7 +160,7 @@ document.addEventListener('DOMContentLoaded', function(){
           <div class="col-md-4">
             <div class="card border-warning">
               <div class="card-body text-center">
-                <div class="text-warning h4">${el.dataset.conf}</div>
+                <div class="text-warning h4">${card.dataset.conf}</div>
                 <div class="text-muted small">Confidence</div>
                 <small class="text-muted d-block">Reliability of the rule</small>
               </div>
@@ -144,7 +169,7 @@ document.addEventListener('DOMContentLoaded', function(){
           <div class="col-md-4">
             <div class="card border-success">
               <div class="card-body text-center">
-                <div class="text-success h4">${el.dataset.lift}</div>
+                <div class="text-success h4">${card.dataset.lift}</div>
                 <div class="text-muted small">Lift</div>
                 <small class="text-muted d-block">Strength of association</small>
               </div>
@@ -154,17 +179,181 @@ document.addEventListener('DOMContentLoaded', function(){
             <div class="bg-light p-3 rounded">
               <h6><i class="fas fa-lightbulb text-warning"></i> Business Insights</h6>
               <ul class="mb-0">
-                <li><strong>Cross-selling opportunity:</strong> Promote product ${el.dataset.con} to customers buying ${el.dataset.ant}</li>
+                <li><strong>Cross-selling opportunity:</strong> Promote product ${card.dataset.con} to customers buying ${card.dataset.ant}</li>
                 <li><strong>Store layout:</strong> Consider placing these products near each other</li>
                 <li><strong>Bundle pricing:</strong> Create attractive package deals for these items</li>
               </ul>
             </div>
           </div>
+          <div class="col-12 mt-3">
+            <div class="text-end">
+              <button type="button" class="btn btn-success" id="modalInsertRuleBtn">
+                <i class="fas fa-database"></i> Insert This Rule
+              </button>
+            </div>
+          </div>
         </div>
       `;
       showDetailModal(title, body);
-    })
+      setTimeout(() => {
+        const modalInsertBtn = document.getElementById('modalInsertRuleBtn');
+        if (modalInsertBtn) {
+          modalInsertBtn.addEventListener('click', (event) => {
+            event.preventDefault();
+            openInsertConfirm(ruleData);
+          }, { once: true });
+        }
+      }, 200);
+    });
+  });
+});
+
+function buildRuleData(card) {
+  const splitList = (value) => {
+    if (!value) {
+      return [];
+    }
+    const delimiter = value.indexOf('|') !== -1 ? '|' : (value.indexOf(',') !== -1 ? ',' : null);
+    if (!delimiter) {
+      return [value.trim()];
+    }
+    return value.split(delimiter).map((item) => item.trim()).filter(Boolean);
+  };
+
+  const parseNumber = (value) => {
+    const num = parseFloat(value);
+    return Number.isFinite(num) ? num : null;
+  };
+
+  const antecedent = splitList(card.dataset.antList || card.dataset.ant);
+  const consequent = splitList(card.dataset.conList || card.dataset.con);
+  const support = parseNumber(card.dataset.sup);
+  const confidence = parseNumber(card.dataset.conf);
+  const lift = parseNumber(card.dataset.lift);
+
+  let ruleType = card.dataset.type || 'product';
+  if (['product', 'category', 'commodity', 'department'].indexOf(ruleType) === -1) {
+    ruleType = 'product';
+  }
+
+  const minSupportValue = parseNumber(card.dataset.minSupport);
+  const minConfidenceValue = parseNumber(card.dataset.minConfidence);
+  const minLiftValue = parseNumber(card.dataset.minLift);
+
+  return {
+    antecedent: antecedent,
+    consequent: consequent,
+    support: support,
+    confidence: confidence,
+    lift: lift,
+    rule_type: ruleType,
+    min_support_threshold: minSupportValue !== null ? minSupportValue : support,
+    min_confidence_threshold: minConfidenceValue,
+    min_lift_threshold: minLiftValue,
+    source_view: card.dataset.source || 'analysis.association_rules',
+    metadata: {
+      antecedent_label: card.dataset.ant,
+      consequent_label: card.dataset.con,
+      source_path: window.location.pathname
+    }
+  };
+}
+
+function openInsertConfirm(ruleData) {
+  const formatMetric = (value) => (Number.isFinite(value) ? value.toFixed(4) : 'N/A');
+
+  const body = `
+    <div class="alert alert-warning">
+      <i class="fas fa-database me-2"></i>
+      Store the rule <strong>${ruleData.antecedent.join(', ')}</strong> → <strong>${ruleData.consequent.join(', ')}</strong> for future recommendations?
+    </div>
+    <ul class="list-unstyled small mb-3">
+      <li><strong>Support:</strong> ${formatMetric(ruleData.support)}</li>
+      <li><strong>Confidence:</strong> ${formatMetric(ruleData.confidence)}</li>
+      <li><strong>Lift:</strong> ${formatMetric(ruleData.lift)}</li>
+    </ul>
+    <div class="text-end">
+      <button type="button" class="btn btn-secondary me-2" data-bs-dismiss="modal">Cancel</button>
+      <button type="button" class="btn btn-success" id="confirmInsertRuleBtn">
+        <i class="fas fa-database"></i> Insert Rule
+      </button>
+    </div>
+  `;
+  showDetailModal('Confirm Association Rule Insert', body);
+  setTimeout(() => {
+    const confirmBtn = document.getElementById('confirmInsertRuleBtn');
+    if (confirmBtn) {
+      confirmBtn.addEventListener('click', () => performRuleInsert(ruleData), { once: true });
+    }
+  }, 200);
+}
+
+function performRuleInsert(ruleData) {
+  const modalEl = document.getElementById('detailModal');
+  const modalInstance = modalEl ? bootstrap.Modal.getInstance(modalEl) : null;
+  const confirmBtn = document.getElementById('confirmInsertRuleBtn');
+  if (confirmBtn) {
+    confirmBtn.disabled = true;
+    confirmBtn.classList.add('disabled');
+  }
+
+  fetch('/analysis/api/association-rules/insert/', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': getCsrfToken()
+    },
+    body: JSON.stringify(ruleData)
   })
-})
+    .then(async (response) => {
+      const payload = await response.json().catch(() => ({ success: false, error: 'Unexpected response from server.' }));
+      if (response.ok && payload.success) {
+        if (modalInstance) {
+          modalInstance.hide();
+        }
+        showRuleInsertFeedback(payload.message || 'Rule stored successfully.', 'success');
+      } else {
+        const errorMessage = payload.error || 'Unable to store the rule.';
+        showRuleInsertFeedback(errorMessage, 'danger');
+        if (modalInstance) {
+          modalInstance.hide();
+        }
+      }
+    })
+    .catch((error) => {
+      console.error('Failed to insert association rule', error);
+      showRuleInsertFeedback('Unexpected error while saving the rule.', 'danger');
+      if (modalInstance) {
+        modalInstance.hide();
+      }
+    })
+    .finally(() => {
+      if (confirmBtn) {
+        confirmBtn.disabled = false;
+        confirmBtn.classList.remove('disabled');
+      }
+    });
+}
+
+function showRuleInsertFeedback(message, variant) {
+  const container = document.getElementById('ruleInsertAlert');
+  if (!container) {
+    alert(message);
+    return;
+  }
+  container.textContent = message;
+  container.className = `alert alert-${variant}`;
+  container.classList.remove('d-none');
+  setTimeout(() => {
+    container.classList.add('d-none');
+  }, 5000);
+}
+
+function getCsrfToken() {
+  const match = document.cookie.match(/csrftoken=([^;]+)/);
+  return match ? match[1] : '';
+}
 </script>
+
+
 {% endblock %}

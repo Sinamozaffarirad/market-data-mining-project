@@ -11,6 +11,7 @@ urlpatterns = [
     path("data-management/", views.data_management, name="data_management"),
     # JSON/API endpoints used by front-end JS
     path("api/table/", views.api_get_table_data, name="api_get_table_data"),
+    path("api/association-rules/insert/", views.api_insert_association_rule, name="api_insert_association_rule"),
     path("api/create/", views.api_create_record, name="api_create_record"),
     path("api/update/", views.api_update_record, name="api_update_record"),
     path("api/delete/", views.api_delete_record, name="api_delete_record"),

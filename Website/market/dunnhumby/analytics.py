@@ -166,7 +166,11 @@ class AssociationRulesMiner:
                 confidence=rule['confidence'],
                 lift=rule['lift'],
                 rule_type=rule_type,
-                min_support_threshold=self.min_support
+                min_support_threshold=self.min_support,
+                min_confidence_threshold=self.min_confidence,
+                min_lift_threshold=self.min_lift,
+                source_view=rule.get('source_view', 'analysis.miner'),
+                metadata=rule.get('metadata', {})
             )
     
     def get_top_rules(self, n=20):
