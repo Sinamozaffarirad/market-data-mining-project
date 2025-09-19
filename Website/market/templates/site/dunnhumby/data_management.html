@@ -392,7 +392,7 @@ function buildTable(json) {
 
     json.data.forEach((row, index) => {
         const tr = document.createElement('tr');
-        const recordId = row.id || row.product_id || row.household_key || row.pk || index; // Use index as a fallback key
+        const recordId = row.id || row.product_id || row.household_key || row.campaign || index; // Use index as a fallback key
         tr.dataset.recordId = recordId;
 
         keys.forEach(k => {
@@ -527,8 +527,26 @@ async function openEditModal(recordId) {
 
     crudModal.show();
 
+    // Find the table row element that corresponds to the recordId
+    const rowElement = document.querySelector(`tr[data-record-id='${recordId}']`);
+    if (!rowElement) {
+        showNotification('Could not find the row in the table.', 'error');
+        crudModal.hide();
+        return;
+    }
+
+    // Extract data directly from the table row's cells
+    const recordData = {};
+    const headers = Array.from(document.getElementById('tableHeader').querySelectorAll('th')).map(th => th.textContent.toLowerCase().replace(/ /g, '_'));
+    const cells = rowElement.querySelectorAll('td');
+    headers.forEach((header, index) => {
+        // Stop before the "actions" column
+        if (header.toLowerCase() !== 'actions' && cells[index]) {
+            recordData[header] = cells[index].textContent;
+        }
+    });
+
     const fields = await loadSchemaAndFilters('form');
-    const recordData = tableDataCache[currentTable]?.find(row => String(row.id || row.product_id || row.household_key || row.pk) === String(recordId));
     
     if (!recordData) {
         showNotification('Could not find record data to edit.', 'error');
@@ -545,7 +563,7 @@ async function openEditModal(recordId) {
     const pk_field = pk_field_map[currentTable] || 'id';
 
     fields.forEach(field => {
-        const value = recordData[field.name] || '';
+        const value = recordData[field.name.toLowerCase().replace(/ /g, '_')] || '';
         const isDisabled = field.name === pk_field ? 'disabled' : '';
         form.innerHTML += `
             <div class="mb-3">
@@ -568,9 +586,7 @@ async function saveCrudForm() {
         fieldData[input.dataset.fieldName] = input.value;
     });
 
-    // NOTE: The create endpoint doesn't exist yet. This will fail for "Add" mode.
-    // We will add `api_create_record` view in the next step.
-    const url = isEditing ? '/analysis/api/update/' : '/analysis/api/create/'; 
+    const url = isEditing ? '/analysis/api/update/' : '/analysis/api/create/';
     const payload = new FormData();
     payload.append('csrfmiddlewaretoken', csrftoken);
     payload.append('table_name', currentTable);
