@@ -8,7 +8,6 @@ def customer_search(request):
 
     if household_key:
         try:
-            # Search is now performed on the CustomerProfile model.
             profile = CustomerProfile.objects.get(household_key=household_key)
             return redirect("customers:detail", pk=profile.household_key)
         except CustomerProfile.DoesNotExist:
@@ -17,7 +16,17 @@ def customer_search(request):
     return render(request, "site/customers/search.html")
 
 def customer_detail(request, pk):
-    # The detail view now fetches a CustomerProfile object.
     profile = get_object_or_404(CustomerProfile, household_key=pk)
-    # The context variable is renamed for clarity.
     return render(request, "site/customers/detail.html", {"household": profile})
+
+def customer_recommendations(request, pk):
+    profile = get_object_or_404(CustomerProfile, household_key=pk)
+    return render(request, "site/customers/recommendations.html", {"household": profile})
+
+def customer_churn(request, pk):
+    profile = get_object_or_404(CustomerProfile, household_key=pk)
+    return render(request, "site/customers/churn.html", {"household": profile})
+
+def customer_purchases(request, pk):
+    profile = get_object_or_404(CustomerProfile, household_key=pk)
+    return render(request, "site/customers/purchases.html", {"household": profile})

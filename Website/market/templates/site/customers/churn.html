@@ -1,0 +1,10 @@
+{% extends "site/base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="container my-5">
+  <h3>Churn Analysis for Customer {{ household.household_key }}</h3>
+  <p>This is the Churn page.</p>
+  <a href="{% url 'customers:detail' household.household_key %}" class="btn btn-primary">← Back</a>
+</div>
+{% endblock %}
