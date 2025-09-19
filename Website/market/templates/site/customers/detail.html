@@ -2,43 +2,121 @@
 {% load static %}
 
 {% block content %}
-<div class="container d-flex justify-content-center align-items-center" style="min-height: 70vh;">
-  <div class="card shadow-lg p-4" style="max-width: 600px; width: 100%;">
+<div class="container my-5">
+
+  <!-- کادر Customer Detail -->
+  <div class="card shadow-lg p-4 mb-5" style="max-width: 750px; margin: 0 auto; border-radius: 50px;">
     <h3 class="text-center mb-4 fw-bold">Customer Detail</h3>
 
-    <div class="mb-3">
-      <p><strong>Household Key:</strong> {{ household.household_key }}</p>
-      <p><strong>Age:</strong> {{ household.age_desc }}</p>
-      <p><strong>Marital Status:</strong> {{ household.marital_status_code }}</p>
-      <p><strong>Income:</strong> {{ household.income_desc }}</p>
-      <p><strong>Homeowner:</strong> {{ household.homeowner_desc }}</p>
-      <p><strong>Household Composition:</strong> {{ household.hh_comp_desc }}</p>
-      <p><strong>Household Size:</strong> {{ household.household_size_desc }}</p>
-      <p><strong>Kid Category:</strong> {{ household.kid_category_desc }}</p>
-    </div>
+    <div class="row align-items-center">
+      <!-- ستون اطلاعات مشتری -->
+      <div class="col-md-8">
+        <p><strong>Household Key:</strong> {{ household.household_key }}</p>
+        <p><strong>Age:</strong> {{ household.age_desc }}</p>
+        <p><strong>Marital Status:</strong> {{ household.marital_status_code }}</p>
+        <p><strong>Income:</strong> {{ household.income_desc }}</p>
+        <p><strong>Homeowner:</strong> {{ household.homeowner_desc }}</p>
+        <p><strong>Household Composition:</strong> {{ household.hh_comp_desc }}</p>
+        <p><strong>Household Size:</strong> {{ household.household_size_desc }}</p>
+        <p><strong>Kid Category:</strong> {{ household.kid_category_desc }}</p>
+      </div>
 
-    <hr>
-
-    <!-- بخش‌های بعدی مثل Recommendation، Churn و Purchases -->
-    <div class="mt-4">
-      <h5 class="fw-bold">Recommendations</h5>
-      <p class="text-muted">[Placeholder for recommendations]</p>
+      <!-- ستون آیکن کاربر -->
+      <div class="col-md-4 text-center">
+        <i class="bi bi-person-circle gradient-icon"></i>
+      </div>
     </div>
+  </div>
 
-    <div class="mt-4">
-      <h5 class="fw-bold">Churn</h5>
-      <p class="text-muted">[Placeholder for churn data]</p>
-    </div>
+<!-- استایل کارت‌ها و دکمه‌ها -->
+<style>
+  .gradient-icon {
+    font-size: 9rem;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
 
-    <div class="mt-4">
-      <h5 class="fw-bold">Purchases (Last 3 Months)</h5>
-      <p class="text-muted">[Placeholder for purchases data]</p>
-    </div>
+  }
+  .custom-card {
+    border-radius: 50px;
+    transition: all 0.3s ease;
+    min-height: 270px;
+    background: #fff;
+    padding-top: 35px;
+  }
 
-    <!-- دکمه بازگشت -->
-    <div class="text-center mt-4">
-      <a href="{% url 'customers:search' %}" class="btn btn-primary">← Back to Search</a>
+  .custom-card:hover {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #fff;
+    transform: translateY(-5px);
+  }
+
+  .custom-card:hover .card-title,
+  .custom-card:hover .card-text {
+    color: #fff !important;
+  }
+
+  .custom-btn {
+    display: inline-block;
+    padding: 8px 18px;
+    font-size: 0.9rem;
+    border-radius: 20px;
+    margin-top: 60px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #fff;
+    text-decoration: none;
+    transition: all 0.3s ease;
+  }
+
+  .custom-card:hover .custom-btn {
+    background: #fff;
+    color: #764ba2;
+  }
+
+  .row.g-4 {
+    justify-content: center;
+  }
+</style>
+
+<!-- سه کارت -->
+<div class="row g-4 justify-content-center">
+  <div class="col-12 col-sm-6 col-md-4 col-lg-3">
+    <div class="card custom-card shadow-lg h-100">
+      <div class="card-body text-center">
+        <h5 class="card-title fw-bold">Recommendations</h5>
+        <p class="card-text text-muted">View specific recommendations for each customer</p>
+        <a href="{% url 'customers:recommendations' household.household_key %}" class="custom-btn">View More</a>
+      </div>
     </div>
+  </div>
+
+  <div class="col-12 col-sm-6 col-md-4 col-lg-3">
+    <div class="card custom-card shadow-lg h-100">
+      <div class="card-body text-center">
+        <h5 class="card-title fw-bold">Customer churn</h5>
+        <p class="card-text text-muted">Check your customer churn</p>
+        <a href="{% url 'customers:churn' household.household_key %}" class="custom-btn">View More</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-sm-6 col-md-4 col-lg-3">
+    <div class="card custom-card shadow-lg h-100">
+      <div class="card-body text-center">
+        <h5 class="card-title fw-bold">Purchases</h5>
+        <p class="card-text text-muted">View the customer's purchases from the last 3 months</p>
+        <a href="{% url 'customers:purchases' household.household_key %}" class="custom-btn">View More</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+
+  <!-- دکمه بازگشت -->
+  <div class="text-center mt-5">
+    <a href="{% url 'customers:search' %}" class="btn btn-primary">← Back to Search</a>
   </div>
 </div>
 {% endblock %}
