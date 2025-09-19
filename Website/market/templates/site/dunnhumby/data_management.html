@@ -373,6 +373,13 @@ function buildTable(json) {
         body.innerHTML = '<tr><td colspan="100%" class="text-center p-4 text-muted">No records found.</td></tr>';
         return;
     }
+    
+    const pk_field_map = {
+        'products': 'product_id',
+        'households': 'household_key',
+        'campaigns': 'campaign',
+    };
+    const pk_field = pk_field_map[currentTable] || 'id';
 
     const keys = Object.keys(json.data[0]);
     const headerRow = document.createElement('tr');
@@ -392,8 +399,11 @@ function buildTable(json) {
 
     json.data.forEach((row, index) => {
         const tr = document.createElement('tr');
-        const recordId = row.id || row.product_id || row.household_key || row.campaign || index; // Use index as a fallback key
-        tr.dataset.recordId = recordId;
+        // Use the correct primary key for the recordId
+        const recordId = row[pk_field];
+        if (recordId !== undefined) {
+            tr.dataset.recordId = recordId;
+        }
 
         keys.forEach(k => {
             const td = document.createElement('td');
@@ -402,7 +412,7 @@ function buildTable(json) {
         });
 
         // Add Actions cell based on table type
-        if (currentTable) {
+        if (currentTable && recordId !== undefined) {
             const td = document.createElement('td');
             if (currentTable === 'transactions') {
                 // For transactions, ONLY show the Delete button
@@ -507,13 +517,24 @@ async function openAddModal() {
     
     const fields = await loadSchemaAndFilters('form');
     form.innerHTML = ''; // Clear spinner
+    
+    const pk_field_map = {
+        'products': 'product_id',
+        'households': 'household_key',
+        'campaigns': 'campaign',
+    };
+    const pk_field = pk_field_map[currentTable] || 'id';
+
     fields.forEach(field => {
-        form.innerHTML += `
-            <div class="mb-3">
-                <label for="form_${field.name}" class="form-label">${field.label}</label>
-                <input type="${field.type}" class="form-control" id="form_${field.name}" data-field-name="${field.name}">
-            </div>
-        `;
+        // Do not show the primary key field in the "Add" modal
+        if (field.name !== pk_field) {
+            form.innerHTML += `
+                <div class="mb-3">
+                    <label for="form_${field.name}" class="form-label">${field.label}</label>
+                    <input type="${field.type}" class="form-control" id="form_${field.name}" data-field-name="${field.name}">
+                </div>
+            `;
+        }
     });
 
     document.getElementById('saveCrudBtn').onclick = saveCrudForm;
@@ -564,6 +585,7 @@ async function openEditModal(recordId) {
 
     fields.forEach(field => {
         const value = recordData[field.name.toLowerCase().replace(/ /g, '_')] || '';
+        // Disable the primary key field to prevent editing
         const isDisabled = field.name === pk_field ? 'disabled' : '';
         form.innerHTML += `
             <div class="mb-3">
@@ -583,7 +605,10 @@ async function saveCrudForm() {
 
     const fieldData = {};
     form.querySelectorAll('input').forEach(input => {
-        fieldData[input.dataset.fieldName] = input.value;
+        // Do not include disabled fields (like the primary key) in the payload
+        if (!input.disabled) {
+            fieldData[input.dataset.fieldName] = input.value;
+        }
     });
 
     const url = isEditing ? '/analysis/api/update/' : '/analysis/api/create/';

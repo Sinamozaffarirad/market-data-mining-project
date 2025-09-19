@@ -437,6 +437,7 @@ def api_get_table_data(request):
         return JsonResponse({'error': str(e)}, status=500)
 
 
+
 @login_required(login_url='/admin/login/')
 def api_table_schema(request):
     """Return a schema for a table to build dynamic filters or forms client-side."""
@@ -1506,6 +1507,10 @@ def api_segment_details(request):
 @csrf_exempt
 @login_required(login_url='/admin/login/')
 def api_create_record(request):
+    """
+    Creates a new record in the specified table.
+    For 'campaigns', it auto-increments the primary key if not provided.
+    """
     if request.method != 'POST':
         return JsonResponse({'success': False, 'error': 'POST method required'}, status=405)
     
@@ -1522,19 +1527,24 @@ def api_create_record(request):
         return JsonResponse({'success': False, 'error': 'Unsupported table for creation'}, status=400)
         
     try:
-        if table_name == 'households' and 'household_key' not in field_data:
-            last_record = Household.objects.order_by('-household_key').first()
-            field_data['household_key'] = (last_record.household_key + 1) if last_record else 1
-        elif table_name == 'campaigns' and 'campaign' not in field_data:
-            last_record = Campaign.objects.order_by('-campaign').first()
-            field_data['campaign'] = (last_record.campaign + 1) if last_record else 1
+        pk_field_map = {
+            'products': 'product_id', 'households': 'household_key',
+            'campaigns': 'campaign',
+        }
+        pk_field = pk_field_map.get(table_name, 'id')
+
+        # Auto-increment logic for specified tables
+        if table_name in ['households', 'campaigns'] and pk_field not in field_data:
+            last_record = model.objects.order_by(f'-{pk_field}').first()
+            if last_record:
+                field_data[pk_field] = getattr(last_record, pk_field) + 1
+            else:
+                field_data[pk_field] = 1
 
         record = model.objects.create(**field_data)
         
-        pk_value = record.pk
-        if table_name == 'products': pk_value = record.product_id
-        elif table_name == 'households': pk_value = record.household_key
-        elif table_name == 'campaigns': pk_value = record.campaign
+        # Determine the primary key value to return
+        pk_value = getattr(record, pk_field)
             
         return JsonResponse({'success': True, 'record_id': pk_value})
     except Exception as e:
@@ -1542,14 +1552,13 @@ def api_create_record(request):
 
 
 @login_required(login_url='/admin/login/')
+@require_POST
 def api_update_record(request):
     """
-    Updates an existing record using a direct queryset.update() call for reliability,
-    especially with unmanaged models. Prevents editing of the primary key.
+    Updates an existing record. It retrieves the object first and then saves it,
+    which is safer for models with potential custom logic, though slightly less performant
+    than a direct .update() call. It prevents editing the primary key.
     """
-    if request.method != 'POST':
-        return JsonResponse({'error': 'POST required'}, status=405)
-    
     table_name = request.POST.get('table_name')
     record_id = request.POST.get('record_id')
     field_data = json.loads(request.POST.get('field_data', '{}'))
@@ -1573,28 +1582,27 @@ def api_update_record(request):
         # Prevent primary key from being edited
         if pk_field in field_data:
             del field_data[pk_field]
-        
-        # Use queryset.update() for a more direct and reliable update
-        rows_affected = model.objects.filter(**{pk_field: record_id}).update(**field_data)
 
-        if rows_affected > 0:
-            return JsonResponse({'success': True, 'message': 'Record updated successfully.'})
-        else:
-            # This can happen if the record doesn't exist or data is unchanged
-            return JsonResponse({'success': False, 'error': 'Record not found or no changes detected.'}, status=404)
+        # Fetch the object, update its fields, and then save it.
+        record = model.objects.get(**{pk_field: record_id})
+        for key, value in field_data.items():
+            setattr(record, key, value)
+        record.save()
+
+        return JsonResponse({'success': True, 'message': 'Record updated successfully.'})
             
+    except model.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Record not found'}, status=404)
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=400)
 
 @login_required(login_url='/admin/login/')
+@require_POST
 def api_delete_record(request):
     """
-    Deletes a record. For 'campaigns', it first deletes all dependent records
-    in coupon, campaign_member, and coupon_redemption to maintain data integrity.
+    Deletes a record. For 'campaigns' and 'households', it first deletes all dependent records
+    to maintain data integrity.
     """
-    if request.method != 'POST':
-        return JsonResponse({'error': 'POST required'}, status=405)
-        
     table_name = request.POST.get('table_name')
     record_id = request.POST.get('record_id')
 
@@ -1617,24 +1625,22 @@ def api_delete_record(request):
     
             if table_name == 'campaigns':
                 campaign_id = int(record_id)
-                
-                # 1. Find all coupons associated with the campaign
                 coupons_to_delete = Coupon.objects.filter(campaign=campaign_id)
                 coupon_upcs = [c.coupon_upc for c in coupons_to_delete]
-
-                # 2. Delete coupon_redemption records linked to those coupons
                 if coupon_upcs:
                     CouponRedemption.objects.filter(coupon_upc__in=coupon_upcs).delete()
-                
-                # 2.5 Also delete coupon_redemption records linked directly to the campaign
                 CouponRedemption.objects.filter(campaign=campaign_id).delete()
-
-                # 3. Now delete the coupons themselves
                 coupons_to_delete.delete()
-                
-                # 4. Delete related campaign members
                 CampaignMember.objects.filter(campaign=campaign_id).delete()
-    
+
+            elif table_name == 'households':
+                household_id = int(record_id)
+                # This can be very slow on large datasets. Use with caution.
+                Transaction.objects.filter(household_key=household_id).delete()
+                CampaignMember.objects.filter(household_key=household_id).delete()
+                CouponRedemption.objects.filter(household_key=household_id).delete()
+                CustomerSegment.objects.filter(household_key=household_id).delete()
+
             record = model.objects.get(**{pk_field: record_id})
             record.delete()
             
@@ -1644,7 +1650,6 @@ def api_delete_record(request):
     except Exception as e:
         # This will catch any other database errors, including other potential FK constraints
         return JsonResponse({'success': False, 'error': f'An unexpected error occurred: {str(e)}'}, status=500)
-
 
 
 @login_required(login_url='/admin/login/')
