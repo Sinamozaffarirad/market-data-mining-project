@@ -55,6 +55,15 @@
 #addRecordBtn {
     margin-left: 1rem;
 }
+.readonly-label {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    background-color: var(--bg-tertiary);
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-left: 8px;
+}
 </style>
 {% endblock %}
 
@@ -93,8 +102,8 @@
                             <option value="products">Products</option>
                             <option value="households">Households</option>
                             <option value="campaigns">Campaigns</option>
-                            <option value="basket_analysis">Basket Analysis</option>
-                            <option value="customer_segments">Customer Segments</option>
+                            <option value="basket_analysis">Basket Analysis (Read-only)</option>
+                            <option value="customer_segments">Customer Segments (Read-only)</option>
                             <option value="association_rules">Association Rules</option>
                         </select>
                     </div>
@@ -209,6 +218,7 @@ const schemaCache = {};
 const tableDataCache = {}; // Cache to hold current page data
 const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
 let crudModal, confirmModal;
+const READ_ONLY_TABLES = ['basket_analysis', 'customer_segments'];
 
 document.addEventListener("DOMContentLoaded", function() {
     crudModal = new bootstrap.Modal(document.getElementById('crudModal'));
@@ -236,10 +246,10 @@ function openDataExporter() {
 async function selectTable() {
     currentTable = document.getElementById('viewTableSelect').value;
     currentPage = 1;
-    // Enable or disable the 'Add New' button
     const addBtn = document.getElementById('addRecordBtn');
     if (addBtn) {
-        addBtn.disabled = !currentTable;
+        const isReadOnly = READ_ONLY_TABLES.includes(currentTable);
+        addBtn.disabled = !currentTable || isReadOnly;
     }
     await loadSchemaAndFilters();
     await loadTableData();
@@ -399,7 +409,6 @@ function buildTable(json) {
 
     json.data.forEach((row, index) => {
         const tr = document.createElement('tr');
-        // Use the correct primary key for the recordId
         const recordId = row[pk_field];
         if (recordId !== undefined) {
             tr.dataset.recordId = recordId;
@@ -414,7 +423,12 @@ function buildTable(json) {
         // Add Actions cell based on table type
         if (currentTable && recordId !== undefined) {
             const td = document.createElement('td');
-            if (currentTable === 'transactions') {
+            const isReadOnly = READ_ONLY_TABLES.includes(currentTable);
+
+            if (isReadOnly) {
+                // For read-only tables, only show the Delete button
+                td.innerHTML = `<button class="btn btn-sm btn-outline-danger" onclick="confirmDelete('${recordId}')">Delete</button>`;
+            } else if (currentTable === 'transactions' || currentTable === 'association_rules') {
                 // For transactions, ONLY show the Delete button
                 td.innerHTML = `<button class="btn btn-sm btn-outline-danger" onclick="confirmDelete('${recordId}')">Delete</button>`;
             } else {

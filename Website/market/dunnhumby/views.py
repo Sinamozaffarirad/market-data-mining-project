@@ -1,7 +1,7 @@
 from django.contrib.auth.decorators import login_required
 from django.db import models
 from django.http import JsonResponse, HttpResponse
-from django.shortcuts import render
+from django.shortcuts import render, get_object_or_404
 from django.db import connection
 from django.urls import reverse
 from django.db.models import Sum, Count, Avg, Max, Q
@@ -18,6 +18,58 @@ import threading
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from django.db import transaction as db_transaction
+
+# Define table categories based on their CRUD properties
+READ_ONLY_ANALYTICAL_TABLES = ['basket_analysis', 'customer_segments']
+MANAGED_ANALYTICAL_TABLES = ['association_rules']
+
+
+def refresh_basket_analysis_logic():
+    """Refresh basket analysis data for all transactions."""
+    with db_transaction.atomic():
+        BasketAnalysis.objects.all().delete()
+        
+        baskets = Transaction.objects.values(
+            'basket_id', 'household_key'
+        ).annotate(
+            total_items=Sum('quantity'),
+            total_value=Sum('sales_value')
+        ).iterator()
+
+        batch_size = 5000
+        basket_analysis_objects = []
+        count = 0
+
+        for basket in baskets:
+            basket_analysis_objects.append(
+                BasketAnalysis(
+                    basket_id=basket['basket_id'],
+                    household_key=basket['household_key'],
+                    total_items=basket['total_items'] or 0,
+                    total_value=basket['total_value'] or 0.0,
+                    department_mix={}
+                )
+            )
+            
+            if len(basket_analysis_objects) >= batch_size:
+                BasketAnalysis.objects.bulk_create(basket_analysis_objects)
+                count += len(basket_analysis_objects)
+                basket_analysis_objects = []
+        
+        if basket_analysis_objects:
+            BasketAnalysis.objects.bulk_create(basket_analysis_objects)
+            count += len(basket_analysis_objects)
+
+    return count
+
+@login_required(login_url='/admin/login/')
+@require_POST
+def api_refresh_basket_analysis(request):
+    try:
+        count = refresh_basket_analysis_logic()
+        return JsonResponse({'success': True, 'message': f'Basket analysis refreshed successfully. {count} records processed.'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
 
 def _generate_association_rules(min_support, min_confidence):
@@ -113,7 +165,7 @@ def site_index(request):
         { 'title': 'Association Rules', 'description': 'Market basket association rules', 'url': 'association-rules/', 'icon': '🔗' },
         { 'title': 'Customer Segments', 'description': 'RFM segments & behavior', 'url': 'customer-segments/', 'icon': '👥' },
         { 'title': 'Data Management', 'description': 'View, edit, import/export data', 'url': 'data-management/', 'icon': '⚙️' },
-        { 'title': 'Customer Insights', 'description': 'Explore and manage your customer data in detail', 'url': reverse('customers:search'), 'icon': '👤' },
+        { 'title': 'Customer Insights', 'description': 'Explore and manage your customer data in detail', 'url': reverse('customers:search'), 'icon': '👥' },
     ]
     return render(request, 'site/index.html', { 'analysis_tools': tools })
 
@@ -213,7 +265,7 @@ def customer_segments(request):
 
 @login_required(login_url='/admin/login/')
 def data_management(request):
-    return render(request, 'site/dunnhumby/data_management.html', {
+        return render(request, 'site/dunnhumby/data_management.html', {
         'title': 'Database Manipulation & Management',
         'data_stats': _get_data_statistics(),
     })
@@ -361,7 +413,8 @@ def api_get_table_data(request):
             'products': ['commodity_desc', 'brand', 'department', 'manufacturer'],
             'households': ['household_key', 'age_desc', 'income_desc', 'homeowner_desc', 'hh_comp_desc'],
             'campaigns': ['description'],
-            'customer_segments': ['rfm_segment', 'household_key']
+            'customer_segments': ['rfm_segment', 'household_key'],
+            'basket_analysis': ['basket_id', 'household_key']
         }
         if search and table_name in searchable_fields:
             q_objects = Q()
@@ -395,7 +448,12 @@ def api_get_table_data(request):
             'age_desc': 'age_desc__icontains',
             'income_desc': 'income_desc__icontains',
             'description': 'description__icontains',
-            'rfm_segment': 'rfm_segment__icontains'
+            'rfm_segment': 'rfm_segment__icontains',
+            # ADDED: Filters for Basket Analysis
+            'total_items_min': 'total_items__gte',
+            'total_items_max': 'total_items__lte',
+            'total_value_min': 'total_value__gte',
+            'total_value_max': 'total_value__lte',
         }
         
         if filters:
@@ -437,7 +495,6 @@ def api_get_table_data(request):
         return JsonResponse({'error': str(e)}, status=500)
 
 
-
 @login_required(login_url='/admin/login/')
 def api_table_schema(request):
     """Return a schema for a table to build dynamic filters or forms client-side."""
@@ -477,7 +534,9 @@ def api_table_schema(request):
             'products': ['department', 'brand'],
             'households': ['age_desc', 'income_desc'],
             'campaigns': ['description'],
-            'customer_segments': ['rfm_segment']
+            'customer_segments': ['rfm_segment'],
+            # ADDED: Filterable fields for Basket Analysis
+            'basket_analysis': ['total_items', 'total_value']
         }
         fields_to_include = filterable_fields.get(table, [])
     
@@ -1504,12 +1563,13 @@ def api_segment_details(request):
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
+
 @csrf_exempt
 @login_required(login_url='/admin/login/')
 def api_create_record(request):
     """
     Creates a new record in the specified table.
-    For 'campaigns', it auto-increments the primary key if not provided.
+    For 'campaigns' and 'households', it auto-increments the primary key if not provided.
     """
     if request.method != 'POST':
         return JsonResponse({'success': False, 'error': 'POST method required'}, status=405)
@@ -1517,10 +1577,13 @@ def api_create_record(request):
     table_name = request.POST.get('table_name')
     field_data = json.loads(request.POST.get('field_data', '{}'))
 
+    # Prevent creation for read-only analytical tables
+    if table_name in READ_ONLY_ANALYTICAL_TABLES:
+        return JsonResponse({'success': False, 'error': f'Creation is not allowed for the {table_name} table.'}, status=403)
+
     model_map = {
         'products': DunnhumbyProduct, 'households': Household, 'campaigns': Campaign,
-        'basket_analysis': BasketAnalysis, 'association_rules': AssociationRule,
-        'customer_segments': CustomerSegment, 'transactions': Transaction,
+        'association_rules': AssociationRule, 'transactions': Transaction,
     }
     model = model_map.get(table_name)
     if not model:
@@ -1554,19 +1617,17 @@ def api_create_record(request):
 @login_required(login_url='/admin/login/')
 @require_POST
 def api_update_record(request):
-    """
-    Updates an existing record. It retrieves the object first and then saves it,
-    which is safer for models with potential custom logic, though slightly less performant
-    than a direct .update() call. It prevents editing the primary key.
-    """
     table_name = request.POST.get('table_name')
     record_id = request.POST.get('record_id')
     field_data = json.loads(request.POST.get('field_data', '{}'))
 
+    # Prevent updates for read-only analytical tables
+    if table_name in READ_ONLY_ANALYTICAL_TABLES:
+        return JsonResponse({'success': False, 'error': f'Updates are not allowed for the {table_name} table.'}, status=403)
+
     model_map = {
         'products': DunnhumbyProduct, 'households': Household, 'campaigns': Campaign,
-        'basket_analysis': BasketAnalysis, 'association_rules': AssociationRule,
-        'customer_segments': CustomerSegment,
+        'association_rules': AssociationRule,
     }
     model = model_map.get(table_name)
     if not model:
@@ -1579,20 +1640,17 @@ def api_update_record(request):
         }
         pk_field = pk_field_map.get(table_name, 'id')
 
-        # Prevent primary key from being edited
         if pk_field in field_data:
             del field_data[pk_field]
 
-        # Fetch the object, update its fields, and then save it.
-        record = model.objects.get(**{pk_field: record_id})
-        for key, value in field_data.items():
-            setattr(record, key, value)
-        record.save()
-
-        return JsonResponse({'success': True, 'message': 'Record updated successfully.'})
+        # Use .update() for a more direct and reliable update
+        updated_count = model.objects.filter(**{pk_field: record_id}).update(**field_data)
+        
+        if updated_count > 0:
+            return JsonResponse({'success': True, 'message': 'Record updated successfully.'})
+        else:
+            return JsonResponse({'success': False, 'error': 'Record not found or no changes detected.'}, status=404)
             
-    except model.DoesNotExist:
-        return JsonResponse({'success': False, 'error': 'Record not found'}, status=404)
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=400)
 
@@ -1601,7 +1659,8 @@ def api_update_record(request):
 def api_delete_record(request):
     """
     Deletes a record. For 'campaigns' and 'households', it first deletes all dependent records
-    to maintain data integrity.
+    to maintain data integrity. It now also handles cascading deletes between
+    Transaction and BasketAnalysis tables.
     """
     table_name = request.POST.get('table_name')
     record_id = request.POST.get('record_id')
@@ -1640,9 +1699,46 @@ def api_delete_record(request):
                 CampaignMember.objects.filter(household_key=household_id).delete()
                 CouponRedemption.objects.filter(household_key=household_id).delete()
                 CustomerSegment.objects.filter(household_key=household_id).delete()
+            
+            elif table_name == 'transactions':
+                # Get the transaction to be deleted
+                transaction_to_delete = get_object_or_404(Transaction, id=record_id)
+                basket_id_to_update = transaction_to_delete.basket_id
 
-            record = model.objects.get(**{pk_field: record_id})
-            record.delete()
+                # Delete the specific transaction
+                transaction_to_delete.delete()
+
+                # Check for remaining transactions in the same basket
+                remaining_transactions = Transaction.objects.filter(basket_id=basket_id_to_update)
+
+                if remaining_transactions.exists():
+                    # If transactions remain, update the basket analysis
+                    new_totals = remaining_transactions.aggregate(
+                        total_items=Sum('quantity'),
+                        total_value=Sum('sales_value')
+                    )
+                    BasketAnalysis.objects.filter(basket_id=basket_id_to_update).update(
+                        total_items=new_totals['total_items'] or 0,
+                        total_value=new_totals['total_value'] or 0.0
+                    )
+                else:
+                    # If no transactions remain, delete the basket analysis record
+                    BasketAnalysis.objects.filter(basket_id=basket_id_to_update).delete()
+            
+            elif table_name == 'basket_analysis':
+                # Get the basket analysis record to delete
+                basket_analysis_to_delete = get_object_or_404(BasketAnalysis, id=record_id)
+                basket_id_to_clear = basket_analysis_to_delete.basket_id
+
+                # Delete all associated transactions
+                Transaction.objects.filter(basket_id=basket_id_to_clear).delete()
+
+                # Delete the basket analysis record itself
+                basket_analysis_to_delete.delete()
+
+            else:
+                record = model.objects.get(**{pk_field: record_id})
+                record.delete()
             
         return JsonResponse({'success': True, 'message': 'Record deleted successfully.'})
     except model.DoesNotExist:
@@ -1650,7 +1746,7 @@ def api_delete_record(request):
     except Exception as e:
         # This will catch any other database errors, including other potential FK constraints
         return JsonResponse({'success': False, 'error': f'An unexpected error occurred: {str(e)}'}, status=500)
-
+    
 @login_required(login_url='/admin/login/')
 def api_export_data(request):
     if request.method != 'POST':
