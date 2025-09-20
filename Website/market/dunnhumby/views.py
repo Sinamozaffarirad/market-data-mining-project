@@ -138,7 +138,7 @@ def _generate_association_rules(min_support, min_confidence, transaction_period=
                 date_filter_single = ""
 
             pairs_query = f"""
-            SELECT TOP {max_results * 2}
+            SELECT TOP 2000
                 pairs.product_a,
                 pairs.product_b,
                 pairs.pair_count,
@@ -280,8 +280,9 @@ def _generate_association_rules(min_support, min_confidence, transaction_period=
                 })
 
         # Sort by lift and return top N results
-        logger.info(f"Generated {len(rules)} association rules")
-        return sorted(rules, key=lambda x: x['lift'], reverse=True)[:max_results]
+        all_rules = sorted(rules, key=lambda x: x['lift'], reverse=True)
+        logger.info(f"Generated {len(all_rules)} total association rules, returning top {max_results}")
+        return all_rules[:max_results]
 
     except Exception as e:
         logger.error(f"Error in _generate_association_rules: {str(e)}")
