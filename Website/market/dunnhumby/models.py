@@ -21,8 +21,6 @@ class Transaction(models.Model):
     class Meta:
         managed = False
         db_table = 'transactions'
-        # Since there's no natural primary key, we can't use this table directly in Django admin
-        # We'll create a custom view for it instead
 
     def __str__(self):
         return f"Transaction {self.basket_id} - Product {self.product_id}"
@@ -39,7 +37,7 @@ class DunnhumbyProduct(models.Model):
     curr_size_of_product = models.CharField(max_length=50, null=True, blank=True)
 
     class Meta:
-        managed = False  # Don't manage this table - it already exists
+        managed = False
         db_table = 'product'
 
     def __str__(self):
@@ -58,7 +56,7 @@ class Household(models.Model):
     kid_category_desc = models.CharField(max_length=10, null=True, blank=True)
 
     class Meta:
-        managed = False  # Don't manage this table - it already exists
+        managed = False
         db_table = 'household'
 
     def __str__(self):
@@ -73,7 +71,7 @@ class Campaign(models.Model):
     end_day = models.IntegerField(null=True, blank=True)
 
     class Meta:
-        managed = False  # Don't manage this table - it already exists
+        managed = False
         db_table = 'campaign'
 
     def __str__(self):
@@ -87,7 +85,7 @@ class Coupon(models.Model):
     campaign = models.IntegerField()
 
     class Meta:
-        managed = False  # Don't manage this table - it already exists
+        managed = False
         db_table = 'coupon'
 
     def __str__(self):
@@ -96,13 +94,14 @@ class Coupon(models.Model):
 
 class CouponRedemption(models.Model):
     """Coupon redemption tracking from Dunnhumby dataset"""
+    id = models.BigAutoField(primary_key=True)
     household_key = models.BigIntegerField()
     day = models.IntegerField()
     coupon_upc = models.CharField(max_length=20)
     campaign = models.IntegerField()
 
     class Meta:
-        managed = False  # Don't manage this table - it already exists
+        managed = False
         db_table = 'coupon_redemption'
 
     def __str__(self):
@@ -111,11 +110,12 @@ class CouponRedemption(models.Model):
 
 class CampaignMember(models.Model):
     """Campaign membership tracking from Dunnhumby dataset"""
+    id = models.BigAutoField(primary_key=True)
     household_key = models.BigIntegerField()
     campaign = models.IntegerField()
 
     class Meta:
-        managed = False  # Don't manage this table - it already exists
+        managed = False
         db_table = 'campaign_member'
 
     def __str__(self):
@@ -124,6 +124,7 @@ class CampaignMember(models.Model):
 
 class CausalData(models.Model):
     """Causal data for promotional effects from Dunnhumby dataset"""
+    id = models.BigAutoField(primary_key=True)
     product_id = models.BigIntegerField()
     store_id = models.BigIntegerField()
     week_no = models.IntegerField()
@@ -131,7 +132,7 @@ class CausalData(models.Model):
     mailer = models.CharField(max_length=5)
 
     class Meta:
-        managed = False  # Don't manage this table - it already exists
+        managed = False
         db_table = 'causal_data'
 
     def __str__(self):
@@ -146,7 +147,7 @@ class BasketAnalysis(models.Model):
     transaction_date = models.DateField(null=True, blank=True)
     total_items = models.IntegerField()
     total_value = models.DecimalField(max_digits=10, decimal_places=2)
-    department_mix = models.JSONField(default=dict)  # Store department distribution
+    department_mix = models.JSONField(default=dict)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -161,11 +162,11 @@ class BasketAnalysis(models.Model):
 
 class AssociationRule(models.Model):
     """Model to store association rules"""
-    antecedent = models.JSONField()  # List of product IDs or categories
-    consequent = models.JSONField()  # List of product IDs or categories
-    support = models.FloatField()  # Support measure
-    confidence = models.FloatField()  # Confidence measure
-    lift = models.FloatField()  # Lift measure
+    antecedent = models.JSONField()
+    consequent = models.JSONField()
+    support = models.FloatField()
+    confidence = models.FloatField()
+    lift = models.FloatField()
     rule_type = models.CharField(max_length=20, choices=[
         ('product', 'Product Level'),
         ('category', 'Category Level'),
@@ -195,11 +196,12 @@ class AssociationRule(models.Model):
 
 class CustomerSegment(models.Model):
     """Model for RFM customer segmentation"""
+    id = models.BigAutoField(primary_key=True)
     household_key = models.BigIntegerField(unique=True)
-    recency_score = models.IntegerField()  # 1-5 scale
-    frequency_score = models.IntegerField()  # 1-5 scale
-    monetary_score = models.IntegerField()  # 1-5 scale
-    rfm_segment = models.CharField(max_length=20)  # Champions, Loyal Customers, etc.
+    recency_score = models.IntegerField()
+    frequency_score = models.IntegerField()
+    monetary_score = models.IntegerField()
+    rfm_segment = models.CharField(max_length=20)
     last_transaction_day = models.IntegerField()
     total_transactions = models.IntegerField()
     total_spend = models.DecimalField(max_digits=12, decimal_places=2)
