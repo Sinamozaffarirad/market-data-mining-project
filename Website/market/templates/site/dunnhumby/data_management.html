@@ -362,7 +362,6 @@ async function loadTableData() {
 }
 
 
-
 function buildTable(json) {
     const header = document.getElementById('tableHeader');
     const body = document.getElementById('tableBody');
@@ -378,6 +377,7 @@ function buildTable(json) {
         'products': 'product_id',
         'households': 'household_key',
         'campaigns': 'campaign',
+        'transactions': 'id' 
     };
     const pk_field = pk_field_map[currentTable] || 'id';
 

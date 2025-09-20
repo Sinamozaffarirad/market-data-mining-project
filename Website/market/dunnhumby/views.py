@@ -343,7 +343,7 @@ def api_get_table_data(request):
 
         # Define which fields to select for each table
         field_sets = {
-            'transactions': ['basket_id', 'household_key', 'product_id', 'quantity', 'sales_value', 'day', 'week_no', 'store_id'],
+            'transactions': ['id','basket_id', 'household_key', 'product_id', 'quantity', 'sales_value', 'day', 'week_no', 'store_id'],
             'products': ['product_id', 'commodity_desc', 'brand', 'department', 'manufacturer'],
             'households': ['household_key', 'age_desc', 'income_desc', 'homeowner_desc', 'hh_comp_desc'],
         }
@@ -1650,7 +1650,6 @@ def api_delete_record(request):
     except Exception as e:
         # This will catch any other database errors, including other potential FK constraints
         return JsonResponse({'success': False, 'error': f'An unexpected error occurred: {str(e)}'}, status=500)
-
 
 @login_required(login_url='/admin/login/')
 def api_export_data(request):
