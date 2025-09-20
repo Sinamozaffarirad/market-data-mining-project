@@ -11,20 +11,44 @@
             <i class="fas fa-sliders-h"></i> Algorithm Configuration
           </div>
           <div class="card-body">
-            <form method="post" class="row g-3 align-items-end">
+            <form method="post" class="row g-3 align-items-end" id="associationRulesForm">
               {% csrf_token %}
-              <div class="col-12 col-md-6">
-                <label for="min_support" class="form-label">Minimum Support (0.0 - 1.0)</label>
-                <input type="number" class="form-control" id="min_support" name="min_support" step="0.001" min="0" max="1" value="{{ min_support|default:'0.01' }}">
-                <div class="form-text">Lower values find more patterns but may include noise.</div>
+              <div class="col-12 col-md-3">
+                <label for="transaction_period" class="form-label">Transaction Period</label>
+                <select class="form-select" id="transaction_period" name="transaction_period">
+                  <option value="all" {% if transaction_period == 'all' or not transaction_period %}selected{% endif %}>All Transactions</option>
+                  <option value="1_month" {% if transaction_period == '1_month' %}selected{% endif %}>Last 1 Month</option>
+                  <option value="3_months" {% if transaction_period == '3_months' %}selected{% endif %}>Last 3 Months</option>
+                  <option value="6_months" {% if transaction_period == '6_months' %}selected{% endif %}>Last 6 Months</option>
+                  <option value="12_months" {% if transaction_period == '12_months' %}selected{% endif %}>Last 12 Months</option>
+                </select>
+                <div class="form-text">Choose time range for analysis.</div>
               </div>
-              <div class="col-12 col-md-6">
+              <div class="col-12 col-md-2">
+                <label for="max_results" class="form-label">Max Results</label>
+                <select class="form-select" id="max_results" name="max_results">
+                  <option value="50" {% if max_results == 50 %}selected{% endif %}>50</option>
+                  <option value="100" {% if max_results == 100 or not max_results %}selected{% endif %}>100</option>
+                  <option value="200" {% if max_results == 200 %}selected{% endif %}>200</option>
+                  <option value="500" {% if max_results == 500 %}selected{% endif %}>500</option>
+                  <option value="1000" {% if max_results == 1000 %}selected{% endif %}>1000</option>
+                </select>
+                <div class="form-text">Number of top rules to show.</div>
+              </div>
+              <div class="col-12 col-md-3">
+                <label for="min_support" class="form-label">Minimum Support (0.0 - 1.0)</label>
+                <input type="number" class="form-control" id="min_support" name="min_support" step="0.0001" min="0" max="1" value="{{ min_support|default:'0.0001' }}">
+                <div class="form-text">Lower values find more patterns.</div>
+              </div>
+              <div class="col-12 col-md-4">
                 <label for="min_confidence" class="form-label">Minimum Confidence (0.0 - 1.0)</label>
                 <input type="number" class="form-control" id="min_confidence" name="min_confidence" step="0.01" min="0" max="1" value="{{ min_confidence|default:'0.5' }}">
                 <div class="form-text">Higher values ensure stronger associations.</div>
               </div>
               <div class="col-12">
-                <button type="submit" class="btn btn-primary"><i class="fas fa-gears"></i> Generate Association Rules</button>
+                <button type="submit" class="btn btn-primary" id="generateBtn">
+                  <i class="fas fa-gears"></i> Generate Association Rules
+                </button>
               </div>
             </form>
           </div>
@@ -37,6 +61,31 @@
           </div>
           <div class="card-body">
             <div id="ruleInsertAlert" class="alert alert-success d-none" role="alert"></div>
+            {% if success_message %}
+            <div class="alert alert-success" role="alert">
+              <i class="fas fa-check-circle"></i> {{ success_message }}
+            </div>
+            {% endif %}
+            {% if error_message %}
+            <div class="alert alert-danger" role="alert">
+              <i class="fas fa-exclamation-triangle"></i> {{ error_message }}
+            </div>
+            {% endif %}
+
+            <!-- Loading State -->
+            <div id="loadingState" class="d-none text-center py-5">
+              <div class="spinner-border text-primary mb-3" role="status" style="width: 3rem; height: 3rem;">
+                <span class="visually-hidden">Loading...</span>
+              </div>
+              <h5 class="text-primary">Generating Association Rules...</h5>
+              <p class="text-muted">Analyzing transaction patterns across <span id="periodText">all transactions</span>...</p>
+              <div class="progress" style="height: 8px; max-width: 400px; margin: 0 auto;">
+                <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 100%"></div>
+              </div>
+            </div>
+
+            <!-- Results Container -->
+            <div id="resultsContainer">
             {% if rules %}
             <div class="row g-3">
               {% for rule in rules %}
@@ -116,6 +165,7 @@
             {% else %}
               <div class="info-box">No association rules found. Try generating new rules with different parameters.</div>
             {% endif %}
+            </div> <!-- End Results Container -->
           </div>
         </div>
       </div>
@@ -353,6 +403,44 @@ function getCsrfToken() {
   const match = document.cookie.match(/csrftoken=([^;]+)/);
   return match ? match[1] : '';
 }
+
+// Loading functionality for association rules generation
+document.addEventListener('DOMContentLoaded', function() {
+  const form = document.getElementById('associationRulesForm');
+  const generateBtn = document.getElementById('generateBtn');
+  const loadingState = document.getElementById('loadingState');
+  const resultsContainer = document.getElementById('resultsContainer');
+  const periodSelect = document.getElementById('transaction_period');
+  const periodText = document.getElementById('periodText');
+
+  // Update period text when selection changes
+  if (periodSelect && periodText) {
+    periodSelect.addEventListener('change', function() {
+      updatePeriodText();
+    });
+    updatePeriodText(); // Set initial text
+  }
+
+  function updatePeriodText() {
+    const selectedOption = periodSelect.options[periodSelect.selectedIndex];
+    periodText.textContent = selectedOption.text.toLowerCase();
+  }
+
+  // Handle form submission with loading state
+  if (form && generateBtn && loadingState && resultsContainer) {
+    form.addEventListener('submit', function(e) {
+      // Show loading state
+      generateBtn.disabled = true;
+      generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+
+      loadingState.classList.remove('d-none');
+      resultsContainer.style.display = 'none';
+
+      // Allow form to submit normally
+      // The page will reload with results or error message
+    });
+  }
+});
 </script>
 
 

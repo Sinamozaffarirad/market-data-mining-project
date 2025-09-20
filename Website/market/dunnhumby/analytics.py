@@ -26,13 +26,18 @@ class AssociationRulesMiner:
         
     def load_transaction_data(self, limit=None):
         """Load transaction data from database"""
-        query = """
-        SELECT t.basket_id, t.product_id, p.commodity_desc, p.department
-        FROM transactions t
-        LEFT JOIN product p ON t.product_id = p.product_id
-        """
         if limit:
-            query += f" LIMIT {limit}"
+            query = f"""
+            SELECT TOP {limit} t.basket_id, t.product_id, p.commodity_desc, p.department
+            FROM transactions t
+            LEFT JOIN product p ON t.product_id = p.product_id
+            """
+        else:
+            query = """
+            SELECT t.basket_id, t.product_id, p.commodity_desc, p.department
+            FROM transactions t
+            LEFT JOIN product p ON t.product_id = p.product_id
+            """
             
         with connection.cursor() as cursor:
             cursor.execute(query)
@@ -394,14 +399,14 @@ class MarketBasketAnalyzer:
             )
 
 
-def run_complete_analysis(transaction_limit=50000):
+def run_complete_analysis(transaction_limit=None):
     """
     Run complete analysis pipeline
     """
     results = {}
-    
+
     print("Starting Association Rules Mining...")
-    arm = AssociationRulesMiner(min_support=0.005, min_confidence=0.3)
+    arm = AssociationRulesMiner(min_support=0.0001, min_confidence=0.3)  # Lowered support for large dataset
     transactions_loaded = arm.load_transaction_data(limit=transaction_limit)
     results['transactions_loaded'] = transactions_loaded
     

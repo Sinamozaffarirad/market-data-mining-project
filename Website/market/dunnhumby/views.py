@@ -72,66 +72,169 @@ def api_refresh_basket_analysis(request):
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
 
-def _generate_association_rules(min_support, min_confidence):
-    baskets = defaultdict(list)
-    transactions = Transaction.objects.values('basket_id', 'product_id')[:10000]
-    for t in transactions:
-        baskets[t['basket_id']].append(str(t['product_id']))
-
-    # Get product details for enhanced display
+def _generate_association_rules(min_support, min_confidence, transaction_period='all', max_results=100):
+    """
+    Efficient association rules generation using database-level queries
+    to handle large datasets without memory issues
+    """
     from django.db import connection
-    product_details = {}
-    with connection.cursor() as cursor:
-        cursor.execute("""
-            SELECT product_id, department, commodity_desc, brand, curr_size_of_product
-            FROM product
-            WHERE product_id IN (
-                SELECT DISTINCT TOP 1000 product_id FROM transactions
-            )
-        """)
-        for row in cursor.fetchall():
-            product_details[str(row[0])] = {
-                'department': row[1] or 'GENERAL',
-                'commodity': row[2] or 'No Description',
-                'brand': row[3] or 'Generic',
-                'size': row[4] or 'N/A'
-            }
+    import logging
 
-    pair_counts = defaultdict(int)
-    total_baskets = len(baskets)
-    for items in baskets.values():
-        for i in range(len(items)):
-            for j in range(i + 1, len(items)):
-                pair = tuple(sorted([items[i], items[j]]))
-                pair_counts[pair] += 1
-
+    logger = logging.getLogger(__name__)
     rules = []
-    for pair, count in pair_counts.items():
-        support = count / (total_baskets or 1)
-        if support >= min_support:
-            ant_count = sum(1 for b in baskets.values() if pair[0] in b)
-            confidence = count / (ant_count or 1)
-            if confidence >= min_confidence:
-                cons_count = sum(1 for b in baskets.values() if pair[1] in b)
-                lift = confidence / (cons_count / (total_baskets or 1) or 1)
 
-                # Get product details for antecedent and consequent
-                ant_detail = product_details.get(pair[0], {
-                    'department': 'GENERAL', 'commodity': f'Product {pair[0]}',
+    try:
+        # Calculate date filter based on transaction period
+        start_day = None
+        if transaction_period != 'all':
+            # Get the maximum day from transactions to calculate the period
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT MAX(day) FROM transactions")
+                max_day_result = cursor.fetchone()
+                max_day = max_day_result[0] if max_day_result and max_day_result[0] else 365
+
+                # Calculate start day based on period
+                period_days = {
+                    '1_month': 30,
+                    '3_months': 90,
+                    '6_months': 180,
+                    '12_months': 365
+                }
+                days_back = period_days.get(transaction_period, 365)
+                start_day = max(1, max_day - days_back + 1)
+                logger.info(f"Filtering transactions from day {start_day} to {max_day} ({transaction_period})")
+
+        with connection.cursor() as cursor:
+            # First, get total number of unique baskets for support calculation
+            logger.info("Starting basket count query...")
+            if start_day is not None:
+                basket_count_query = f"SELECT COUNT(DISTINCT basket_id) FROM transactions WHERE day >= {start_day}"
+            else:
+                basket_count_query = "SELECT COUNT(DISTINCT basket_id) FROM transactions"
+            cursor.execute(basket_count_query)
+            result = cursor.fetchone()
+            total_baskets = result[0] if result else 0
+
+            if total_baskets == 0:
+                logger.warning("No baskets found in transactions table")
+                return rules
+
+            # Calculate minimum basket count threshold
+            min_basket_count = max(1, int(total_baskets * min_support))
+            logger.info(f"Total baskets: {total_baskets}, Min basket count: {min_basket_count}")
+
+            # Validate parameters to prevent extremely long queries
+            if min_basket_count < 10 and total_baskets > 100000:
+                logger.warning(f"Support threshold too low for large dataset. Adjusting from {min_basket_count} to 10")
+                min_basket_count = 10
+
+            # Find frequent product pairs using a simpler SQL approach for SQL Server
+            # Build the query with optional date filtering
+            if start_day is not None:
+                date_filter_pairs = f" WHERE t1.day >= {start_day} AND t2.day >= {start_day}"
+                date_filter_single = f" WHERE day >= {start_day}"
+            else:
+                date_filter_pairs = ""
+                date_filter_single = ""
+
+            pairs_query = f"""
+            SELECT TOP {max_results * 2}
+                pairs.product_a,
+                pairs.product_b,
+                pairs.pair_count,
+                counts_a.product_count as count_a,
+                counts_b.product_count as count_b
+            FROM (
+                SELECT
+                    t1.product_id as product_a,
+                    t2.product_id as product_b,
+                    COUNT(DISTINCT t1.basket_id) as pair_count
+                FROM transactions t1
+                JOIN transactions t2 ON t1.basket_id = t2.basket_id
+                    AND t1.product_id < t2.product_id
+                {date_filter_pairs}
+                GROUP BY t1.product_id, t2.product_id
+                HAVING COUNT(DISTINCT t1.basket_id) >= %s
+            ) pairs
+            JOIN (
+                SELECT
+                    product_id,
+                    COUNT(DISTINCT basket_id) as product_count
+                FROM transactions
+                {date_filter_single}
+                GROUP BY product_id
+            ) counts_a ON pairs.product_a = counts_a.product_id
+            JOIN (
+                SELECT
+                    product_id,
+                    COUNT(DISTINCT basket_id) as product_count
+                FROM transactions
+                {date_filter_single}
+                GROUP BY product_id
+            ) counts_b ON pairs.product_b = counts_b.product_id
+            ORDER BY pairs.pair_count DESC
+            """
+
+            logger.info(f"Executing pairs query with min_basket_count: {min_basket_count}")
+            cursor.execute(pairs_query, [min_basket_count])
+
+            product_pairs = cursor.fetchall()
+            logger.info(f"Found {len(product_pairs)} product pairs")
+
+            # Get product details for the products we found
+            if product_pairs:
+                product_ids = set()
+                for pair in product_pairs:
+                    product_ids.add(pair[0])
+                    product_ids.add(pair[1])
+
+                product_ids_list = list(product_ids)
+                placeholders = ','.join(['%s'] * len(product_ids_list))
+
+                cursor.execute(f"""
+                    SELECT product_id, department, commodity_desc, brand, curr_size_of_product
+                    FROM product
+                    WHERE product_id IN ({placeholders})
+                """, product_ids_list)
+
+                product_details = {}
+                for row in cursor.fetchall():
+                    product_details[str(row[0])] = {
+                        'department': row[1] or 'GENERAL',
+                        'commodity': row[2] or 'No Description',
+                        'brand': row[3] or 'Generic',
+                        'size': row[4] or 'N/A'
+                    }
+            else:
+                product_details = {}
+
+        # Process the pairs to generate rules (outside cursor context since we have all data)
+        for product_a, product_b, pair_count, count_a, count_b in product_pairs:
+            # Calculate metrics
+            support = pair_count / total_baskets
+            confidence_a_to_b = pair_count / count_a if count_a > 0 else 0
+            confidence_b_to_a = pair_count / count_b if count_b > 0 else 0
+
+            # Generate rule A -> B
+            if confidence_a_to_b >= min_confidence:
+                lift = confidence_a_to_b / (count_b / total_baskets) if count_b > 0 else 0
+
+                ant_detail = product_details.get(str(product_a), {
+                    'department': 'GENERAL', 'commodity': f'Product {product_a}',
                     'brand': 'Generic', 'size': 'N/A'
                 })
-                cons_detail = product_details.get(pair[1], {
-                    'department': 'GENERAL', 'commodity': f'Product {pair[1]}',
+                cons_detail = product_details.get(str(product_b), {
+                    'department': 'GENERAL', 'commodity': f'Product {product_b}',
                     'brand': 'Generic', 'size': 'N/A'
                 })
 
                 rules.append({
-                    'antecedent': [pair[0]],
-                    'consequent': [pair[1]],
+                    'antecedent': [str(product_a)],
+                    'consequent': [str(product_b)],
                     'antecedent_details': [ant_detail],
                     'consequent_details': [cons_detail],
                     'support': support,
-                    'confidence': confidence,
+                    'confidence': confidence_a_to_b,
                     'lift': lift,
                     'rule_type': 'product',
                     'min_support_threshold': min_support,
@@ -143,7 +246,46 @@ def _generate_association_rules(min_support, min_confidence):
                         'consequent_details': [cons_detail],
                     },
                 })
-    return sorted(rules, key=lambda x: x['lift'], reverse=True)[:50]
+
+            # Generate rule B -> A (if different from A -> B)
+            if confidence_b_to_a >= min_confidence and confidence_b_to_a != confidence_a_to_b:
+                lift = confidence_b_to_a / (count_a / total_baskets) if count_a > 0 else 0
+
+                ant_detail = product_details.get(str(product_b), {
+                    'department': 'GENERAL', 'commodity': f'Product {product_b}',
+                    'brand': 'Generic', 'size': 'N/A'
+                })
+                cons_detail = product_details.get(str(product_a), {
+                    'department': 'GENERAL', 'commodity': f'Product {product_a}',
+                    'brand': 'Generic', 'size': 'N/A'
+                })
+
+                rules.append({
+                    'antecedent': [str(product_b)],
+                    'consequent': [str(product_a)],
+                    'antecedent_details': [ant_detail],
+                    'consequent_details': [cons_detail],
+                    'support': support,
+                    'confidence': confidence_b_to_a,
+                    'lift': lift,
+                    'rule_type': 'product',
+                    'min_support_threshold': min_support,
+                    'min_confidence_threshold': min_confidence,
+                    'min_lift_threshold': None,
+                    'source_view': 'analysis.association_rules',
+                    'metadata': {
+                        'antecedent_details': [ant_detail],
+                        'consequent_details': [cons_detail],
+                    },
+                })
+
+        # Sort by lift and return top N results
+        logger.info(f"Generated {len(rules)} association rules")
+        return sorted(rules, key=lambda x: x['lift'], reverse=True)[:max_results]
+
+    except Exception as e:
+        logger.error(f"Error in _generate_association_rules: {str(e)}")
+        raise e  # Re-raise to be caught by the view function
 
 
 def _get_data_statistics():
@@ -229,19 +371,57 @@ def basket_analysis(request):
 @login_required(login_url='/admin/login/')
 def association_rules(request):
     if request.method == 'POST':
-        min_support = float(request.POST.get('min_support', 0.01))
-        min_confidence = float(request.POST.get('min_confidence', 0.5))
-        rules = _generate_association_rules(min_support, min_confidence)
-        ctx = {
-            'title': 'Association Rules',
-            'rules': rules,
-            'min_support': min_support,
-            'min_confidence': min_confidence,
-        }
+        try:
+            min_support = float(request.POST.get('min_support', 0.0001))
+            min_confidence = float(request.POST.get('min_confidence', 0.5))
+            transaction_period = request.POST.get('transaction_period', 'all')
+            max_results = int(request.POST.get('max_results', 100))
+
+            # Validate parameters
+            if min_support <= 0 or min_support > 1:
+                min_support = 0.0001
+            if min_confidence <= 0 or min_confidence > 1:
+                min_confidence = 0.5
+            if transaction_period not in ['all', '1_month', '3_months', '6_months', '12_months']:
+                transaction_period = 'all'
+            if max_results not in [50, 100, 200, 500, 1000]:
+                max_results = 100
+
+            rules = _generate_association_rules(min_support, min_confidence, transaction_period, max_results)
+
+            # Get period display name
+            period_names = {
+                'all': 'all transactions',
+                '1_month': 'last 1 month',
+                '3_months': 'last 3 months',
+                '6_months': 'last 6 months',
+                '12_months': 'last 12 months'
+            }
+            period_display = period_names.get(transaction_period, 'all transactions')
+
+            ctx = {
+                'title': 'Association Rules',
+                'rules': rules,
+                'min_support': min_support,
+                'min_confidence': min_confidence,
+                'transaction_period': transaction_period,
+                'max_results': max_results,
+                'success_message': f'Generated {len(rules)} association rules from {period_display} successfully!'
+            }
+        except Exception as e:
+            ctx = {
+                'title': 'Association Rules',
+                'rules': [],
+                'error_message': f'Error generating rules: {str(e)}. Please try with higher support values.',
+                'min_support': 0.0001,
+                'min_confidence': 0.5,
+                'transaction_period': request.POST.get('transaction_period', 'all'),
+                'max_results': request.POST.get('max_results', 100),
+            }
     else:
         ctx = {
             'title': 'Association Rules',
-            'rules': AssociationRule.objects.all().order_by('-lift')[:50],
+            'rules': AssociationRule.objects.all().order_by('-lift')[:100],
         }
     return render(request, 'site/dunnhumby/association_rules.html', ctx)
 
