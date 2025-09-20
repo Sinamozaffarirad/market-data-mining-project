@@ -694,32 +694,53 @@ html, body {
       </div>
 
       <!-- Interactive Controls -->
-      <div class="interactive-controls">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-          <h5 class="mb-0"><i class="fas fa-sliders-h"></i> Algorithm Parameters</h5>
+      <div class="interactive-controls" style="background: #f8f9fa; border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem; border: 1px solid #e9ecef;">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+          <h5 class="mb-0" style="color: #495057; font-weight: 600;">
+            <i class="fas fa-sliders-h text-primary"></i> Algorithm Parameters
+          </h5>
           <button class="btn btn-outline-info btn-sm" onclick="showDescriptiveHelp()" title="Configuration Help">
             <i class="fas fa-question-circle"></i> Help
           </button>
         </div>
-        <div class="row g-2">
-          <div class="col-md-6">
-            <div class="control-group">
-              <label class="control-label">Min Support:</label>
-              <input type="range" class="form-range control-slider" id="supportSlider" min="0.01" max="0.5" step="0.01" value="0.05">
-              <span class="control-value" id="supportValue">0.05</span>
-            </div>
+        <div class="row g-3">
+          <div class="col-md-3">
+            <label class="form-label fw-semibold">Transaction Period:</label>
+            <select class="form-select" id="descriptiveTransactionPeriod">
+              <option value="all">All Transactions</option>
+              <option value="1_month">Last 1 Month</option>
+              <option value="3_months">Last 3 Months</option>
+              <option value="6_months">Last 6 Months</option>
+              <option value="12_months">Last 12 Months</option>
+            </select>
+            <small class="form-text text-muted">Select transaction period: filters data by the 'day' field from transactions</small>
           </div>
-          <div class="col-md-6">
-            <div class="control-group">
-              <label class="control-label">Min Confidence:</label>
-              <input type="range" class="form-range control-slider" id="confidenceSlider" min="0.1" max="1.0" step="0.01" value="0.6">
-              <span class="control-value" id="confidenceValue">0.60</span>
-            </div>
+          <div class="col-md-2">
+            <label class="form-label fw-semibold">Max Results:</label>
+            <select class="form-select" id="descriptiveMaxResults">
+              <option value="50">50</option>
+              <option value="100" selected>100</option>
+              <option value="200">200</option>
+              <option value="500">500</option>
+            </select>
+            <small class="form-text text-muted">Maximum number of association rules to display in results</small>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label fw-semibold">Min Support:</label>
+            <input type="number" class="form-control" id="supportInput" min="0.0001" max="0.1" step="0.0001" value="0.001" placeholder="0.001">
+            <small class="form-text text-muted">Minimum frequency of items appearing together (decimal: 0.001 = 0.1%)</small>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-semibold">Min Confidence:</label>
+            <input type="number" class="form-control" id="confidenceInput" min="0.1" max="1.0" step="0.01" value="0.6" placeholder="0.6">
+            <small class="form-text text-muted">Minimum reliability of association rules (decimal: 0.6 = 60%)</small>
           </div>
         </div>
-        <button class="btn btn-primary mt-2" onclick="runDescriptiveAnalysis()">
-          <i class="fas fa-play"></i> Run Apriori Algorithm
-        </button>
+        <div class="text-center mt-4">
+          <button class="btn btn-primary btn-lg px-4 py-2" onclick="runDescriptiveAnalysis()" style="border-radius: 8px; font-weight: 600;">
+            <i class="fas fa-play me-2"></i> Run Apriori Algorithm
+          </button>
+        </div>
       </div>
 
       <!-- Key Metrics -->
@@ -745,7 +766,7 @@ html, body {
       <!-- Association Rules -->
       <div class="chart-container association-rules-block">
         <div class="d-flex justify-content-between align-items-center mb-3">
-          <h5 class="mb-0" id="deptRulesTitle"><i class="fas fa-project-diagram" style="min-height: 400px !important;"></i> Association Rules (0/∞) — Department Level</h5>
+          <h5 class="mb-0" id="deptRulesTitle"><i class="fas fa-project-diagram"></i> Association Rules (0/∞) — Department Level</h5>
           <div>
             <button class="btn btn-outline-primary btn-sm" onclick="expandSection('department')" title="View All in Popup">
               <i class="fas fa-expand-arrows-alt"></i> Expand
@@ -754,9 +775,10 @@ html, body {
         </div>
         <div id="descriptiveInsertAlert" class="alert alert-success d-none" role="alert"></div>
         <div class="association-rules-container scrollable-section" id="associationRules" style="max-height: 950px; overflow-y: auto;">
-          <div class="text-center py-3 text-muted">
-            <i class="fas fa-spinner fa-spin fa-2x mb-2"></i>
-            <p>Click "Run Apriori Algorithm" to generate association rules...</p>
+          <div class="text-center py-5 text-muted">
+            <i class="fas fa-play-circle fa-3x mb-3" style="color: #a0a0a0;"></i>
+            <h6 class="text-muted mb-2">No Association Rules Generated</h6>
+            <p class="mb-0">Configure parameters above and click <strong>"Run Apriori Algorithm"</strong> to analyze department-level associations</p>
           </div>
         </div>
       </div>
@@ -772,9 +794,10 @@ html, body {
           </div>
         </div>
         <div class="association-rules-container scrollable-section" id="associationRulesCommodity" style="max-height: 650px; overflow-y: auto;">
-          <div class="text-center py-3 text-muted">
-            <i class="fas fa-spinner fa-spin fa-2x mb-2"></i>
-            <p>Click "Run Apriori Algorithm" to generate commodity-level rules...</p>
+          <div class="text-center py-5 text-muted">
+            <i class="fas fa-play-circle fa-3x mb-3" style="color: #a0a0a0;"></i>
+            <h6 class="text-muted mb-2">No Association Rules Generated</h6>
+            <p class="mb-0">Configure parameters above and click <strong>"Run Apriori Algorithm"</strong> to analyze commodity-level associations</p>
           </div>
         </div>
       </div>
@@ -1419,13 +1442,13 @@ function renderDifferentialInsightCard(insight, compareBy, statTest) {
 
 // Descriptive Analysis Functions
 function loadDescriptiveAnalysis() {
-  generateAssociationRules();
+  // Don't load placeholder data - wait for user to run algorithm
   updateSliderValues();
 }
 
 function generateAssociationRules() {
-  const supportThreshold = parseFloat(document.getElementById('supportSlider')?.value || 0.05);
-  const confidenceThreshold = parseFloat(document.getElementById('confidenceSlider')?.value || 0.6);
+  const supportThreshold = parseFloat(document.getElementById('supportInput')?.value || 0.001);
+  const confidenceThreshold = parseFloat(document.getElementById('confidenceInput')?.value || 0.6);
   
   // Department-level demo rules
   const allRules = [
@@ -1456,7 +1479,7 @@ function generateAssociationRules() {
           ${createDepartmentBadge(rule.consequent)}
         </div>
         <div class="text-muted small">
-          Lift: <strong style="color: #28a745;">${rule.lift}</strong>
+          Lift: <strong style="color: #28a745;">${rule.lift.toFixed(2)}</strong>
         </div>
       </div>
       <div class="row g-2 text-center">
@@ -1470,7 +1493,7 @@ function generateAssociationRules() {
         </div>
         <div class="col-4">
           <div class="small text-muted">Lift</div>
-          <div class="fw-bold">${rule.lift}</div>
+          <div class="fw-bold">${rule.lift.toFixed(2)}</div>
         </div>
       </div>
       <div class="confidence-bar">
@@ -1733,55 +1756,199 @@ function showRuleInsertFeedback(message, variant) {
 }
 
 function updateSliderValues() {
-  const supportSlider = document.getElementById('supportSlider');
-  const confidenceSlider = document.getElementById('confidenceSlider');
-  const supportValue = document.getElementById('supportValue');
-  const confidenceValue = document.getElementById('confidenceValue');
-  
-  if (supportSlider && supportValue) {
-    supportSlider.addEventListener('input', (e) => {
-      supportValue.textContent = parseFloat(e.target.value).toFixed(2);
-    });
-  }
-  
-  if (confidenceSlider && confidenceValue) {
-    confidenceSlider.addEventListener('input', (e) => {
-      confidenceValue.textContent = parseFloat(e.target.value).toFixed(2);
-    });
-  }
+  // Function kept for compatibility but no longer needed with number inputs
+  // Number inputs provide direct value entry without sliders
 }
 
 function runDescriptiveAnalysis() {
-  const supportValue = document.getElementById('supportSlider')?.value || 0.05;
-  const confidenceValue = document.getElementById('confidenceSlider')?.value || 0.6;
-  
-  showNotification(`Running Apriori algorithm (min_support=${supportValue}, min_confidence=${confidenceValue})...`, 'info');
-  
+  const supportValue = parseFloat(document.getElementById('supportInput')?.value || 0.001);
+  const confidenceValue = parseFloat(document.getElementById('confidenceInput')?.value || 0.6);
+  const transactionPeriod = document.getElementById('descriptiveTransactionPeriod')?.value || 'all';
+  const maxResults = parseInt(document.getElementById('descriptiveMaxResults')?.value || 100);
+
+  const periodDisplayNames = {
+    'all': 'all transactions',
+    '1_month': 'last 1 month',
+    '3_months': 'last 3 months',
+    '6_months': 'last 6 months',
+    '12_months': 'last 12 months'
+  };
+  const periodDisplay = periodDisplayNames[transactionPeriod] || 'all transactions';
+
+  showNotification(`Running Apriori algorithm on ${periodDisplay} (min_support=${supportValue}, min_confidence=${confidenceValue})...`, 'info');
+
   // Show loading state for both containers
   const loadingHtml = `
     <div class="text-center py-4">
       <div class="spinner-border text-primary" role="status">
         <span class="visually-hidden">Loading...</span>
       </div>
-      <p class="mt-2">Mining frequent itemsets...</p>
-      <small class="text-muted">Scanning transaction database...</small>
+      <p class="mt-2">Mining frequent itemsets from ${periodDisplay}...</p>
+      <small class="text-muted">Processing 1M+ transactions using real Apriori algorithm...</small>
     </div>
   `;
-  
+
   document.getElementById('associationRules').innerHTML = loadingHtml;
   document.getElementById('associationRulesCommodity').innerHTML = loadingHtml;
-  
-  // Simulate realistic algorithm execution time
-  setTimeout(() => {
-    generateAssociationRules();
-    updateMetrics();
-    
-    const deptRules = document.getElementById('associationRules').querySelectorAll('.rule-card').length;
-    const commodityRules = document.getElementById('associationRulesCommodity').querySelectorAll('.rule-card').length;
-    const total = deptRules + commodityRules;
-    
-    showNotification(`Apriori completed! Found ${total} strong association rules (${deptRules} department + ${commodityRules} commodity).`, 'success');
-  }, Math.random() * 2000 + 1500);
+
+  // Generate both department and commodity rules in parallel
+  const departmentPromise = generateRealAssociationRules('department', supportValue, confidenceValue, transactionPeriod, maxResults);
+  const commodityPromise = generateRealAssociationRules('commodity', supportValue, confidenceValue, transactionPeriod, maxResults);
+
+  Promise.all([departmentPromise, commodityPromise])
+    .then(([deptRules, commodityRules]) => {
+      updateMetrics();
+
+      const total = deptRules.length + commodityRules.length;
+      showNotification(`Apriori completed! Found ${total} strong association rules (${deptRules.length} department + ${commodityRules.length} commodity) from ${periodDisplay}.`, 'success');
+    })
+    .catch(error => {
+      console.error('Error generating association rules:', error);
+      showNotification('Error generating association rules. Please try with different parameters.', 'danger');
+
+      // Show error state
+      const errorHtml = `
+        <div class="text-center py-4 text-danger">
+          <i class="fas fa-exclamation-triangle fa-2x mb-2"></i>
+          <p>Error generating rules</p>
+          <small>Please try with different parameters</small>
+        </div>
+      `;
+      document.getElementById('associationRules').innerHTML = errorHtml;
+      document.getElementById('associationRulesCommodity').innerHTML = errorHtml;
+    });
+}
+
+function generateRealAssociationRules(ruleType, minSupport, minConfidence, transactionPeriod, maxResults) {
+  return new Promise((resolve, reject) => {
+    const formData = new FormData();
+    formData.append('min_support', minSupport);
+    formData.append('min_confidence', minConfidence);
+    formData.append('transaction_period', transactionPeriod);
+    formData.append('max_results', maxResults);
+    formData.append('csrfmiddlewaretoken', getCsrfToken());
+
+    const endpoint = ruleType === 'department'
+      ? '/analysis/api/association-rules/department/'
+      : '/analysis/api/association-rules/commodity/';
+
+    fetch(endpoint, {
+      method: 'POST',
+      body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        const rules = data.rules || [];
+
+        // Render rules to appropriate container
+        const containerId = ruleType === 'department' ? 'associationRules' : 'associationRulesCommodity';
+        const container = document.getElementById(containerId);
+
+        if (rules.length === 0) {
+          container.innerHTML = `
+            <div class="text-center py-4 text-muted">
+              <i class="fas fa-info-circle fa-2x mb-2"></i>
+              <p>No ${ruleType} rules found with current thresholds.</p>
+              <small>Try lowering the support or confidence values.</small>
+            </div>
+          `;
+        } else {
+          // Use original styling format
+          const rulesHtml = rules.map(rule => {
+            if (ruleType === 'department') {
+              return `
+                <div class="rule-card" data-antecedent="${escapeHtml(rule.antecedent)}" data-consequent="${escapeHtml(rule.consequent)}" data-support="${rule.support}" data-confidence="${rule.confidence}" data-lift="${rule.lift}" data-rule-type="department">
+                  <div class="d-flex align-items-center justify-content-between mb-2">
+                    <div class="d-flex align-items-center flex-wrap">
+                      ${createDepartmentBadge(rule.antecedent)}
+                      <span class="rule-arrow">→</span>
+                      ${createDepartmentBadge(rule.consequent)}
+                    </div>
+                    <div class="text-muted small">
+                      Lift: <strong style="color: #28a745;">${rule.lift.toFixed(2)}</strong>
+                    </div>
+                  </div>
+                  <div class="row g-2 text-center">
+                    <div class="col-4">
+                      <div class="small text-muted">Support</div>
+                      <div class="fw-bold">${(rule.support * 100).toFixed(1)}%</div>
+                    </div>
+                    <div class="col-4">
+                      <div class="small text-muted">Confidence</div>
+                      <div class="fw-bold">${(rule.confidence * 100).toFixed(1)}%</div>
+                    </div>
+                    <div class="col-4">
+                      <div class="small text-muted">Lift</div>
+                      <div class="fw-bold">${rule.lift.toFixed(2)}</div>
+                    </div>
+                  </div>
+                  <div class="confidence-bar">
+                    <div class="confidence-fill" style="width: ${rule.confidence * 100}%"></div>
+                  </div>
+                </div>
+              `;
+            } else {
+              // Commodity rules
+              return `
+                <div class="rule-card" data-antecedent="${escapeHtml(rule.antecedent)}" data-consequent="${escapeHtml(rule.consequent)}" data-support="${rule.support}" data-confidence="${rule.confidence}" data-lift="${rule.lift}" data-rule-type="commodity">
+                  <div class="d-flex align-items-center justify-content-between mb-2">
+                    <div class="d-flex align-items-center flex-wrap">
+                      ${createCommodityBadge(rule.antecedent)}
+                      <span class="rule-arrow">→</span>
+                      ${createCommodityBadge(rule.consequent)}
+                    </div>
+                    <div class="text-muted small">Lift: <strong style="color:#28a745;">${rule.lift.toFixed(2)}</strong></div>
+                  </div>
+                  <div class="row g-2 text-center">
+                    <div class="col-4"><div class="small text-muted">Support</div><div class="fw-bold">${(rule.support*100).toFixed(1)}%</div></div>
+                    <div class="col-4"><div class="small text-muted">Confidence</div><div class="fw-bold">${(rule.confidence*100).toFixed(1)}%</div></div>
+                    <div class="col-4"><div class="small text-muted">Lift</div><div class="fw-bold">${rule.lift.toFixed(2)}</div></div>
+                  </div>
+                  <div class="confidence-bar"><div class="confidence-fill" style="width:${rule.confidence*100}%"></div></div>
+                </div>
+              `;
+            }
+          }).join('');
+
+          container.innerHTML = rulesHtml;
+
+          // Apply original enhancement functionality
+          const minSupport = parseFloat(document.getElementById('supportInput')?.value || 0.001);
+          const minConfidence = parseFloat(document.getElementById('confidenceInput')?.value || 0.6);
+          enhanceRuleCards(container, ruleType, minSupport, minConfidence);
+
+          // Update section titles like original code
+          if (ruleType === 'department') {
+            const deptTitle = document.getElementById('deptRulesTitle');
+            if(deptTitle) deptTitle.innerHTML = `<i class="fas fa-project-diagram"></i> Association Rules (${rules.length}/∞) — Department Level`;
+          } else {
+            const comTitle = document.getElementById('commodityRulesTitle');
+            if(comTitle) comTitle.innerHTML = `<i class="fas fa-boxes-stacked"></i> Association Rules (${rules.length}/∞) — Commodity Level`;
+          }
+        }
+
+        resolve(rules);
+      } else {
+        reject(new Error(data.error || 'Failed to generate rules'));
+      }
+    })
+    .catch(error => {
+      console.error(`Error generating ${ruleType} rules:`, error);
+      reject(error);
+    });
+  });
+}
+
+function getCsrfToken() {
+  const match = document.cookie.match(/csrftoken=([^;]+)/);
+  return match ? match[1] : '';
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
 }
 
 function updateMetrics() {
@@ -1808,7 +1975,23 @@ function updateMetrics() {
   }
   
   if (elements.topLift && totalRules > 0) {
-    elements.topLift.textContent = '2.5';
+    // Calculate the actual highest lift from all rule cards
+    const allRuleCards = [
+      ...(deptContainer ? deptContainer.querySelectorAll('.rule-card') : []),
+      ...(commodityContainer ? commodityContainer.querySelectorAll('.rule-card') : [])
+    ];
+
+    let maxLift = 0;
+    allRuleCards.forEach(card => {
+      const liftValue = parseFloat(card.dataset.lift);
+      if (!isNaN(liftValue) && liftValue > maxLift) {
+        maxLift = liftValue;
+      }
+    });
+
+    elements.topLift.textContent = maxLift > 0 ? maxLift.toFixed(2) : '-';
+  } else if (elements.topLift) {
+    elements.topLift.textContent = '-';
   }
 }
 
@@ -3834,9 +4017,9 @@ function showRuleDetails(antecedent, consequent, support, confidence, lift, rule
       <div class="col-md-4">
         <div class="card h-100">
           <div class="card-body text-center">
-            <div class="fs-3 fw-bold text-warning">${lift}</div>
+            <div class="fs-3 fw-bold text-warning">${lift.toFixed(2)}</div>
             <div class="text-muted">Lift</div>
-            <small class="text-muted">${lift > 1 ? 'Strong positive' : lift == 1 ? 'Independent' : 'Negative'} association</small>
+            <small class="text-muted">${lift > 2 ? 'Very strong positive' : lift > 1.5 ? 'Strong positive' : lift > 1.1 ? 'Moderate positive' : lift > 1 ? 'Weak positive' : lift == 1 ? 'Independent' : 'Negative'} association</small>
           </div>
         </div>
       </div>
@@ -3931,18 +4114,26 @@ function getInterpretation(support, confidence, lift) {
 
 // Get business value insights
 function getBusinessValue(ant, con, lift, type) {
-  const crossSell = lift > 1.5 ? 
-    `High potential - customers buying ${ant} are ${lift}x more likely to buy ${con}` :
-    `Moderate potential - some correlation exists between these items`;
-    
-  const layout = lift > 1.5 ? 
-    `Place these items near each other or in the same aisle for maximum impact` :
-    `Current placement is likely adequate, minor adjustments may help`;
-    
-  const marketing = lift > 2 ? 
-    `Bundle these items in promotions, create combo deals, target customers who buy one with ads for the other` :
-    `Consider seasonal promotions or targeted email campaigns highlighting the relationship`;
-    
+  const roundedLift = lift.toFixed(2);
+
+  let crossSell, layout, marketing;
+
+  if (lift < 1) {
+    crossSell = `Negative association - customers buying ${ant} are less likely to buy ${con} (${roundedLift}x)`;
+    layout = `Keep these items separated - they may cannibalize each other's sales`;
+    marketing = `Avoid bundling these items together, focus on promoting them to different customer segments`;
+  } else if (lift > 1.5) {
+    crossSell = `High potential - customers buying ${ant} are ${roundedLift}x more likely to buy ${con}`;
+    layout = `Place these items near each other or in the same aisle for maximum impact`;
+    marketing = lift > 2 ?
+      `Bundle these items in promotions, create combo deals, target customers who buy one with ads for the other` :
+      `Consider seasonal promotions or targeted email campaigns highlighting the relationship`;
+  } else {
+    crossSell = `Moderate potential - some correlation exists between these items (${roundedLift}x)`;
+    layout = `Current placement is likely adequate, minor adjustments may help`;
+    marketing = `Consider seasonal promotions or targeted email campaigns highlighting the relationship`;
+  }
+
   return { crossSell, layout, marketing };
 }
 
