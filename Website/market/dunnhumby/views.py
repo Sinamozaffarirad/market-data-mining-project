@@ -618,7 +618,7 @@ def site_index(request):
         { 'title': 'Association Rules', 'description': 'Market basket association rules', 'url': 'association-rules/', 'icon': '🔗' },
         { 'title': 'Customer Segments', 'description': 'RFM segments & behavior', 'url': 'customer-segments/', 'icon': '👥' },
         { 'title': 'Data Management', 'description': 'View, edit, import/export data', 'url': 'data-management/', 'icon': '⚙️' },
-        { 'title': 'Customer Insights', 'description': 'Explore and manage your customer data in detail', 'url': reverse('customers:search'), 'icon': '👥' },
+        { 'title': 'Customer Insights', 'description': 'Explore and manage your customer data in detail', 'url': reverse('customers:search'), 'icon': '👤' },
     ]
     return render(request, 'site/index.html', { 'analysis_tools': tools })
 
