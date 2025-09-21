@@ -1,10 +1,93 @@
 {% extends "site/base.html" %}
 {% load static %}
+{% load custom_filters %} {# Make sure to create this filter file #}
 
 {% block content %}
 <div class="container my-5">
-  <h3>Purchases (Last 3 Months) for Customer {{ household.household_key }}</h3>
-  <p>This is the Purchases page.</p>
-  <a href="{% url 'customers:detail' household.household_key %}" class="btn btn-primary">← Back</a>
+  <h3 class="mb-4">
+    Purchases for Customer {{ household.household_key }}
+  </h3>
+  <p class="text-muted">Found {{ transaction_count }} transactions in this period</p>
+
+  <form method="get" class="mb-4">
+    <label for="period" class="form-label">Filter by period:</label>
+    <select name="period" id="period" class="form-select" onchange="this.form.submit()">
+      <option value="3m" {% if selected_period == '3m' %}selected{% endif %}>Last 3 Months</option>
+      <option value="6m" {% if selected_period == '6m' %}selected{% endif %}>Last 6 Months</option>
+      <option value="9m" {% if selected_period == '9m' %}selected{% endif %}>Last 9 Months</option>
+      <option value="12m" {% if selected_period == '12m' %}selected{% endif %}>Last 12 Months</option>
+      <option value="15m" {% if selected_period == '15m' %}selected{% endif %}>Last 15 Months</option>
+      <option value="18m" {% if selected_period == '18m' %}selected{% endif %}>Last 18 Months</option>
+      <option value="all" {% if selected_period == 'all' %}selected{% endif %}>All Data</option>
+    </select>
+  </form>
+
+  {% if grouped_purchases %}
+    <div class="list-group">
+      {% for basket_id, items in grouped_purchases.items %}
+        <div class="list-group-item d-flex justify-content-between align-items-center">
+          <div>
+            <strong>Basket ID:</strong> {{ basket_id }} | 
+            <strong>Day:</strong> {{ items.0.day }} | 
+            <strong>Time:</strong> {{ items.0.trans_time|format_time }} | 
+            <strong>Items:</strong> {{ items|length }}
+          </div>
+          <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modal{{ basket_id }}">
+            View Details
+          </button>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="text-muted">This customer has no purchases in the selected period.</p>
+  {% endif %}
+
+  <div class="text-center mt-4">
+    <a href="{% url 'customers:detail' household.household_key %}" class="btn btn-primary">← Back</a>
+  </div>
 </div>
+
+{% for basket_id, items in grouped_purchases.items %}
+<div class="modal fade" id="modal{{ basket_id }}" tabindex="-1" aria-labelledby="modalLabel{{ basket_id }}" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modalLabel{{ basket_id }}">Basket Details: {{ basket_id }}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <table class="table table-bordered table-striped">
+          <thead class="table-dark">
+            <tr>
+              <th>Product ID</th>
+              <th>Brand</th>
+              <th>Department</th>
+              <th>Commodity</th>
+              <th>Size</th>
+              <th>Quantity</th>
+              <th>Sales Value</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for p in items %}
+            <tr>
+              <td>{{ p.product_id }}</td>
+              <td>{{ p.brand }}</td>
+              <td>{{ p.department }}</td>
+              <td>{{ p.commodity }}</td>
+              <td>{{ p.size }}</td>
+              <td>{{ p.quantity }}</td>
+              <td>${{ p.sales_value }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endfor %}
 {% endblock %}
