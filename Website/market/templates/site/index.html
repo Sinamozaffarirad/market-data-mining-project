@@ -338,11 +338,11 @@
         <i class="fas fa-shopping-cart"></i>
       </div>
       <div class="text-center">
-        <div class="metric-value animate-counter" data-target="1050000">0</div>
+        <div class="metric-value animate-counter" data-target="{{ total_transactions }}">0</div>
         <div class="metric-label">Total Transactions</div>
         <div class="metric-change">
-          <i class="fas fa-arrow-up"></i>
-          +12.5%
+          <i class="fas fa-arrow-{% if trans_change >= 0 %}up{% else %}down{% endif %}"></i>
+          {% if trans_change >= 0 %}+{% endif %}{{ trans_change|floatformat:1 }}%
         </div>
       </div>
     </div>
@@ -354,11 +354,11 @@
         <i class="fas fa-cube"></i>
       </div>
       <div class="text-center">
-        <div class="metric-value animate-counter" data-target="92300">0</div>
+        <div class="metric-value animate-counter" data-target="{{ unique_products }}">0</div>
         <div class="metric-label">Unique Products</div>
         <div class="metric-change">
-          <i class="fas fa-arrow-up"></i>
-          +8.2%
+          <i class="fas fa-arrow-{% if prod_change >= 0 %}up{% else %}down{% endif %}"></i>
+          {% if prod_change >= 0 %}+{% endif %}{{ prod_change|floatformat:1 }}%
         </div>
       </div>
     </div>
@@ -370,11 +370,11 @@
         <i class="fas fa-users"></i>
       </div>
       <div class="text-center">
-        <div class="metric-value animate-counter" data-target="2497">0</div>
+        <div class="metric-value animate-counter" data-target="{{ active_customers }}">0</div>
         <div class="metric-label">Active Customers</div>
         <div class="metric-change">
-          <i class="fas fa-arrow-up"></i>
-          +15.3%
+          <i class="fas fa-arrow-{% if cust_change >= 0 %}up{% else %}down{% endif %}"></i>
+          {% if cust_change >= 0 %}+{% endif %}{{ cust_change|floatformat:1 }}%
         </div>
       </div>
     </div>
@@ -386,11 +386,11 @@
         <i class="fas fa-dollar-sign"></i>
       </div>
       <div class="text-center">
-        <div class="metric-value animate-counter" data-target="2800000">0</div>
+        <div class="metric-value animate-counter" data-target="{{ total_revenue }}">0</div>
         <div class="metric-label">Total Revenue</div>
         <div class="metric-change">
-          <i class="fas fa-arrow-up"></i>
-          +18.7%
+          <i class="fas fa-arrow-{% if rev_change >= 0 %}up{% else %}down{% endif %}"></i>
+          {% if rev_change >= 0 %}+{% endif %}{{ rev_change|floatformat:1 }}%
         </div>
       </div>
     </div>

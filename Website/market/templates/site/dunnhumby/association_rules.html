@@ -6,49 +6,81 @@
   <div class="p-4">
     <div class="row g-4">
       <div class="col-12">
+        <div class="alert alert-info">
+          <i class="fas fa-info-circle"></i> <strong>Dataset Info:</strong>
+          Analyzing 2.6M transactions with optimized thresholds for meaningful pattern discovery.
+          Higher support values (0.0005+) recommended for reliable results with this dataset size.
+        </div>
+      </div>
+      <div class="col-12">
         <div class="card shadow-sm">
           <div class="card-header" style="background:var(--gradient-primary); color:#fff; font-weight:700;">
             <i class="fas fa-sliders-h"></i> Algorithm Configuration
           </div>
           <div class="card-body">
-            <form method="post" class="row g-3 align-items-end" id="associationRulesForm">
+            <form method="post" id="associationRulesForm">
               {% csrf_token %}
-              <div class="col-12 col-md-3">
-                <label for="transaction_period" class="form-label">Transaction Period</label>
-                <select class="form-select" id="transaction_period" name="transaction_period">
-                  <option value="all" {% if transaction_period == 'all' or not transaction_period %}selected{% endif %}>All Transactions</option>
-                  <option value="1_month" {% if transaction_period == '1_month' %}selected{% endif %}>Last 1 Month</option>
-                  <option value="3_months" {% if transaction_period == '3_months' %}selected{% endif %}>Last 3 Months</option>
-                  <option value="6_months" {% if transaction_period == '6_months' %}selected{% endif %}>Last 6 Months</option>
-                  <option value="12_months" {% if transaction_period == '12_months' %}selected{% endif %}>Last 12 Months</option>
-                </select>
-                <div class="form-text">Choose time range for analysis.</div>
+
+              <!-- First row: Basic controls -->
+              <div class="row g-3 mb-3">
+                <div class="col-12 col-md-6">
+                  <label for="transaction_period" class="form-label">Transaction Period</label>
+                  <select class="form-select" id="transaction_period" name="transaction_period">
+                    <option value="all" {% if transaction_period == 'all' or not transaction_period %}selected{% endif %}>All Transactions</option>
+                    <option value="1_month" {% if transaction_period == '1_month' %}selected{% endif %}>Last 1 Month</option>
+                    <option value="3_months" {% if transaction_period == '3_months' %}selected{% endif %}>Last 3 Months</option>
+                    <option value="6_months" {% if transaction_period == '6_months' %}selected{% endif %}>Last 6 Months</option>
+                    <option value="12_months" {% if transaction_period == '12_months' %}selected{% endif %}>Last 12 Months</option>
+                  </select>
+                  <div class="form-text">Choose time range for analysis.</div>
+                </div>
+                <div class="col-12 col-md-6">
+                  <label for="max_results" class="form-label">Max Results</label>
+                  <select class="form-select" id="max_results" name="max_results">
+                    <option value="50" {% if max_results == 50 %}selected{% endif %}>50</option>
+                    <option value="100" {% if max_results == 100 or not max_results %}selected{% endif %}>100</option>
+                    <option value="200" {% if max_results == 200 %}selected{% endif %}>200</option>
+                    <option value="500" {% if max_results == 500 %}selected{% endif %}>500</option>
+                    <option value="1000" {% if max_results == 1000 %}selected{% endif %}>1000</option>
+                  </select>
+                  <div class="form-text">Number of top rules to show.</div>
+                </div>
               </div>
-              <div class="col-12 col-md-2">
-                <label for="max_results" class="form-label">Max Results</label>
-                <select class="form-select" id="max_results" name="max_results">
-                  <option value="50" {% if max_results == 50 %}selected{% endif %}>50</option>
-                  <option value="100" {% if max_results == 100 or not max_results %}selected{% endif %}>100</option>
-                  <option value="200" {% if max_results == 200 %}selected{% endif %}>200</option>
-                  <option value="500" {% if max_results == 500 %}selected{% endif %}>500</option>
-                  <option value="1000" {% if max_results == 1000 %}selected{% endif %}>1000</option>
-                </select>
-                <div class="form-text">Number of top rules to show.</div>
+
+              <!-- Second row: Algorithm parameters -->
+              <div class="row g-3 mb-4">
+                <div class="col-12 col-md-6">
+                  <label for="min_support" class="form-label">Minimum Support (0.0 - 1.0)</label>
+                  <input type="number" class="form-control" id="min_support" name="min_support" step="0.00001" min="0" max="1" value="{{ min_support|default:'0.0005' }}" oninput="updateSupportInfo()">
+                  <div class="form-text">
+                    <small>For 2.6M transactions - Ultra-fine control:</small><br>
+                    <small><strong>0.001</strong> = Very frequent (2,595+ transactions)</small><br>
+                    <small><strong>0.0005</strong> = Common (1,297+ transactions)</small><br>
+                    <small><strong>0.0001</strong> = Moderate (259+ transactions)</small><br>
+                    <small><strong>0.00005</strong> = Rare (129+ transactions)</small><br>
+                    <small><strong>0.00001</strong> = Very rare (26+ transactions)</small><br>
+                    <small class="text-warning"><strong>⚠️ Values &lt; 0.00001 may be very slow</strong></small><br>
+                    <small id="supportInfo" class="text-info"><strong>Current: </strong><span id="currentSupportCount">1,297+ transactions</span></small>
+                  </div>
+                </div>
+                <div class="col-12 col-md-6">
+                  <label for="min_confidence" class="form-label">Minimum Confidence (0.0 - 1.0)</label>
+                  <input type="number" class="form-control" id="min_confidence" name="min_confidence" step="0.01" min="0" max="1" value="{{ min_confidence|default:'0.3' }}">
+                  <div class="form-text">
+                    <small><strong>0.7+</strong> = Very strong rules (70%+ confidence)</small><br>
+                    <small><strong>0.5</strong> = Moderate rules (50%+ confidence)</small><br>
+                    <small><strong>0.3</strong> = Exploratory (30%+ confidence)</small>
+                  </div>
+                </div>
               </div>
-              <div class="col-12 col-md-3">
-                <label for="min_support" class="form-label">Minimum Support (0.0 - 1.0)</label>
-                <input type="number" class="form-control" id="min_support" name="min_support" step="0.0001" min="0" max="1" value="{{ min_support|default:'0.0001' }}">
-                <div class="form-text">Lower values find more patterns.</div>
-              </div>
-              <div class="col-12 col-md-4">
-                <label for="min_confidence" class="form-label">Minimum Confidence (0.0 - 1.0)</label>
-                <input type="number" class="form-control" id="min_confidence" name="min_confidence" step="0.01" min="0" max="1" value="{{ min_confidence|default:'0.5' }}">
-                <div class="form-text">Higher values ensure stronger associations.</div>
-              </div>
-              <div class="col-12">
-                <button type="submit" class="btn btn-primary" id="generateBtn">
-                  <i class="fas fa-gears"></i> Generate Association Rules
-                </button>
+
+              <!-- Third row: Submit button -->
+              <div class="row">
+                <div class="col-12">
+                  <button type="submit" class="btn btn-primary btn-lg" id="generateBtn">
+                    <i class="fas fa-gears"></i> Generate Association Rules
+                  </button>
+                </div>
               </div>
             </form>
           </div>
@@ -94,7 +126,7 @@
                      style="border-left: 4px solid {% if rule.antecedent_details.0.department == 'GROCERY' %}#2E86C1{% elif rule.antecedent_details.0.department == 'DRUG GM' %}#A569BD{% elif rule.antecedent_details.0.department == 'PRODUCE' %}#27AE60{% elif rule.antecedent_details.0.department == 'DAIRY' %}#F39C12{% elif rule.antecedent_details.0.department == 'MEAT-PCKGD' %}#E74C3C{% elif rule.antecedent_details.0.department == 'FROZEN GROCERY' %}#85C1E9{% elif rule.antecedent_details.0.department == 'BAKERY' %}#D4AC0D{% elif rule.antecedent_details.0.department == 'BEVERAGE' %}#17A2B8{% else %}#6C757D{% endif %}; cursor: pointer; transition: all 0.3s ease;"
                      data-ant="{{ rule.antecedent|join:', ' }}"
                      data-con="{{ rule.consequent|join:', ' }}"
-                     data-sup="{{ rule.support|floatformat:4 }}"
+                     data-sup="{{ rule.support|floatformat:6 }}"
                      data-conf="{{ rule.confidence|floatformat:4 }}"
                      data-lift="{{ rule.lift|floatformat:4 }}"
                      data-ant-list="{{ rule.antecedent|join:'|' }}"
@@ -138,11 +170,11 @@
                     <div class="mt-2 pt-2 border-top">
                       <div class="d-flex justify-content-between small">
                         <span class="text-muted">Support:</span>
-                        <span class="fw-bold">{{ rule.support|floatformat:3 }}</span>
+                        <span class="fw-bold">{{ rule.support|floatformat:6 }}</span>
                       </div>
                       <div class="d-flex justify-content-between small">
                         <span class="text-muted">Confidence:</span>
-                        <span class="fw-bold">{{ rule.confidence|floatformat:3 }}</span>
+                        <span class="fw-bold">{{ rule.confidence|floatformat:4 }}</span>
                       </div>
                       <div class="d-flex justify-content-between">
                         <span class="text-muted small">Lift:</span>
@@ -440,6 +472,47 @@ document.addEventListener('DOMContentLoaded', function() {
       // The page will reload with results or error message
     });
   }
+});
+
+// Real-time support value calculator
+function updateSupportInfo() {
+  const supportInput = document.getElementById('min_support');
+  const supportCountSpan = document.getElementById('currentSupportCount');
+
+  if (supportInput && supportCountSpan) {
+    const supportValue = parseFloat(supportInput.value);
+    const totalTransactions = 2595277; // Your actual transaction count
+
+    if (!isNaN(supportValue) && supportValue > 0) {
+      const minTransactions = Math.ceil(totalTransactions * supportValue);
+      const formattedCount = minTransactions.toLocaleString();
+
+      // Add performance warnings
+      let warningText = '';
+      if (supportValue < 0.000005) {
+        warningText = ' ⚠️ EXTREMELY SLOW';
+        supportCountSpan.className = 'text-danger fw-bold';
+      } else if (supportValue < 0.00001) {
+        warningText = ' ⚠️ Very slow';
+        supportCountSpan.className = 'text-warning fw-bold';
+      } else if (supportValue < 0.00005) {
+        warningText = ' ⚠️ Slow';
+        supportCountSpan.className = 'text-warning';
+      } else {
+        supportCountSpan.className = 'text-info';
+      }
+
+      supportCountSpan.textContent = `${formattedCount}+ transactions${warningText}`;
+    } else {
+      supportCountSpan.textContent = '1,297+ transactions';
+      supportCountSpan.className = 'text-info';
+    }
+  }
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+  updateSupportInfo();
 });
 </script>
 
