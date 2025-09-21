@@ -678,58 +678,159 @@ def site_index(request):
 
 @login_required(login_url='/admin/login/')
 def basket_analysis(request):
-    basket_stats = Transaction.objects.values('basket_id', 'household_key').annotate(
-        total_items=Sum('quantity'),
-        total_value=Sum('sales_value'),
-        unique_products=Count('product_id', distinct=True)
-    ).order_by('-total_value')[:20]
+    """
+    Optimized Market Basket Analysis for 2.6M+ transactions
+    """
+    import logging
+    from django.db import connection
 
-    dept_analysis = Transaction.objects.values('product_id').annotate(
-        total_sales=Sum('sales_value'),
-        total_transactions=Count('product_id')
-    ).order_by('-total_sales')[:10]
+    logger = logging.getLogger(__name__)
+    logger.info("Starting basket analysis for 2.6M+ transactions")
 
-    product_stats = Transaction.objects.values('product_id').annotate(
-        frequency=Count('product_id'),
-        total_sales=Sum('sales_value')
-    ).filter(product_id__isnull=False)
+    try:
+        # Get overall statistics efficiently using raw SQL
+        with connection.cursor() as cursor:
+            # Overall dataset statistics
+            cursor.execute("""
+                SELECT
+                    COUNT(*) as total_transactions,
+                    COUNT(DISTINCT basket_id) as total_baskets,
+                    COUNT(DISTINCT product_id) as total_products,
+                    COUNT(DISTINCT household_key) as total_customers,
+                    SUM(sales_value) as total_revenue,
+                    AVG(sales_value) as avg_transaction_value
+                FROM transactions
+            """)
+            overall_stats = cursor.fetchone()
 
-    top_products_frequency_raw = list(product_stats.order_by('-frequency')[:20])
-    top_products_sales_raw = list(product_stats.order_by('-total_sales')[:20])
+            # Top baskets by value (optimized for large dataset)
+            cursor.execute("""
+                SELECT TOP 25
+                    basket_id,
+                    household_key,
+                    SUM(quantity) as total_items,
+                    SUM(sales_value) as total_value,
+                    COUNT(DISTINCT product_id) as unique_products,
+                    COUNT(*) as transaction_count
+                FROM transactions
+                GROUP BY basket_id, household_key
+                ORDER BY total_value DESC
+            """)
+            basket_stats = cursor.fetchall()
 
-    product_ids = {item['product_id'] for item in top_products_frequency_raw + top_products_sales_raw}
-    product_details = {
-        item['product_id']: item for item in DunnhumbyProduct.objects.filter(product_id__in=product_ids).values(
-            'product_id', 'brand', 'department', 'commodity_desc', 'sub_commodity_desc', 'manufacturer'
-        )
-    }
+            # Department analysis - aggregated for performance
+            cursor.execute("""
+                SELECT TOP 15
+                    p.department,
+                    COUNT(*) as transaction_count,
+                    SUM(t.sales_value) as total_sales,
+                    SUM(t.quantity) as total_quantity,
+                    COUNT(DISTINCT t.product_id) as unique_products,
+                    AVG(t.sales_value) as avg_sales_per_transaction
+                FROM transactions t
+                LEFT JOIN product p ON t.product_id = p.product_id
+                GROUP BY p.department
+                ORDER BY total_sales DESC
+            """)
+            dept_analysis = cursor.fetchall()
 
-    def _enrich_product_records(records):
-        enriched = []
-        for record in records:
-            details = product_details.get(record['product_id'], {})
-            enriched.append({
-                'product_id': record['product_id'],
-                'frequency': record['frequency'],
-                'total_sales': float(record['total_sales'] or 0),
-                'brand': details.get('brand') or 'Unknown Brand',
-                'department': details.get('department') or 'MISC. TRANS.',
-                'commodity_desc': details.get('commodity_desc') or 'All Products',
-                'sub_commodity_desc': details.get('sub_commodity_desc') or '',
-                'manufacturer': details.get('manufacturer') or ''
+        # Top products by frequency - optimized query
+        product_stats = Transaction.objects.values('product_id').annotate(
+            frequency=Count('product_id'),
+            total_sales=Sum('sales_value'),
+            avg_sales=Sum('sales_value') / Count('product_id'),
+            total_quantity=Sum('quantity')
+        ).filter(product_id__isnull=False)
+
+        top_products_frequency_raw = list(product_stats.order_by('-frequency')[:25])
+        top_products_sales_raw = list(product_stats.order_by('-total_sales')[:25])
+
+        # Get product details in one efficient query
+        all_product_ids = {item['product_id'] for item in top_products_frequency_raw + top_products_sales_raw}
+        product_details = {
+            item.product_id: item for item in DunnhumbyProduct.objects.filter(product_id__in=all_product_ids)
+        }
+
+        def _enrich_product_records(records):
+            enriched = []
+            for record in records:
+                product_detail = product_details.get(record['product_id'])
+                enriched.append({
+                    'product_id': record['product_id'],
+                    'frequency': record['frequency'],
+                    'total_sales': float(record['total_sales'] or 0),
+                    'avg_sales': float(record.get('avg_sales', 0) or 0),
+                    'total_quantity': record.get('total_quantity', 0) or 0,
+                    'brand': product_detail.brand if product_detail else 'Unknown Brand',
+                    'department': product_detail.department if product_detail else 'MISC. TRANS.',
+                    'commodity_desc': product_detail.commodity_desc if product_detail else 'Unknown Product',
+                    'sub_commodity_desc': product_detail.sub_commodity_desc if product_detail else '',
+                    'manufacturer': product_detail.manufacturer if product_detail else 0
+                })
+            return enriched
+
+        top_products_frequency = _enrich_product_records(top_products_frequency_raw)
+        top_products_sales = _enrich_product_records(top_products_sales_raw)
+
+        # Format basket stats for template
+        formatted_basket_stats = []
+        for basket in basket_stats:
+            formatted_basket_stats.append({
+                'basket_id': basket[0],
+                'household_key': basket[1],
+                'total_items': basket[2],
+                'total_value': float(basket[3]),
+                'unique_products': basket[4],
+                'transaction_count': basket[5]
             })
-        return enriched
 
-    top_products_frequency = _enrich_product_records(top_products_frequency_raw)
-    top_products_sales = _enrich_product_records(top_products_sales_raw)
+        # Format department analysis for template
+        formatted_dept_analysis = []
+        for dept in dept_analysis:
+            formatted_dept_analysis.append({
+                'department': dept[0] or 'UNKNOWN',
+                'transaction_count': dept[1],
+                'total_sales': float(dept[2]),
+                'total_quantity': dept[3],
+                'unique_products': dept[4],
+                'avg_sales_per_transaction': float(dept[5])
+            })
 
-    return render(request, 'site/dunnhumby/basket_analysis.html', {
-        'title': 'Shopping Basket Analysis',
-        'basket_stats': basket_stats,
-        'dept_analysis': dept_analysis,
-        'top_products_frequency': top_products_frequency,
-        'top_products_sales': top_products_sales,
-    })
+        # Create context with comprehensive statistics
+        avg_basket_size = overall_stats[0] / overall_stats[1] if overall_stats[1] > 0 else 0
+
+        context = {
+            'title': 'Market Basket Analysis - 2.6M Transactions',
+            'overall_stats': {
+                'total_transactions': overall_stats[0],
+                'total_baskets': overall_stats[1],
+                'total_products': overall_stats[2],
+                'total_customers': overall_stats[3],
+                'total_revenue': float(overall_stats[4]),
+                'avg_transaction_value': float(overall_stats[5]),
+                'avg_basket_size': avg_basket_size
+            },
+            'basket_stats': formatted_basket_stats,
+            'dept_analysis': formatted_dept_analysis,
+            'top_products_frequency': top_products_frequency,
+            'top_products_sales': top_products_sales,
+        }
+
+        logger.info("Basket analysis completed successfully")
+        return render(request, 'site/dunnhumby/basket_analysis.html', context)
+
+    except Exception as e:
+        logger.error(f"Error in basket analysis: {str(e)}")
+        context = {
+            'title': 'Market Basket Analysis - Error',
+            'error_message': f'Error loading basket analysis: {str(e)}. Please try again.',
+            'overall_stats': None,
+            'basket_stats': [],
+            'dept_analysis': [],
+            'top_products_frequency': [],
+            'top_products_sales': [],
+        }
+        return render(request, 'site/dunnhumby/basket_analysis.html', context)
 
 
 @login_required(login_url='/admin/login/')
@@ -744,9 +845,14 @@ def association_rules(request):
             # Validate parameters - allow very small positive values
             if min_support <= 0 or min_support > 1:
                 min_support = 0.00001  # Allow much smaller default
-            # Warn about very small values
+            # Warn about very small values and adjust for performance
             if min_support < 0.00001:
                 logger.warning(f"Very small support value ({min_support}) may cause performance issues")
+
+            # For ultra-small support values, limit results for performance
+            if min_support < 0.000005:
+                max_results = min(max_results, 50)  # Limit to 50 results for ultra-rare patterns
+                logger.info(f"Ultra-small support detected, limiting results to {max_results}")
             if min_confidence <= 0 or min_confidence > 1:
                 min_confidence = 0.5
             if transaction_period not in ['all', '1_month', '3_months', '6_months', '12_months']:
@@ -776,12 +882,27 @@ def association_rules(request):
                 'success_message': f'Generated {len(rules)} association rules from {period_display} successfully!'
             }
         except Exception as e:
+            import traceback
+            logger.error(f"Association rules generation failed: {str(e)}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
+
+            # Provide more specific error guidance
+            error_msg = str(e)
+            if "timeout" in error_msg.lower():
+                suggestion = "Query timed out. Try using higher support values (≥0.0001) or shorter time periods."
+            elif "memory" in error_msg.lower():
+                suggestion = "Out of memory. Try using higher support values (≥0.0005) or limit to recent periods."
+            elif "syntax" in error_msg.lower():
+                suggestion = "Database syntax error. Please try again or contact support."
+            else:
+                suggestion = "Try using higher support values (≥0.00005) or different parameters."
+
             ctx = {
                 'title': 'Association Rules',
                 'rules': [],
-                'error_message': f'Error generating rules: {str(e)}. Try higher support values (≥0.00005) for better performance.',
-                'min_support': 0.00005,
-                'min_confidence': 0.5,
+                'error_message': f'Error generating rules: {error_msg}. {suggestion}',
+                'min_support': request.POST.get('min_support', 0.00005),
+                'min_confidence': request.POST.get('min_confidence', 0.5),
                 'transaction_period': request.POST.get('transaction_period', 'all'),
                 'max_results': request.POST.get('max_results', 100),
             }
@@ -2304,14 +2425,27 @@ def api_generate_department_rules(request):
             transaction_period = request.POST.get('transaction_period', 'all')
             max_results = int(request.POST.get('max_results', 100))
 
-            # Validate parameters
+            # Validate parameters - allow very small support values like main view
             if min_support <= 0 or min_support > 1:
-                min_support = 0.001
+                min_support = 0.001  # More reasonable default for department rules
+            # Add aggressive performance optimization for very small support
+            if min_support < 0.001 and transaction_period in ['all', '12_months']:
+                # Force much shorter period for small support to avoid timeouts
+                transaction_period = '3_months'
+                logger.warning(f"Small support ({min_support}) with large dataset - limiting to 3 months for performance")
+            elif min_support < 0.0005 and transaction_period == 'all':
+                transaction_period = '1_month'
+                logger.warning(f"Very small support ({min_support}) with all data - limiting to 1 month for performance")
+            elif min_support < 0.0001:
+                transaction_period = '1_month'
+                max_results = min(max_results, 15)  # Heavily limit results for ultra-rare patterns
+                logger.info(f"Ultra-small support detected, limiting to 1 month and {max_results} results")
+
             if min_confidence <= 0 or min_confidence > 1:
                 min_confidence = 0.6
             if transaction_period not in ['all', '1_month', '3_months', '6_months', '12_months']:
                 transaction_period = 'all'
-            if max_results not in [50, 100, 200, 500]:
+            if max_results not in [25, 50, 100, 200, 500]:
                 max_results = 100
 
             rules = _generate_department_association_rules(min_support, min_confidence, transaction_period, max_results)
@@ -2343,14 +2477,27 @@ def api_generate_commodity_rules(request):
             transaction_period = request.POST.get('transaction_period', 'all')
             max_results = int(request.POST.get('max_results', 100))
 
-            # Validate parameters
+            # Validate parameters - allow very small support values like main view
             if min_support <= 0 or min_support > 1:
-                min_support = 0.001
+                min_support = 0.001  # More reasonable default for commodity rules
+            # Add aggressive performance optimization for very small support (commodities are more granular)
+            if min_support < 0.002 and transaction_period in ['all', '12_months']:
+                # Force much shorter period for commodity rules with small support
+                transaction_period = '1_month'
+                logger.warning(f"Small support ({min_support}) with large dataset - limiting commodity rules to 1 month for performance")
+            elif min_support < 0.001 and transaction_period in ['all', '6_months']:
+                transaction_period = '1_month'
+                logger.warning(f"Very small support ({min_support}) - limiting commodity rules to 1 month for performance")
+            elif min_support < 0.0005:
+                transaction_period = '1_month'
+                max_results = min(max_results, 10)  # Heavily limit results for ultra-rare commodity patterns
+                logger.info(f"Ultra-small support detected for commodities, limiting to 1 month and {max_results} results")
+
             if min_confidence <= 0 or min_confidence > 1:
                 min_confidence = 0.6
             if transaction_period not in ['all', '1_month', '3_months', '6_months', '12_months']:
                 transaction_period = 'all'
-            if max_results not in [50, 100, 200, 500]:
+            if max_results not in [20, 25, 50, 100, 200, 500]:
                 max_results = 100
 
             rules = _generate_commodity_association_rules(min_support, min_confidence, transaction_period, max_results)

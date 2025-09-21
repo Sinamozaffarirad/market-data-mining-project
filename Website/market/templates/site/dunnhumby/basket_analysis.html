@@ -727,8 +727,8 @@ html, body {
           </div>
           <div class="col-md-3">
             <label class="form-label fw-semibold">Min Support:</label>
-            <input type="number" class="form-control" id="supportInput" min="0.0001" max="0.1" step="0.0001" value="0.001" placeholder="0.001">
-            <small class="form-text text-muted">Minimum frequency of items appearing together (decimal: 0.001 = 0.1%)</small>
+            <input type="number" class="form-control" id="supportInput" min="0.000001" max="0.1" step="0.000001" value="0.002" placeholder="0.002">
+            <small class="form-text text-muted">Recommended for 2.6M transactions:<br><strong>0.005+</strong>=Fast results, <strong>0.002</strong>=Good balance, <strong>0.001</strong>=Slower, rare patterns</small>
           </div>
           <div class="col-md-4">
             <label class="form-label fw-semibold">Min Confidence:</label>
@@ -746,11 +746,11 @@ html, body {
       <!-- Key Metrics -->
       <div class="metric-grid">
         <div class="metric-item">
-          <div class="metric-value" id="totalBaskets">114,156</div>
-          <div class="metric-label">Total Baskets<br><small style="color: #6c757d; font-size: 0.6rem;">from 1M+ transactions</small></div>
+          <div class="metric-value" id="totalBaskets">{% if overall_stats.total_baskets %}{{ overall_stats.total_baskets|floatformat:0 }}{% else %}276,450{% endif %}</div>
+          <div class="metric-label">Total Baskets<br><small style="color: #6c757d; font-size: 0.6rem;">from 2.6M+ transactions</small></div>
         </div>
         <div class="metric-item">
-          <div class="metric-value" id="avgBasketSize">9.2</div>
+          <div class="metric-value" id="avgBasketSize">{{ overall_stats.avg_basket_size|floatformat:1|default:"9.4" }}</div>
           <div class="metric-label">Avg Basket Size<br><small style="color: #6c757d; font-size: 0.6rem;">items per basket</small></div>
         </div>
         <div class="metric-item">
@@ -1775,21 +1775,72 @@ function runDescriptiveAnalysis() {
   };
   const periodDisplay = periodDisplayNames[transactionPeriod] || 'all transactions';
 
-  showNotification(`Running Apriori algorithm on ${periodDisplay} (min_support=${supportValue}, min_confidence=${confidenceValue})...`, 'info');
+  // Add performance warnings for very small support values
+  let notificationLevel = 'info';
+  let notificationMessage = `Running Apriori algorithm on ${periodDisplay} (min_support=${supportValue}, min_confidence=${confidenceValue})...`;
 
-  // Show loading state for both containers
+  if (supportValue < 0.0001 && transactionPeriod === 'all') {
+    notificationLevel = 'warning';
+    notificationMessage += ' Very small support with all data may take longer. Consider using recent periods for faster results.';
+  } else if (supportValue < 0.00001) {
+    notificationLevel = 'warning';
+    notificationMessage += ' Ultra-rare pattern discovery may take some time.';
+  }
+
+  showNotification(notificationMessage, notificationLevel);
+
+  // Show loading state for both containers with dynamic transaction counts
+  const transactionCounts = {
+    'all': '2.6M+',
+    '12_months': '1.5M+',
+    '6_months': '732K+',
+    '3_months': '373K+',
+    '1_month': '126K+'
+  };
+
+  const transactionCountText = transactionCounts[transactionPeriod] || '2.6M+';
+
   const loadingHtml = `
     <div class="text-center py-4">
       <div class="spinner-border text-primary" role="status">
         <span class="visually-hidden">Loading...</span>
       </div>
       <p class="mt-2">Mining frequent itemsets from ${periodDisplay}...</p>
-      <small class="text-muted">Processing 1M+ transactions using real Apriori algorithm...</small>
+      <small class="text-muted">Processing ${transactionCountText} transactions using real Apriori algorithm...</small>
     </div>
   `;
 
   document.getElementById('associationRules').innerHTML = loadingHtml;
   document.getElementById('associationRulesCommodity').innerHTML = loadingHtml;
+
+  // Add progress indicator that updates every 10 seconds
+  let progressCounter = 0;
+  const progressInterval = setInterval(() => {
+    progressCounter += 10;
+    const progressMessages = [
+      'Scanning frequent itemsets...',
+      'Analyzing product combinations...',
+      'Calculating support values...',
+      'Generating association rules...',
+      'Finalizing results...'
+    ];
+
+    const messageIndex = Math.min(Math.floor(progressCounter / 10), progressMessages.length - 1);
+    const currentMessage = progressMessages[messageIndex];
+
+    const progressHtml = `
+      <div class="text-center py-4">
+        <div class="spinner-border text-primary" role="status">
+          <span class="visually-hidden">Loading...</span>
+        </div>
+        <p class="mt-2">${currentMessage}</p>
+        <small class="text-muted">Processing ${transactionCountText} transactions... (${progressCounter}s)</small>
+      </div>
+    `;
+
+    document.getElementById('associationRules').innerHTML = progressHtml;
+    document.getElementById('associationRulesCommodity').innerHTML = progressHtml;
+  }, 10000);
 
   // Generate both department and commodity rules in parallel
   const departmentPromise = generateRealAssociationRules('department', supportValue, confidenceValue, transactionPeriod, maxResults);
@@ -1799,19 +1850,36 @@ function runDescriptiveAnalysis() {
     .then(([deptRules, commodityRules]) => {
       updateMetrics();
 
+      // Clear progress interval
+      clearInterval(progressInterval);
+
       const total = deptRules.length + commodityRules.length;
       showNotification(`Apriori completed! Found ${total} strong association rules (${deptRules.length} department + ${commodityRules.length} commodity) from ${periodDisplay}.`, 'success');
     })
     .catch(error => {
+      clearTimeout(timeoutId); // Clear timeout on error
+      clearInterval(progressInterval); // Clear progress interval on error
       console.error('Error generating association rules:', error);
-      showNotification('Error generating association rules. Please try with different parameters.', 'danger');
+
+      let errorMessage = 'Error generating association rules. Please try with different parameters.';
+      let errorDetails = 'Please try with different parameters';
+
+      if (error.name === 'AbortError') {
+        errorMessage = 'Association rules generation timed out after 30 seconds.';
+        errorDetails = 'Try using higher support values (≥0.002) or use 1-month period for ultra-fast results.';
+      } else if (error.message && error.message.includes('timeout')) {
+        errorMessage = 'Request timed out. The algorithm is taking too long.';
+        errorDetails = 'Try higher support values (≥0.002) or use 1-month period (126K transactions).';
+      }
+
+      showNotification(errorMessage, 'danger');
 
       // Show error state
       const errorHtml = `
         <div class="text-center py-4 text-danger">
           <i class="fas fa-exclamation-triangle fa-2x mb-2"></i>
           <p>Error generating rules</p>
-          <small>Please try with different parameters</small>
+          <small>${errorDetails}</small>
         </div>
       `;
       document.getElementById('associationRules').innerHTML = errorHtml;
@@ -1832,11 +1900,19 @@ function generateRealAssociationRules(ruleType, minSupport, minConfidence, trans
       ? '/analysis/api/association-rules/department/'
       : '/analysis/api/association-rules/commodity/';
 
+    // Add timeout for long-running queries - reduced to 30 seconds for better UX
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+
     fetch(endpoint, {
       method: 'POST',
-      body: formData
+      body: formData,
+      signal: controller.signal
     })
-    .then(response => response.json())
+    .then(response => {
+      clearTimeout(timeoutId); // Clear timeout on successful response
+      return response.json();
+    })
     .then(data => {
       if (data.success) {
         const rules = data.rules || [];
@@ -1935,7 +2011,13 @@ function generateRealAssociationRules(ruleType, minSupport, minConfidence, trans
     })
     .catch(error => {
       console.error(`Error generating ${ruleType} rules:`, error);
-      reject(error);
+      clearTimeout(timeoutId); // Clear timeout on error
+
+      if (error.name === 'AbortError') {
+        reject(new Error(`${ruleType} rules generation timed out. Try higher support values or shorter periods.`));
+      } else {
+        reject(error);
+      }
     });
   });
 }
@@ -3462,7 +3544,7 @@ function showDescriptiveHelp() {
         <h6 class="fw-bold mb-2"><i class="fas fa-sliders-h text-success me-2"></i>Support & Confidence</h6>
         <div class="help-option mb-2">
           <strong>Min Support</strong>
-          <small class="d-block text-muted">Percentage of baskets that must contain an itemset before it is treated as frequent. Start near 5% when exploring and lower gradually to surface niche patterns.</small>
+          <small class="d-block text-muted">Percentage of baskets that must contain an itemset in 2.6M transactions. For rare patterns: try 0.0001-0.001. For common patterns: 0.005+. Ultra-rare: 0.00001 (25+ transactions).</small>
         </div>
         <div class="help-option">
           <strong>Min Confidence</strong>
@@ -4141,6 +4223,15 @@ function getBusinessValue(ant, con, lift, type) {
 // Basket card interactions
 document.addEventListener('DOMContentLoaded', function() {
   const csrftoken = (document.cookie.split('; ').find(r=>r.startsWith('csrftoken='))||'').split('=')[1]||'';
+
+  // Format metric values with commas
+  const totalBasketsEl = document.getElementById('totalBaskets');
+  if (totalBasketsEl && totalBasketsEl.textContent) {
+    const value = parseInt(totalBasketsEl.textContent.replace(/,/g, ''));
+    if (!isNaN(value)) {
+      totalBasketsEl.textContent = value.toLocaleString();
+    }
+  }
 
   // Initialize descriptive analysis by default
   loadDescriptiveAnalysis();
