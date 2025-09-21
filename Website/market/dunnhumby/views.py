@@ -124,9 +124,12 @@ def _generate_association_rules(min_support, min_confidence, transaction_period=
             logger.info(f"Total baskets: {total_baskets}, Min basket count: {min_basket_count}")
 
             # Validate parameters to prevent extremely long queries
-            if min_basket_count < 10 and total_baskets > 100000:
-                logger.warning(f"Support threshold too low for large dataset. Adjusting from {min_basket_count} to 10")
-                min_basket_count = 10
+            # Allow very small support values but warn about performance
+            if min_basket_count < 5 and total_baskets > 500000:
+                logger.warning(f"Very low support threshold ({min_basket_count} baskets) may result in slow query performance")
+            # Only enforce minimum if absolutely necessary for performance
+            if min_basket_count < 1:
+                min_basket_count = 1
 
             # Find frequent product pairs using a simpler SQL approach for SQL Server
             # Build the query with optional date filtering
@@ -613,6 +616,43 @@ def _get_data_statistics():
 
 @login_required(login_url='/admin/login/')
 def site_index(request):
+    # Calculate dynamic metrics
+    total_transactions = Transaction.objects.count()
+    unique_products = Transaction.objects.values('product_id').distinct().count()
+    active_customers = Transaction.objects.values('household_key').distinct().count()
+    total_revenue = Transaction.objects.aggregate(total=Sum('sales_value'))['total'] or 0
+
+    # Keep revenue as raw value for JavaScript formatting
+    total_revenue_raw = int(total_revenue)
+
+    # Calculate period-over-period changes (last 60 days vs previous 60 days)
+    from django.db.models import Min, Max
+    day_stats = Transaction.objects.aggregate(min_day=Min('day'), max_day=Max('day'))
+    max_day = day_stats['max_day']
+
+    # Recent period: days 652-711, Previous period: days 592-651
+    recent_period_start = max_day - 59
+    previous_period_start = max_day - 119
+    previous_period_end = max_day - 60
+
+    # Recent period metrics
+    recent_transactions = Transaction.objects.filter(day__gte=recent_period_start).count()
+    recent_products = Transaction.objects.filter(day__gte=recent_period_start).values('product_id').distinct().count()
+    recent_customers = Transaction.objects.filter(day__gte=recent_period_start).values('household_key').distinct().count()
+    recent_revenue = Transaction.objects.filter(day__gte=recent_period_start).aggregate(total=Sum('sales_value'))['total'] or 0
+
+    # Previous period metrics
+    prev_transactions = Transaction.objects.filter(day__gte=previous_period_start, day__lte=previous_period_end).count()
+    prev_products = Transaction.objects.filter(day__gte=previous_period_start, day__lte=previous_period_end).values('product_id').distinct().count()
+    prev_customers = Transaction.objects.filter(day__gte=previous_period_start, day__lte=previous_period_end).values('household_key').distinct().count()
+    prev_revenue = Transaction.objects.filter(day__gte=previous_period_start, day__lte=previous_period_end).aggregate(total=Sum('sales_value'))['total'] or 0
+
+    # Calculate percentage changes
+    trans_change = ((recent_transactions - prev_transactions) / prev_transactions * 100) if prev_transactions > 0 else 0
+    prod_change = ((recent_products - prev_products) / prev_products * 100) if prev_products > 0 else 0
+    cust_change = ((recent_customers - prev_customers) / prev_customers * 100) if prev_customers > 0 else 0
+    rev_change = ((float(recent_revenue) - float(prev_revenue)) / float(prev_revenue) * 100) if prev_revenue > 0 else 0
+
     tools = [
         { 'title': 'Shopping Basket Analysis', 'description': 'Analyze baskets, top products, and patterns', 'url': 'basket-analysis/', 'icon': '📊' },
         { 'title': 'Association Rules', 'description': 'Market basket association rules', 'url': 'association-rules/', 'icon': '🔗' },
@@ -620,7 +660,20 @@ def site_index(request):
         { 'title': 'Data Management', 'description': 'View, edit, import/export data', 'url': 'data-management/', 'icon': '⚙️' },
         { 'title': 'Customer Insights', 'description': 'Explore and manage your customer data in detail', 'url': reverse('customers:search'), 'icon': '👤' },
     ]
-    return render(request, 'site/index.html', { 'analysis_tools': tools })
+
+    context = {
+        'analysis_tools': tools,
+        'total_transactions': total_transactions,
+        'unique_products': unique_products,
+        'active_customers': active_customers,
+        'total_revenue': total_revenue_raw,
+        'trans_change': trans_change,
+        'prod_change': prod_change,
+        'cust_change': cust_change,
+        'rev_change': rev_change,
+    }
+
+    return render(request, 'site/index.html', context)
 
 
 @login_required(login_url='/admin/login/')
@@ -688,9 +741,12 @@ def association_rules(request):
             transaction_period = request.POST.get('transaction_period', 'all')
             max_results = int(request.POST.get('max_results', 100))
 
-            # Validate parameters
+            # Validate parameters - allow very small positive values
             if min_support <= 0 or min_support > 1:
-                min_support = 0.0001
+                min_support = 0.00001  # Allow much smaller default
+            # Warn about very small values
+            if min_support < 0.00001:
+                logger.warning(f"Very small support value ({min_support}) may cause performance issues")
             if min_confidence <= 0 or min_confidence > 1:
                 min_confidence = 0.5
             if transaction_period not in ['all', '1_month', '3_months', '6_months', '12_months']:
@@ -723,8 +779,8 @@ def association_rules(request):
             ctx = {
                 'title': 'Association Rules',
                 'rules': [],
-                'error_message': f'Error generating rules: {str(e)}. Please try with higher support values.',
-                'min_support': 0.0001,
+                'error_message': f'Error generating rules: {str(e)}. Try higher support values (≥0.00005) for better performance.',
+                'min_support': 0.00005,
                 'min_confidence': 0.5,
                 'transaction_period': request.POST.get('transaction_period', 'all'),
                 'max_results': request.POST.get('max_results', 100),
