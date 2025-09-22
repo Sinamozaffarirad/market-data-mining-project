@@ -16,6 +16,11 @@ import json
 from datetime import datetime
 import logging
 
+import xgboost as xgb
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score, classification_report
+from .analytics import build_churn_feature_set
+
 logger = logging.getLogger(__name__)
 
 class PredictiveMarketBasketAnalyzer:
@@ -585,3 +590,109 @@ class PredictiveMarketBasketAnalyzer:
 
 # Global instance
 ml_analyzer = PredictiveMarketBasketAnalyzer()
+
+
+class ChurnPredictor:
+    """
+    یک کلاس کامل برای آموزش، ارزیابی و استفاده از مدل پیش‌بینی Churn.
+    """
+    def __init__(self, model=None):
+        if model:
+            self.model = model
+        else:
+            # استفاده از XGBoost به دلیل عملکرد بالا در این نوع مسائل
+            self.model = xgb.XGBClassifier(
+                objective='binary:logistic',
+                eval_metric='logloss',
+                use_label_encoder=False,
+                n_estimators=100,
+                random_state=42
+            )
+        self.features = None
+        self.target = None
+        self.X_train, self.X_test, self.y_train, self.y_test = None, None, None, None
+
+    def prepare_data(self, churn_threshold_days=30): # حالا این پارامتر به عنوان offset زمانی استفاده می‌شود
+        """
+        داده‌ها را با استفاده از تابع مهندسی ویژگی زمان-آگاه آماده می‌کند.
+        """
+        print("Preparing data for churn model...")
+        df = build_churn_feature_set(prediction_point_offset=churn_threshold_days)
+
+        if df.empty:
+            print("Data preparation failed. Empty dataframe returned.")
+            return False
+
+        self.target = 'is_churn'
+        
+        # حذف ستون‌های شناسایی که در مدل استفاده نمی‌شوند
+        self.features = df.drop(columns=[self.target, 'household_key']) 
+        
+        # تبدیل تمام ستون‌های متنی (مانند دموگرافیک) به فرمت عددی
+        object_cols = self.features.select_dtypes(include=['object']).columns
+        self.features = pd.get_dummies(self.features, columns=object_cols, drop_first=True)
+        
+        y = df[self.target]
+
+        self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(
+            self.features, y, test_size=0.2, random_state=42, stratify=y
+        )
+        print("Data preparation complete.")
+        return True
+
+    def train_model(self):
+        """
+        مدل را بر روی داده‌های آموزشی، آموزش می‌دهد.
+        """
+        if self.X_train is None or self.y_train is None:
+            print("Training data is not available. Please run prepare_data() first.")
+            return
+
+        print("Training churn prediction model...")
+        self.model.fit(self.X_train, self.y_train)
+        print("Model training complete.")
+
+    def evaluate_model(self):
+        """
+        عملکرد مدل را بر روی داده‌های آزمون ارزیابی می‌کند.
+        """
+        if self.X_test is None or self.y_test is None:
+            print("Test data is not available. Please run prepare_data() first.")
+            return None
+
+        print("Evaluating model performance...")
+        y_pred = self.model.predict(self.X_test)
+        
+        accuracy = accuracy_score(self.y_test, y_pred)
+        report = classification_report(self.y_test, y_pred)
+        
+        print(f"Model Accuracy: {accuracy:.4f}")
+        print("Classification Report:")
+        print(report)
+        
+        return {"accuracy": accuracy, "report": report}
+
+    def get_feature_importance(self):
+        """
+        اهمیت هر ویژگی در پیش‌بینی مدل را برمی‌گرداند.
+        """
+        if not hasattr(self.model, 'feature_importances_'):
+            print("Model is not trained yet or does not support feature importance.")
+            return None
+        
+        importance_df = pd.DataFrame({
+            'feature': self.features.columns,
+            'importance': self.model.feature_importances_
+        }).sort_values(by='importance', ascending=False)
+        
+        return importance_df
+
+    def run_prediction_pipeline(self, churn_threshold_days=14):
+        """
+        یک خط لوله کامل از آماده‌سازی داده تا ارزیابی مدل را اجرا می‌کند.
+        """
+        if self.prepare_data(churn_threshold_days):
+            self.train_model()
+            self.evaluate_model()
+            return True
+        return False
