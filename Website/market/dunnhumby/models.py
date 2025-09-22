@@ -13,10 +13,10 @@ class Transaction(models.Model):
     sales_value = models.DecimalField(max_digits=10, decimal_places=2)
     store_id = models.IntegerField(null=True)
     retail_disc = models.DecimalField(max_digits=10, decimal_places=2)
-    trans_time = models.DecimalField(max_digits=10, decimal_places=2)
+    coupon_disc = models.DecimalField(max_digits=10, decimal_places=2)
     coupon_match_disc = models.DecimalField(max_digits=10, decimal_places=2)
     week_no = models.IntegerField(null=True)
-    coupon_disc = models.IntegerField(null=True)
+    trans_time = models.DecimalField(max_digits=10, decimal_places=2)
 
     class Meta:
         managed = False
