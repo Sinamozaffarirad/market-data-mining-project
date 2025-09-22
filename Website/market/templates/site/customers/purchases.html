@@ -1,13 +1,13 @@
 {% extends "site/base.html" %}
 {% load static %}
-{% load custom_filters %} {# Make sure to create this filter file #}
+{% load custom_filters %}
 
 {% block content %}
 <div class="container my-5">
   <h3 class="mb-4">
     Purchases for Customer {{ household.household_key }}
   </h3>
-  <p class="text-muted">Found {{ transaction_count }} transactions in this period</p>
+  <p class="text-muted">Found {{ transaction_count }} baskets in this period</p>
 
   <form method="get" class="mb-4">
     <label for="period" class="form-label">Filter by period:</label>
@@ -22,9 +22,9 @@
     </select>
   </form>
 
-  {% if grouped_purchases %}
+  {% if page_obj %}
     <div class="list-group">
-      {% for basket_id, items in grouped_purchases.items %}
+      {% for basket_id, items in page_obj %}
         <div class="list-group-item d-flex justify-content-between align-items-center">
           <div>
             <strong>Basket ID:</strong> {{ basket_id }} | 
@@ -38,6 +38,29 @@
         </div>
       {% endfor %}
     </div>
+
+    <!-- Pagination Controls -->
+    <nav class="mt-4">
+      <ul class="pagination justify-content-center">
+        {% if page_obj.has_previous %}
+          <li class="page-item">
+            <a class="page-link" href="?period={{ selected_period }}&page={{ page_obj.previous_page_number }}">Previous</a>
+          </li>
+        {% endif %}
+
+        <li class="page-item disabled">
+          <span class="page-link">
+            Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+          </span>
+        </li>
+
+        {% if page_obj.has_next %}
+          <li class="page-item">
+            <a class="page-link" href="?period={{ selected_period }}&page={{ page_obj.next_page_number }}">Next</a>
+          </li>
+        {% endif %}
+      </ul>
+    </nav>
   {% else %}
     <p class="text-muted">This customer has no purchases in the selected period.</p>
   {% endif %}
@@ -47,7 +70,8 @@
   </div>
 </div>
 
-{% for basket_id, items in grouped_purchases.items %}
+<!-- Modals for Basket Details -->
+{% for basket_id, items in page_obj %}
 <div class="modal fade" id="modal{{ basket_id }}" tabindex="-1" aria-labelledby="modalLabel{{ basket_id }}" aria-hidden="true">
   <div class="modal-dialog modal-xl modal-dialog-centered">
     <div class="modal-content">
@@ -84,7 +108,7 @@
         </table>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Close</button>
       </div>
     </div>
   </div>
