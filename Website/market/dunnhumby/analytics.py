@@ -8,7 +8,8 @@ import numpy as np
 from collections import defaultdict, Counter
 from itertools import combinations
 from django.db import connection
-from .models import Transaction, AssociationRule, CustomerSegment, BasketAnalysis
+from .models import Transaction, Household, DunnhumbyProduct, AssociationRule, CustomerSegment, BasketAnalysis
+
 
 
 class AssociationRulesMiner:
@@ -210,6 +211,9 @@ class RFMAnalyzer:
         
         # Convert to DataFrame for easier processing
         df = pd.DataFrame(results, columns=['customer_id', 'recency', 'frequency', 'monetary'])
+        
+		# Convert monetary from Decimal to float for calculations
+        df['monetary'] = df['monetary'].astype(float) # <-- ADD THIS LINE
         
         # Calculate recency (days since last purchase, assuming max day is reference)
         max_day = df['recency'].max()
@@ -430,3 +434,80 @@ def run_complete_analysis(transaction_limit=None):
     results['baskets_analyzed'] = len(basket_data)
     
     return results
+
+
+def build_churn_feature_set(prediction_point_offset=30):
+    """
+    یک مجموعه ویژگی جامع برای پیش‌بینی ریزش مشتری بدون نشت داده ایجاد می‌کند.
+    ویژگی‌ها بر اساس یک نقطه زمانی در گذشته محاسبه شده و برچسب ریزش بر اساس
+    رفتار مشتری در آینده تعیین می‌شود.
+    """
+    print("🚀 Starting CORRECTED churn feature engineering process (time-aware)...")
+
+    # --- ۱. بارگذاری داده و تعیین پنجره‌های زمانی ---
+    print("  - Step 1: Loading data and setting time windows...")
+    transactions_df = pd.DataFrame(list(Transaction.objects.all().values()))
+    households_df = pd.DataFrame(list(Household.objects.all().values()))
+
+    if transactions_df.empty:
+        print("Error: No transaction data found.")
+        return pd.DataFrame()
+
+    # تعیین "امروز" و "نقطه پیش‌بینی" در گذشته
+    last_day_in_data = transactions_df['day'].max()
+    prediction_date = last_day_in_data - prediction_point_offset
+
+    # تقسیم داده به "تاریخچه" (برای ساخت ویژگی) و "آینده" (برای برچسب‌گذاری)
+    history_df = transactions_df[transactions_df['day'] <= prediction_date]
+    future_df = transactions_df[transactions_df['day'] > prediction_date]
+
+    print(f"  - Data available until day: {last_day_in_data}")
+    print(f"  - Building features based on data up to day: {prediction_date}")
+    print(f"  - Labeling churn based on activity after day: {prediction_date}")
+
+
+    # --- ۲. محاسبه ویژگی‌ها بر اساس داده‌های تاریخی ---
+    print("  - Step 2: Calculating features from HISTORICAL data...")
+
+    if history_df.empty:
+        print("Error: Not enough historical data to build features.")
+        return pd.DataFrame()
+        
+    # محاسبه RFM بر اساس تاریخچه
+    customer_features = history_df.groupby('household_key').agg(
+        recency=('day', lambda date: (prediction_date - date.max())), # Recency نسبت به نقطه پیش‌بینی
+        frequency=('day', 'nunique'),
+        monetary=('sales_value', 'sum')
+    ).reset_index()
+
+    # محاسبه ویژگی‌های رفتاری بر اساس تاریخچه
+    temp_df = history_df[['household_key', 'day']].drop_duplicates().sort_values(['household_key', 'day'])
+    temp_df['purchase_gap'] = temp_df.groupby('household_key')['day'].diff()
+    avg_purchase_gap = temp_df.groupby('household_key')['purchase_gap'].mean().reset_index()
+    avg_purchase_gap.rename(columns={'purchase_gap': 'avg_purchase_gap'}, inplace=True)
+
+    product_variety = history_df.groupby('household_key')['product_id'].nunique().reset_index()
+    product_variety.rename(columns={'product_id': 'product_variety'}, inplace=True)
+
+
+    # --- ۳. ساخت برچسب Churn بر اساس داده‌های آینده ---
+    print("  - Step 3: Creating churn label from FUTURE data...")
+    
+    # مشتریانی که در دوره آینده خرید کرده‌اند را پیدا می‌کنیم
+    customers_who_returned = future_df['household_key'].unique()
+    
+    # برچسب Churn حالا به رفتار آینده بستگی دارد، نه Recency گذشته
+    customer_features['is_churn'] = 1 # فرض می‌کنیم همه ریزش کرده‌اند
+    customer_features.loc[customer_features['household_key'].isin(customers_who_returned), 'is_churn'] = 0 # آنهایی که برگشتند، ریزش نکرده‌اند
+
+
+    # --- ۴. ترکیب تمام ویژگی‌ها ---
+    print("  - Step 4: Merging all features...")
+    df = pd.merge(customer_features, avg_purchase_gap, on='household_key', how='left')
+    df = pd.merge(df, product_variety, on='household_key', how='left')
+    df = pd.merge(df, households_df, on='household_key', how='inner')
+
+    df.fillna(0, inplace=True)
+
+    print("✅ Time-aware feature engineering complete!")
+    return df
