@@ -3,6 +3,7 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib import messages
 from .models import CustomerProfile, Transaction, Product
 from collections import defaultdict
+from django.core.paginator import Paginator
 
 def customer_search(request):
     household_key = request.GET.get("household_key")
@@ -80,9 +81,14 @@ def customer_purchases(request, pk):
         reverse=True
     ))
 
+    basket_list = list(grouped_purchases.items())  
+    paginator = Paginator(basket_list, 10)  
+    page_number = request.GET.get("page")
+    page_obj = paginator.get_page(page_number)
+
     return render(request, "site/customers/purchases.html", {
-    "household": household,
-    "grouped_purchases": grouped_purchases,
-    "selected_period": period,
-    "transaction_count": len(transactions), 
-})
+        "household": household,
+        "page_obj": page_obj,  
+        "selected_period": period,
+        "transaction_count": len(grouped_purchases), 
+    })
