@@ -4,7 +4,7 @@ from django.http import JsonResponse, HttpResponse
 from django.shortcuts import render, get_object_or_404
 from django.db import connection
 from django.urls import reverse
-from django.db.models import Sum, Count, Avg, Max, Q
+from django.db.models import Sum, Count, Avg, Max, Q, Min
 from math import sqrt
 from .models import (
     Transaction, DunnhumbyProduct, Household, Campaign, Coupon,
@@ -924,11 +924,39 @@ def customer_segments(request):
 
     recent_customers = CustomerSegment.objects.order_by('-updated_at')[:20]
 
+    # assign churn risk label for each customer
+    for c in recent_customers:
+        prob = getattr(c, 'churn_probability', None)
+        if prob is None:
+            c.churn_risk = "N/A"
+        elif prob > 0.75:
+            c.churn_risk = "Very High Risk"
+        elif prob > 0.50:
+            c.churn_risk = "High Risk"
+        elif prob > 0.25:
+            c.churn_risk = "Medium Risk"
+        else:
+            c.churn_risk = "Low Risk"
+
+    # aggregate churn risk overview
+    churn_overview = CustomerSegment.objects.annotate(
+        risk_label=models.Case(
+            models.When(churn_probability__gt=0.75, then=models.Value("Very High Risk")),
+            models.When(churn_probability__gt=0.50, then=models.Value("High Risk")),
+            models.When(churn_probability__gt=0.25, then=models.Value("Medium Risk")),
+            models.When(churn_probability__gte=0, then=models.Value("Low Risk")),
+            default=models.Value("N/A"),
+            output_field=models.CharField(),
+        )
+    ).values("risk_label").annotate(count=Count("household_key")).order_by("-count")
+
     return render(request, 'site/dunnhumby/customer_segments.html', {
         'title': 'Customer Segmentation',
         'segments': segments,
         'recent_customers': recent_customers,
+        'churn_overview': churn_overview,
     })
+
 
 
 @login_required(login_url='/admin/login/')
@@ -1285,22 +1313,55 @@ def api_product_details(request):
 def api_household_details(request):
     if request.method != 'POST':
         return JsonResponse({'error': 'POST required'}, status=405)
+
     household_key = request.POST.get('household_key')
     if not household_key:
         return JsonResponse({'error': 'household_key required'}, status=400)
+
     try:
         seg = CustomerSegment.objects.filter(household_key=household_key).values(
-            'rfm_segment','recency_score','frequency_score','monetary_score','total_spend','total_transactions','avg_basket_value','updated_at'
+            'rfm_segment','recency_score','frequency_score','monetary_score',
+            'total_spend','total_transactions','avg_basket_value','updated_at',
+            'churn_probability'   # 👈 اضافه شد
         ).first()
-        recent_txns = list(Transaction.objects.filter(household_key=household_key).values(
-            'basket_id','product_id','quantity','sales_value','day'
-        ).order_by('-day')[:15])
-        # enrich with product names
+
+        if not seg:
+            return JsonResponse({'error': 'household not found'}, status=404)
+
+        # محاسبه churn_risk label
+        prob = seg.get('churn_probability')
+        if prob is None:
+            seg['churn_risk'] = "N/A"
+        elif prob > 0.75:
+            seg['churn_risk'] = "Very High Risk"
+        elif prob > 0.50:
+            seg['churn_risk'] = "High Risk"
+        elif prob > 0.25:
+            seg['churn_risk'] = "Medium Risk"
+        else:
+            seg['churn_risk'] = "Low Risk"
+
+        # تراکنش‌های اخیر
+        recent_txns = list(
+            Transaction.objects.filter(household_key=household_key).values(
+                'basket_id','product_id','quantity','sales_value','day'
+            ).order_by('-day')[:15]
+        )
+
+        # enrich با اسم محصول
         pids = list({t['product_id'] for t in recent_txns})
-        prodmap = {p['product_id']: p['commodity_desc'] for p in DunnhumbyProduct.objects.filter(product_id__in=pids).values('product_id','commodity_desc')}
+        prodmap = {
+            p['product_id']: p['commodity_desc']
+            for p in DunnhumbyProduct.objects.filter(product_id__in=pids).values('product_id','commodity_desc')
+        }
         for t in recent_txns:
             t['commodity_desc'] = prodmap.get(t['product_id'])
-        return JsonResponse({'household_key': household_key, 'segment': seg, 'recent_transactions': recent_txns})
+
+        return JsonResponse({
+            'household_key': household_key,
+            'segment': seg,
+            'recent_transactions': recent_txns
+        })
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
@@ -2750,3 +2811,42 @@ def training_status_api(request):
     global ml_training_status
     return JsonResponse(ml_training_status)
 
+@csrf_exempt
+def churn_api(request):
+    if request.method == 'POST':
+        risk_label = request.POST.get('churn_risk')
+        if not risk_label:
+            return JsonResponse({'error': 'No churn risk provided'})
+
+        # فیلتر مشتریان براساس ریسک
+        qs = CustomerSegment.objects.all()
+        if risk_label == "Very High Risk":
+            qs = qs.filter(churn_probability__gt=0.75)
+        elif risk_label == "High Risk":
+            qs = qs.filter(churn_probability__gt=0.50, churn_probability__lte=0.75)
+        elif risk_label == "Medium Risk":
+            qs = qs.filter(churn_probability__gt=0.25, churn_probability__lte=0.50)
+        elif risk_label == "Low Risk":
+            qs = qs.filter(churn_probability__lte=0.25)
+
+        # متریک‌ها
+        metrics = {
+            'customers': qs.count(),
+            'avg_spend': qs.aggregate(Avg('total_spend'))['total_spend__avg'] or 0,
+            'avg_txns': qs.aggregate(Avg('total_transactions'))['total_transactions__avg'] or 0,
+            'avg_basket': qs.aggregate(Avg('avg_basket_value'))['avg_basket_value__avg'] or 0,
+            'avg_churn_probability': qs.aggregate(Avg('churn_probability'))['churn_probability__avg'] or 0,
+            'max_churn_probability': qs.aggregate(Max('churn_probability'))['churn_probability__max'] or 0,
+            'min_churn_probability': qs.aggregate(Min('churn_probability'))['churn_probability__min'] or 0,
+        }
+
+        # بهترین 10 خانوار از نظر خرج
+        top_households = list(qs.order_by('-total_spend')[:10].values(
+            'household_key', 'total_spend', 'total_transactions',
+            'avg_basket_value', 'recency_score', 'frequency_score',
+            'monetary_score', 'churn_probability', 'updated_at'
+        ))
+
+        return JsonResponse({'metrics': metrics, 'top_households': top_households})
+
+    return JsonResponse({'error': 'Invalid request'})

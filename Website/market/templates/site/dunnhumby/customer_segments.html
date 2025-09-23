@@ -2,6 +2,46 @@
 {% block title %}Customer Segmentation{% endblock %}
 {% block content %}
 
+// change it!!
+<style>
+	.segment-card, .churn-card, .household-card {
+		background: var(--card-bg);
+		border: 1px solid var(--border-color);
+		border-radius: 1rem;
+		padding: 1.5rem;
+		height: 100%;
+		transition: all 0.3s ease;
+		position: relative;
+		overflow: hidden;
+		cursor: pointer;
+	}
+	.segment-card::before,
+	.churn-card::before,
+	.household-card::before {
+		content: '';
+		position: absolute;
+		top: 0;
+		left: 0;
+		right: 0;
+		height: 4px;
+		background: var(--gradient-primary);
+		transform: scaleX(0);
+		transition: transform 0.3s ease;
+	}
+	.segment-card:hover,
+	.churn-card:hover,
+	.household-card:hover {
+		transform: translateY(-5px);
+		box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+	}
+	.segment-card:hover::before,
+	.churn-card:hover::before,
+	.household-card:hover::before {
+		transform: scaleX(1);
+	}
+</style>
+
+
 <div class="row g-4">
   <div class="col-12">
     <div class="card shadow-sm">
@@ -22,7 +62,17 @@
                 <div class="card h-100 shadow-sm segment-card" data-seg="{{ s.rfm_segment }}" style="cursor:pointer;">
                   <div class="card-body">
                     <div class="d-flex align-items-center justify-content-between mb-2">
-                      <span class="badge bg-primary">{{ s.rfm_segment }}</span>
+                      <span class="badge
+						{% if s.rfm_segment == 'Big Spenders' %} bg-success
+						{% elif s.rfm_segment == 'At Risk' %} bg-danger
+						{% elif s.rfm_segment == 'Regular Customers' %} bg-info text-dark
+						{% elif s.rfm_segment == 'Standard' %} bg-secondary
+						{% elif s.rfm_segment == 'New Customers' %} bg-warning text-dark
+						{% elif s.rfm_segment == 'Loyal Customers' %} bg-primary
+						{% else %} bg-light text-dark
+						{% endif %}
+						">{{ s.rfm_segment }}</span>
+
                       <i class="fa-solid fa-layer-group text-muted"></i>
                     </div>
                     <div class="fw-bold fs-5">{{ s.count }}</div>
@@ -40,6 +90,41 @@
               <div class="info-box">No segments available. Generate them in Data Management.</div>
             {% endif %}
           </div>
+		  <div class="col-12 mt-4">
+			<div class="d-flex align-items-center justify-content-between mb-2">
+				<h5 class="m-0">Churn Risk Overview</h5>
+				{% if churn_overview %}<span class="badge bg-secondary">{{ churn_overview|length }} risk levels</span>{% endif %}
+			</div>
+			{% if churn_overview %}
+			<div class="row g-3">
+				{% for r in churn_overview %}
+				<div class="col-12 col-sm-6 col-md-4 col-lg-3">
+					<div class="card h-100 shadow-sm churn-card" data-risk="{{ r.risk_label }}" style="cursor:pointer;">
+						<div class="card-body">
+						<div class="d-flex align-items-center justify-content-between mb-2">
+							<span class="badge
+							{% if r.risk_label == 'Very High Risk' %} bg-danger
+							{% elif r.risk_label == 'High Risk' %} bg-warning text-dark
+							{% elif r.risk_label == 'Medium Risk' %} bg-info text-dark
+							{% elif r.risk_label == 'Low Risk' %} bg-success
+							{% else %} bg-light text-dark
+							{% endif %}
+							">{{ r.risk_label }}</span>
+							<i class="fa-solid fa-layer-group text-muted"></i>
+						</div>
+						<div class="fw-bold fs-5">{{ r.count }}</div>
+						<div class="text-muted small">Customers</div>
+						</div>
+					</div>
+					</div>
+
+				{% endfor %}
+			</div>
+			{% else %}
+				<div class="info-box">No churn risk data available.</div>
+			{% endif %}
+			</div>
+
           <div class="col-12">
             <div class="d-flex align-items-center justify-content-between mb-2">
               <h5 class="m-0">Recent Customer Analysis</h5>
@@ -47,30 +132,54 @@
             </div>
             {% if recent_customers %}
             <div class="row g-3">
-              {% for c in recent_customers %}
-              <div class="col-12 col-sm-6 col-md-4 col-lg-3">
-                <div class="card h-100 shadow-sm household-card" data-household="{{ c.household_key }}" style="cursor:pointer;">
-                  <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center mb-1">
-                      <div class="d-flex align-items-center gap-2"><i class="fa-solid fa-user text-muted"></i><span class="fw-semibold">{{ c.household_key }}</span></div>
-                      <span class="badge bg-success">{{ c.rfm_segment }}</span>
-                    </div>
-                    <div class="d-flex justify-content-between text-center my-2">
-                      <div><div class="text-muted small">RECENCY</div><div class="fw-bold fs-5">{{ c.recency_score }}</div></div>
-                      <div><div class="text-muted small">FREQUENCY</div><div class="fw-bold fs-5">{{ c.frequency_score }}</div></div>
-                      <div><div class="text-muted small">MONETARY</div><div class="fw-bold fs-5">{{ c.monetary_score }}</div></div>
-                    </div>
-                    <hr class="my-2"/>
-                    <div class="row text-center g-2 small text-muted">
-                      <div class="col-4">Total Spend<br><span class="text-body fw-semibold">${{ c.total_spend|floatformat:2 }}</span></div>
-                      <div class="col-4">Transactions<br><span class="text-body fw-semibold">{{ c.total_transactions }}</span></div>
-                      <div class="col-4">Avg. Basket<br><span class="text-body fw-semibold">${{ c.avg_basket_value|floatformat:2 }}</span></div>
-                    </div>
-                    <div class="text-end small text-muted mt-2">{{ c.updated_at|date:"M d, Y" }}</div>
-                  </div>
-                </div>
-              </div>
-              {% endfor %}
+				{% for c in recent_customers %}
+				<div class="col-12 col-sm-6 col-md-4 col-lg-3">
+				<div class="card h-100 shadow-sm household-card" data-household="{{ c.household_key }}" style="cursor:pointer;">
+					<div class="card-body">
+					<div class="d-flex justify-content-between align-items-center mb-1">
+						<div class="d-flex align-items-center gap-2">
+						<i class="fa-solid fa-user text-muted"></i>
+						<span class="fw-semibold">{{ c.household_key }}</span>
+						</div>
+						<div class="d-flex flex-column text-end">
+						<span class="badge mb-1
+						{% if c.rfm_segment == 'Big Spenders' %} bg-success
+						{% elif c.rfm_segment == 'At Risk' %} bg-danger
+						{% elif c.rfm_segment == 'Regular Customers' %} bg-info text-dark
+						{% elif c.rfm_segment == 'Standard' %} bg-secondary
+						{% elif c.rfm_segment == 'New Customers' %} bg-warning text-dark
+						{% elif c.rfm_segment == 'Loyal Customers' %} bg-primary
+						{% else %} bg-light text-dark
+						{% endif %}
+						">{{ c.rfm_segment }}</span>
+
+						<span class="badge 
+							{% if c.churn_risk == 'Very High Risk' %} bg-danger
+							{% elif c.churn_risk == 'High Risk' %} bg-warning text-dark
+							{% elif c.churn_risk == 'Medium Risk' %} bg-info text-dark
+							{% elif c.churn_risk == 'Low Risk' %} bg-secondary
+							{% else %} bg-light text-dark
+							{% endif %}
+						">{{ c.churn_risk }}</span>
+						</div>
+					</div>
+
+					<div class="d-flex justify-content-between text-center my-2">
+						<div><div class="text-muted small">RECENCY</div><div class="fw-bold fs-5">{{ c.recency_score }}</div></div>
+						<div><div class="text-muted small">FREQUENCY</div><div class="fw-bold fs-5">{{ c.frequency_score }}</div></div>
+						<div><div class="text-muted small">MONETARY</div><div class="fw-bold fs-5">{{ c.monetary_score }}</div></div>
+					</div>
+					<hr class="my-2"/>
+					<div class="row text-center g-2 small text-muted">
+						<div class="col-4">Total Spend<br><span class="text-body fw-semibold">${{ c.total_spend|floatformat:2 }}</span></div>
+						<div class="col-4">Transactions<br><span class="text-body fw-semibold">{{ c.total_transactions }}</span></div>
+						<div class="col-4">Avg. Basket<br><span class="text-body fw-semibold">${{ c.avg_basket_value|floatformat:2 }}</span></div>
+					</div>
+					<div class="text-end small text-muted mt-2">{{ c.updated_at|date:"M d, Y" }}</div>
+					</div>
+				</div>
+				</div>
+				{% endfor %}	
             </div>
             {% else %}
               <div class="info-box">No customer data available.</div>
@@ -119,7 +228,7 @@
 <script>
 document.addEventListener('DOMContentLoaded', function(){
   const csrftoken = (document.cookie.split('; ').find(r=>r.startsWith('csrftoken='))||'').split('=')[1]||'';
-  // Segment details
+  // RFM details
   document.querySelectorAll('.segment-card').forEach(el=>{
     el.addEventListener('click', async ()=>{
       const seg = el.dataset.seg;
@@ -147,20 +256,71 @@ document.addEventListener('DOMContentLoaded', function(){
       const res = await fetch('/analysis/api/household/', {method:'POST', body: form});
       const j = await res.json();
       if(j.error){ return showDetailModal('Household '+hh, '<div class="text-danger">'+j.error+'</div>'); }
-      const seg = j.segment||{}; let body = `<div class=\"row g-3\">
-        <div class=\"col-4 text-center\"><div class=\"text-muted small\">Segment</div><div class=\"fw-bold\">${seg.rfm_segment||'-'}</div></div>
-        <div class=\"col-4 text-center\"><div class=\"text-muted small\">Total Spend</div><div class=\"fw-bold\">$${Number(seg.total_spend||0).toFixed(2)}</div></div>
-        <div class=\"col-4 text-center\"><div class=\"text-muted small\">Transactions</div><div class=\"fw-bold\">${seg.total_transactions||0}</div></div>
-      </div>`;
-      body += `<div class=\"row g-3 mt-2\"><div class=\"col-4 text-center\"><div class=\"text-muted small\">Avg Basket</div><div class=\"fw-bold\">$${Number(seg.avg_basket_value||0).toFixed(2)}</div></div>
-        <div class=\"col-8 text-center\"><div class=\"text-muted small\">R-F-M</div><div class=\"fw-bold\">${seg.recency_score||'-'}-${seg.frequency_score||'-'}-${seg.monetary_score||'-'}</div></div></div>`;
+      const seg = j.segment||{}; 
+		let body = `<div class="row g-3">
+		<div class="col-2 text-center"><div class="text-muted small">Segment</div><div class="fw-bold">${seg.rfm_segment||'-'}</div></div>
+		<div class="col-2 text-center"><div class="text-muted small">Churn Risk</div><div class="fw-bold">${seg.churn_risk||'-'}</div></div>
+		<div class="col-2 text-center"><div class="text-muted small">Total Spend</div><div class="fw-bold">$${Number(seg.total_spend||0).toFixed(2)}</div></div>
+		<div class="col-2 text-center"><div class="text-muted small">Transactions</div><div class="fw-bold">${seg.total_transactions||0}</div></div>
+		<div class="col-2 text-center"><div class="text-muted small">Avg Basket</div><div class="fw-bold">$${Number(seg.avg_basket_value||0).toFixed(2)}</div></div>
+		<div class="col-2 text-center"><div class="text-muted small">R-F-M</div><div class="fw-bold">${seg.recency_score||'-'}-${seg.frequency_score||'-'}-${seg.monetary_score||'-'}</div></div>
+		</div>`;
+
       body += '<h6 class="mt-3">Recent Transactions</h6><div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Basket</th><th>Product</th><th>Qty</th><th>Sales</th><th>Day</th></tr></thead><tbody>';
       (j.recent_transactions||[]).forEach(t=>{ body += `<tr><td>${t.basket_id}</td><td>${t.product_id} ${t.commodity_desc?('— '+t.commodity_desc):''}</td><td>${t.quantity}</td><td>$${Number(t.sales_value||0).toFixed(2)}</td><td>${t.day}</td></tr>`; });
       body += '</tbody></table></div>';
       showDetailModal('Household: '+hh, body);
     })
-  })
+  });
+
+  // Churn details
+  document.querySelectorAll('.churn-card').forEach(el=>{
+    el.addEventListener('click', async ()=>{
+      const risk = el.dataset.risk;
+      const form = new FormData(); 
+      form.append('csrfmiddlewaretoken', csrftoken); 
+      form.append('churn_risk', risk);
+
+      const res = await fetch('/analysis/api/churn/', {method:'POST', body: form});
+      const j = await res.json();
+      if(j.error){ 
+        return showDetailModal('Churn Risk '+risk, '<div class="text-danger">'+j.error+'</div>'); 
+      }
+
+      const m = j.metrics||{}; 
+      let body = `<div class="row g-3">
+        <div class="col-2 text-center"><div class="text-muted small">Customers</div><div class="fw-bold">${m.customers||0}</div></div>
+        <div class="col-2 text-center"><div class="text-muted small">Avg Spend</div><div class="fw-bold">$${Number(m.avg_spend||0).toFixed(2)}</div></div>
+        <div class="col-2 text-center"><div class="text-muted small">Avg Txns</div><div class="fw-bold">${Number(m.avg_txns||0).toFixed(1)}</div></div>
+        <div class="col-2 text-center"><div class="text-muted small">Avg Basket</div><div class="fw-bold">$${Number(m.avg_basket||0).toFixed(2)}</div></div>
+        <div class="col-2 text-center"><div class="text-muted small">Avg Risk</div><div class="fw-bold">${(Number(m.avg_churn_probability||0)*100).toFixed(1)}%</div></div>
+        <div class="col-2 text-center"><div class="text-muted small">Risk Range</div>
+          <div class="fw-bold">${(Number(m.min_churn_probability||0)*100).toFixed(0)}% - ${(Number(m.max_churn_probability||0)*100).toFixed(0)}%</div>
+        </div>
+      </div>`;
+
+      body += '<h6 class="mt-3">Top Households</h6><div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Household</th><th>Spend</th><th>Txns</th><th>Avg Basket</th><th>R-F-M</th><th>Churn %</th><th>Updated</th></tr></thead><tbody>';
+      (j.top_households||[]).forEach(h=>{
+        body += `<tr>
+          <td>${h.household_key}</td>
+          <td>$${Number(h.total_spend||0).toFixed(2)}</td>
+          <td>${h.total_transactions||0}</td>
+          <td>$${Number(h.avg_basket_value||0).toFixed(2)}</td>
+          <td>${h.recency_score||'-'}-${h.frequency_score||'-'}-${h.monetary_score||'-'}</td>
+          <td>${(Number(h.churn_probability||0)*100).toFixed(1)}%</td>
+          <td>${(h.updated_at||'').toString().slice(0,10)}</td>
+        </tr>`;
+      });
+      body += '</tbody></table></div>';
+
+      showDetailModal('Churn Risk: '+risk, body);
+
+    });
+  });
+
 });
+
+
 </script>
 
 {% endblock %}
