@@ -23,6 +23,7 @@ urlpatterns = [
     path("api/product/", views.api_product_details, name="api_product_details"),
     path("api/household/", views.api_household_details, name="api_household_details"),
     path("api/segment/", views.api_segment_details, name="api_segment_details"),
+    path("api/churn/", views.churn_api, name="churn_api"),
     path("api/differential/", views.api_differential_analysis, name="api_differential_analysis"),
     # ML API endpoints
     path("api/ml/predictive/", views.predictive_analysis_api, name="predictive_analysis_api"),
