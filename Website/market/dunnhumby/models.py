@@ -208,6 +208,12 @@ class CustomerSegment(models.Model):
     avg_basket_value = models.DecimalField(max_digits=10, decimal_places=2)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    churn_probability = models.FloatField(
+        default=0.0,
+        null=True,
+        blank=True,
+        help_text="churn probability score"
+    )
 
     class Meta:
         indexes = [
