@@ -696,3 +696,22 @@ class ChurnPredictor:
             self.evaluate_model()
             return True
         return False
+			
+    def predict_probabilities(self, customers_df):
+        """
+        احتمال ریزش را برای یک مجموعه داده مشتری پیش‌بینی می‌کند.
+        """
+        if not hasattr(self.model, 'predict_proba'):
+            print("مدل هنوز آموزش داده نشده یا از پیش‌بینی احتمال پشتیبانی نمی‌کند.")
+            return None
+
+        # اطمینان از هماهنگی ستون‌های داده جدید با داده‌های زمان آموزش
+        model_features = self.model.get_booster().feature_names
+        customers_df_aligned = customers_df.reindex(columns=model_features, fill_value=0)
+
+        # متد predict_proba احتمال هر دو کلاس را برمی‌گرداند: [احتمال عدم ریزش, احتمال ریزش]
+        # ما فقط به احتمال کلاس دوم (ریزش) نیاز داریم.
+        probabilities = self.model.predict_proba(customers_df_aligned)[:, 1]
+        
+        return probabilities
+    
