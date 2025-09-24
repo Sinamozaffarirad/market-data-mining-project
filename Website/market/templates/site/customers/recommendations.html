@@ -2,9 +2,38 @@
 {% load static %}
 
 {% block content %}
-<div class="container my-5">
-  <h3>Recommendations for Customer {{ household.household_key }}</h3>
-  <p>This is the Recommendations page.</p>
-  <a href="{% url 'customers:detail' household.household_key %}" class="btn btn-primary">← Back</a>
+<div class="text-center mb-4 fw-bold">
+  <h3>Hybrid Recommendations for Customer {{ household.household_key }}</h3>
 </div>
+
+{% if hybrid_recommendations %}
+<table class="table table-bordered table-striped">
+  <thead class="table-dark">
+    <tr>
+      <th>Product ID</th><th>Brand</th><th>Department</th>
+      <th>Commodity</th><th>Size</th>
+      <th>Hybrid Score</th>
+      <th>Confidence</th><th>Lift</th><th>Support</th><th>CF Score</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for rec in hybrid_recommendations %}
+    <tr>
+      <td>{{ rec.product.product_id }}</td>
+      <td>{{ rec.product.brand }}</td>
+      <td>{{ rec.product.department }}</td>
+      <td>{{ rec.product.commodity_desc }}</td>
+      <td>{{ rec.product.curr_size_of_product }}</td>
+      <td>{{ rec.hybrid_score }}</td>
+      <td>{{ rec.confidence|default:"-" }}</td>
+      <td>{{ rec.lift|default:"-" }}</td>
+      <td>{{ rec.support|default:"-" }}</td>
+      <td>{{ rec.cf_score|default:"-" }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>No recommendations available.</p>
+{% endif %}
 {% endblock %}
