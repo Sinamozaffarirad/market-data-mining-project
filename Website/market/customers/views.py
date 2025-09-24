@@ -4,6 +4,8 @@ from django.contrib import messages
 from .models import CustomerProfile, Transaction, Product
 from collections import defaultdict
 from django.core.paginator import Paginator
+from dunnhumby.models import AssociationRule  
+from dunnhumby.collab_filter import get_cf_recommendations
 
 def customer_search(request):
     household_key = request.GET.get("household_key")
@@ -24,13 +26,87 @@ def customer_detail(request, pk):
 
 def customer_recommendations(request, pk):
     household = get_object_or_404(CustomerProfile, household_key=pk)
-    return render(request, "site/customers/recommendations.html", {"household": household})
+
+    # ----------------------
+    # AssociationRule-based
+    # ----------------------
+    recent_transactions = Transaction.objects.filter(
+        household_key=pk
+    ).order_by("-day")[:20]
+
+    purchased_items = set(str(tr.product_id) for tr in recent_transactions)
+    rules = AssociationRule.objects.filter(rule_type="product").order_by("-lift")[:200]
+
+    association_recommendations = {}
+    for rule in rules:
+        antecedent = set(map(str, rule.antecedent))
+        consequent = set(map(str, rule.consequent))
+        if antecedent & purchased_items:
+            for product_id in consequent:
+                if product_id not in purchased_items:
+                    product = Product.objects.filter(product_id=product_id).first()
+                    if product:
+                        score = rule.confidence * rule.lift
+                        association_recommendations[product_id] = {
+                            "product": product,
+                            "assoc_score": score,
+                            "confidence": round(rule.confidence, 2),
+                            "lift": round(rule.lift, 2),
+                            "support": round(rule.support, 4),
+                        }
+
+    # ----------------------
+    # Collaborative Filtering
+    # ----------------------
+    cf_list = get_cf_recommendations(pk, top_n=50)
+    cf_recommendations = {rec["product"].product_id: rec for rec in cf_list}
+
+    # ----------------------
+    # Hybrid Merge
+    # ----------------------
+    alpha = 0.6  # وزن Association
+    hybrid = {}
+
+    # محصولات از Association
+    for pid, rec in association_recommendations.items():
+        assoc_score = rec["assoc_score"]
+        cf_score = cf_recommendations.get(pid, {}).get("score", 0)
+        final_score = alpha * assoc_score + (1 - alpha) * cf_score
+        hybrid[pid] = {
+            "product": rec["product"],
+            "hybrid_score": round(final_score, 3),
+            "confidence": rec["confidence"],
+            "lift": rec["lift"],
+            "support": rec["support"],
+            "cf_score": cf_score,
+        }
+
+    # محصولات فقط از CF
+    for pid, rec in cf_recommendations.items():
+        if pid not in hybrid:
+            final_score = (1 - alpha) * rec["score"]
+            hybrid[pid] = {
+                "product": rec["product"],
+                "hybrid_score": round(final_score, 3),
+                "confidence": None,
+                "lift": None,
+                "support": None,
+                "cf_score": rec["score"],
+            }
+
+    hybrid_recommendations = sorted(
+        hybrid.values(), key=lambda x: x["hybrid_score"], reverse=True
+    )[:20]
+
+    return render(request, "site/customers/recommendations.html", {
+        "household": household,
+        "hybrid_recommendations": hybrid_recommendations,
+    })
 
 
 def customer_churn(request, pk):
     household = get_object_or_404(CustomerProfile, household_key=pk)
     return render(request, "site/customers/churn.html", {"household": household})
-
 
 FILTER_OPTIONS = {
     "3m": (622, 711),
