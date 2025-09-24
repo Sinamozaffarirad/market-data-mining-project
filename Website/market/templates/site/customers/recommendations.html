@@ -1,39 +1,148 @@
 {% extends "site/base.html" %}
 {% load static %}
 
+{% block extra_css %}
+<style>
+  .table-container {
+    overflow-x: auto;
+    width: 100%;
+  }
+
+  /* کارت‌های هم‌ارتفاع */
+  .commodity-card {
+    width: 250px;
+    min-height: 180px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    transition: transform 0.2s;
+    cursor: pointer;
+  }
+
+  .commodity-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+  }
+
+  .cards-wrapper {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 1rem;
+  }
+
+  .modal-table th, .modal-table td {
+    vertical-align: middle;
+  }
+
+  @media (max-width: 576px) {
+    .commodity-card {
+      width: 90%;
+      min-height: auto;
+    }
+  }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="text-center mb-4 fw-bold">
-  <h3>Hybrid Recommendations for Customer {{ household.household_key }}</h3>
+<div class="container my-5">
+    <div class="text-center mb-4 fw-bold">
+        <h3>Hybrid Recommendations for Customer {{ household.household_key }}</h3>
+    </div>
+
+    <!-- Slider Alpha -->
+    <div class="card shadow-sm p-3 mb-4 mx-auto" style="max-width: 500px;">
+        <form method="get" id="alphaForm">
+            <label for="alphaSlider" class="form-label">
+                <b>Adjust Weight (Alpha):</b> 
+                <span id="alphaValue" class="fw-bold text-primary">{{ current_alpha|floatformat:2 }}</span>
+            </label>
+            <div class="d-flex align-items-center">
+                <small class="me-2">CF</small>
+                <input type="range" class="form-range" id="alphaSlider" name="alpha" 
+                       min="0.0" max="1.0" step="0.05" value="{{ current_alpha }}"
+                       oninput="document.getElementById('alphaValue').textContent = parseFloat(this.value).toFixed(2);"
+                       onchange="this.form.submit();">
+                <small class="ms-2">Rules</small>
+            </div>
+        </form>
+    </div>
+
+    <!-- کارت‌ها -->
+    {% if grouped_recommendations %}
+    <div class="cards-wrapper">
+        {% for commodity, rec_list in grouped_recommendations.items %}
+        <div class="card shadow-sm commodity-card text-center p-3 btn btn-light"
+             data-bs-toggle="modal" data-bs-target="#modal-{{ forloop.counter }}">
+            <div>
+                <i class="fas fa-tag fa-2x text-primary mb-2"></i>
+                <h5 class="card-title"><strong>{{ commodity }}</strong></h5>
+                <p class="card-text text-muted">{{ rec_list|length }} recommended product{{ rec_list|length|pluralize }}</p>
+            </div>
+            <div class="mt-2">
+                <small class="text-muted">Click to view details</small>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-center text-muted mt-4">No recommendations available for the selected alpha value.</p>
+    {% endif %}
+
+    <div class="text-center mt-4">
+        <a href="{% url 'customers:detail' household.household_key %}" class="btn btn-primary">← Back</a>
+    </div>
 </div>
 
-{% if hybrid_recommendations %}
-<table class="table table-bordered table-striped">
-  <thead class="table-dark">
-    <tr>
-      <th>Product ID</th><th>Brand</th><th>Department</th>
-      <th>Commodity</th><th>Size</th>
-      <th>Hybrid Score</th>
-      <th>Confidence</th><th>Lift</th><th>Support</th><th>CF Score</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for rec in hybrid_recommendations %}
-    <tr>
-      <td>{{ rec.product.product_id }}</td>
-      <td>{{ rec.product.brand }}</td>
-      <td>{{ rec.product.department }}</td>
-      <td>{{ rec.product.commodity_desc }}</td>
-      <td>{{ rec.product.curr_size_of_product }}</td>
-      <td>{{ rec.hybrid_score }}</td>
-      <td>{{ rec.confidence|default:"-" }}</td>
-      <td>{{ rec.lift|default:"-" }}</td>
-      <td>{{ rec.support|default:"-" }}</td>
-      <td>{{ rec.cf_score|default:"-" }}</td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
-{% else %}
-<p>No recommendations available.</p>
-{% endif %}
+<!-- Modal ها -->
+{% for commodity, rec_list in grouped_recommendations.items %}
+<div class="modal fade" id="modal-{{ forloop.counter }}" tabindex="-1" aria-labelledby="modalLabel-{{ forloop.counter }}" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modalLabel-{{ forloop.counter }}">{{ commodity }} Recommendations</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body table-container">
+        <table class="table table-striped modal-table">
+          <thead>
+            <tr>
+              <th>Brand</th>
+              <th>Product ID</th>
+              <th>Size</th>
+              <th>Department</th>
+              <th>Commodity</th>
+              <th>Hybrid Score</th>
+              <th>CF Score</th>
+              <th>Confidence</th>
+              <th>Lift</th>
+              <th>Support</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for rec in rec_list %}
+            <tr>
+              <td>{{ rec.product.brand|default:"N/A" }}</td>
+              <td>{{ rec.product.product_id }}</td>
+              <td>{{ rec.product.curr_size_of_product|default:"N/A" }}</td>
+              <td>{{ rec.product.department|default:"N/A" }}</td>
+              <td>{{ rec.product.commodity_desc|default:"N/A" }}</td>
+              <td>{{ rec.hybrid_score }}</td>
+              <td>{{ rec.cf_score|default:"-" }}</td>
+              <td>{{ rec.confidence|default:"-" }}</td>
+              <td>{{ rec.lift|default:"-" }}</td>
+              <td>{{ rec.support|default:"-" }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endfor %}
 {% endblock %}
+
