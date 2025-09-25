@@ -1,5 +1,6 @@
 {% extends "site/base.html" %}
 {% load static %}
+{% block title %}Customer Recommendations{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -7,21 +8,44 @@
     overflow-x: auto;
     width: 100%;
   }
-
-  /* کارت‌های هم‌ارتفاع */
+  
   .commodity-card {
     width: 250px;
     min-height: 180px;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    transition: transform 0.2s;
+    transition: all 0.3s ease-in-out;
     cursor: pointer;
+    border-radius: 10px;
+    border: 1px solid #e0e0e0;
+    background: #fff;
+    position: relative;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+  }
+
+  .commodity-card::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 5px;           
+    width: 100%;
+    background: linear-gradient(90deg, #7f5cff, #9c6dff);
+    border-top-left-radius: 10px;
+    border-top-right-radius: 10px;
+    transform: scaleX(0);
+    transform-origin: center;
+    transition: transform 0.3s ease-in-out;
+  }
+
+  .commodity-card:hover::before {
+    transform: scaleX(1);
   }
 
   .commodity-card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+    transform: translateY(-6px) scale(1.02);
+    box-shadow: 0 15px 30px rgba(0,0,0,0.2);
   }
 
   .cards-wrapper {
@@ -41,6 +65,26 @@
       min-height: auto;
     }
   }
+
+  .table-container {
+    overflow-x: auto;
+    width: 100%;
+  }
+
+  .commodity-card .card-title {
+    font-size: 0.9rem;  
+    margin-bottom: 0.5rem;
+  }
+
+  .commodity-card .card-text {
+    font-size: 0.9rem;
+    margin-bottom: 0.3rem;
+  }
+
+  .commodity-card small {
+    font-size: 0.8rem; 
+  }
+
 </style>
 {% endblock %}
 
@@ -72,7 +116,7 @@
     {% if grouped_recommendations %}
     <div class="cards-wrapper">
         {% for commodity, rec_list in grouped_recommendations.items %}
-        <div class="card shadow-sm commodity-card text-center p-3 btn btn-light"
+        <div class="card shadow-sm commodity-card text-center p-3 "
              data-bs-toggle="modal" data-bs-target="#modal-{{ forloop.counter }}">
             <div>
                 <i class="fas fa-tag fa-2x text-primary mb-2"></i>
@@ -97,51 +141,60 @@
 <!-- Modal ها -->
 {% for commodity, rec_list in grouped_recommendations.items %}
 <div class="modal fade" id="modal-{{ forloop.counter }}" tabindex="-1" aria-labelledby="modalLabel-{{ forloop.counter }}" aria-hidden="true">
-  <div class="modal-dialog modal-xl modal-dialog-scrollable">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="modalLabel-{{ forloop.counter }}">{{ commodity }} Recommendations</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <div class="modal-body table-container">
-        <table class="table table-striped modal-table">
-          <thead>
-            <tr>
-              <th>Brand</th>
-              <th>Product ID</th>
-              <th>Size</th>
-              <th>Department</th>
-              <th>Commodity</th>
-              <th>Hybrid Score</th>
-              <th>CF Score</th>
-              <th>Confidence</th>
-              <th>Lift</th>
-              <th>Support</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for rec in rec_list %}
-            <tr>
-              <td>{{ rec.product.brand|default:"N/A" }}</td>
-              <td>{{ rec.product.product_id }}</td>
-              <td>{{ rec.product.curr_size_of_product|default:"N/A" }}</td>
-              <td>{{ rec.product.department|default:"N/A" }}</td>
-              <td>{{ rec.product.commodity_desc|default:"N/A" }}</td>
-              <td>{{ rec.hybrid_score }}</td>
-              <td>{{ rec.cf_score|default:"-" }}</td>
-              <td>{{ rec.confidence|default:"-" }}</td>
-              <td>{{ rec.lift|default:"-" }}</td>
-              <td>{{ rec.support|default:"-" }}</td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Close</button>
-      </div>
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalLabel-{{ forloop.counter }}">{{ commodity }} Recommendations</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info d-flex align-items-center" role="alert">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <div>
+                        The <strong>Confidence, Lift,</strong> and <strong>Support</strong> columns only have values for recommendations derived from Association Rules.
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <table class="table table-striped modal-table">
+                        <thead>
+                            <tr>
+                                <th>Brand</th>
+                                <th>Product ID</th>
+                                <th>Size</th>
+                                <th>Department</th>
+                                <th>Commodity</th>
+                                <th>Hybrid Score</th>
+                                <th>CF Score</th>
+                                <th>Confidence</th>
+                                <th>Lift</th>
+                                <th>Support</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for rec in rec_list %}
+                            <tr>
+                                <td>{{ rec.product.brand|default:"N/A" }}</td>
+                                <td>{{ rec.product.product_id }}</td>
+                                <td>{{ rec.product.curr_size_of_product|default:"N/A" }}</td>
+                                <td>{{ rec.product.department|default:"N/A" }}</td>
+                                <td>{{ rec.product.commodity_desc|default:"N/A" }}</td>
+                                <td>{{ rec.hybrid_score }}</td>
+                                <td>{{ rec.cf_score|default:"-" }}</td>
+                                <td>{{ rec.confidence|default:"-" }}</td>
+                                <td>{{ rec.lift|default:"-" }}</td>
+                                <td>{{ rec.support|default:"-" }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
     </div>
-  </div>
 </div>
 {% endfor %}
 {% endblock %}
