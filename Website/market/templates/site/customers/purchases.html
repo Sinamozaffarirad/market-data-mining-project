@@ -1,10 +1,11 @@
 {% extends "site/base.html" %}
 {% load static %}
 {% load custom_filters %}
+{% block title %}Customer Purchases{% endblock %}
 
 {% block content %}
 <div class="container my-5">
-  <h3 class="mb-4">
+  <h3 class="text-center mb-4 fw-bold">
     Purchases for Customer {{ household.household_key }}
   </h3>
   <p class="text-muted">Found {{ transaction_count }} baskets in this period</p>
@@ -80,32 +81,34 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body">
-        <table class="table table-bordered table-striped">
-          <thead class="table-dark">
-            <tr>
-              <th>Product ID</th>
-              <th>Brand</th>
-              <th>Department</th>
-              <th>Commodity</th>
-              <th>Size</th>
-              <th>Quantity</th>
-              <th>Sales Value</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for p in items %}
-            <tr>
-              <td>{{ p.product_id }}</td>
-              <td>{{ p.brand }}</td>
-              <td>{{ p.department }}</td>
-              <td>{{ p.commodity }}</td>
-              <td>{{ p.size }}</td>
-              <td>{{ p.quantity }}</td>
-              <td>${{ p.sales_value }}</td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+        <div class="table-responsive">
+          <table class="table table-bordered table-striped">
+            <thead class="table-dark">
+              <tr>
+                <th>Product ID</th>
+                <th>Brand</th>
+                <th>Department</th>
+                <th>Commodity</th>
+                <th>Size</th>
+                <th>Quantity</th>
+                <th>Sales Value</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for p in items %}
+              <tr>
+                <td>{{ p.product_id }}</td>
+                <td>{{ p.brand }}</td>
+                <td>{{ p.department }}</td>
+                <td>{{ p.commodity }}</td>
+                <td>{{ p.size }}</td>
+                <td>{{ p.quantity }}</td>
+                <td>${{ p.sales_value }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Close</button>

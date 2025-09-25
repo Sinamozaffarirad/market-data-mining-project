@@ -66,3 +66,20 @@ class Product(models.Model):
 
     def __str__(self):
         return f"Product {self.product_id} - {self.brand}"
+
+
+class CustomerRecommendationCache(models.Model):
+    household_key = models.BigIntegerField(unique=True)
+    recommendations = models.JSONField(default=list)
+    alpha = models.FloatField(default=0.6)  
+    rules_version = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "customer_recommendation_cache"
+        verbose_name = "Customer Recommendation Cache"
+        verbose_name_plural = "Customer Recommendation Caches"
+
+    def __str__(self):
+        return f"Cache for Household {self.household_key}"

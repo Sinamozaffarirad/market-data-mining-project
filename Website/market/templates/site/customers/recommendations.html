@@ -1,10 +1,201 @@
 {% extends "site/base.html" %}
 {% load static %}
+{% block title %}Customer Recommendations{% endblock %}
+
+{% block extra_css %}
+<style>
+  .table-container {
+    overflow-x: auto;
+    width: 100%;
+  }
+  
+  .commodity-card {
+    width: 250px;
+    min-height: 180px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    transition: all 0.3s ease-in-out;
+    cursor: pointer;
+    border-radius: 10px;
+    border: 1px solid #e0e0e0;
+    background: #fff;
+    position: relative;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+  }
+
+  .commodity-card::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 5px;           
+    width: 100%;
+    background: linear-gradient(90deg, #7f5cff, #9c6dff);
+    border-top-left-radius: 10px;
+    border-top-right-radius: 10px;
+    transform: scaleX(0);
+    transform-origin: center;
+    transition: transform 0.3s ease-in-out;
+  }
+
+  .commodity-card:hover::before {
+    transform: scaleX(1);
+  }
+
+  .commodity-card:hover {
+    transform: translateY(-6px) scale(1.02);
+    box-shadow: 0 15px 30px rgba(0,0,0,0.2);
+  }
+
+  .cards-wrapper {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 1rem;
+  }
+
+  .modal-table th, .modal-table td {
+    vertical-align: middle;
+  }
+
+  @media (max-width: 576px) {
+    .commodity-card {
+      width: 90%;
+      min-height: auto;
+    }
+  }
+
+  .table-container {
+    overflow-x: auto;
+    width: 100%;
+  }
+
+  .commodity-card .card-title {
+    font-size: 0.9rem;  
+    margin-bottom: 0.5rem;
+  }
+
+  .commodity-card .card-text {
+    font-size: 0.9rem;
+    margin-bottom: 0.3rem;
+  }
+
+  .commodity-card small {
+    font-size: 0.8rem; 
+  }
+
+</style>
+{% endblock %}
 
 {% block content %}
 <div class="container my-5">
-  <h3>Recommendations for Customer {{ household.household_key }}</h3>
-  <p>This is the Recommendations page.</p>
-  <a href="{% url 'customers:detail' household.household_key %}" class="btn btn-primary">← Back</a>
+    <div class="text-center mb-4 fw-bold">
+        <h3>Hybrid Recommendations for Customer {{ household.household_key }}</h3>
+    </div>
+
+    <!-- Slider Alpha -->
+    <div class="card shadow-sm p-3 mb-4 mx-auto" style="max-width: 500px;">
+        <form method="get" id="alphaForm">
+            <label for="alphaSlider" class="form-label">
+                <b>Adjust Weight (Alpha):</b> 
+                <span id="alphaValue" class="fw-bold text-primary">{{ current_alpha|floatformat:2 }}</span>
+            </label>
+            <div class="d-flex align-items-center">
+                <small class="me-2">CF</small>
+                <input type="range" class="form-range" id="alphaSlider" name="alpha" 
+                       min="0.0" max="1.0" step="0.05" value="{{ current_alpha }}"
+                       oninput="document.getElementById('alphaValue').textContent = parseFloat(this.value).toFixed(2);"
+                       onchange="this.form.submit();">
+                <small class="ms-2">Rules</small>
+            </div>
+        </form>
+    </div>
+
+    <!-- کارت‌ها -->
+    {% if grouped_recommendations %}
+    <div class="cards-wrapper">
+        {% for commodity, rec_list in grouped_recommendations.items %}
+        <div class="card shadow-sm commodity-card text-center p-3 "
+             data-bs-toggle="modal" data-bs-target="#modal-{{ forloop.counter }}">
+            <div>
+                <i class="fas fa-tag fa-2x text-primary mb-2"></i>
+                <h5 class="card-title"><strong>{{ commodity }}</strong></h5>
+                <p class="card-text text-muted">{{ rec_list|length }} recommended product{{ rec_list|length|pluralize }}</p>
+            </div>
+            <div class="mt-2">
+                <small class="text-muted">Click to view details</small>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-center text-muted mt-4">No recommendations available for the selected alpha value.</p>
+    {% endif %}
+
+    <div class="text-center mt-4">
+        <a href="{% url 'customers:detail' household.household_key %}" class="btn btn-primary">← Back</a>
+    </div>
 </div>
+
+<!-- Modal ها -->
+{% for commodity, rec_list in grouped_recommendations.items %}
+<div class="modal fade" id="modal-{{ forloop.counter }}" tabindex="-1" aria-labelledby="modalLabel-{{ forloop.counter }}" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalLabel-{{ forloop.counter }}">{{ commodity }} Recommendations</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info d-flex align-items-center" role="alert">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <div>
+                        The <strong>Confidence, Lift,</strong> and <strong>Support</strong> columns only have values for recommendations derived from Association Rules.
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <table class="table table-striped modal-table">
+                        <thead>
+                            <tr>
+                                <th>Brand</th>
+                                <th>Product ID</th>
+                                <th>Size</th>
+                                <th>Department</th>
+                                <th>Commodity</th>
+                                <th>Hybrid Score</th>
+                                <th>CF Score</th>
+                                <th>Confidence</th>
+                                <th>Lift</th>
+                                <th>Support</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for rec in rec_list %}
+                            <tr>
+                                <td>{{ rec.product.brand|default:"N/A" }}</td>
+                                <td>{{ rec.product.product_id }}</td>
+                                <td>{{ rec.product.curr_size_of_product|default:"N/A" }}</td>
+                                <td>{{ rec.product.department|default:"N/A" }}</td>
+                                <td>{{ rec.product.commodity_desc|default:"N/A" }}</td>
+                                <td>{{ rec.hybrid_score }}</td>
+                                <td>{{ rec.cf_score|default:"-" }}</td>
+                                <td>{{ rec.confidence|default:"-" }}</td>
+                                <td>{{ rec.lift|default:"-" }}</td>
+                                <td>{{ rec.support|default:"-" }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endfor %}
 {% endblock %}
+
