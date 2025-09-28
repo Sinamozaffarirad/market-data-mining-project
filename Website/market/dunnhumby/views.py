@@ -6,6 +6,7 @@ from django.db import connection
 from django.urls import reverse
 from django.db.models import Sum, Count, Avg, Max, Q, Min
 from math import sqrt
+import logging
 from .models import (
     Transaction, DunnhumbyProduct, Household, Campaign, Coupon,
     CouponRedemption, CampaignMember, CausalData, BasketAnalysis,
@@ -18,6 +19,9 @@ import threading
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from django.db import transaction as db_transaction
+
+logger = logging.getLogger(__name__)
+
 
 # Define table categories based on their CRUD properties
 READ_ONLY_ANALYTICAL_TABLES = ['basket_analysis', 'customer_segments']
@@ -78,9 +82,7 @@ def _generate_association_rules(min_support, min_confidence, transaction_period=
     to handle large datasets without memory issues
     """
     from django.db import connection
-    import logging
 
-    logger = logging.getLogger(__name__)
     rules = []
 
     try:
@@ -292,127 +294,149 @@ def _generate_association_rules(min_support, min_confidence, transaction_period=
         raise e  # Re-raise to be caught by the view function
 
 
-def _generate_department_association_rules(min_support, min_confidence, transaction_period='all', max_results=100):
-    """
-    Generate association rules at department level using all transaction data
-    """
-    from django.db import connection
-    import logging
 
-    logger = logging.getLogger(__name__)
+
+
+
+
+
+
+
+
+
+def _generate_department_association_rules(min_support, min_confidence, transaction_period='all', max_results=100):
+    """Generate association rules at department level using Python aggregation for scalability."""
+    from django.db import connection
+    from itertools import combinations
+    from collections import defaultdict
+
     rules = []
+    candidate_limit = max(max_results * 5 if max_results else 100, 100)
+    candidate_limit = min(candidate_limit, 1000)
 
     try:
-        # Calculate date filter based on transaction period
         start_day = None
+        max_day = None
         if transaction_period != 'all':
             with connection.cursor() as cursor:
-                cursor.execute("SELECT MAX(day) FROM transactions")
-                max_day_result = cursor.fetchone()
-                max_day = max_day_result[0] if max_day_result and max_day_result[0] else 365
-
+                cursor.execute('SELECT MAX(day) FROM transactions')
+                max_day_row = cursor.fetchone()
+                max_day = max_day_row[0] if max_day_row and max_day_row[0] is not None else None
+            if max_day is not None:
                 period_days = {
                     '1_month': 30,
                     '3_months': 90,
                     '6_months': 180,
-                    '12_months': 365
+                    '12_months': 365,
                 }
-                days_back = period_days.get(transaction_period, 365)
+                days_back = period_days.get(transaction_period, max_day)
                 start_day = max(1, max_day - days_back + 1)
-                logger.info(f"Filtering transactions from day {start_day} to {max_day} ({transaction_period})")
+                logger.info('Filtering department transactions from day %s to %s (%s)', start_day, max_day, transaction_period)
 
+        # Count baskets for support denominator
         with connection.cursor() as cursor:
-            # Get total number of unique baskets for support calculation
-            logger.info("Starting department-level basket count query...")
             if start_day is not None:
-                basket_count_query = f"SELECT COUNT(DISTINCT basket_id) FROM transactions WHERE day >= {start_day}"
+                cursor.execute('SELECT COUNT(DISTINCT basket_id) FROM transactions WHERE day >= %s', (start_day,))
             else:
-                basket_count_query = "SELECT COUNT(DISTINCT basket_id) FROM transactions"
-            cursor.execute(basket_count_query)
+                cursor.execute('SELECT COUNT(DISTINCT basket_id) FROM transactions')
             result = cursor.fetchone()
             total_baskets = result[0] if result else 0
+        if total_baskets == 0:
+            logger.warning('No baskets found for department-level rules')
+            return rules
 
-            if total_baskets == 0:
-                logger.warning("No baskets found in transactions table")
-                return rules
+        min_basket_count = max(1, int(total_baskets * min_support))
+        logger.info('Department rules: total baskets=%s, min basket count=%s', total_baskets, min_basket_count)
 
-            # Calculate minimum basket count threshold
-            min_basket_count = max(1, int(total_baskets * min_support))
-            logger.info(f"Total baskets: {total_baskets}, Min basket count: {min_basket_count}")
+        # Determine eligible departments (those that can meet min support)
+        base_conditions = []
+        base_params = []
+        if start_day is not None:
+            base_conditions.append('t.day >= %s')
+            base_params.append(start_day)
+        base_conditions.append('p.department IS NOT NULL')
+        where_clause = ' AND '.join(base_conditions)
 
-            # Build the query with optional date filtering for departments
-            if start_day is not None:
-                date_filter_pairs = f" AND t1.day >= {start_day} AND t2.day >= {start_day}"
-                date_filter_single = f" AND t.day >= {start_day}"
-            else:
-                date_filter_pairs = ""
-                date_filter_single = ""
+        eligible_query = (
+            "SELECT TOP " + str(candidate_limit) + " "
+            "p.department, "
+            "COUNT(DISTINCT t.basket_id) AS dept_count "
+            "FROM transactions t "
+            "JOIN product p ON t.product_id = p.product_id "
+            "WHERE " + where_clause + " "
+            "GROUP BY p.department "
+            "HAVING COUNT(DISTINCT t.basket_id) >= %s "
+            "ORDER BY dept_count DESC"
+        )
+        eligible_params = tuple(base_params + [min_basket_count])
+        with connection.cursor() as cursor:
+            cursor.execute(eligible_query, eligible_params)
+            eligible_rows = cursor.fetchall()
 
-            # Find frequent department pairs
-            pairs_query = f"""
-            SELECT TOP 1000
-                pairs.dept_a,
-                pairs.dept_b,
-                pairs.pair_count,
-                counts_a.dept_count as count_a,
-                counts_b.dept_count as count_b
-            FROM (
-                SELECT
-                    p1.department as dept_a,
-                    p2.department as dept_b,
-                    COUNT(DISTINCT t1.basket_id) as pair_count
-                FROM transactions t1
-                JOIN transactions t2 ON t1.basket_id = t2.basket_id
-                    AND t1.product_id != t2.product_id
-                JOIN product p1 ON t1.product_id = p1.product_id
-                JOIN product p2 ON t2.product_id = p2.product_id
-                WHERE p1.department < p2.department
-                    AND p1.department IS NOT NULL
-                    AND p2.department IS NOT NULL
-                    {date_filter_pairs}
-                GROUP BY p1.department, p2.department
-                HAVING COUNT(DISTINCT t1.basket_id) >= %s
-            ) pairs
-            JOIN (
-                SELECT
-                    p.department,
-                    COUNT(DISTINCT t.basket_id) as dept_count
-                FROM transactions t
-                JOIN product p ON t.product_id = p.product_id
-                {date_filter_single}
-                WHERE p.department IS NOT NULL
-                GROUP BY p.department
-            ) counts_a ON pairs.dept_a = counts_a.department
-            JOIN (
-                SELECT
-                    p.department,
-                    COUNT(DISTINCT t.basket_id) as dept_count
-                FROM transactions t
-                JOIN product p ON t.product_id = p.product_id
-                {date_filter_single}
-                WHERE p.department IS NOT NULL
-                GROUP BY p.department
-            ) counts_b ON pairs.dept_b = counts_b.department
-            ORDER BY pairs.pair_count DESC
-            """
+        if not eligible_rows or len(eligible_rows) < 2:
+            logger.info('No departments met the minimum support threshold (%s)', min_support)
+            return rules
 
-            logger.info(f"Executing department pairs query with min_basket_count: {min_basket_count}")
-            cursor.execute(pairs_query, [min_basket_count])
+        dept_counts = {row[0]: row[1] for row in eligible_rows if row[0]}
+        eligible_departments = list(dept_counts.keys())
+        if len(eligible_departments) < 2:
+            logger.info('Not enough departments met support threshold to form rules')
+            return rules
 
-            department_pairs = cursor.fetchall()
-            logger.info(f"Found {len(department_pairs)} department pairs")
+        # Stream basket-department pairs for eligible departments only
+        placeholders = ','.join(['%s'] * len(eligible_departments))
+        stream_query = (
+            "SELECT t.basket_id, p.department "
+            "FROM transactions t "
+            "JOIN product p ON t.product_id = p.product_id "
+            "WHERE " + where_clause + " AND p.department IN (" + placeholders + ") "
+            "GROUP BY t.basket_id, p.department "
+            "ORDER BY t.basket_id"
+        )
+        stream_params = tuple(base_params + eligible_departments)
 
-        # Process the pairs to generate rules
-        for dept_a, dept_b, pair_count, count_a, count_b in department_pairs:
-            # Calculate metrics
+        pair_counts = defaultdict(int)
+        current_basket = None
+        current_departments = set()
+
+        def process_current():
+            if current_departments and len(current_departments) >= 2:
+                for dept_a, dept_b in combinations(sorted(current_departments), 2):
+                    pair_counts[(dept_a, dept_b)] += 1
+
+        with connection.cursor() as cursor:
+            cursor.arraysize = 5000
+            cursor.execute(stream_query, stream_params)
+            while True:
+                batch = cursor.fetchmany(cursor.arraysize)
+                if not batch:
+                    break
+                for basket_id, department in batch:
+                    if department is None:
+                        continue
+                    if current_basket is None:
+                        current_basket = basket_id
+                    if basket_id != current_basket:
+                        process_current()
+                        current_departments.clear()
+                        current_basket = basket_id
+                    current_departments.add(department)
+            # Process final basket
+            process_current()
+
+        if not pair_counts:
+            logger.info('No department pairs met qualification criteria after streaming')
+            return rules
+
+        for (dept_a, dept_b), pair_count in pair_counts.items():
+            if pair_count < min_basket_count:
+                continue
             support = pair_count / total_baskets
-            confidence_a_to_b = pair_count / count_a if count_a > 0 else 0
-            confidence_b_to_a = pair_count / count_b if count_b > 0 else 0
+            confidence_a_to_b = pair_count / dept_counts.get(dept_a, 1)
+            confidence_b_to_a = pair_count / dept_counts.get(dept_b, 1)
 
-            # Generate rule A -> B
             if confidence_a_to_b >= min_confidence:
-                lift = confidence_a_to_b / (count_b / total_baskets) if count_b > 0 else 0
-
+                lift = confidence_a_to_b / (dept_counts.get(dept_b, 1) / total_baskets)
                 rules.append({
                     'antecedent': dept_a,
                     'consequent': dept_b,
@@ -421,11 +445,8 @@ def _generate_department_association_rules(min_support, min_confidence, transact
                     'lift': lift,
                     'rule_type': 'department'
                 })
-
-            # Generate rule B -> A (if different from A -> B)
             if confidence_b_to_a >= min_confidence and confidence_b_to_a != confidence_a_to_b:
-                lift = confidence_b_to_a / (count_a / total_baskets) if count_a > 0 else 0
-
+                lift = confidence_b_to_a / (dept_counts.get(dept_a, 1) / total_baskets)
                 rules.append({
                     'antecedent': dept_b,
                     'consequent': dept_a,
@@ -435,141 +456,146 @@ def _generate_department_association_rules(min_support, min_confidence, transact
                     'rule_type': 'department'
                 })
 
-        # Sort by lift and return top N results
         all_rules = sorted(rules, key=lambda x: x['lift'], reverse=True)
-        logger.info(f"Generated {len(all_rules)} department association rules, returning top {max_results}")
+        logger.info('Generated %s department rules after streaming, returning top %s', len(all_rules), max_results)
         return all_rules[:max_results]
 
     except Exception as e:
-        logger.error(f"Error in _generate_department_association_rules: {str(e)}")
-        raise e
+        logger.exception('Error in _generate_department_association_rules')
+        raise
+
 
 
 def _generate_commodity_association_rules(min_support, min_confidence, transaction_period='all', max_results=100):
-    """
-    Generate association rules at commodity level using all transaction data
-    """
+    """Generate association rules at commodity level using Python aggregation for scalability."""
     from django.db import connection
-    import logging
+    from itertools import combinations
+    from collections import defaultdict
 
-    logger = logging.getLogger(__name__)
     rules = []
+    candidate_limit = max(max_results * 5 if max_results else 100, 200)
+    candidate_limit = min(candidate_limit, 3000)
 
     try:
-        # Calculate date filter based on transaction period
         start_day = None
+        max_day = None
         if transaction_period != 'all':
             with connection.cursor() as cursor:
-                cursor.execute("SELECT MAX(day) FROM transactions")
-                max_day_result = cursor.fetchone()
-                max_day = max_day_result[0] if max_day_result and max_day_result[0] else 365
-
+                cursor.execute('SELECT MAX(day) FROM transactions')
+                max_day_row = cursor.fetchone()
+                max_day = max_day_row[0] if max_day_row and max_day_row[0] is not None else None
+            if max_day is not None:
                 period_days = {
                     '1_month': 30,
                     '3_months': 90,
                     '6_months': 180,
-                    '12_months': 365
+                    '12_months': 365,
                 }
-                days_back = period_days.get(transaction_period, 365)
+                days_back = period_days.get(transaction_period, max_day)
                 start_day = max(1, max_day - days_back + 1)
-                logger.info(f"Filtering transactions from day {start_day} to {max_day} ({transaction_period})")
+                logger.info('Filtering commodity transactions from day %s to %s (%s)', start_day, max_day, transaction_period)
 
+        # Count baskets for support denominator
         with connection.cursor() as cursor:
-            # Get total number of unique baskets for support calculation
-            logger.info("Starting commodity-level basket count query...")
             if start_day is not None:
-                basket_count_query = f"SELECT COUNT(DISTINCT basket_id) FROM transactions WHERE day >= {start_day}"
+                cursor.execute('SELECT COUNT(DISTINCT basket_id) FROM transactions WHERE day >= %s', (start_day,))
             else:
-                basket_count_query = "SELECT COUNT(DISTINCT basket_id) FROM transactions"
-            cursor.execute(basket_count_query)
+                cursor.execute('SELECT COUNT(DISTINCT basket_id) FROM transactions')
             result = cursor.fetchone()
             total_baskets = result[0] if result else 0
+        if total_baskets == 0:
+            logger.warning('No baskets found for commodity-level rules')
+            return rules
 
-            if total_baskets == 0:
-                logger.warning("No baskets found in transactions table")
-                return rules
+        min_basket_count = max(1, int(total_baskets * min_support))
+        logger.info('Commodity rules: total baskets=%s, min basket count=%s', total_baskets, min_basket_count)
 
-            # Calculate minimum basket count threshold - use lower threshold for commodities
-            min_basket_count = max(1, int(total_baskets * min_support))
-            # For commodities, use even lower threshold due to higher granularity
-            if min_basket_count > 50:
-                min_basket_count = max(10, min_basket_count // 5)
-            logger.info(f"Total baskets: {total_baskets}, Min basket count for commodities: {min_basket_count}")
+        base_conditions = []
+        base_params = []
+        if start_day is not None:
+            base_conditions.append('t.day >= %s')
+            base_params.append(start_day)
+        base_conditions.append('p.commodity_desc IS NOT NULL')
+        where_clause = ' AND '.join(base_conditions)
 
-            # Build the query with optional date filtering for commodities
-            if start_day is not None:
-                date_filter_pairs = f" AND t1.day >= {start_day} AND t2.day >= {start_day}"
-                date_filter_single = f" AND t.day >= {start_day}"
-            else:
-                date_filter_pairs = ""
-                date_filter_single = ""
+        eligible_query = (
+            "SELECT TOP " + str(candidate_limit) + " "
+            "p.commodity_desc, "
+            "COUNT(DISTINCT t.basket_id) AS comm_count "
+            "FROM transactions t "
+            "JOIN product p ON t.product_id = p.product_id "
+            "WHERE " + where_clause + " "
+            "GROUP BY p.commodity_desc "
+            "HAVING COUNT(DISTINCT t.basket_id) >= %s "
+            "ORDER BY comm_count DESC"
+        )
+        eligible_params = tuple(base_params + [min_basket_count])
+        with connection.cursor() as cursor:
+            cursor.execute(eligible_query, eligible_params)
+            eligible_rows = cursor.fetchall()
 
-            # Find frequent commodity pairs - use simplified approach for better performance
-            pairs_query = f"""
-            SELECT TOP 1000
-                pairs.comm_a,
-                pairs.comm_b,
-                pairs.pair_count,
-                counts_a.comm_count as count_a,
-                counts_b.comm_count as count_b
-            FROM (
-                SELECT
-                    p1.commodity_desc as comm_a,
-                    p2.commodity_desc as comm_b,
-                    COUNT(DISTINCT t1.basket_id) as pair_count
-                FROM transactions t1
-                JOIN transactions t2 ON t1.basket_id = t2.basket_id
-                    AND t1.product_id != t2.product_id
-                JOIN product p1 ON t1.product_id = p1.product_id
-                JOIN product p2 ON t2.product_id = p2.product_id
-                WHERE p1.commodity_desc IS NOT NULL
-                    AND p2.commodity_desc IS NOT NULL
-                    AND p1.commodity_desc != p2.commodity_desc
-                    AND p1.commodity_desc < p2.commodity_desc
-                    {date_filter_pairs}
-                GROUP BY p1.commodity_desc, p2.commodity_desc
-                HAVING COUNT(DISTINCT t1.basket_id) >= %s
-            ) pairs
-            JOIN (
-                SELECT
-                    p.commodity_desc,
-                    COUNT(DISTINCT t.basket_id) as comm_count
-                FROM transactions t
-                JOIN product p ON t.product_id = p.product_id
-                {date_filter_single}
-                WHERE p.commodity_desc IS NOT NULL
-                GROUP BY p.commodity_desc
-            ) counts_a ON pairs.comm_a = counts_a.commodity_desc
-            JOIN (
-                SELECT
-                    p.commodity_desc,
-                    COUNT(DISTINCT t.basket_id) as comm_count
-                FROM transactions t
-                JOIN product p ON t.product_id = p.product_id
-                {date_filter_single}
-                WHERE p.commodity_desc IS NOT NULL
-                GROUP BY p.commodity_desc
-            ) counts_b ON pairs.comm_b = counts_b.commodity_desc
-            ORDER BY pairs.pair_count DESC
-            """
+        if not eligible_rows or len(eligible_rows) < 2:
+            logger.info('No commodities met the minimum support threshold (%s)', min_support)
+            return rules
 
-            logger.info(f"Executing commodity pairs query with min_basket_count: {min_basket_count}")
-            cursor.execute(pairs_query, [min_basket_count])
+        commodity_counts = {row[0]: row[1] for row in eligible_rows if row[0]}
+        eligible_commodities = list(commodity_counts.keys())
+        if len(eligible_commodities) < 2:
+            logger.info('Not enough commodities met support threshold to form rules')
+            return rules
 
-            commodity_pairs = cursor.fetchall()
-            logger.info(f"Found {len(commodity_pairs)} commodity pairs")
+        placeholders = ','.join(['%s'] * len(eligible_commodities))
+        stream_query = (
+            "SELECT t.basket_id, p.commodity_desc "
+            "FROM transactions t "
+            "JOIN product p ON t.product_id = p.product_id "
+            "WHERE " + where_clause + " AND p.commodity_desc IN (" + placeholders + ") "
+            "GROUP BY t.basket_id, p.commodity_desc "
+            "ORDER BY t.basket_id"
+        )
+        stream_params = tuple(base_params + eligible_commodities)
 
-        # Process the pairs to generate rules
-        for comm_a, comm_b, pair_count, count_a, count_b in commodity_pairs:
-            # Calculate metrics
+        pair_counts = defaultdict(int)
+        current_basket = None
+        current_commodities = set()
+
+        def process_current():
+            if current_commodities and len(current_commodities) >= 2:
+                for comm_a, comm_b in combinations(sorted(current_commodities), 2):
+                    pair_counts[(comm_a, comm_b)] += 1
+
+        with connection.cursor() as cursor:
+            cursor.arraysize = 5000
+            cursor.execute(stream_query, stream_params)
+            while True:
+                batch = cursor.fetchmany(cursor.arraysize)
+                if not batch:
+                    break
+                for basket_id, commodity in batch:
+                    if commodity is None:
+                        continue
+                    if current_basket is None:
+                        current_basket = basket_id
+                    if basket_id != current_basket:
+                        process_current()
+                        current_commodities.clear()
+                        current_basket = basket_id
+                    current_commodities.add(commodity)
+            process_current()
+
+        if not pair_counts:
+            logger.info('No commodity pairs met qualification criteria after streaming')
+            return rules
+
+        for (comm_a, comm_b), pair_count in pair_counts.items():
+            if pair_count < min_basket_count:
+                continue
             support = pair_count / total_baskets
-            confidence_a_to_b = pair_count / count_a if count_a > 0 else 0
-            confidence_b_to_a = pair_count / count_b if count_b > 0 else 0
+            confidence_a_to_b = pair_count / commodity_counts.get(comm_a, 1)
+            confidence_b_to_a = pair_count / commodity_counts.get(comm_b, 1)
 
-            # Generate rule A -> B
             if confidence_a_to_b >= min_confidence:
-                lift = confidence_a_to_b / (count_b / total_baskets) if count_b > 0 else 0
-
+                lift = confidence_a_to_b / (commodity_counts.get(comm_b, 1) / total_baskets)
                 rules.append({
                     'antecedent': comm_a,
                     'consequent': comm_b,
@@ -578,11 +604,8 @@ def _generate_commodity_association_rules(min_support, min_confidence, transacti
                     'lift': lift,
                     'rule_type': 'commodity'
                 })
-
-            # Generate rule B -> A (if different from A -> B)
             if confidence_b_to_a >= min_confidence and confidence_b_to_a != confidence_a_to_b:
-                lift = confidence_b_to_a / (count_a / total_baskets) if count_a > 0 else 0
-
+                lift = confidence_b_to_a / (commodity_counts.get(comm_a, 1) / total_baskets)
                 rules.append({
                     'antecedent': comm_b,
                     'consequent': comm_a,
@@ -592,15 +615,13 @@ def _generate_commodity_association_rules(min_support, min_confidence, transacti
                     'rule_type': 'commodity'
                 })
 
-        # Sort by lift and return top N results
         all_rules = sorted(rules, key=lambda x: x['lift'], reverse=True)
-        logger.info(f"Generated {len(all_rules)} commodity association rules, returning top {max_results}")
+        logger.info('Generated %s commodity rules after streaming, returning top %s', len(all_rules), max_results)
         return all_rules[:max_results]
 
     except Exception as e:
-        logger.error(f"Error in _generate_commodity_association_rules: {str(e)}")
-        raise e
-
+        logger.exception('Error in _generate_commodity_association_rules')
+        raise
 
 def _get_data_statistics():
     return {
@@ -681,10 +702,6 @@ def basket_analysis(request):
     """
     Optimized Market Basket Analysis for 2.6M+ transactions
     """
-    import logging
-    from django.db import connection
-
-    logger = logging.getLogger(__name__)
     logger.info("Starting basket analysis for 2.6M+ transactions")
 
     try:
@@ -2479,106 +2496,264 @@ def api_delete_record(request):
 @login_required(login_url='/admin/login/')
 def api_generate_department_rules(request):
     """API endpoint for generating department-level association rules"""
-    if request.method == 'POST':
-        try:
-            min_support = float(request.POST.get('min_support', 0.001))
-            min_confidence = float(request.POST.get('min_confidence', 0.6))
-            transaction_period = request.POST.get('transaction_period', 'all')
-            max_results = int(request.POST.get('max_results', 100))
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Only POST method allowed'}, status=405)
 
-            # Validate parameters - allow very small support values like main view
-            if min_support <= 0 or min_support > 1:
-                min_support = 0.001  # More reasonable default for department rules
-            # Add aggressive performance optimization for very small support
-            if min_support < 0.001 and transaction_period in ['all', '12_months']:
-                # Force much shorter period for small support to avoid timeouts
-                transaction_period = '3_months'
-                logger.warning(f"Small support ({min_support}) with large dataset - limiting to 3 months for performance")
-            elif min_support < 0.0005 and transaction_period == 'all':
-                transaction_period = '1_month'
-                logger.warning(f"Very small support ({min_support}) with all data - limiting to 1 month for performance")
-            elif min_support < 0.0001:
-                transaction_period = '1_month'
-                max_results = min(max_results, 15)  # Heavily limit results for ultra-rare patterns
-                logger.info(f"Ultra-small support detected, limiting to 1 month and {max_results} results")
+    try:
+        min_support = float(request.POST.get('min_support', 0.001))
+    except (TypeError, ValueError):
+        min_support = 0.001
 
-            if min_confidence <= 0 or min_confidence > 1:
-                min_confidence = 0.6
-            if transaction_period not in ['all', '1_month', '3_months', '6_months', '12_months']:
-                transaction_period = 'all'
-            if max_results not in [25, 50, 100, 200, 500]:
-                max_results = 100
+    try:
+        min_confidence = float(request.POST.get('min_confidence', 0.6))
+    except (TypeError, ValueError):
+        min_confidence = 0.6
 
-            rules = _generate_department_association_rules(min_support, min_confidence, transaction_period, max_results)
+    transaction_period = request.POST.get('transaction_period', 'all') or 'all'
 
-            return JsonResponse({
-                'success': True,
-                'rules': rules,
-                'count': len(rules),
-                'parameters': {
-                    'min_support': min_support,
-                    'min_confidence': min_confidence,
-                    'transaction_period': transaction_period,
-                    'max_results': max_results
-                }
-            })
-        except Exception as e:
-            return JsonResponse({'success': False, 'error': str(e)}, status=500)
+    try:
+        max_results = int(request.POST.get('max_results', 100))
+    except (TypeError, ValueError):
+        max_results = 100
 
-    return JsonResponse({'error': 'Only POST method allowed'}, status=405)
+    min_support = max(1e-6, min(min_support, 1.0))
+    min_confidence = min(max(min_confidence, 0.0), 1.0)
+
+    valid_periods = {'all', '1_month', '3_months', '6_months', '12_months'}
+    if transaction_period not in valid_periods:
+        transaction_period = 'all'
+
+    if max_results <= 0:
+        max_results = 100
+    max_results = min(max_results, 500)
+
+    # Add VERY aggressive performance optimization for 2.6M dataset
+    if min_support <= 0.005 and transaction_period in ['all', '12_months', '6_months']:
+        # For ANY small support value, force to 1 month to avoid timeouts
+        transaction_period = '1_month'
+        logger.warning('Support %s with large dataset - forcing to 1 month (126K transactions) for performance', min_support)
+    elif min_support < 0.002:
+        transaction_period = '1_month'
+        max_results = min(max_results, 20)  # Limit results for small support
+        logger.info('Small support detected, limiting to 1 month and %s results', max_results)
+    elif min_support < 0.001:
+        transaction_period = '1_month'
+        max_results = min(max_results, 15)  # Heavily limit results for very small support
+        logger.info('Very small support detected, limiting to 1 month and %s results', max_results)
+
+    logger.info(
+        'Generating department rules with support=%s, confidence=%s, period=%s, max_results=%s',
+        min_support,
+        min_confidence,
+        transaction_period,
+        max_results,
+    )
+
+    try:
+        rules = _generate_department_association_rules(
+            min_support,
+            min_confidence,
+            transaction_period,
+            max_results,
+        )
+
+        return JsonResponse({
+            'success': True,
+            'rules': rules,
+            'count': len(rules),
+            'parameters': {
+                'min_support': min_support,
+                'min_confidence': min_confidence,
+                'transaction_period': transaction_period,
+                'max_results': max_results,
+            },
+        })
+    except Exception as exc:
+        logger.exception('Failed to generate department association rules')
+        return JsonResponse({'success': False, 'error': str(exc)}, status=500)
+
+
 
 
 @login_required(login_url='/admin/login/')
 def api_generate_commodity_rules(request):
     """API endpoint for generating commodity-level association rules"""
-    if request.method == 'POST':
-        try:
-            min_support = float(request.POST.get('min_support', 0.001))
-            min_confidence = float(request.POST.get('min_confidence', 0.6))
-            transaction_period = request.POST.get('transaction_period', 'all')
-            max_results = int(request.POST.get('max_results', 100))
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Only POST method allowed'}, status=405)
 
-            # Validate parameters - allow very small support values like main view
-            if min_support <= 0 or min_support > 1:
-                min_support = 0.001  # More reasonable default for commodity rules
-            # Add aggressive performance optimization for very small support (commodities are more granular)
-            if min_support < 0.002 and transaction_period in ['all', '12_months']:
-                # Force much shorter period for commodity rules with small support
-                transaction_period = '1_month'
-                logger.warning(f"Small support ({min_support}) with large dataset - limiting commodity rules to 1 month for performance")
-            elif min_support < 0.001 and transaction_period in ['all', '6_months']:
-                transaction_period = '1_month'
-                logger.warning(f"Very small support ({min_support}) - limiting commodity rules to 1 month for performance")
-            elif min_support < 0.0005:
-                transaction_period = '1_month'
-                max_results = min(max_results, 10)  # Heavily limit results for ultra-rare commodity patterns
-                logger.info(f"Ultra-small support detected for commodities, limiting to 1 month and {max_results} results")
+    try:
+        min_support = float(request.POST.get('min_support', 0.001))
+    except (TypeError, ValueError):
+        min_support = 0.001
 
-            if min_confidence <= 0 or min_confidence > 1:
-                min_confidence = 0.6
-            if transaction_period not in ['all', '1_month', '3_months', '6_months', '12_months']:
-                transaction_period = 'all'
-            if max_results not in [20, 25, 50, 100, 200, 500]:
-                max_results = 100
+    try:
+        min_confidence = float(request.POST.get('min_confidence', 0.6))
+    except (TypeError, ValueError):
+        min_confidence = 0.6
 
-            rules = _generate_commodity_association_rules(min_support, min_confidence, transaction_period, max_results)
+    transaction_period = request.POST.get('transaction_period', 'all') or 'all'
 
-            return JsonResponse({
-                'success': True,
-                'rules': rules,
-                'count': len(rules),
-                'parameters': {
-                    'min_support': min_support,
-                    'min_confidence': min_confidence,
-                    'transaction_period': transaction_period,
-                    'max_results': max_results
+    try:
+        max_results = int(request.POST.get('max_results', 100))
+    except (TypeError, ValueError):
+        max_results = 100
+
+    min_support = max(1e-6, min(min_support, 1.0))
+    min_confidence = min(max(min_confidence, 0.0), 1.0)
+
+    valid_periods = {'all', '1_month', '3_months', '6_months', '12_months'}
+    if transaction_period not in valid_periods:
+        transaction_period = 'all'
+
+    if max_results <= 0:
+        max_results = 100
+    max_results = min(max_results, 500)
+
+    # Add VERY aggressive performance optimization for 2.6M dataset (same as department rules)
+    if min_support <= 0.005 and transaction_period in ['all', '12_months', '6_months']:
+        # For ANY small support value, force to 1 month to avoid timeouts
+        transaction_period = '1_month'
+        logger.warning('Support %s with large dataset - forcing to 1 month (126K transactions) for performance', min_support)
+    elif min_support < 0.002:
+        transaction_period = '1_month'
+        max_results = min(max_results, 20)  # Limit results for small support
+        logger.info('Small support detected, limiting to 1 month and %s results', max_results)
+    elif min_support < 0.001:
+        transaction_period = '1_month'
+        max_results = min(max_results, 15)  # Heavily limit results for very small support
+        logger.info('Very small support detected, limiting to 1 month and %s results', max_results)
+
+    logger.info(
+        'Generating commodity rules with support=%s, confidence=%s, period=%s, max_results=%s',
+        min_support,
+        min_confidence,
+        transaction_period,
+        max_results,
+    )
+
+    try:
+        rules = _generate_commodity_association_rules(
+            min_support,
+            min_confidence,
+            transaction_period,
+            max_results,
+        )
+
+        return JsonResponse({
+            'success': True,
+            'rules': rules,
+            'count': len(rules),
+            'parameters': {
+                'min_support': min_support,
+                'min_confidence': min_confidence,
+                'transaction_period': transaction_period,
+                'max_results': max_results,
+            },
+        })
+    except Exception as exc:
+        logger.exception('Failed to generate commodity association rules')
+        return JsonResponse({'success': False, 'error': str(exc)}, status=500)
+
+@csrf_exempt
+def api_get_period_metrics(request):
+    """API endpoint to get basket metrics for a specific transaction period"""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST method required'}, status=405)
+
+    try:
+        transaction_period = request.POST.get('transaction_period', 'all')
+
+        # Validate transaction period
+        valid_periods = {'all', '1_month', '3_months', '6_months', '12_months'}
+        if transaction_period not in valid_periods:
+            transaction_period = 'all'
+
+        from django.db import connection
+
+        # Get the date range for the period
+        start_day = None
+        max_day = None
+
+        if transaction_period != 'all':
+            with connection.cursor() as cursor:
+                cursor.execute('SELECT MAX(day) FROM transactions')
+                max_day_row = cursor.fetchone()
+                max_day = max_day_row[0] if max_day_row and max_day_row[0] is not None else None
+
+            if max_day is not None:
+                period_days = {
+                    '1_month': 30,
+                    '3_months': 90,
+                    '6_months': 180,
+                    '12_months': 365,
                 }
-            })
-        except Exception as e:
-            return JsonResponse({'success': False, 'error': str(e)}, status=500)
+                days_back = period_days.get(transaction_period, max_day)
+                start_day = max(1, max_day - days_back + 1)
 
-    return JsonResponse({'error': 'Only POST method allowed'}, status=405)
+        # Calculate metrics for the specified period
+        with connection.cursor() as cursor:
+            if start_day is not None:
+                # Period-specific metrics
+                cursor.execute("""
+                    SELECT
+                        COUNT(DISTINCT basket_id) as total_baskets,
+                        COUNT(*) as total_transactions,
+                        CAST(COUNT(*) AS FLOAT) / COUNT(DISTINCT basket_id) as avg_basket_size
+                    FROM transactions
+                    WHERE day >= %s
+                """, (start_day,))
+            else:
+                # All-time metrics
+                cursor.execute("""
+                    SELECT
+                        COUNT(DISTINCT basket_id) as total_baskets,
+                        COUNT(*) as total_transactions,
+                        CAST(COUNT(*) AS FLOAT) / COUNT(DISTINCT basket_id) as avg_basket_size
+                    FROM transactions
+                """)
 
+            result = cursor.fetchone()
+            total_baskets, total_transactions, avg_basket_size = result
+
+        # Format the response with appropriate display names
+        period_display_names = {
+            'all': 'All Time',
+            '1_month': 'Last Month',
+            '3_months': 'Last 3 Months',
+            '6_months': 'Last 6 Months',
+            '12_months': 'Last 12 Months'
+        }
+
+        transaction_counts = {
+            'all': '2.6M+',
+            '12_months': '2.6M+',
+            '6_months': '1.3M+',
+            '3_months': '650K+',
+            '1_month': '126K+'
+        }
+
+        period_display = period_display_names.get(transaction_period, 'All Time')
+        transaction_count_text = transaction_counts.get(transaction_period, '2.6M+')
+
+        return JsonResponse({
+            'success': True,
+            'period': transaction_period,
+            'period_display': period_display,
+            'metrics': {
+                'total_baskets': total_baskets,
+                'total_transactions': total_transactions,
+                'avg_basket_size': round(avg_basket_size, 1) if avg_basket_size else 0,
+                'transaction_count_text': transaction_count_text
+            },
+            'date_range': {
+                'start_day': start_day,
+                'max_day': max_day
+            }
+        })
+
+    except Exception as e:
+        logger.exception('Failed to get period metrics')
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
 def api_export_data(request):
     if request.method != 'POST':

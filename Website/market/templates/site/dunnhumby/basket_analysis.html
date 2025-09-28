@@ -1760,11 +1760,56 @@ function updateSliderValues() {
   // Number inputs provide direct value entry without sliders
 }
 
+function updatePeriodMetrics(transactionPeriod) {
+  // Update the displayed metrics based on the selected transaction period
+  const formData = new FormData();
+  formData.append('transaction_period', transactionPeriod);
+  formData.append('csrfmiddlewaretoken', getCsrfToken());
+
+  fetch('/analysis/api/period-metrics/', {
+    method: 'POST',
+    body: formData
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      // Update Total Baskets
+      const totalBasketsElement = document.getElementById('totalBaskets');
+      if (totalBasketsElement) {
+        totalBasketsElement.textContent = data.metrics.total_baskets.toLocaleString();
+      }
+
+      // Update Avg Basket Size
+      const avgBasketSizeElement = document.getElementById('avgBasketSize');
+      if (avgBasketSizeElement) {
+        avgBasketSizeElement.textContent = data.metrics.avg_basket_size.toFixed(1);
+      }
+
+      // Update the subtitle text to show period and transaction count
+      const totalBasketsLabel = totalBasketsElement?.nextElementSibling;
+      if (totalBasketsLabel) {
+        totalBasketsLabel.innerHTML = `Total Baskets<br><small style="color: #6c757d; font-size: 0.6rem;">from ${data.metrics.transaction_count_text} transactions (${data.period_display})</small>`;
+      }
+
+      console.log(`Metrics updated for ${data.period_display}: ${data.metrics.total_baskets.toLocaleString()} baskets, ${data.metrics.avg_basket_size.toFixed(1)} avg size`);
+    } else {
+      console.error('Failed to update period metrics:', data.error);
+    }
+  })
+  .catch(error => {
+    console.error('Error fetching period metrics:', error);
+  });
+}
+
 function runDescriptiveAnalysis() {
   const supportValue = parseFloat(document.getElementById('supportInput')?.value || 0.001);
   const confidenceValue = parseFloat(document.getElementById('confidenceInput')?.value || 0.6);
   const transactionPeriod = document.getElementById('descriptiveTransactionPeriod')?.value || 'all';
+
   const maxResults = parseInt(document.getElementById('descriptiveMaxResults')?.value || 100);
+
+  // Update metrics based on selected period
+  updatePeriodMetrics(transactionPeriod);
 
   const periodDisplayNames = {
     'all': 'all transactions',
@@ -1857,29 +1902,28 @@ function runDescriptiveAnalysis() {
       showNotification(`Apriori completed! Found ${total} strong association rules (${deptRules.length} department + ${commodityRules.length} commodity) from ${periodDisplay}.`, 'success');
     })
     .catch(error => {
-      clearTimeout(timeoutId); // Clear timeout on error
       clearInterval(progressInterval); // Clear progress interval on error
       console.error('Error generating association rules:', error);
 
-      let errorMessage = 'Error generating association rules. Please try with different parameters.';
-      let errorDetails = 'Please try with different parameters';
+      let errorMessage = 'Error generating association rules.';
+      let errorDetails = error && error.message ? error.message : 'Please try with different parameters.';
 
       if (error.name === 'AbortError') {
         errorMessage = 'Association rules generation timed out after 30 seconds.';
-        errorDetails = 'Try using higher support values (≥0.002) or use 1-month period for ultra-fast results.';
-      } else if (error.message && error.message.includes('timeout')) {
+        errorDetails = 'Try using higher support values (≥0.002) or use 1-month period (126K transactions).';
+      } else if (error.message && error.message.toLowerCase().includes('timeout')) {
         errorMessage = 'Request timed out. The algorithm is taking too long.';
         errorDetails = 'Try higher support values (≥0.002) or use 1-month period (126K transactions).';
       }
 
-      showNotification(errorMessage, 'danger');
+      showNotification(`${errorMessage} ${errorDetails}`, 'danger');
 
       // Show error state
       const errorHtml = `
         <div class="text-center py-4 text-danger">
           <i class="fas fa-exclamation-triangle fa-2x mb-2"></i>
           <p>Error generating rules</p>
-          <small>${errorDetails}</small>
+          <small>${escapeHtml(errorDetails)}</small>
         </div>
       `;
       document.getElementById('associationRules').innerHTML = errorHtml;
@@ -4232,6 +4276,9 @@ document.addEventListener('DOMContentLoaded', function() {
       totalBasketsEl.textContent = value.toLocaleString();
     }
   }
+
+  // Initialize metrics with default period (12 months as shown in the image)
+  updatePeriodMetrics('12_months');
 
   // Initialize descriptive analysis by default
   loadDescriptiveAnalysis();

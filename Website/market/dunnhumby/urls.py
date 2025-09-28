@@ -14,6 +14,7 @@ urlpatterns = [
     path("api/association-rules/insert/", views.api_insert_association_rule, name="api_insert_association_rule"),
     path("api/association-rules/department/", views.api_generate_department_rules, name="api_generate_department_rules"),
     path("api/association-rules/commodity/", views.api_generate_commodity_rules, name="api_generate_commodity_rules"),
+    path("api/period-metrics/", views.api_get_period_metrics, name="api_get_period_metrics"),
     path("api/create/", views.api_create_record, name="api_create_record"),
     path("api/update/", views.api_update_record, name="api_update_record"),
     path("api/delete/", views.api_delete_record, name="api_delete_record"),
