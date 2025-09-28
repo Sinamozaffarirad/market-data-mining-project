@@ -2527,19 +2527,8 @@ def api_generate_department_rules(request):
         max_results = 100
     max_results = min(max_results, 500)
 
-    # Add VERY aggressive performance optimization for 2.6M dataset
-    if min_support <= 0.005 and transaction_period in ['all', '12_months', '6_months']:
-        # For ANY small support value, force to 1 month to avoid timeouts
-        transaction_period = '1_month'
-        logger.warning('Support %s with large dataset - forcing to 1 month (126K transactions) for performance', min_support)
-    elif min_support < 0.002:
-        transaction_period = '1_month'
-        max_results = min(max_results, 20)  # Limit results for small support
-        logger.info('Small support detected, limiting to 1 month and %s results', max_results)
-    elif min_support < 0.001:
-        transaction_period = '1_month'
-        max_results = min(max_results, 15)  # Heavily limit results for very small support
-        logger.info('Very small support detected, limiting to 1 month and %s results', max_results)
+    # No auto-limiting - respect user's period selection completely
+    logger.info('Using selected period "%s" with support %s (no auto-limiting applied)', transaction_period, min_support)
 
     logger.info(
         'Generating department rules with support=%s, confidence=%s, period=%s, max_results=%s',
@@ -2609,19 +2598,8 @@ def api_generate_commodity_rules(request):
         max_results = 100
     max_results = min(max_results, 500)
 
-    # Add VERY aggressive performance optimization for 2.6M dataset (same as department rules)
-    if min_support <= 0.005 and transaction_period in ['all', '12_months', '6_months']:
-        # For ANY small support value, force to 1 month to avoid timeouts
-        transaction_period = '1_month'
-        logger.warning('Support %s with large dataset - forcing to 1 month (126K transactions) for performance', min_support)
-    elif min_support < 0.002:
-        transaction_period = '1_month'
-        max_results = min(max_results, 20)  # Limit results for small support
-        logger.info('Small support detected, limiting to 1 month and %s results', max_results)
-    elif min_support < 0.001:
-        transaction_period = '1_month'
-        max_results = min(max_results, 15)  # Heavily limit results for very small support
-        logger.info('Very small support detected, limiting to 1 month and %s results', max_results)
+    # No auto-limiting - respect user's period selection completely
+    logger.info('Using selected period "%s" with support %s (no auto-limiting applied)', transaction_period, min_support)
 
     logger.info(
         'Generating commodity rules with support=%s, confidence=%s, period=%s, max_results=%s',

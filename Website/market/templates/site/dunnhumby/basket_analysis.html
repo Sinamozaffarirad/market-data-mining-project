@@ -228,6 +228,58 @@
   width: 8px;
 }
 
+/* Extended height with extra bottom space to prevent cut-off */
+#basketsGrid, #topProductsGrid {
+  min-height: 800px !important;
+  max-height: 1500px !important;
+  overflow-y: auto !important;
+  padding: 1rem !important;
+  padding-bottom: clamp(12rem, 18vh, 15rem) !important;
+  border: 1px solid #e9ecef !important;
+  border-radius: 10px !important;
+  scroll-behavior: smooth;
+  scroll-padding-bottom: clamp(12rem, 18vh, 15rem);
+}
+
+/* Custom scrollbar styling */
+#basketsGrid::-webkit-scrollbar,
+#topProductsGrid::-webkit-scrollbar {
+  width: 8px;
+}
+
+#basketsGrid::-webkit-scrollbar-track,
+#topProductsGrid::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+#basketsGrid::-webkit-scrollbar-thumb,
+#topProductsGrid::-webkit-scrollbar-thumb {
+  background: rgba(102, 126, 234, 0.4);
+  border-radius: 4px;
+}
+
+#basketsGrid::-webkit-scrollbar-thumb:hover,
+#topProductsGrid::-webkit-scrollbar-thumb:hover {
+  background: rgba(102, 126, 234, 0.7);
+}
+
+#basketsGrid::after,
+#topProductsGrid::after,
+#topProductsGrid > .row::after {
+  content: '';
+  display: block;
+  width: 100%;
+  height: clamp(9rem, 14vh, 12rem);
+  pointer-events: none;
+}
+
+/* Card spacing */
+.basket-card,
+.product-card {
+  margin-bottom: 12px !important;
+}
+
 .recommendations-scroll-container::-webkit-scrollbar-thumb {
   background: rgba(102, 126, 234, 0.35);
   border-radius: 4px;
@@ -812,7 +864,7 @@ html, body {
             </button>
           </div>
         </div>
-        <div class="row g-3 scrollable-section" id="basketsGrid" style="max-height: 400px; overflow-y: auto;">
+        <div class="row g-3 scrollable-section" id="basketsGrid">
         {% for b in basket_stats %}
         <div class="col-12 col-sm-6 col-lg-4 col-xl-3">
           <div class="basket-card fade-in" data-basket-id="{{ b.basket_id }}">
@@ -858,7 +910,7 @@ html, body {
             </button>
           </div>
         </div>
-        <div id="topProductsGrid" class="scrollable-section" style="max-height: 400px; overflow-y: auto;">
+        <div id="topProductsGrid" class="scrollable-section">
           <div class="row g-3" data-products-view="frequency">
           {% for product in top_products_frequency %}
             <div class="col-12 col-sm-6 col-lg-4 col-xl-3">
