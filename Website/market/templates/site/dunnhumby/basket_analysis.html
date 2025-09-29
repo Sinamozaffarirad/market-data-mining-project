@@ -798,11 +798,11 @@ html, body {
       <!-- Key Metrics -->
       <div class="metric-grid">
         <div class="metric-item">
-          <div class="metric-value" id="totalBaskets">{% if overall_stats.total_baskets %}{{ overall_stats.total_baskets|floatformat:0 }}{% else %}276,450{% endif %}</div>
-          <div class="metric-label">Total Baskets<br><small style="color: #6c757d; font-size: 0.6rem;">from 2.6M+ transactions</small></div>
+          <div class="metric-value" id="totalBaskets">{% if overall_stats.total_baskets %}{{ overall_stats.total_baskets|floatformat:0 }}{% else %}155,352{% endif %}</div>
+          <div class="metric-label">Total Baskets<br><small style="color: #6c757d; font-size: 0.6rem;">from 2.6M+ transactions (All)</small></div>
         </div>
         <div class="metric-item">
-          <div class="metric-value" id="avgBasketSize">{{ overall_stats.avg_basket_size|floatformat:1|default:"9.4" }}</div>
+          <div class="metric-value" id="avgBasketSize">{{ overall_stats.avg_basket_size|floatformat:1|default:"9.5" }}</div>
           <div class="metric-label">Avg Basket Size<br><small style="color: #6c757d; font-size: 0.6rem;">items per basket</small></div>
         </div>
         <div class="metric-item">
@@ -819,7 +819,18 @@ html, body {
       <div class="chart-container association-rules-block">
         <div class="d-flex justify-content-between align-items-center mb-3">
           <h5 class="mb-0" id="deptRulesTitle"><i class="fas fa-project-diagram"></i> Association Rules (0/∞) — Department Level</h5>
-          <div>
+          <div class="d-flex gap-2 align-items-center">
+            <div class="btn-group btn-group-sm" role="group" id="deptRulesActions" style="display: flex;">
+              <button class="btn btn-outline-secondary" onclick="selectAllRules('department', true)" title="Select All">
+                <i class="fas fa-check-square"></i> All
+              </button>
+              <button class="btn btn-outline-secondary" onclick="selectAllRules('department', false)" title="Select None">
+                <i class="fas fa-square"></i> None
+              </button>
+              <button class="btn btn-success" onclick="insertSelectedRules('department')" title="Insert Selected Rules">
+                <i class="fas fa-plus"></i> Insert (<span id="deptSelectedCount">0</span>)
+              </button>
+            </div>
             <button class="btn btn-outline-primary btn-sm" onclick="expandSection('department')" title="View All in Popup">
               <i class="fas fa-expand-arrows-alt"></i> Expand
             </button>
@@ -839,12 +850,24 @@ html, body {
       <div class="chart-container association-rules-block">
         <div class="d-flex justify-content-between align-items-center mb-3">
           <h5 class="mb-0" id="commodityRulesTitle"><i class="fas fa-boxes-stacked"></i> Association Rules (0/∞) — Commodity Level</h5>
-          <div>
+          <div class="d-flex gap-2 align-items-center">
+            <div class="btn-group btn-group-sm" role="group" id="commodityRulesActions" style="display: flex;">
+              <button class="btn btn-outline-secondary" onclick="selectAllRules('commodity', true)" title="Select All">
+                <i class="fas fa-check-square"></i> All
+              </button>
+              <button class="btn btn-outline-secondary" onclick="selectAllRules('commodity', false)" title="Select None">
+                <i class="fas fa-square"></i> None
+              </button>
+              <button class="btn btn-success" onclick="insertSelectedRules('commodity')" title="Insert Selected Rules">
+                <i class="fas fa-plus"></i> Insert (<span id="commoditySelectedCount">0</span>)
+              </button>
+            </div>
             <button class="btn btn-outline-primary btn-sm" onclick="expandSection('commodity')" title="View All in Popup">
               <i class="fas fa-expand-arrows-alt"></i> Expand
             </button>
           </div>
         </div>
+        <div id="commodityInsertAlert" class="alert alert-success d-none" role="alert"></div>
         <div class="association-rules-container scrollable-section" id="associationRulesCommodity" style="max-height: 650px; overflow-y: auto;">
           <div class="text-center py-5 text-muted">
             <i class="fas fa-play-circle fa-3x mb-3" style="color: #a0a0a0;"></i>
@@ -1521,11 +1544,14 @@ function generateAssociationRules() {
     rule.support >= supportThreshold && rule.confidence >= confidenceThreshold
   ).sort((a, b) => b.lift - a.lift); // Remove .slice(0, 10) to show ALL results
   
-  // Department rules HTML (showing count) with click functionality
+  // Department rules HTML (showing count) with click functionality and checkboxes
   const deptRulesHtml = rules.length > 0 ? rules.map(rule => `
-    <div class="rule-card" data-antecedent="${rule.antecedent}" data-consequent="${rule.consequent}" data-support="${rule.support}" data-confidence="${rule.confidence}" data-lift="${rule.lift}" data-rule-type="department">
+    <div class="rule-card selectable-rule" data-antecedent="${rule.antecedent}" data-consequent="${rule.consequent}" data-support="${rule.support}" data-confidence="${rule.confidence}" data-lift="${rule.lift}" data-rule-type="department">
       <div class="d-flex align-items-center justify-content-between mb-2">
         <div class="d-flex align-items-center flex-wrap">
+          <div class="form-check me-2">
+            <input class="form-check-input rule-checkbox" type="checkbox" onchange="updateSelectedCount('department')" onclick="event.stopPropagation()">
+          </div>
           ${createDepartmentBadge(rule.antecedent)}
           <span class="rule-arrow">→</span>
           ${createDepartmentBadge(rule.consequent)}
@@ -1562,6 +1588,13 @@ function generateAssociationRules() {
     // Update section title with count (infinity symbol for unlimited)
     const deptTitle = document.getElementById('deptRulesTitle');
     if(deptTitle) deptTitle.innerHTML = `<i class="fas fa-project-diagram"></i> Association Rules (${rules.length}/∞) — Department Level`;
+    // Show action buttons if rules exist
+    const deptActions = document.getElementById('deptRulesActions');
+    if(deptActions) {
+      deptActions.style.display = rules.length > 0 ? 'flex' : 'none';
+      console.log(`Department rules: ${rules.length}, showing actions: ${rules.length > 0}`);
+    }
+    updateSelectedCount('department');
   }
 
   // Commodity-level demo rules (based on commodity_desc)
@@ -1582,11 +1615,14 @@ function generateAssociationRules() {
   const commodityRules = commodityRulesAll.filter(r => 
     r.support >= supportThreshold && r.confidence >= confidenceThreshold
   ).sort((a,b)=>b.lift-a.lift); // Remove .slice(0,10) to show ALL results
-  // Commodity rules HTML (showing count) with click functionality
+  // Commodity rules HTML (showing count) with click functionality and checkboxes
   const commodityHtml = commodityRules.length > 0 ? commodityRules.map(r=>`
-    <div class="rule-card" data-antecedent="${r.ant}" data-consequent="${r.con}" data-support="${r.support}" data-confidence="${r.confidence}" data-lift="${r.lift}" data-rule-type="commodity">
+    <div class="rule-card selectable-rule" data-antecedent="${r.ant}" data-consequent="${r.con}" data-support="${r.support}" data-confidence="${r.confidence}" data-lift="${r.lift}" data-rule-type="commodity">
       <div class="d-flex align-items-center justify-content-between mb-2">
         <div class="d-flex align-items-center flex-wrap">
+          <div class="form-check me-2">
+            <input class="form-check-input rule-checkbox" type="checkbox" onchange="updateSelectedCount('commodity')" onclick="event.stopPropagation()">
+          </div>
           ${createCommodityBadge(r.ant)}
           <span class="rule-arrow">→</span>
           ${createCommodityBadge(r.con)}
@@ -1610,6 +1646,13 @@ function generateAssociationRules() {
     // Update section title with count (infinity symbol for unlimited)
     const comTitle = document.getElementById('commodityRulesTitle');
     if(comTitle) comTitle.innerHTML = `<i class="fas fa-boxes-stacked"></i> Association Rules (${commodityRules.length}/∞) — Commodity Level`;
+    // Show action buttons if rules exist
+    const commodityActions = document.getElementById('commodityRulesActions');
+    if(commodityActions) {
+      commodityActions.style.display = commodityRules.length > 0 ? 'flex' : 'none';
+      console.log(`Commodity rules: ${commodityRules.length}, showing actions: ${commodityRules.length > 0}`);
+    }
+    updateSelectedCount('commodity');
   }
 }
 
@@ -1766,13 +1809,13 @@ function performRuleInsert(ruleData) {
     .then(async (response) => {
       const payload = await response.json().catch(() => ({ success: false, error: 'Unexpected response from server.' }));
       if (response.ok && payload.success) {
-        showRuleInsertFeedback(payload.message || 'Rule stored successfully.', 'success');
+        showRuleInsertFeedback(payload.message || 'Rule stored successfully.', 'success', ruleData.rule_type);
         if (modalInstance) {
           modalInstance.hide();
         }
       } else {
         const errorMessage = payload.error || 'Unable to store the rule.';
-        showRuleInsertFeedback(errorMessage, 'danger');
+        showRuleInsertFeedback(errorMessage, 'danger', ruleData.rule_type);
         if (modalInstance) {
           modalInstance.hide();
         }
@@ -1780,7 +1823,7 @@ function performRuleInsert(ruleData) {
     })
     .catch((error) => {
       console.error('Failed to insert association rule', error);
-      showRuleInsertFeedback('Unexpected error while saving the rule.', 'danger');
+      showRuleInsertFeedback('Unexpected error while saving the rule.', 'danger', ruleData.rule_type);
       if (modalInstance) {
         modalInstance.hide();
       }
@@ -1793,8 +1836,10 @@ function performRuleInsert(ruleData) {
     });
 }
 
-function showRuleInsertFeedback(message, variant) {
-  const container = document.getElementById('descriptiveInsertAlert');
+function showRuleInsertFeedback(message, variant, ruleType = 'department') {
+  // Use the correct alert container based on rule type
+  const containerId = ruleType === 'department' ? 'descriptiveInsertAlert' : 'commodityInsertAlert';
+  const container = document.getElementById(containerId);
   if (!container) {
     alert(message);
     return;
@@ -1853,7 +1898,34 @@ function updatePeriodMetrics(transactionPeriod) {
   });
 }
 
+// Global variables to track analysis state
+let isAnalysisRunning = false;
+let globalProgressInterval = null;
+let completedContainers = new Set();
+
 function runDescriptiveAnalysis() {
+  // Prevent multiple simultaneous analysis runs
+  if (isAnalysisRunning) {
+    console.log('Analysis already running, ignoring duplicate call');
+    return;
+  }
+
+  isAnalysisRunning = true;
+
+  // Disable the run button and show running state
+  const runButton = document.querySelector('button[onclick="runDescriptiveAnalysis()"]');
+  if (runButton) {
+    runButton.disabled = true;
+    runButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Running Analysis...';
+  }
+
+  // Clear any existing progress interval and reset completed tracking
+  if (globalProgressInterval) {
+    clearInterval(globalProgressInterval);
+    globalProgressInterval = null;
+  }
+  completedContainers.clear();
+
   const supportValue = parseFloat(document.getElementById('supportInput')?.value || 0.001);
   const confidenceValue = parseFloat(document.getElementById('confidenceInput')?.value || 0.6);
   const transactionPeriod = document.getElementById('descriptiveTransactionPeriod')?.value || 'all';
@@ -1912,7 +1984,8 @@ function runDescriptiveAnalysis() {
 
   // Add progress indicator that updates every 10 seconds
   let progressCounter = 0;
-  const progressInterval = setInterval(() => {
+
+  globalProgressInterval = setInterval(() => {
     progressCounter += 10;
     const progressMessages = [
       'Scanning frequent itemsets...',
@@ -1935,8 +2008,20 @@ function runDescriptiveAnalysis() {
       </div>
     `;
 
-    document.getElementById('associationRules').innerHTML = progressHtml;
-    document.getElementById('associationRulesCommodity').innerHTML = progressHtml;
+    // Only update containers that haven't completed yet
+    if (!completedContainers.has('associationRules')) {
+      const deptContainer = document.getElementById('associationRules');
+      if (deptContainer && !deptContainer.querySelector('.rule-card')) {
+        deptContainer.innerHTML = progressHtml;
+      }
+    }
+
+    if (!completedContainers.has('associationRulesCommodity')) {
+      const commodityContainer = document.getElementById('associationRulesCommodity');
+      if (commodityContainer && !commodityContainer.querySelector('.rule-card')) {
+        commodityContainer.innerHTML = progressHtml;
+      }
+    }
   }, 10000);
 
   // Generate both department and commodity rules in parallel
@@ -1947,14 +2032,38 @@ function runDescriptiveAnalysis() {
     .then(([deptRules, commodityRules]) => {
       updateMetrics();
 
-      // Clear progress interval
-      clearInterval(progressInterval);
+      // Clear progress interval and reset state
+      if (globalProgressInterval) {
+        clearInterval(globalProgressInterval);
+        globalProgressInterval = null;
+      }
+      isAnalysisRunning = false;
+
+      // Restore the run button
+      const runButton = document.querySelector('button[onclick="runDescriptiveAnalysis()"]');
+      if (runButton) {
+        runButton.disabled = false;
+        runButton.innerHTML = '<i class="fas fa-play me-2"></i> Run Apriori Algorithm';
+      }
 
       const total = deptRules.length + commodityRules.length;
       showNotification(`Apriori completed! Found ${total} strong association rules (${deptRules.length} department + ${commodityRules.length} commodity) from ${periodDisplay}.`, 'success');
     })
     .catch(error => {
-      clearInterval(progressInterval); // Clear progress interval on error
+      // Clear progress interval and reset state on error
+      if (globalProgressInterval) {
+        clearInterval(globalProgressInterval);
+        globalProgressInterval = null;
+      }
+      isAnalysisRunning = false;
+
+      // Restore the run button
+      const runButton = document.querySelector('button[onclick="runDescriptiveAnalysis()"]');
+      if (runButton) {
+        runButton.disabled = false;
+        runButton.innerHTML = '<i class="fas fa-play me-2"></i> Run Apriori Algorithm';
+      }
+
       console.error('Error generating association rules:', error);
 
       let errorMessage = 'Error generating association rules.';
@@ -2025,14 +2134,23 @@ function generateRealAssociationRules(ruleType, minSupport, minConfidence, trans
               <small>Try lowering the support or confidence values.</small>
             </div>
           `;
+
+          // Mark this container as completed even when no rules found
+          if (typeof completedContainers !== 'undefined') {
+            completedContainers.add(containerId);
+            console.log(`${ruleType} rules completed (no results), marked container ${containerId} as completed`);
+          }
         } else {
           // Use original styling format
           const rulesHtml = rules.map(rule => {
             if (ruleType === 'department') {
               return `
-                <div class="rule-card" data-antecedent="${escapeHtml(rule.antecedent)}" data-consequent="${escapeHtml(rule.consequent)}" data-support="${rule.support}" data-confidence="${rule.confidence}" data-lift="${rule.lift}" data-rule-type="department">
+                <div class="rule-card selectable-rule" data-antecedent="${escapeHtml(rule.antecedent)}" data-consequent="${escapeHtml(rule.consequent)}" data-support="${rule.support}" data-confidence="${rule.confidence}" data-lift="${rule.lift}" data-rule-type="department">
                   <div class="d-flex align-items-center justify-content-between mb-2">
                     <div class="d-flex align-items-center flex-wrap">
+                      <div class="form-check me-2">
+                        <input class="form-check-input rule-checkbox" type="checkbox" onchange="updateSelectedCount('department')" onclick="event.stopPropagation()">
+                      </div>
                       ${createDepartmentBadge(rule.antecedent)}
                       <span class="rule-arrow">→</span>
                       ${createDepartmentBadge(rule.consequent)}
@@ -2063,9 +2181,12 @@ function generateRealAssociationRules(ruleType, minSupport, minConfidence, trans
             } else {
               // Commodity rules
               return `
-                <div class="rule-card" data-antecedent="${escapeHtml(rule.antecedent)}" data-consequent="${escapeHtml(rule.consequent)}" data-support="${rule.support}" data-confidence="${rule.confidence}" data-lift="${rule.lift}" data-rule-type="commodity">
+                <div class="rule-card selectable-rule" data-antecedent="${escapeHtml(rule.antecedent)}" data-consequent="${escapeHtml(rule.consequent)}" data-support="${rule.support}" data-confidence="${rule.confidence}" data-lift="${rule.lift}" data-rule-type="commodity">
                   <div class="d-flex align-items-center justify-content-between mb-2">
                     <div class="d-flex align-items-center flex-wrap">
+                      <div class="form-check me-2">
+                        <input class="form-check-input rule-checkbox" type="checkbox" onchange="updateSelectedCount('commodity')" onclick="event.stopPropagation()">
+                      </div>
                       ${createCommodityBadge(rule.antecedent)}
                       <span class="rule-arrow">→</span>
                       ${createCommodityBadge(rule.consequent)}
@@ -2085,10 +2206,20 @@ function generateRealAssociationRules(ruleType, minSupport, minConfidence, trans
 
           container.innerHTML = rulesHtml;
 
+          // Mark this container as completed to prevent progress overwrite
+          const containerId = ruleType === 'department' ? 'associationRules' : 'associationRulesCommodity';
+          if (typeof completedContainers !== 'undefined') {
+            completedContainers.add(containerId);
+            console.log(`${ruleType} rules completed, marked container ${containerId} as completed`);
+          }
+
           // Apply original enhancement functionality
           const minSupport = parseFloat(document.getElementById('supportInput')?.value || 0.001);
           const minConfidence = parseFloat(document.getElementById('confidenceInput')?.value || 0.6);
           enhanceRuleCards(container, ruleType, minSupport, minConfidence);
+
+          // Update multi-select count after rendering rules
+          updateSelectedCount(ruleType);
 
           // Update section titles like original code
           if (ruleType === 'department') {
@@ -4329,8 +4460,8 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
 
-  // Initialize metrics with default period (12 months as shown in the image)
-  updatePeriodMetrics('12_months');
+  // Initialize metrics with default period (All transactions)
+  updatePeriodMetrics('all');
 
   // Initialize descriptive analysis by default
   loadDescriptiveAnalysis();
@@ -4988,6 +5119,341 @@ function updateAccuracyChart(performance) {
     });
   }
 }
+
+// Multi-select functionality for association rules
+function selectAllRules(ruleType, selectAll) {
+  const containerId = ruleType === 'department' ? 'associationRules' : 'associationRulesCommodity';
+  const container = document.getElementById(containerId);
+  if (!container) return;
+
+  const checkboxes = container.querySelectorAll('.rule-checkbox');
+  checkboxes.forEach(checkbox => {
+    checkbox.checked = selectAll;
+  });
+
+  updateSelectedCount(ruleType);
+}
+
+function updateSelectedCount(ruleType) {
+  const containerId = ruleType === 'department' ? 'associationRules' : 'associationRulesCommodity';
+  const countId = ruleType === 'department' ? 'deptSelectedCount' : 'commoditySelectedCount';
+
+  const container = document.getElementById(containerId);
+  const countElement = document.getElementById(countId);
+
+  console.log(`updateSelectedCount(${ruleType}): container=${container ? 'found' : 'not found'}, countElement=${countElement ? 'found' : 'not found'}`);
+
+  if (!container || !countElement) return;
+
+  const selectedCount = container.querySelectorAll('.rule-checkbox:checked').length;
+  const totalCheckboxes = container.querySelectorAll('.rule-checkbox').length;
+  console.log(`${ruleType}: ${selectedCount}/${totalCheckboxes} checkboxes selected`);
+
+  countElement.textContent = selectedCount;
+
+  // Update insert button state
+  const insertBtn = countElement.closest('.btn-group').querySelector('.btn-success');
+  if (insertBtn) {
+    insertBtn.disabled = selectedCount === 0;
+    if (selectedCount === 0) {
+      insertBtn.classList.add('disabled');
+    } else {
+      insertBtn.classList.remove('disabled');
+    }
+  }
+}
+
+function insertSelectedRules(ruleType) {
+  const containerId = ruleType === 'department' ? 'associationRules' : 'associationRulesCommodity';
+  const container = document.getElementById(containerId);
+  if (!container) return;
+
+  const selectedCards = container.querySelectorAll('.selectable-rule:has(.rule-checkbox:checked)');
+
+  if (selectedCards.length === 0) {
+    alert('Please select at least one rule to insert.');
+    return;
+  }
+
+  const selectedRules = [];
+  const duplicateRules = new Set();
+
+  selectedCards.forEach(card => {
+    const ruleData = {
+      antecedent: card.dataset.antecedent,
+      consequent: card.dataset.consequent,
+      support: parseFloat(card.dataset.support),
+      confidence: parseFloat(card.dataset.confidence),
+      lift: parseFloat(card.dataset.lift),
+      rule_type: card.dataset.ruleType // Use rule_type to match API expectations
+    };
+
+    // Create unique identifier for duplicate detection
+    const ruleId = `${ruleData.antecedent}→${ruleData.consequent}`;
+
+    if (!duplicateRules.has(ruleId)) {
+      duplicateRules.add(ruleId);
+      selectedRules.push(ruleData);
+    }
+  });
+
+  // Show confirmation dialog with filtered count
+  const confirmMsg = `Insert ${selectedRules.length} selected ${ruleType} level association rules?${selectedRules.length < selectedCards.length ? ` (${selectedCards.length - selectedRules.length} duplicates removed)` : ''}`;
+  if (!confirm(confirmMsg)) return;
+
+  // Process bulk insertion with pre-validation
+  processBulkRuleInsertion(selectedRules, ruleType);
+}
+
+function processBulkRuleInsertion(rules, ruleType) {
+  let successCount = 0;
+  let errorCount = 0;
+  const errors = [];
+
+  // Pre-validate rules
+  const validRules = rules.filter(rule => validateRule(rule));
+  const invalidCount = rules.length - validRules.length;
+
+  if (invalidCount > 0) {
+    console.log(`Filtered out ${invalidCount} invalid rules before insertion`);
+  }
+
+  // Show progress in the correct alert container based on rule type
+  const alertElementId = ruleType === 'department' ? 'descriptiveInsertAlert' : 'commodityInsertAlert';
+  const alertElement = document.getElementById(alertElementId);
+  if (alertElement) {
+    alertElement.className = 'alert alert-info';
+    alertElement.style.display = 'block';
+    alertElement.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Inserting ${validRules.length} validated rules with retry logic...`;
+  }
+
+  // Process rules with improved batching and connection management
+  let currentIndex = 0;
+  const rulesToProcess = validRules;
+
+  // Connection health tracking
+  let consecutiveFailures = 0;
+  const maxConsecutiveFailures = 3;
+
+  function processNextRule() {
+    if (currentIndex >= rulesToProcess.length) {
+      // All rules processed, show final result
+      if (alertElement) {
+        if (successCount > 0 && errorCount === 0) {
+          alertElement.className = 'alert alert-success';
+          alertElement.innerHTML = `<i class="fas fa-check-circle"></i> Successfully inserted ${successCount} association rules!`;
+        } else if (successCount > 0 && errorCount > 0) {
+          alertElement.className = 'alert alert-warning';
+          const errorSummary = errors.length > 3 ?
+            `${errors.slice(0, 3).join(', ')} and ${errors.length - 3} more` :
+            errors.join(', ');
+          alertElement.innerHTML = `
+            <i class="fas fa-exclamation-triangle"></i>
+            <strong>Partial Success:</strong> ${successCount} rules inserted successfully, ${errorCount} failed.
+            <br><small><strong>Failed rules:</strong> ${errorSummary}</small>
+          `;
+        } else {
+          alertElement.className = 'alert alert-danger';
+          const errorSummary = errors.length > 5 ?
+            `${errors.slice(0, 5).join(', ')} and ${errors.length - 5} more` :
+            errors.join(', ');
+          alertElement.innerHTML = `
+            <i class="fas fa-times-circle"></i>
+            <strong>Insertion Failed:</strong> All ${rulesToProcess.length} rules failed to insert.
+            <br><small><strong>Failed rules:</strong> ${errorSummary}</small>
+          `;
+        }
+
+        // Clear selection after successful insertion
+        if (successCount > 0) {
+          selectAllRules(ruleType, false);
+        }
+
+        // Hide alert after 5 seconds
+        setTimeout(() => {
+          alertElement.style.display = 'none';
+        }, 5000);
+      }
+      return;
+    }
+
+    const rule = rulesToProcess[currentIndex];
+
+    // Enhanced insertion with connection health monitoring
+    insertSingleRule(rule).then(() => {
+      successCount++;
+      currentIndex++;
+      consecutiveFailures = 0; // Reset failure counter on success
+
+      // Update progress
+      if (alertElement) {
+        alertElement.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Inserting rules... (${currentIndex}/${rulesToProcess.length}) - ${successCount} successful`;
+      }
+
+      processNextRule();
+    }).catch((error) => {
+      consecutiveFailures++;
+
+      // If too many consecutive failures, implement connection recovery delay
+      if (consecutiveFailures >= maxConsecutiveFailures) {
+        console.log(`Detected connection issues, implementing recovery delay...`);
+        setTimeout(() => {
+          consecutiveFailures = 0; // Reset after recovery
+          // Retry this rule
+          processNextRule();
+        }, 2000); // 2 second recovery delay
+        return;
+      }
+
+      errorCount++;
+      const errorMsg = error.message || 'Unknown error';
+      errors.push(`${rule.antecedent}→${rule.consequent} (${errorMsg})`);
+      currentIndex++;
+      processNextRule();
+    });
+  }
+
+  processNextRule();
+}
+
+// Rule validation function - shared between both pages
+function validateRule(rule) {
+  // Check if rule has valid antecedent and consequent
+  if (!rule.antecedent || !rule.consequent) return false;
+
+  // Check if antecedent and consequent are different
+  if (rule.antecedent === rule.consequent) return false;
+
+  // Check if support, confidence, and lift are valid numbers
+  if (isNaN(rule.support) || isNaN(rule.confidence) || isNaN(rule.lift)) return false;
+
+  // Check minimum thresholds
+  if (rule.support <= 0 || rule.confidence <= 0 || rule.lift <= 0) return false;
+
+  // Check maximum thresholds
+  if (rule.support > 1 || rule.confidence > 1) return false;
+
+  return true;
+}
+
+// Store for tracking inserted rules to prevent duplicates - shared cache
+if (typeof insertedRulesCache === 'undefined') {
+  var insertedRulesCache = new Set();
+}
+
+function insertSingleRule(rule, retryCount = 0) {
+  return new Promise((resolve, reject) => {
+    // Create unique identifier
+    const ruleId = `${rule.antecedent}→${rule.consequent}`;
+
+    // Check if rule was already inserted in this session
+    if (insertedRulesCache.has(ruleId)) {
+      resolve(); // Already inserted, consider it successful
+      return;
+    }
+
+    // Prepare rule data for API
+    const ruleData = {
+      antecedent: Array.isArray(rule.antecedent) ? rule.antecedent : [rule.antecedent],
+      consequent: Array.isArray(rule.consequent) ? rule.consequent : [rule.consequent],
+      support: rule.support,
+      confidence: rule.confidence,
+      lift: rule.lift,
+      rule_type: rule.rule_type || rule.ruleType || rule.type || 'product',
+      min_support_threshold: rule.min_support_threshold || rule.support,
+      min_confidence_threshold: rule.min_confidence_threshold,
+      min_lift_threshold: rule.min_lift_threshold,
+      source_view: rule.source_view || 'analysis.basket_analysis',
+      metadata: rule.metadata || {
+        antecedent_label: rule.antecedent,
+        consequent_label: rule.consequent,
+        source_path: window.location.pathname,
+        original_rule_type: rule.rule_type || rule.ruleType || rule.type || 'product'
+      }
+    };
+
+    // Debug logging to trace rule type assignment
+    console.log(`Inserting rule: ${ruleId}, rule_type: ${ruleData.rule_type}, original data:`, {
+      rule_type: rule.rule_type,
+      ruleType: rule.ruleType,
+      type: rule.type
+    });
+
+    // Make actual API call to insert rule
+    const maxRetries = 3;
+    const baseDelay = 100;
+    const backoffMultiplier = 1.5;
+
+    function attemptInsertion() {
+      const delay = baseDelay * Math.pow(backoffMultiplier, retryCount);
+
+      setTimeout(() => {
+        fetch('/analysis/api/association-rules/insert/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCsrfToken()
+          },
+          body: JSON.stringify(ruleData)
+        })
+        .then(async (response) => {
+          const result = await response.json().catch(() => ({ success: false, error: 'Invalid server response' }));
+
+          if (response.ok && result.success) {
+            // Successful insertion
+            insertedRulesCache.add(ruleId);
+            console.log(`Successfully inserted rule: ${ruleId}`);
+            resolve();
+          } else {
+            throw new Error(result.error || 'Unknown server error');
+          }
+        })
+        .catch((error) => {
+          console.log(`Insertion attempt failed for ${ruleId}:`, error.message);
+
+          if (retryCount < maxRetries) {
+            // Retry with exponential backoff
+            console.log(`Retrying insertion for ${ruleId} (attempt ${retryCount + 1}/${maxRetries})`);
+            insertSingleRule(rule, retryCount + 1).then(resolve).catch(reject);
+          } else {
+            // Final failure after all retries
+            reject(new Error(error.message || `Insertion failed after ${maxRetries} retries`));
+          }
+        });
+      }, delay);
+    }
+
+    attemptInsertion();
+  });
+}
+
+// Add CSS for selected rule cards
+document.addEventListener('DOMContentLoaded', function() {
+  const style = document.createElement('style');
+  style.textContent = `
+    .selectable-rule {
+      transition: all 0.3s ease;
+      position: relative;
+    }
+    .selectable-rule:has(.rule-checkbox:checked) {
+      background: linear-gradient(135deg, #e8f5e8, #f0f8f0) !important;
+      border-left: 4px solid #28a745 !important;
+      transform: translateX(2px);
+    }
+    .rule-checkbox {
+      cursor: pointer;
+    }
+    .selectable-rule .rule-checkbox:checked {
+      background-color: #28a745;
+      border-color: #28a745;
+    }
+    .btn-group .btn.disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  `;
+  document.head.appendChild(style);
+});
 </script>
 
 
