@@ -52,8 +52,73 @@
     transform: translateY(-50%);
     font-size: 0.8em;
 }
-#addRecordBtn {
-    margin-left: 1rem;
+/* Button container alignment */
+.table-selector .d-flex.gap-2 button {
+    white-space: nowrap;
+    min-height: 38px;
+    font-size: 0.875rem;
+}
+
+.table-selector .d-flex.gap-2 {
+    align-items: center;
+}
+
+/* Responsive button adjustments */
+@media (max-width: 992px) {
+    .table-selector .d-flex.gap-2 {
+        justify-content: start !important;
+        margin-top: 1rem;
+    }
+}
+
+@media (max-width: 768px) {
+    .table-selector .d-flex.gap-2 button {
+        font-size: 0.8rem;
+        padding: 0.375rem 0.75rem;
+        flex: 1;
+        text-align: center;
+    }
+
+    .table-selector .d-flex.gap-2 button i {
+        font-size: 0.8rem;
+    }
+
+    .table-selector .d-flex.gap-2 {
+        flex-direction: column;
+        gap: 0.5rem !important;
+    }
+}
+
+@media (max-width: 576px) {
+    .table-selector .row > div {
+        margin-bottom: 1rem;
+    }
+
+    .table-selector .d-flex.gap-2 button {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+    }
+}
+
+/* Improve bulk delete button appearance */
+#bulkDeleteBtn {
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+#bulkDeleteBtn:not([style*="display: none"]) {
+    animation: fadeInScale 0.3s ease-out;
+}
+
+@keyframes fadeInScale {
+    0% {
+        opacity: 0;
+        transform: scale(0.9);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
 }
 .readonly-label {
     font-size: 0.75rem;
@@ -63,6 +128,30 @@
     padding: 2px 6px;
     border-radius: 4px;
     margin-left: 8px;
+}
+
+/* Multi-select styling */
+.table tbody tr:has(.row-checkbox:checked) {
+    background-color: rgba(13, 110, 253, 0.1);
+    border-left: 3px solid #0d6efd;
+}
+
+.table tbody tr:has(.row-checkbox:checked):hover {
+    background-color: rgba(13, 110, 253, 0.15);
+}
+
+#bulkDeleteBtn {
+    transition: all 0.3s ease;
+}
+
+#selectAll:indeterminate {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+}
+
+.form-check-input:checked {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
 }
 </style>
 {% endblock %}
@@ -94,7 +183,7 @@
             <!-- Table Selector -->
             <div class="table-selector">
                 <div class="row align-items-end g-3">
-                    <div class="col-md-4">
+                    <div class="col-lg-4 col-md-12">
                         <label for="viewTableSelect" class="form-label fw-bold">Select Table:</label>
                         <select id="viewTableSelect" class="form-select" onchange="selectTable()">
                             <option value="">-- Select a table --</option>
@@ -107,17 +196,22 @@
                             <option value="association_rules">Association Rules</option>
                         </select>
                     </div>
-                     <div class="col-md-5">
+                    <div class="col-lg-4 col-md-8">
                         <label for="globalSearch" class="form-label fw-bold">Global Search:</label>
                         <input type="text" id="globalSearch" class="form-control" placeholder="Search across relevant fields...">
                     </div>
-                    <div class="col-md-3 d-flex">
-                        <button type="button" class="btn btn-success" id="addRecordBtn" onclick="openAddModal()" disabled>
-                            <i class="fas fa-plus"></i> Add New
-                        </button>
-                        <button type="button" class="btn btn-warning ms-2" onclick="openDataExporter()">
-                            <i class="fas fa-file-export"></i> Export
-                        </button>
+                    <div class="col-lg-4 col-md-4">
+                        <div class="d-flex flex-wrap gap-2 justify-content-lg-end justify-content-md-end justify-content-start">
+                            <button type="button" class="btn btn-success" id="addRecordBtn" onclick="openAddModal()" disabled>
+                                <i class="fas fa-plus"></i> Add New
+                            </button>
+                            <button type="button" class="btn btn-danger" id="bulkDeleteBtn" onclick="confirmBulkDelete()" disabled style="display:none;">
+                                <i class="fas fa-trash-alt"></i> Delete Selected (<span id="selectedCount">0</span>)
+                            </button>
+                            <button type="button" class="btn btn-warning" onclick="openDataExporter()">
+                                <i class="fas fa-file-export"></i> Export
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -191,7 +285,7 @@
         <h5 class="modal-title" id="confirmModalLabel">Confirm Deletion</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-      <div class="modal-body">
+      <div class="modal-body" id="confirmModalBody">
         Are you sure you want to delete this record? This action cannot be undone.
       </div>
       <div class="modal-footer">
@@ -251,6 +345,10 @@ async function selectTable() {
         const isReadOnly = READ_ONLY_TABLES.includes(currentTable);
         addBtn.disabled = !currentTable || isReadOnly;
     }
+
+    // Reset multi-select state when changing tables
+    resetMultiSelectState();
+
     await loadSchemaAndFilters();
     await loadTableData();
 }
@@ -393,12 +491,26 @@ function buildTable(json) {
 
     const keys = Object.keys(json.data[0]);
     const headerRow = document.createElement('tr');
+
+    // Add checkbox header for multi-select
+    if (currentTable && !READ_ONLY_TABLES.includes(currentTable)) {
+        const selectTh = document.createElement('th');
+        selectTh.innerHTML = `
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="selectAll" onchange="toggleSelectAll()">
+                <label class="form-check-label" for="selectAll">Select All</label>
+            </div>
+        `;
+        selectTh.style.width = '120px';
+        headerRow.appendChild(selectTh);
+    }
+
     keys.forEach(k => {
         const th = document.createElement('th');
         th.textContent = k.replace(/_/g, ' ').toUpperCase();
         headerRow.appendChild(th);
     });
-    
+
     // Always show ACTIONS header if a table is selected
     if (currentTable) {
         const th = document.createElement('th');
@@ -412,6 +524,17 @@ function buildTable(json) {
         const recordId = row[pk_field];
         if (recordId !== undefined) {
             tr.dataset.recordId = recordId;
+        }
+
+        // Add checkbox cell for multi-select
+        if (currentTable && !READ_ONLY_TABLES.includes(currentTable)) {
+            const selectTd = document.createElement('td');
+            selectTd.innerHTML = `
+                <div class="form-check">
+                    <input class="form-check-input row-checkbox" type="checkbox" value="${recordId}" onchange="updateSelectedCount()">
+                </div>
+            `;
+            tr.appendChild(selectTd);
         }
 
         keys.forEach(k => {
@@ -442,6 +565,9 @@ function buildTable(json) {
         }
         body.appendChild(tr);
     });
+
+    // Reset multi-select state after building the table
+    resetMultiSelectState();
 }
 
 function editCell(cell, recordId, field) {
@@ -708,6 +834,175 @@ document.getElementById('globalSearch').addEventListener('keyup', (event) => {
         applyFilters();
     }
 });
+
+// --- Multi-Select Functions ---
+
+function toggleSelectAll() {
+    const selectAllCheckbox = document.getElementById('selectAll');
+    const rowCheckboxes = document.querySelectorAll('.row-checkbox');
+
+    rowCheckboxes.forEach(checkbox => {
+        checkbox.checked = selectAllCheckbox.checked;
+    });
+
+    updateSelectedCount();
+}
+
+function updateSelectedCount() {
+    const selectedCheckboxes = document.querySelectorAll('.row-checkbox:checked');
+    const selectedCount = selectedCheckboxes.length;
+    const totalCheckboxes = document.querySelectorAll('.row-checkbox').length;
+
+    // Update selected count display
+    const countElement = document.getElementById('selectedCount');
+    if (countElement) {
+        countElement.textContent = selectedCount;
+    }
+
+    // Show/hide bulk delete button
+    const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
+    if (bulkDeleteBtn) {
+        if (selectedCount > 0) {
+            bulkDeleteBtn.style.display = 'inline-block';
+            bulkDeleteBtn.disabled = false;
+        } else {
+            bulkDeleteBtn.style.display = 'none';
+            bulkDeleteBtn.disabled = true;
+        }
+    }
+
+    // Update "Select All" checkbox state
+    const selectAllCheckbox = document.getElementById('selectAll');
+    if (selectAllCheckbox) {
+        if (selectedCount === 0) {
+            selectAllCheckbox.checked = false;
+            selectAllCheckbox.indeterminate = false;
+        } else if (selectedCount === totalCheckboxes) {
+            selectAllCheckbox.checked = true;
+            selectAllCheckbox.indeterminate = false;
+        } else {
+            selectAllCheckbox.checked = false;
+            selectAllCheckbox.indeterminate = true;
+        }
+    }
+}
+
+function getSelectedRecords() {
+    const selectedCheckboxes = document.querySelectorAll('.row-checkbox:checked');
+    return Array.from(selectedCheckboxes).map(checkbox => checkbox.value);
+}
+
+function confirmBulkDelete() {
+    const selectedRecords = getSelectedRecords();
+    if (selectedRecords.length === 0) {
+        showNotification('Please select at least one record to delete.', 'warning');
+        return;
+    }
+
+    const modalBody = document.getElementById('confirmModalBody');
+    const deleteButton = document.getElementById('confirmDeleteBtn');
+
+    modalBody.innerHTML = `
+        <div class="alert alert-warning">
+            <i class="fas fa-exclamation-triangle"></i>
+            <strong>Warning:</strong> You are about to delete <strong>${selectedRecords.length}</strong> record(s).
+        </div>
+        <p>This action cannot be undone. Are you sure you want to proceed?</p>
+        <div class="small text-muted">
+            <strong>Selected records:</strong> ${selectedRecords.slice(0, 5).join(', ')}
+            ${selectedRecords.length > 5 ? `... and ${selectedRecords.length - 5} more` : ''}
+        </div>
+    `;
+
+    // Update delete button to handle bulk deletion
+    deleteButton.onclick = () => performBulkDelete(selectedRecords);
+
+    // Show modal
+    const confirmModal = new bootstrap.Modal(document.getElementById('confirmModal'));
+    confirmModal.show();
+}
+
+async function performBulkDelete(recordIds) {
+    const deleteButton = document.getElementById('confirmDeleteBtn');
+    const originalText = deleteButton.innerHTML;
+
+    deleteButton.disabled = true;
+    deleteButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Deleting...';
+
+    try {
+        let successCount = 0;
+        let failCount = 0;
+        const errors = [];
+
+        // Process deletions in batches for better performance
+        for (const recordId of recordIds) {
+            try {
+                const form = new FormData();
+                form.append('csrfmiddlewaretoken', csrftoken);
+                form.append('table_name', currentTable);
+                form.append('record_id', recordId);
+
+                const response = await fetch('/analysis/api/delete/', {
+                    method: 'POST',
+                    body: form
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    successCount++;
+                } else {
+                    failCount++;
+                    errors.push(`Record ${recordId}: ${result.error || 'Unknown error'}`);
+                }
+            } catch (error) {
+                failCount++;
+                errors.push(`Record ${recordId}: ${error.message}`);
+            }
+        }
+
+        // Hide modal
+        const confirmModal = bootstrap.Modal.getInstance(document.getElementById('confirmModal'));
+        confirmModal.hide();
+
+        // Show results
+        if (successCount > 0 && failCount === 0) {
+            showNotification(`Successfully deleted ${successCount} record(s).`, 'success');
+        } else if (successCount > 0 && failCount > 0) {
+            showNotification(`Deleted ${successCount} record(s) successfully. ${failCount} failed.`, 'warning');
+            if (errors.length > 0) {
+                console.error('Deletion errors:', errors);
+            }
+        } else {
+            showNotification(`Failed to delete records. ${errors[0] || 'Unknown error'}`, 'error');
+        }
+
+        // Reload the table data
+        loadTableData();
+
+    } catch (error) {
+        console.error('Bulk delete error:', error);
+        showNotification(`Error during bulk deletion: ${error.message}`, 'error');
+    } finally {
+        deleteButton.disabled = false;
+        deleteButton.innerHTML = originalText;
+    }
+}
+
+// Reset multi-select state when table data is loaded
+function resetMultiSelectState() {
+    const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
+    if (bulkDeleteBtn) {
+        bulkDeleteBtn.style.display = 'none';
+        bulkDeleteBtn.disabled = true;
+    }
+
+    const selectedCount = document.getElementById('selectedCount');
+    if (selectedCount) {
+        selectedCount.textContent = '0';
+    }
+}
+
 </script>
 {% endblock %}
 
