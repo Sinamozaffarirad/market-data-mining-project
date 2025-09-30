@@ -3079,7 +3079,7 @@ function runDifferentialAnalysis() {
   }
 
   const timeoutPromise = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error('Request timeout')), 10000)
+    setTimeout(() => reject(new Error('Request timeout')), 30000)  // 30 seconds for complex queries
   );
 
   const fetchPromise = fetch('{% url "dunnhumby_site:api_differential_analysis" %}', {
