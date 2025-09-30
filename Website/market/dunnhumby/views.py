@@ -1633,12 +1633,6 @@ def api_differential_analysis(request):
                         r, c = observed_arr.shape
                         min_dim = min(r - 1, c - 1)
 
-                        # Debug
-                        import logging
-                        logger = logging.getLogger(__name__)
-                        logger.warning(f"Chi-Square Matrix: {r} rows x {c} cols, Total n={int(n):,}")
-                        logger.warning(f"Matrix preview:\n{observed_arr}")
-
                         # Calculate Cramér's V (standard formula)
                         cramers_v = sqrt(chi2 / (n * min_dim)) if min_dim > 0 and n > 0 else 0.0
 
@@ -1963,18 +1957,6 @@ def api_differential_analysis(request):
                     if low_sales > 0:
                         group_b_sales.append(low_sales)
 
-                # Debug logging
-                import logging
-                logger = logging.getLogger(__name__)
-                logger.warning(f"=== QUARTERLY COMPARISON DEBUG (AGGREGATE) ===")
-                logger.warning(f"Peak Quarter: {peak_quarter}, Total Sales: ${quarter_totals[peak_quarter]['sales']:,.2f}")
-                logger.warning(f"Low Quarter: {low_quarter}, Total Sales: ${quarter_totals[low_quarter]['sales']:,.2f}")
-                logger.warning(f"Sales Ratio: {quarter_totals[peak_quarter]['sales'] / quarter_totals[low_quarter]['sales']:.2f}x")
-                if group_a_sales and group_b_sales:
-                    logger.warning(f"Group A ({peak_quarter}): {len(group_a_sales)} departments, Mean=${np.mean(group_a_sales):,.2f}, Median=${np.median(group_a_sales):,.2f}")
-                    logger.warning(f"Group B ({low_quarter}): {len(group_b_sales)} departments, Mean=${np.mean(group_b_sales):,.2f}, Median=${np.median(group_b_sales):,.2f}")
-                    logger.warning(f"Dept Mean Ratio: {np.mean(group_a_sales) / np.mean(group_b_sales):.2f}x")
-
                 stats = compute_statistics(
                     stat_test,
                     observed=observed_matrix if stat_test == 'chi_square' else None,
@@ -2092,9 +2074,13 @@ def api_differential_analysis(request):
             labels = sorted({dept for dept_counts in segment_departments.values() for dept in dept_counts.keys()})
             labels = sorted(labels, key=lambda d: sum(segment_departments[seg][d]['sales'] for seg in segment_departments if d in segment_departments[seg]), reverse=True)[:6]
 
+            # Create sales-based matrix for Chi-Square (scaled to thousands)
             observed = []
             for segment in [high_seg['rfm_segment'], low_seg['rfm_segment']]:
-                observed.append([segment_departments[segment].get(label, {}).get('count', 0) for label in labels])
+                observed.append([
+                    int(segment_departments[segment].get(label, {}).get('sales', 0) / 1000)
+                    for label in labels
+                ])
 
             chart = {
                 'labels': labels,
@@ -2117,11 +2103,23 @@ def api_differential_analysis(request):
                 'yAxisLabel': 'Spend ($)'
             }
 
+            # Build department-level sales arrays for aggregate comparison
+            group_a_sales = []  # High segment department sales
+            group_b_sales = []  # Low segment department sales
+
+            for label in labels:
+                high_sales = segment_departments[high_seg['rfm_segment']].get(label, {}).get('sales', 0)
+                low_sales = segment_departments[low_seg['rfm_segment']].get(label, {}).get('sales', 0)
+                if high_sales > 0:
+                    group_a_sales.append(high_sales)
+                if low_sales > 0:
+                    group_b_sales.append(low_sales)
+
             stats = compute_statistics(
                 stat_test,
                 observed=observed if stat_test == 'chi_square' else None,
-                group_a=high_values[:3000],
-                group_b=low_values[:3000]
+                group_a=group_a_sales,
+                group_b=group_b_sales
             )
 
             return insights, stats, chart
@@ -2188,9 +2186,13 @@ def api_differential_analysis(request):
 
             labels = sorted({dept for store in top_stores for dept in store_departments[store].keys()}, key=lambda d: sum(store_departments[s][d]['sales'] for s in top_stores if d in store_departments[s]), reverse=True)[:6]
 
+            # Create sales-based matrix for Chi-Square (scaled to thousands)
             observed = []
             for store_id in top_stores:
-                observed.append([store_departments[store_id].get(label, {}).get('count', 0) for label in labels])
+                observed.append([
+                    int(store_departments[store_id].get(label, {}).get('sales', 0) / 1000)
+                    for label in labels
+                ])
 
             chart = {
                 'labels': labels,
@@ -2213,13 +2215,23 @@ def api_differential_analysis(request):
                 'yAxisLabel': 'Sales ($)'
             }
 
-            group_a = fetch_basket_totals_for_store(best_store)
-            group_b = fetch_basket_totals_for_store(runner_store)
+            # Build department-level sales arrays for aggregate comparison
+            group_a_sales = []  # Best store department sales
+            group_b_sales = []  # Runner store department sales
+
+            for label in labels:
+                best_sales = store_departments[best_store].get(label, {}).get('sales', 0)
+                runner_sales = store_departments[runner_store].get(label, {}).get('sales', 0)
+                if best_sales > 0:
+                    group_a_sales.append(best_sales)
+                if runner_sales > 0:
+                    group_b_sales.append(runner_sales)
+
             stats = compute_statistics(
                 stat_test,
                 observed=observed if stat_test == 'chi_square' else None,
-                group_a=group_a[:3000],
-                group_b=group_b[:3000]
+                group_a=group_a_sales,
+                group_b=group_b_sales
             )
 
             return insights, stats, chart
@@ -2328,10 +2340,11 @@ def api_differential_analysis(request):
             insights = [entry for _, entry in sorted(insight_candidates, key=lambda item: item[0], reverse=True)[:4]]
 
             top_departments_matrix = [dept for dept in top_departments if dept in dept_season][:5]
+            # Create sales-based matrix for Chi-Square (scaled to thousands)
             observed = []
             for season in season_order:
                 observed.append([
-                    dept_season.get(dept, {}).get(season, {}).get('count', 0)
+                    int(dept_season.get(dept, {}).get(season, {}).get('sales', 0) / 1000)
                     for dept in top_departments_matrix
                 ])
 
@@ -2364,8 +2377,18 @@ def api_differential_analysis(request):
 
             peak_season = max(season_totals, key=lambda s: season_totals[s]['sales'])
             low_season = min(season_totals, key=lambda s: season_totals[s]['sales'])
-            group_a = fetch_basket_totals_for_range(*SEASON_RANGES.get(peak_season, (1, 365)), limit=2000)
-            group_b = fetch_basket_totals_for_range(*SEASON_RANGES.get(low_season, (1, 365)), limit=2000)
+
+            # Build department-level sales arrays for aggregate comparison
+            group_a_sales = []  # Peak season department sales
+            group_b_sales = []  # Low season department sales
+
+            for dept in top_departments_matrix:
+                peak_sales = dept_season.get(dept, {}).get(peak_season, {}).get('sales', 0)
+                low_sales = dept_season.get(dept, {}).get(low_season, {}).get('sales', 0)
+                if peak_sales > 0:
+                    group_a_sales.append(peak_sales)
+                if low_sales > 0:
+                    group_b_sales.append(low_sales)
 
             observed_for_stats = None
             if stat_test == 'chi_square' and len(season_order) >= 2 and len(top_departments_matrix) >= 2:
@@ -2374,8 +2397,8 @@ def api_differential_analysis(request):
             stats = compute_statistics(
                 stat_test,
                 observed=observed_for_stats,
-                group_a=group_a[:2000],
-                group_b=group_b[:2000]
+                group_a=group_a_sales,
+                group_b=group_b_sales
             )
 
             return insights, stats, chart
