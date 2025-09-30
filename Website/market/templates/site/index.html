@@ -479,14 +479,55 @@ class DashboardController {
     });
   }
   
-  initChart() {
+  async initChart() {
     const ctx = document.getElementById('trendsChart');
     if (!ctx) return;
-    
-    new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: ['January', 'February', 'March', 'April', 'May', 'June'],
+
+    // Fetch real market trends data
+    let chartData;
+    try {
+      const response = await fetch('/analysis/api/market-trends/');
+      const data = await response.json();
+      chartData = {
+        labels: data.labels,
+        datasets: [
+          {
+            label: 'Sales Volume ($K)',
+            data: data.datasets.sales_volume,
+            borderColor: '#667eea',
+            backgroundColor: 'rgba(102, 126, 234, 0.1)',
+            borderWidth: 3,
+            tension: 0.4,
+            fill: true,
+            pointBackgroundColor: '#667eea',
+            pointBorderColor: '#ffffff',
+            pointBorderWidth: 3,
+            pointRadius: 6,
+            pointHoverRadius: 8,
+            yAxisID: 'y'
+          },
+          {
+            label: 'Unique Customers',
+            data: data.datasets.customers,
+            borderColor: '#764ba2',
+            backgroundColor: 'rgba(118, 75, 162, 0.1)',
+            borderWidth: 3,
+            tension: 0.4,
+            fill: true,
+            pointBackgroundColor: '#764ba2',
+            pointBorderColor: '#ffffff',
+            pointBorderWidth: 3,
+            pointRadius: 6,
+            pointHoverRadius: 8,
+            yAxisID: 'y1'
+          }
+        ]
+      };
+    } catch (error) {
+      console.error('Failed to load market trends:', error);
+      // Fallback to static data if API fails
+      chartData = {
+        labels: ['Month 1', 'Month 2', 'Month 3', 'Month 4', 'Month 5', 'Month 6'],
         datasets: [
           {
             label: 'Sales Volume',
@@ -500,7 +541,8 @@ class DashboardController {
             pointBorderColor: '#ffffff',
             pointBorderWidth: 3,
             pointRadius: 6,
-            pointHoverRadius: 8
+            pointHoverRadius: 8,
+            yAxisID: 'y'
           },
           {
             label: 'Customer Acquisition',
@@ -514,10 +556,16 @@ class DashboardController {
             pointBorderColor: '#ffffff',
             pointBorderWidth: 3,
             pointRadius: 6,
-            pointHoverRadius: 8
+            pointHoverRadius: 8,
+            yAxisID: 'y1'
           }
         ]
-      },
+      };
+    }
+
+    new Chart(ctx, {
+      type: 'line',
+      data: chartData,
       options: {
         responsive: true,
         maintainAspectRatio: false,
@@ -557,8 +605,44 @@ class DashboardController {
             }
           },
           y: {
+            type: 'linear',
+            display: true,
+            position: 'left',
+            title: {
+              display: true,
+              text: 'Sales Volume ($K)',
+              color: '#667eea',
+              font: {
+                size: 13,
+                weight: '600'
+              }
+            },
             grid: {
               color: 'rgba(0,0,0,0.1)'
+            },
+            ticks: {
+              font: {
+                size: 12,
+                weight: '500'
+              },
+              color: '#718096'
+            }
+          },
+          y1: {
+            type: 'linear',
+            display: true,
+            position: 'right',
+            title: {
+              display: true,
+              text: 'Unique Customers',
+              color: '#764ba2',
+              font: {
+                size: 13,
+                weight: '600'
+              }
+            },
+            grid: {
+              drawOnChartArea: false
             },
             ticks: {
               font: {
