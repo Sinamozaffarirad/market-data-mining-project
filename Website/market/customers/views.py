@@ -5,7 +5,7 @@ from django.contrib.auth.decorators import login_required
 from .models import CustomerProfile, Transaction, Product, CustomerRecommendationCache
 from collections import defaultdict
 from django.core.paginator import Paginator
-from dunnhumby.models import AssociationRule ,CustomerSegment 
+from dunnhumby.models import AssociationRule, CustomerSegment, BasketAnalysis
 from dunnhumby.collab_filter import get_cf_recommendations
 from django.utils import timezone
 from django.db import models
@@ -31,86 +31,165 @@ def customer_detail(request, pk):
 # ---------------------------
 # تابع تولید Hybrid Recommender
 # ---------------------------
-def generate_hybrid_recommendations(household_key, alpha=0.6, top_n=20):
-    # ... (this function remains the same as your provided code) ...
-    # --- AssociationRule-based ---
-    recent_transactions = Transaction.objects.filter(
-        household_key=household_key
-    ).order_by("-day")[:20]
+def generate_hybrid_recommendations(household_key, alpha=0.6, top_n=20, levels_order=None):
+    if levels_order is None:
+        levels_order = ['product', 'commodity', 'department']
 
-    purchased_items = set(str(tr.product_id) for tr in recent_transactions)
-    rules = AssociationRule.objects.filter(rule_type="product").order_by("-lift")[:200]
+    recent_transactions = Transaction.objects.filter(household_key=household_key).order_by("-day")[:50]
+    purchased_product_ids = [str(tr.product_id) for tr in recent_transactions]
 
-    association_recommendations = {}
-    for rule in rules:
-        antecedent = set(map(str, rule.antecedent))
-        consequent = set(map(str, rule.consequent))
-        if antecedent & purchased_items:
-            for product_id_str in consequent:
-                if product_id_str not in purchased_items:
-                    product = Product.objects.filter(product_id=product_id_str).first()
-                    if product:
-                        score = rule.confidence * rule.lift
-                        association_recommendations[product.product_id] = {
-                            "product": product,
-                            "assoc_score": score,
-                            "confidence": round(rule.confidence, 2),
-                            "lift": round(rule.lift, 2),
-                            "support": round(rule.support, 4),
+    final_recs = {}
+    needed = top_n
+
+    latest_rule_timestamp = AssociationRule.objects.aggregate(models.Max("created_at"))["created_at__max"]
+
+    for level in levels_order:
+        if needed <= 0:
+            continue
+
+        # --- association rules ---
+        rules_qs = AssociationRule.objects.filter(rule_type=level).order_by('-lift')[:500]
+        assoc_recs = {}
+
+        if level == 'product':
+            purchased_items_level = set(purchased_product_ids)
+        else:
+            prod_meta = {str(p.product_id): (p.commodity_desc, p.department)
+                         for p in Product.objects.filter(product_id__in=set(purchased_product_ids))}
+            if level == 'commodity':
+                purchased_items_level = {v[0] for v in prod_meta.values() if v[0]}
+            else:
+                purchased_items_level = {v[1] for v in prod_meta.values() if v[1]}
+
+        for rule in rules_qs:
+            antecedent = set(map(str, rule.antecedent))
+            consequent = [str(x) for x in rule.consequent]
+
+            if antecedent & purchased_items_level:
+                for cons in consequent:
+                    if level == 'product':
+                        try:
+                            pid = int(cons)
+                        except ValueError:
+                            continue
+                        prod_obj = Product.objects.filter(product_id=pid).first()
+                        if prod_obj:
+                            score = float(rule.confidence) * float(rule.lift)
+                            assoc_recs[prod_obj.product_id] = {
+                                'product': prod_obj,
+                                'assoc_score': score,
+                                'confidence': round(rule.confidence, 3),
+                                'lift': round(rule.lift, 3),
+                                'support': round(rule.support, 4),
+                                'level': level,
+                                'origin': 'rule'
+                            }
+
+                    else:
+                        # normalize cons
+                        if level == 'commodity':
+                            qs = Product.objects.filter(commodity_desc__iexact=cons.strip()).order_by('-product_id')[:10]
+                        else:
+                            qs = Product.objects.filter(department__iexact=cons.strip()).order_by('-product_id')[:10]
+
+                        for prod_obj in qs:
+                            score = float(rule.confidence) * float(rule.lift) * 0.9
+                            assoc_recs[prod_obj.product_id] = {
+                                'product': prod_obj, 'assoc_score': score,
+                                'confidence': round(rule.confidence, 3),
+                                'lift': round(rule.lift, 3),
+                                'support': round(rule.support, 4),
+                                'level': level
+                            }
+
+        # --- basket analysis (فقط برای commodity/department) ---
+        if level in ['commodity', 'department']:
+            basket_qs = BasketAnalysis.objects.filter(household_key=household_key).first()
+            if basket_qs and basket_qs.department_mix:
+                dept_mix = basket_qs.department_mix  # این خودش dict هست
+                for item_key, weight in dept_mix.items():
+                    if level == 'department':
+                        qs = Product.objects.filter(department__iexact=item_key.strip())[:5]
+                    else:
+                        qs = Product.objects.filter(commodity_desc__iexact=item_key.strip())[:5]
+
+                    for prod_obj in qs:
+                        assoc_recs[prod_obj.product_id] = {
+                            'product': prod_obj,
+                            'assoc_score': float(weight),
+                            'confidence': None,
+                            'lift': None,
+                            'support': None,
+                            'level': level,
+                            'origin': 'basket'
                         }
 
-    # --- Collaborative Filtering ---
-    cf_list = get_cf_recommendations(household_key, top_n=50)
-    cf_recommendations = {rec["product"].product_id: rec for rec in cf_list}
 
-    # --- Hybrid Merge ---
-    hybrid = {}
-    all_pids = set(association_recommendations.keys()) | set(cf_recommendations.keys())
+        # --- collaborative filtering ---
+        cf_list = get_cf_recommendations(household_key, top_n=top_n*2, level=level)
+        cf_recs = {rec['product'].product_id: {
+            'product': rec['product'], 'cf_score': rec['score'], 'level': level
+        } for rec in cf_list}
 
-    for pid in all_pids:
-        assoc_rec = association_recommendations.get(pid)
-        cf_rec = cf_recommendations.get(pid)
-
-        assoc_score = assoc_rec["assoc_score"] if assoc_rec else 0
-        cf_score = cf_rec["score"] if cf_rec else 0
-        
-        product_obj = (assoc_rec and assoc_rec["product"]) or (cf_rec and cf_rec["product"])
-        
-        if product_obj:
-            hybrid[pid] = {
-                "product": product_obj,
-                "hybrid_score": round(alpha * assoc_score + (1 - alpha) * cf_score, 3),
-                "confidence": assoc_rec["confidence"] if assoc_rec else None,
-                "lift": assoc_rec["lift"] if assoc_rec else None,
-                "support": assoc_rec["support"] if assoc_rec else None,
-                "cf_score": cf_rec["score"] if cf_rec else 0,
+        # --- merge ---
+        merged_level = {}
+        for pid in set(list(assoc_recs.keys()) + list(cf_recs.keys())):
+            assoc_score = assoc_recs.get(pid, {}).get('assoc_score', 0)
+            cf_score = cf_recs.get(pid, {}).get('cf_score', 0)
+            product_obj = assoc_recs.get(pid, {}).get('product') or cf_recs.get(pid, {}).get('product')
+            hybrid_score = alpha * assoc_score + (1 - alpha) * cf_score
+            
+            origin_parts = []
+            if pid in assoc_recs:
+                origin_parts.append('rule' if assoc_recs[pid].get('origin') != 'basket' else 'basket')
+            if pid in cf_recs:
+                origin_parts.append('cf')
+            
+            merged_level[pid] = {
+                'product': product_obj,
+                'hybrid_score': hybrid_score,
+                'assoc_score': assoc_score,
+                'cf_score': cf_score,
+                'confidence': assoc_recs.get(pid, {}).get('confidence'),
+                'lift': assoc_recs.get(pid, {}).get('lift'),
+                'support': assoc_recs.get(pid, {}).get('support'),
+                'source_level': level,
+                'origin': '+'.join(origin_parts)  # rule/cf/basket یا ترکیب
             }
 
-    # --- Sort and Limit ---
-    hybrid_recommendations = sorted(
-        hybrid.values(), key=lambda x: x["hybrid_score"], reverse=True
-    )[:top_n]
+        sorted_level = sorted(merged_level.items(), key=lambda x: x[1]['hybrid_score'], reverse=True)
+        for pid, rec in sorted_level:
+            if needed <= 0:
+                break
+            if pid in final_recs:
+                continue
+            if str(pid) in purchased_product_ids:
+                continue
+            final_recs[pid] = rec
+            needed -= 1
 
-    # --- Prepare for JSON serialization ---
-    recommendations_for_cache = []
-    for rec in hybrid_recommendations:
-        prod = rec["product"]
-        recommendations_for_cache.append({
-            "product_id": prod.product_id,
-            "brand": prod.brand or "N/A",
-            "department": prod.department or "N/A",
-            "commodity_desc": prod.commodity_desc or "N/A",
-            "curr_size_of_product": prod.curr_size_of_product or "N/A",
-            "hybrid_score": rec["hybrid_score"] or 0,
-            "confidence": rec["confidence"] or 0,
-            "lift": rec["lift"] or 0,
-            "support": rec["support"] or 0,
-            "cf_score": rec["cf_score"] or 0,
+    final_list = list(final_recs.values())[:top_n]
+
+    cache_for_store = []
+    for rec in final_list:
+        prod = rec['product']
+        cache_for_store.append({
+            'product_id': prod.product_id,
+            'brand': prod.brand or "N/A",
+            'department': prod.department or "N/A",
+            'commodity_desc': prod.commodity_desc or "N/A",
+            'curr_size_of_product': prod.curr_size_of_product or "N/A",
+            'hybrid_score': round(rec.get('hybrid_score', 0), 4),
+            'assoc_score': round(rec.get('assoc_score', 0), 4),
+            'cf_score': round(rec.get('cf_score', 0), 4),
+            'confidence': rec.get('confidence') or 0,
+            'lift': rec.get('lift') or 0,
+            'support': rec.get('support') or 0,
+            'source_level': rec.get('source_level'),
+            'origin': rec.get('origin'),
         })
 
-
-    return hybrid_recommendations, recommendations_for_cache
-
+    return final_list, cache_for_store, latest_rule_timestamp
 # ---------------------------
 # Main View with Caching
 # ---------------------------
@@ -129,23 +208,18 @@ def customer_recommendations(request, pk):
     request.session["global_alpha"] = alpha
 
     # Check cache validity
-    latest_rule_timestamp = (
-        AssociationRule.objects.aggregate(models.Max("created_at"))["created_at__max"]
-        or timezone.now()
-    )
+    latest_rule_timestamp = AssociationRule.objects.aggregate(models.Max("created_at"))["created_at__max"]
     cache = CustomerRecommendationCache.objects.filter(household_key=pk).first()
 
-    # Determine if a recalculation is needed
     recalculate = (
         "alpha" in request.GET
         or not cache
         or cache.alpha != alpha
-        or cache.rules_version < latest_rule_timestamp
+        or cache.rules_version != latest_rule_timestamp
     )
 
     if recalculate:
-        # Generate new recommendations and update the cache
-        live_recs, cache_recs = generate_hybrid_recommendations(pk, alpha=alpha)
+        live_recs, cache_recs, latest_rule_timestamp = generate_hybrid_recommendations(pk, alpha=alpha)
         recommendations = live_recs
         CustomerRecommendationCache.objects.update_or_create(
             household_key=pk,

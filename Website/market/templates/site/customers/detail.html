@@ -120,4 +120,30 @@
     <a href="{% url 'customers:search' %}" class="btn btn-primary">← Back to Search</a>
   </div>
 </div>
+
+<!-- Overlay لودینگ -->
+<div id="loadingOverlay" style="
+    display:none;
+    position:fixed;
+    top:0;
+    left:0;
+    width:100%;
+    height:100%;
+    background: rgba(0,0,0,0.5);
+    z-index:9999;
+    text-align:center;
+    color:#8fa2f7 !important;
+    font-size:2rem;
+    padding-top:20%;
+">
+  Please wait while recommendations are being prepared...
+</div>
+
+<script>
+  const recBtn = document.querySelector("a[href*='recommendations']");
+  recBtn.addEventListener("click", function(e){
+      document.getElementById('loadingOverlay').style.display = 'block';
+  });
+</script>
+
 {% endblock %}
