@@ -203,6 +203,16 @@
   margin-top: 0.5rem;
 }
 
+.metric-help-text {
+  font-size: 0.7rem;
+  color: #6c757d;
+  margin-top: 0.3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+}
+
 .chart-container {
   max-height: 900px;
   background: white;
@@ -1227,16 +1237,41 @@ html, body {
             <div class="metric-item">
               <div class="metric-value" id="pValue">--</div>
               <div class="metric-label">P-Value</div>
+              <div class="metric-help-text">
+                <i class="fas fa-info-circle text-info"></i>
+                <small>Significance level (lower = more reliable)</small>
+              </div>
             </div>
             <div class="metric-item">
               <div class="metric-value" id="effectSize">--</div>
               <div class="metric-label">Effect Size</div>
+              <div class="metric-help-text">
+                <i class="fas fa-info-circle text-info"></i>
+                <small>Magnitude of difference (higher = stronger)</small>
+              </div>
             </div>
             <div class="metric-item">
               <div class="metric-value" id="significance">--</div>
               <div class="metric-label">Confidence</div>
+              <div class="metric-help-text">
+                <i class="fas fa-info-circle text-info"></i>
+                <small>Statistical certainty level</small>
+              </div>
             </div>
           </div>
+
+          <!-- Statistical Interpretation Guide -->
+          <div class="alert alert-light border mt-3 mb-2" style="font-size: 0.85rem;">
+            <div class="fw-bold mb-2" style="color: #495057;">
+              <i class="fas fa-lightbulb text-warning"></i> How to Interpret Results:
+            </div>
+            <ul class="mb-0" style="padding-left: 1.2rem; line-height: 1.6;">
+              <li><strong>P-Value &lt; 0.05:</strong> Differences are statistically significant</li>
+              <li><strong>Effect Size &gt; 0.5:</strong> Difference is practically meaningful</li>
+              <li><strong>Confidence &gt; 95%:</strong> Results are highly reliable</li>
+            </ul>
+          </div>
+
           <div class="small text-muted mt-2" id="statNote">Select a statistical test to view methodology.</div>
         </div>
       </div>
@@ -2998,6 +3033,17 @@ function generateDifferentialInsights() {
 }
 
 
+function getStatTestDetails(testType, statistics) {
+  const baskets = statistics?.sample_size || '2.6M transactions';
+  const details = {
+    'chi_square': `Categorical frequency analysis comparing product distribution patterns across groups. Analyzes ${baskets} to detect significant category preference shifts.`,
+    't_test': `Welch's t-test comparing average values between groups (${baskets}). Tests if mean sales, basket sizes, or quantities differ meaningfully.`,
+    'mann_whitney': `Non-parametric rank-based test (${baskets}). Robust alternative when data is skewed or contains outliers. Compares median values.`,
+    'kolmogorov': `Distribution comparison test across ${baskets}. Measures maximum difference between cumulative distributions to detect pattern shifts.`
+  };
+  return details[testType] || `Statistical analysis completed on ${baskets}.`;
+}
+
 function runDifferentialAnalysis() {
   const compareBy = document.getElementById('compareBy')?.value || 'time';
   const statTest = document.getElementById('statTest')?.value || 'chi_square';
@@ -3071,8 +3117,18 @@ function runDifferentialAnalysis() {
         significance.textContent = data.statistics?.confidence ? `${data.statistics.confidence}%` : '--';
       }
       if (statNote) {
-        const testLabel = (data.statistics?.test_type || statTest).replace('_', ' ');
-        statNote.textContent = data.statistics?.note || `Completed ${testLabel} test.`;
+        if (data.statistics?.note) {
+          statNote.innerHTML = `<div style="line-height: 1.6;">${data.statistics.note}</div>`;
+        } else {
+          const testLabel = (data.statistics?.test_type || statTest).replace('_', ' ');
+          const testDetails = getStatTestDetails(statTest, data.statistics);
+          statNote.innerHTML = `
+            <div style="line-height: 1.6;">
+              <strong>📊 Test Completed:</strong> ${testLabel}<br>
+              <small>${testDetails}</small>
+            </div>
+          `;
+        }
       }
 
       if (data.chart && data.chart.labels) {
@@ -3887,8 +3943,74 @@ function showConfigurationHelp() {
         </div>
       </div>
 
-      <div class="alert alert-success mt-3">
-        <small><strong>💡 Manager's Tip:</strong> Start with Time Periods + Chi-Square for easy-to-understand seasonal trends, then explore Customer Segments + T-Test for value-based insights.</small>
+      <div class="mt-4">
+        <h6 class="fw-bold mb-3"><i class="fas fa-graduation-cap text-info"></i> Understanding Statistical Results:</h6>
+
+        <div class="row g-3">
+          <div class="col-md-4">
+            <div class="card border-info">
+              <div class="card-body p-3">
+                <h6 class="card-title text-info mb-2">📉 P-Value</h6>
+                <p class="card-text small mb-2"><strong>What it means:</strong> Probability that results are due to random chance.</p>
+                <ul class="small mb-0" style="padding-left: 1.2rem;">
+                  <li><strong>p &lt; 0.01:</strong> Very Strong Evidence</li>
+                  <li><strong>p &lt; 0.05:</strong> Strong Evidence (Standard)</li>
+                  <li><strong>p &lt; 0.10:</strong> Moderate Evidence</li>
+                  <li><strong>p &gt; 0.10:</strong> Weak/No Evidence</li>
+                </ul>
+                <div class="alert alert-light mt-2 mb-0" style="font-size: 0.75rem;">
+                  <strong>Example:</strong> p = 0.003 means 0.3% chance results are random → 99.7% confident differences are real.
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-md-4">
+            <div class="card border-warning">
+              <div class="card-body p-3">
+                <h6 class="card-title text-warning mb-2">📊 Effect Size</h6>
+                <p class="card-text small mb-2"><strong>What it means:</strong> How large/meaningful the difference is.</p>
+                <ul class="small mb-0" style="padding-left: 1.2rem;">
+                  <li><strong>&gt; 0.8:</strong> Large Effect (Very Important)</li>
+                  <li><strong>0.5-0.8:</strong> Medium Effect (Important)</li>
+                  <li><strong>0.2-0.5:</strong> Small Effect (Notable)</li>
+                  <li><strong>&lt; 0.2:</strong> Negligible Effect</li>
+                </ul>
+                <div class="alert alert-light mt-2 mb-0" style="font-size: 0.75rem;">
+                  <strong>Example:</strong> Effect = 0.65 means a medium-sized, practically important difference worth acting on.
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-md-4">
+            <div class="card border-success">
+              <div class="card-body p-3">
+                <h6 class="card-title text-success mb-2">✅ Confidence Level</h6>
+                <p class="card-text small mb-2"><strong>What it means:</strong> How certain we are about the results.</p>
+                <ul class="small mb-0" style="padding-left: 1.2rem;">
+                  <li><strong>&gt; 99%:</strong> Extremely Reliable</li>
+                  <li><strong>95-99%:</strong> Highly Reliable</li>
+                  <li><strong>90-95%:</strong> Moderately Reliable</li>
+                  <li><strong>&lt; 90%:</strong> Low Reliability</li>
+                </ul>
+                <div class="alert alert-light mt-2 mb-0" style="font-size: 0.75rem;">
+                  <strong>Example:</strong> 95% confidence means if we repeat this analysis 100 times, 95 times we'd see similar results.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="alert alert-success mt-3 mb-0">
+        <div class="mb-2"><strong>💡 Manager's Quick Guide:</strong></div>
+        <ul class="mb-0 small" style="padding-left: 1.5rem; line-height: 1.7;">
+          <li><strong>Actionable Result:</strong> P-Value &lt; 0.05 + Effect Size &gt; 0.5 + Confidence &gt; 95%</li>
+          <li><strong>Worth Monitoring:</strong> P-Value &lt; 0.10 + Effect Size &gt; 0.3</li>
+          <li><strong>Not Significant:</strong> P-Value &gt; 0.10 or Effect Size &lt; 0.2</li>
+          <li><strong>Best Starting Point:</strong> Time Periods + Chi-Square Test for seasonal insights</li>
+        </ul>
       </div>
     </div>
   `;
