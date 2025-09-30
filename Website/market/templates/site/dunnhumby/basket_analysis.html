@@ -4749,13 +4749,15 @@ function updatePredictiveCharts(predictions, algorithm) {
 
     validDepts.slice(0, 4).forEach((dept, index) => {
       const forecasts = dept.forecasts || {};
+      const historicalProbs = dept.historical_probabilities || {};
 
-      // Use actual future probability predictions from the new system
+      // Use FIXED historical probabilities (doesn't change with horizon selection)
+      // This ensures the trends chart shows consistent historical data
       const probabilities = [
-        (forecasts['1_month']?.probability || 0) * 100,
-        (forecasts['3_months']?.probability || 0) * 100,
-        (forecasts['6_months']?.probability || 0) * 100,
-        (forecasts['12_months']?.probability || 0) * 100
+        (historicalProbs['1_month'] || 0) * 100,
+        (historicalProbs['3_months'] || 0) * 100,
+        (historicalProbs['6_months'] || 0) * 100,
+        (historicalProbs['12_months'] || 0) * 100
       ];
 
       const revenues = [
