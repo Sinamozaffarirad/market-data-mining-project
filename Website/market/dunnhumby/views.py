@@ -698,6 +698,83 @@ def site_index(request):
 
 
 @login_required(login_url='/admin/login/')
+def api_market_trends(request):
+    """
+    API endpoint for real-time market trends data (last 12 months)
+    Returns monthly sales volume, revenue, customers, and basket size
+    """
+    from django.http import JsonResponse
+    from django.db import connection
+    from collections import defaultdict
+
+    try:
+        with connection.cursor() as cursor:
+            # Get monthly aggregated data for exactly 12 months ending at day 711
+            # 12 complete months = days 352-711 (360 days)
+            # Group by 30-day periods: Month 1 (days 352-381), Month 2 (days 382-411), etc.
+            cursor.execute("""
+                SELECT
+                    ((day - 352) / 30) + 1 as month_num,
+                    COUNT(*) as transaction_count,
+                    SUM(sales_value) as total_sales,
+                    COUNT(DISTINCT household_key) as unique_customers,
+                    COUNT(DISTINCT basket_id) as basket_count,
+                    AVG(sales_value) as avg_basket_value
+                FROM transactions
+                WHERE day >= 352 AND day <= 711
+                GROUP BY ((day - 352) / 30) + 1
+                HAVING ((day - 352) / 30) + 1 <= 12
+                ORDER BY month_num
+            """)
+
+            rows = cursor.fetchall()
+
+            # Initialize data arrays
+            sales_volume = []
+            revenue = []
+            customers = []
+            basket_sizes = []
+            month_labels = []
+
+            # Process exactly 12 months of data
+            for i, row in enumerate(rows):
+                month_num, txn_count, total_sales, unique_customers, basket_count, avg_basket = row
+
+                sales_volume.append(int(txn_count))
+                revenue.append(round(float(total_sales or 0), 2))
+                customers.append(int(unique_customers or 0))
+                basket_sizes.append(round(float(avg_basket or 0), 2))
+
+            # Generate labels after filtering
+            for i in range(len(sales_volume)):
+                # Label showing months ago (oldest → newest)
+                months_ago = len(sales_volume) - i - 1
+                if months_ago == 0:
+                    month_labels.append("Current")
+                elif months_ago == 1:
+                    month_labels.append("1 mo ago")
+                else:
+                    month_labels.append(f"{months_ago} mo ago")
+
+            return JsonResponse({
+                'success': True,
+                'labels': month_labels,
+                'datasets': {
+                    'sales_volume': sales_volume,
+                    'revenue': revenue,
+                    'customers': customers,
+                    'basket_sizes': basket_sizes
+                }
+            })
+
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@login_required(login_url='/admin/login/')
 def basket_analysis(request):
     """
     Optimized Market Basket Analysis for 2.6M+ transactions
