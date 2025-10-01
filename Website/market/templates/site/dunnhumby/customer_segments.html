@@ -2,7 +2,7 @@
 {% block title %}Customer Segmentation{% endblock %}
 {% block content %}
 
-// change it!!
+{% comment %} change it!! {% endcomment %}
 <style>
 	.segment-card, .churn-card, .household-card {
 		background: var(--card-bg);
@@ -226,101 +226,181 @@
 </div>
 
 <script>
-document.addEventListener('DOMContentLoaded', function(){
-  const csrftoken = (document.cookie.split('; ').find(r=>r.startsWith('csrftoken='))||'').split('=')[1]||'';
-  // RFM details
-  document.querySelectorAll('.segment-card').forEach(el=>{
-    el.addEventListener('click', async ()=>{
-      const seg = el.dataset.seg;
-      const form = new FormData(); form.append('csrfmiddlewaretoken', csrftoken); form.append('rfm_segment', seg);
-      const res = await fetch('/analysis/api/segment/', {method:'POST', body: form});
-      const j = await res.json();
-      if(j.error){ return showDetailModal('Segment '+seg, '<div class="text-danger">'+j.error+'</div>'); }
-      const m = j.metrics||{}; let body = `<div class="row g-3">
-        <div class=\"col-3 text-center\"><div class=\"text-muted small\">Customers</div><div class=\"fw-bold\">${m.customers||0}</div></div>
-        <div class=\"col-3 text-center\"><div class=\"text-muted small\">Avg Spend</div><div class=\"fw-bold\">$${Number(m.avg_spend||0).toFixed(2)}</div></div>
-        <div class=\"col-3 text-center\"><div class=\"text-muted small\">Avg Txns</div><div class=\"fw-bold\">${Number(m.avg_txns||0).toFixed(1)}</div></div>
-        <div class=\"col-3 text-center\"><div class=\"text-muted small\">Avg Basket</div><div class=\"fw-bold\">$${Number(m.avg_basket||0).toFixed(2)}</div></div>
-      </div>`;
-      body += '<h6 class="mt-3">Top Households</h6><div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Household</th><th>Spend</th><th>Txns</th><th>Avg Basket</th><th>R-F-M</th><th>Updated</th></tr></thead><tbody>';
-      (j.top_households||[]).forEach(h=>{ body += `<tr><td>${h.household_key}</td><td>$${Number(h.total_spend||0).toFixed(2)}</td><td>${h.total_transactions||0}</td><td>$${Number(h.avg_basket_value||0).toFixed(2)}</td><td>${h.recency_score||'-'}-${h.frequency_score||'-'}-${h.monetary_score||'-'}</td><td>${(h.updated_at||'').toString().slice(0,10)}</td></tr>`; });
-      body += '</tbody></table></div>';
-      showDetailModal('Segment: '+seg, body);
+document.addEventListener('DOMContentLoaded', function() {
+    const csrftoken = (document.cookie.split('; ').find(r => r.startsWith('csrftoken=')) || '').split('=')[1] || '';
+    const detailModalEl = document.getElementById('detailModal');
+    if (!detailModalEl) return;
+
+    // -----------------------------------------------------------------
+    // ۱. تابع نمایش مودال (بدون تغییر)
+    // -----------------------------------------------------------------
+    function showDetailModal(title, body, footer = null) {
+        const modalTitle = detailModalEl.querySelector('.modal-title');
+        const modalBody = detailModalEl.querySelector('.modal-body');
+        const modalFooter = detailModalEl.querySelector('.modal-footer');
+
+        if (modalTitle) modalTitle.innerHTML = title;
+        if (modalBody) modalBody.innerHTML = body;
+        if (modalFooter) {
+            if (footer) {
+                modalFooter.innerHTML = footer;
+            } else {
+                modalFooter.innerHTML = '<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>';
+            }
+        }
+        
+        const modal = bootstrap.Modal.getOrCreateInstance(detailModalEl);
+        modal.show();
+    }
+
+    // -----------------------------------------------------------------
+    // ۲. تابع مرکزی برای دریافت و نمایش داده‌های هر دو نوع مودال
+    // -----------------------------------------------------------------
+    async function fetchAndDisplayPage(type, identifier, page) {
+        const form = new FormData();
+        form.append('csrfmiddlewaretoken', csrftoken);
+        form.append('page', page);
+
+        let apiUrl = '';
+        let titlePrefix = '';
+        
+        if (type === 'rfm') {
+            form.append('rfm_segment', identifier);
+            apiUrl = '/analysis/api/segment/';
+            titlePrefix = 'Segment: ';
+        } else if (type === 'churn') {
+            form.append('churn_risk', identifier);
+            apiUrl = '/analysis/api/churn/';
+            titlePrefix = 'Churn Risk: ';
+        }
+
+        const res = await fetch(apiUrl, { method: 'POST', body: form });
+        const j = await res.json();
+        
+        if (j.error) {
+            return showDetailModal(titlePrefix + identifier, `<div class="text-danger">${j.error}</div>`);
+        }
+
+        const m = j.metrics || {};
+        const p = j.pagination || {};
+        let bodyHtml = '';
+
+        // ساخت بخش متریک‌ها بر اساس نوع مودال
+        if (type === 'rfm') {
+            bodyHtml = `<div class="row g-3">
+                <div class="col-3 text-center"><div class="text-muted small">Customers</div><div class="fw-bold">${m.customers || 0}</div></div>
+                <div class="col-3 text-center"><div class="text-muted small">Avg Spend</div><div class="fw-bold">$${Number(m.avg_spend || 0).toFixed(2)}</div></div>
+                <div class="col-3 text-center"><div class="text-muted small">Avg Txns</div><div class="fw-bold">${Number(m.avg_txns || 0).toFixed(1)}</div></div>
+                <div class="col-3 text-center"><div class="text-muted small">Avg Basket</div><div class="fw-bold">$${Number(m.avg_basket || 0).toFixed(2)}</div></div>
+            </div>`;
+        } else if (type === 'churn') {
+            bodyHtml = `<div class="row g-3">
+                <div class="col-2 text-center"><div class="text-muted small">Customers</div><div class="fw-bold">${m.customers || 0}</div></div>
+                <div class="col-2 text-center"><div class="text-muted small">Avg Spend</div><div class="fw-bold">$${Number(m.avg_spend || 0).toFixed(2)}</div></div>
+                <div class="col-2 text-center"><div class="text-muted small">Avg Txns</div><div class="fw-bold">${Number(m.avg_txns || 0).toFixed(1)}</div></div>
+                <div class="col-2 text-center"><div class="text-muted small">Avg Basket</div><div class="fw-bold">$${Number(m.avg_basket || 0).toFixed(2)}</div></div>
+                <div class="col-2 text-center"><div class="text-muted small">Avg Risk</div><div class="fw-bold">${(Number(m.avg_churn_probability || 0) * 100).toFixed(1)}%</div></div>
+                <div class="col-2 text-center"><div class="text-muted small">Risk Range</div><div class="fw-bold">${(Number(m.min_churn_probability || 0) * 100).toFixed(0)}% - ${(Number(m.max_churn_probability || 0) * 100).toFixed(0)}%</div></div>
+            </div>`;
+        }
+        
+        // ساخت جدول (مشترک برای هر دو)
+        bodyHtml += '<h6 class="mt-3"></h6><div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Household</th><th>Spend</th><th>Txns</th><th>Avg Basket</th><th>R-F-M</th><th>Churn %</th><th>Updated</th></tr></thead><tbody>';
+		(j.households_page || []).forEach(h => {
+			bodyHtml += `<tr>
+				<td>
+					<div class="d-flex align-items-center">
+						<i class="fa-solid fa-user text-muted me-2"></i>
+						<span>${h.household_key}</span>
+					</div>
+				</td>
+				<td>$${Number(h.total_spend || 0).toFixed(2)}</td>
+				<td>${h.total_transactions || 0}</td>
+				<td>$${Number(h.avg_basket_value || 0).toFixed(2)}</td>
+				<td>${h.recency_score || '-'}-${h.frequency_score || '-'}-${h.monetary_score || '-'}</td>
+				<td>${(Number(h.churn_probability || 0) * 100).toFixed(1)}%</td>
+				<td>${(h.updated_at || '').toString().slice(0, 10)}</td>
+			</tr>`;
+		});
+        bodyHtml += '</tbody></table></div>';
+        
+        // ساخت فوتر مودال (مشترک برای هر دو)
+        const itemsPerPage = 20;
+        const startItem = (p.current_page - 1) * itemsPerPage + 1;
+        const endItem = Math.min(p.current_page * itemsPerPage, p.total_items);
+        let footerHtml = `<div class="d-flex justify-content-between w-100 align-items-center">
+            <span class="text-muted small">Showing ${startItem}-${endItem} of ${p.total_items} records</span>
+            <div>
+                <a href="#" class="text-decoration-none ${p.has_previous ? '' : 'text-muted disabled'}" data-page="${p.current_page - 1}" id="prev-page-btn">&lt; Previous</a>
+                <a href="#" class="text-decoration-none ms-3 ${p.has_next ? '' : 'text-muted disabled'}" data-page="${p.current_page + 1}" id="next-page-btn">Next &gt;</a>
+            </div>
+        </div>`;
+
+        // ذخیره اطلاعات لازم برای کلیک‌های بعدی روی خود مودال
+        detailModalEl.dataset.type = type;
+        detailModalEl.dataset.identifier = identifier;
+        
+        showDetailModal(titlePrefix + identifier, bodyHtml, footerHtml);
+    }
+    
+    // -----------------------------------------------------------------
+    // ۳. Event Listener مرکزی برای مدیریت کلیک دکمه‌های صفحه‌بندی
+    // -----------------------------------------------------------------
+    detailModalEl.addEventListener('click', function(event) {
+        const target = event.target.closest('a'); // برای اطمینان از کلیک روی لینک
+        if (!target) return;
+
+        const type = detailModalEl.dataset.type;
+        const identifier = detailModalEl.dataset.identifier;
+
+        if (target.id === 'next-page-btn' || target.id === 'prev-page-btn') {
+            event.preventDefault();
+            if (!target.classList.contains('disabled')) {
+                const page = target.dataset.page;
+                fetchAndDisplayPage(type, identifier, page);
+            }
+        }
     });
-  });
-  // Household details
-  document.querySelectorAll('.household-card').forEach(el=>{
-    el.addEventListener('click', async ()=>{
-      const hh = el.dataset.household;
-      const form = new FormData(); form.append('csrfmiddlewaretoken', csrftoken); form.append('household_key', hh);
-      const res = await fetch('/analysis/api/household/', {method:'POST', body: form});
-      const j = await res.json();
-      if(j.error){ return showDetailModal('Household '+hh, '<div class="text-danger">'+j.error+'</div>'); }
-      const seg = j.segment||{}; 
-		let body = `<div class="row g-3">
-		<div class="col-2 text-center"><div class="text-muted small">Segment</div><div class="fw-bold">${seg.rfm_segment||'-'}</div></div>
-		<div class="col-2 text-center"><div class="text-muted small">Churn Risk</div><div class="fw-bold">${seg.churn_risk||'-'}</div></div>
-		<div class="col-2 text-center"><div class="text-muted small">Total Spend</div><div class="fw-bold">$${Number(seg.total_spend||0).toFixed(2)}</div></div>
-		<div class="col-2 text-center"><div class="text-muted small">Transactions</div><div class="fw-bold">${seg.total_transactions||0}</div></div>
-		<div class="col-2 text-center"><div class="text-muted small">Avg Basket</div><div class="fw-bold">$${Number(seg.avg_basket_value||0).toFixed(2)}</div></div>
-		<div class="col-2 text-center"><div class="text-muted small">R-F-M</div><div class="fw-bold">${seg.recency_score||'-'}-${seg.frequency_score||'-'}-${seg.monetary_score||'-'}</div></div>
-		</div>`;
 
-      body += '<h6 class="mt-3">Recent Transactions</h6><div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Basket</th><th>Product</th><th>Qty</th><th>Sales</th><th>Day</th></tr></thead><tbody>';
-      (j.recent_transactions||[]).forEach(t=>{ body += `<tr><td>${t.basket_id}</td><td>${t.product_id} ${t.commodity_desc?('— '+t.commodity_desc):''}</td><td>${t.quantity}</td><td>$${Number(t.sales_value||0).toFixed(2)}</td><td>${t.day}</td></tr>`; });
-      body += '</tbody></table></div>';
-      showDetailModal('Household: '+hh, body);
-    })
-  });
-
-  // Churn details
-  document.querySelectorAll('.churn-card').forEach(el=>{
-    el.addEventListener('click', async ()=>{
-      const risk = el.dataset.risk;
-      const form = new FormData(); 
-      form.append('csrfmiddlewaretoken', csrftoken); 
-      form.append('churn_risk', risk);
-
-      const res = await fetch('/analysis/api/churn/', {method:'POST', body: form});
-      const j = await res.json();
-      if(j.error){ 
-        return showDetailModal('Churn Risk '+risk, '<div class="text-danger">'+j.error+'</div>'); 
-      }
-
-      const m = j.metrics||{}; 
-      let body = `<div class="row g-3">
-        <div class="col-2 text-center"><div class="text-muted small">Customers</div><div class="fw-bold">${m.customers||0}</div></div>
-        <div class="col-2 text-center"><div class="text-muted small">Avg Spend</div><div class="fw-bold">$${Number(m.avg_spend||0).toFixed(2)}</div></div>
-        <div class="col-2 text-center"><div class="text-muted small">Avg Txns</div><div class="fw-bold">${Number(m.avg_txns||0).toFixed(1)}</div></div>
-        <div class="col-2 text-center"><div class="text-muted small">Avg Basket</div><div class="fw-bold">$${Number(m.avg_basket||0).toFixed(2)}</div></div>
-        <div class="col-2 text-center"><div class="text-muted small">Avg Risk</div><div class="fw-bold">${(Number(m.avg_churn_probability||0)*100).toFixed(1)}%</div></div>
-        <div class="col-2 text-center"><div class="text-muted small">Risk Range</div>
-          <div class="fw-bold">${(Number(m.min_churn_probability||0)*100).toFixed(0)}% - ${(Number(m.max_churn_probability||0)*100).toFixed(0)}%</div>
-        </div>
-      </div>`;
-
-      body += '<h6 class="mt-3">Top Households</h6><div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Household</th><th>Spend</th><th>Txns</th><th>Avg Basket</th><th>R-F-M</th><th>Churn %</th><th>Updated</th></tr></thead><tbody>';
-      (j.top_households||[]).forEach(h=>{
-        body += `<tr>
-          <td>${h.household_key}</td>
-          <td>$${Number(h.total_spend||0).toFixed(2)}</td>
-          <td>${h.total_transactions||0}</td>
-          <td>$${Number(h.avg_basket_value||0).toFixed(2)}</td>
-          <td>${h.recency_score||'-'}-${h.frequency_score||'-'}-${h.monetary_score||'-'}</td>
-          <td>${(Number(h.churn_probability||0)*100).toFixed(1)}%</td>
-          <td>${(h.updated_at||'').toString().slice(0,10)}</td>
-        </tr>`;
-      });
-      body += '</tbody></table></div>';
-
-      showDetailModal('Churn Risk: '+risk, body);
-
+    // -----------------------------------------------------------------
+    // ۴. Event Listenerهای اولیه برای باز کردن مودال‌ها
+    // -----------------------------------------------------------------
+    document.querySelectorAll('.segment-card').forEach(el => {
+        el.addEventListener('click', () => {
+            fetchAndDisplayPage('rfm', el.dataset.seg, 1);
+        });
     });
-  });
 
+    document.querySelectorAll('.churn-card').forEach(el => {
+        el.addEventListener('click', () => {
+            fetchAndDisplayPage('churn', el.dataset.risk, 1);
+        });
+    });
+
+    // کد مربوط به مودال Household (که صفحه‌بندی ندارد)
+    document.querySelectorAll('.household-card').forEach(el=>{
+        el.addEventListener('click', async ()=>{
+            const hh = el.dataset.household;
+            const form = new FormData(); form.append('csrfmiddlewaretoken', csrftoken); form.append('household_key', hh);
+            const res = await fetch('/analysis/api/household/', {method:'POST', body: form});
+            const j = await res.json();
+            if(j.error){ return showDetailModal('Household '+hh, '<div class="text-danger">'+j.error+'</div>'); }
+            const seg = j.segment||{}; 
+            let body = `<div class="row g-3">
+                <div class="col-2 text-center"><div class="text-muted small">Segment</div><div class="fw-bold">${seg.rfm_segment||'-'}</div></div>
+                <div class="col-2 text-center"><div class="text-muted small">R-F-M</div><div class="fw-bold">${seg.recency_score||'-'}-${seg.frequency_score||'-'}-${seg.monetary_score||'-'}</div></div>
+                <div class="col-2 text-center"><div class="text-muted small">Churn Risk</div><div class="fw-bold">${(Number(seg.churn_probability||'0')*100).toFixed(1)}%</div></div>
+                <div class="col-2 text-center"><div class="text-muted small">Total Spend</div><div class="fw-bold">$${Number(seg.total_spend||0).toFixed(2)}</div></div>
+                <div class="col-2 text-center"><div class="text-muted small">Transactions</div><div class="fw-bold">${seg.total_transactions||0}</div></div>
+                <div class="col-2 text-center"><div class="text-muted small">Avg Basket</div><div class="fw-bold">$${Number(seg.avg_basket_value||0).toFixed(2)}</div></div>
+            </div>`;
+            body += '<h6 class="mt-3">Recent Transactions</h6><div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Basket</th><th>Product</th><th>Qty</th><th>Sales</th><th>Day</th></tr></thead><tbody>';
+            (j.recent_transactions||[]).forEach(t=>{ body += `<tr><td>${t.basket_id}</td><td>${t.product_id} ${t.commodity_desc?('— '+t.commodity_desc):''}</td><td>${t.quantity}</td><td>$${Number(t.sales_value||0).toFixed(2)}</td><td>${t.day}</td></tr>`; });
+            body += '</tbody></table></div>';
+            showDetailModal('Household: '+hh, body);
+        })
+    });
 });
-
-
 </script>
 
 {% endblock %}

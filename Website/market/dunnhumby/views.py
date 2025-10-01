@@ -1009,51 +1009,6 @@ def association_rules(request):
 
 
 @login_required(login_url='/admin/login/')
-def customer_segments(request):
-    segments = CustomerSegment.objects.values('rfm_segment').annotate(
-        count=Count('household_key'),
-        avg_spend=Avg('total_spend'),
-        avg_transactions=Avg('total_transactions')
-    ).order_by('-count')
-
-    recent_customers = CustomerSegment.objects.order_by('-updated_at')[:20]
-
-    # assign churn risk label for each customer
-    for c in recent_customers:
-        prob = getattr(c, 'churn_probability', None)
-        if prob is None:
-            c.churn_risk = "N/A"
-        elif prob > 0.75:
-            c.churn_risk = "Very High Risk"
-        elif prob > 0.50:
-            c.churn_risk = "High Risk"
-        elif prob > 0.25:
-            c.churn_risk = "Medium Risk"
-        else:
-            c.churn_risk = "Low Risk"
-
-    # aggregate churn risk overview
-    churn_overview = CustomerSegment.objects.annotate(
-        risk_label=models.Case(
-            models.When(churn_probability__gt=0.75, then=models.Value("Very High Risk")),
-            models.When(churn_probability__gt=0.50, then=models.Value("High Risk")),
-            models.When(churn_probability__gt=0.25, then=models.Value("Medium Risk")),
-            models.When(churn_probability__gte=0, then=models.Value("Low Risk")),
-            default=models.Value("N/A"),
-            output_field=models.CharField(),
-        )
-    ).values("risk_label").annotate(count=Count("household_key")).order_by("-count")
-
-    return render(request, 'site/dunnhumby/customer_segments.html', {
-        'title': 'Customer Segmentation',
-        'segments': segments,
-        'recent_customers': recent_customers,
-        'churn_overview': churn_overview,
-    })
-
-
-
-@login_required(login_url='/admin/login/')
 def data_management(request):
         return render(request, 'site/dunnhumby/data_management.html', {
         'title': 'Database Manipulation & Management',
@@ -2506,25 +2461,44 @@ def api_differential_analysis(request):
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
+# در فایل views.py
+
+from django.core.paginator import Paginator # این خط را اضافه کنید
+
 @login_required(login_url='/admin/login/')
-def api_segment_details(request):
+def api_rfm_details(request):
     if request.method != 'POST':
         return JsonResponse({'error': 'POST required'}, status=405)
+
     name = request.POST.get('rfm_segment')
+    page_number = request.POST.get('page', 1) # شماره صفحه درخواستی را از فرانت‌اند می‌گیریم
+
     if not name:
         return JsonResponse({'error': 'rfm_segment required'}, status=400)
+
     try:
         qs = CustomerSegment.objects.filter(rfm_segment=name)
+
+        # متریک‌های کلی مثل قبل محاسبه می‌شوند و نیازی به تغییر ندارند
         agg = qs.aggregate(
             customers=Count('household_key'),
             avg_spend=Avg('total_spend'),
             avg_txns=Avg('total_transactions'),
             avg_basket=Avg('avg_basket_value')
         )
-        top_households = list(
-            qs.values('household_key','total_spend','total_transactions','avg_basket_value','recency_score','frequency_score','monetary_score','updated_at')
-              .order_by('-total_spend')[:12]
-        )
+
+        # ۱. دیگر همه خانوارها را به لیست تبدیل نمی‌کنیم، فقط کوئری را آماده می‌کنیم
+        all_households_qs = qs.values(
+            'household_key','total_spend','total_transactions','avg_basket_value','recency_score',
+            'frequency_score','monetary_score','churn_probability','updated_at'
+        ).order_by('-total_spend')
+
+        # ۲. یک Paginator با تمام داده‌ها و سایز صفحه ۲۰ می‌سازیم
+        paginator = Paginator(all_households_qs, 20) # هر صفحه ۲۰ آیتم خواهد داشت
+
+        # ۳. صفحه درخواستی را از Paginator می‌گیریم
+        page_obj = paginator.get_page(page_number)
+
         return JsonResponse({
             'rfm_segment': name,
             'metrics': {
@@ -2533,7 +2507,16 @@ def api_segment_details(request):
                 'avg_txns': float(agg['avg_txns'] or 0),
                 'avg_basket': float(agg['avg_basket'] or 0),
             },
-            'top_households': top_households,
+            # ۴. فقط لیست خانوارهای صفحه فعلی را ارسال می‌کنیم
+            'households_page': list(page_obj.object_list),
+            # ۵. اطلاعات صفحه‌بندی را هم ارسال می‌کنیم تا فرانت‌اند از آن استفاده کند
+            'pagination': {
+                'has_next': page_obj.has_next(),
+                'has_previous': page_obj.has_previous(),
+                'current_page': page_obj.number,
+                'total_pages': paginator.num_pages,
+                'total_items': paginator.count,
+            }
         })
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
@@ -3193,14 +3176,68 @@ def training_status_api(request):
     global ml_training_status
     return JsonResponse(ml_training_status)
 
+
+@login_required(login_url='/admin/login/')
+def customer_segments(request):
+    segments = CustomerSegment.objects.values('rfm_segment').annotate(
+        count=Count('household_key'),
+        avg_spend=Avg('total_spend'),
+        avg_transactions=Avg('total_transactions')
+    ).order_by('-count')
+
+    recent_customers = CustomerSegment.objects.order_by('-updated_at')[:20]
+
+    # assign churn risk label for each customer
+    for c in recent_customers:
+        prob = getattr(c, 'churn_probability', None)
+        if prob is None:
+            c.churn_risk = "N/A"
+        elif prob > 0.75:
+            c.churn_risk = "Very High Risk"
+        elif prob > 0.50:
+            c.churn_risk = "High Risk"
+        elif prob > 0.25:
+            c.churn_risk = "Medium Risk"
+        else:
+            c.churn_risk = "Low Risk"
+
+    # --- بخش اصلاح شده برای Churn Overview ---
+    # کوئری اشتباه قبلی را با منطق مرتب‌سازی دستی جایگزین می‌کنیم
+    risk_counts = CustomerSegment.objects.aggregate(
+        low=Count('id', filter=Q(churn_probability__lte=0.25)),
+        medium=Count('id', filter=Q(churn_probability__gt=0.25, churn_probability__lte=0.50)),
+        high=Count('id', filter=Q(churn_probability__gt=0.50, churn_probability__lte=0.75)),
+        very_high=Count('id', filter=Q(churn_probability__gt=0.75))
+    )
+    
+    churn_data_sorted = [
+        {'risk_label': 'Low Risk', 'count': risk_counts.get('low', 0)},
+        {'risk_label': 'Medium Risk', 'count': risk_counts.get('medium', 0)},
+        {'risk_label': 'High Risk', 'count': risk_counts.get('high', 0)},
+        {'risk_label': 'Very High Risk', 'count': risk_counts.get('very_high', 0)},
+    ]
+    # -------------------------------------------
+
+    # حالا داده‌های مرتب‌شده جدید را به قالب ارسال می‌کنیم
+    return render(request, 'site/dunnhumby/customer_segments.html', {
+        'title': 'Customer Segmentation',
+        'segments': segments,
+        'recent_customers': recent_customers,
+        'churn_overview': churn_data_sorted, # <-- از متغیر جدید استفاده می‌کنیم
+    })
+
+
+
 @csrf_exempt
 def churn_api(request):
     if request.method == 'POST':
         risk_label = request.POST.get('churn_risk')
+        page_number = request.POST.get('page', 1) # ۱. شماره صفحه را دریافت می‌کنیم
+
         if not risk_label:
             return JsonResponse({'error': 'No churn risk provided'})
 
-        # فیلتر مشتریان براساس ریسک
+        # فیلتر مشتریان براساس ریسک (بدون تغییر)
         qs = CustomerSegment.objects.all()
         if risk_label == "Very High Risk":
             qs = qs.filter(churn_probability__gt=0.75)
@@ -3211,7 +3248,7 @@ def churn_api(request):
         elif risk_label == "Low Risk":
             qs = qs.filter(churn_probability__lte=0.25)
 
-        # متریک‌ها
+        # متریک‌ها (بدون تغییر)
         metrics = {
             'customers': qs.count(),
             'avg_spend': qs.aggregate(Avg('total_spend'))['total_spend__avg'] or 0,
@@ -3222,13 +3259,28 @@ def churn_api(request):
             'min_churn_probability': qs.aggregate(Min('churn_probability'))['churn_probability__min'] or 0,
         }
 
-        # بهترین 10 خانوار از نظر خرج
-        top_households = list(qs.order_by('-total_spend')[:10].values(
+        # ۲. کوئری اصلی را بدون محدودیت آماده می‌کنیم
+        all_households_qs = qs.order_by('-churn_probability').values(
             'household_key', 'total_spend', 'total_transactions',
             'avg_basket_value', 'recency_score', 'frequency_score',
             'monetary_score', 'churn_probability', 'updated_at'
-        ))
+        )
 
-        return JsonResponse({'metrics': metrics, 'top_households': top_households})
+        # ۳. Paginator را با داده‌ها و سایز صفحه ۲۰ می‌سازیم
+        paginator = Paginator(all_households_qs, 20)
+        page_obj = paginator.get_page(page_number)
+        
+        # ۴. پاسخ JSON را با ساختار جدید ارسال می‌کنیم
+        return JsonResponse({
+            'metrics': metrics, 
+            'households_page': list(page_obj.object_list),
+            'pagination': {
+                'has_next': page_obj.has_next(),
+                'has_previous': page_obj.has_previous(),
+                'current_page': page_obj.number,
+                'total_pages': paginator.num_pages,
+                'total_items': paginator.count,
+            }
+        })
 
     return JsonResponse({'error': 'Invalid request'})
