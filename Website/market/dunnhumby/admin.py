@@ -373,7 +373,7 @@ class DunnhumbyAdminSite(admin.AdminSite):
             print(f"Error in RFM segments: {e}")
             return 0
         
-        for customer in customers[:1000]:  # Limit for demo
+        for customer in customers:
             try:
                 # Simplified RFM scoring (1-5 scale)
                 recency_score = min(5, max(1, int((400 - customer['last_transaction']) / 80)))

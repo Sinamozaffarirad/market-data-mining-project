@@ -1603,24 +1603,24 @@ def api_differential_analysis(request):
             )
             return [to_float(item['total_value']) for item in totals if to_float(item['total_value']) > 0]
 
-        def fetch_basket_totals_for_segment(segment, limit=4000):
-            limit = max(int(limit or 4000), 1)
-            select_limit, suffix_limit = build_limit_clause(limit)
-            query = f"""
-                SELECT {select_limit}
-                    t.basket_id,
-                    SUM(t.sales_value) as total_value
-                FROM transactions t
-                WHERE t.household_key IN (
-                    SELECT household_key FROM dunnhumby_customersegment WHERE rfm_segment = %s
-                )
-                GROUP BY t.basket_id
-                {suffix_limit}
-            """
-            with connection.cursor() as cursor:
-                cursor.execute(query, [segment])
-                rows = cursor.fetchall()
-            return [to_float(row[1]) for row in rows if to_float(row[1]) > 0]
+        # def fetch_basket_totals_for_segment(segment, limit=4000):
+        #     limit = max(int(limit or 4000), 1)
+        #     select_limit, suffix_limit = build_limit_clause(limit)
+        #     query = f"""
+        #         SELECT {select_limit}
+        #             t.basket_id,
+        #             SUM(t.sales_value) as total_value
+        #         FROM transactions t
+        #         WHERE t.household_key IN (
+        #             SELECT household_key FROM dunnhumby_customersegment WHERE rfm_segment = %s
+        #         )
+        #         GROUP BY t.basket_id
+        #         {suffix_limit}
+        #     """
+        #     with connection.cursor() as cursor:
+        #         cursor.execute(query, [segment])
+        #         rows = cursor.fetchall()
+        #     return [to_float(row[1]) for row in rows if to_float(row[1]) > 0]
 
         def fetch_basket_totals_for_store(store_id, limit=4000):
             if store_id is None:
