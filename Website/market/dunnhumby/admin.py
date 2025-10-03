@@ -558,7 +558,20 @@ class DunnhumbyAdminSite(admin.AdminSite):
                 )
                 if search:
                     queryset = queryset.filter(household_key__icontains=search)
-                    
+
+            elif table_name == 'association_rules':
+                queryset = model.objects.values(
+                    'id', 'antecedent', 'consequent', 'support', 'confidence', 'lift', 'rule_type'
+                )
+                if search:
+                    # Search in antecedent, consequent, or rule_type
+                    from django.db.models import Q
+                    queryset = queryset.filter(
+                        Q(antecedent__icontains=search) |
+                        Q(consequent__icontains=search) |
+                        Q(rule_type__icontains=search)
+                    )
+
             else:
                 # For other models with proper primary keys
                 queryset = model.objects.all()
@@ -788,12 +801,20 @@ class AssociationRuleAdmin(admin.ModelAdmin):
     list_display = ('get_rule_display', 'support', 'confidence', 'lift', 'rule_type', 'created_at')
     list_filter = ('rule_type', 'created_at')
     ordering = ('-lift', '-confidence')
-    
+    actions = ['delete_selected']
+
     def get_rule_display(self, obj):
         ant = ', '.join(map(str, obj.antecedent))
         con = ', '.join(map(str, obj.consequent))
         return f"{ant} → {con}"
     get_rule_display.short_description = "Rule"
+
+    def delete_selected(self, request, queryset):
+        """Delete selected association rules"""
+        count = queryset.count()
+        queryset.delete()
+        self.message_user(request, f"Successfully deleted {count} association rule(s).")
+    delete_selected.short_description = "Delete selected association rules"
 
 
 @admin.register(CustomerSegment)
