@@ -284,23 +284,58 @@
   animation-delay: calc(var(--animation-order) * 0.1s);
 }
 
+@media (max-width: 992px) {
+  .p-2[style*="flex: 0 0 20%"] {
+    flex: 0 0 33.333% !important;
+    max-width: 33.333% !important;
+  }
+}
+
 @media (max-width: 768px) {
   .hero-title {
-    font-size: 2.5rem;
+    font-size: 2rem !important;
     flex-direction: column;
     gap: 0.5rem;
   }
-  
+
   .hero-section {
     padding: 2rem 1rem;
   }
-  
+
   .metric-value {
     font-size: 2rem;
   }
-  
+
   .tool-card {
     padding: 2rem;
+  }
+
+  .p-2[style*="flex: 0 0 20%"] {
+    flex: 0 0 50% !important;
+    max-width: 50% !important;
+  }
+}
+
+@media (max-width: 576px) {
+  .hero-title {
+    font-size: 1.5rem !important;
+  }
+
+  .hero-subtitle {
+    font-size: 1rem !important;
+  }
+
+  .metric-value {
+    font-size: 1.5rem !important;
+  }
+
+  .p-2[style*="flex: 0 0 20%"] {
+    flex: 0 0 100% !important;
+    max-width: 100% !important;
+  }
+
+  .chart-section {
+    padding: 1.5rem !important;
   }
 }
 

@@ -139,3 +139,16 @@ STATICFILES_DIRS = [
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Session Configuration
+SESSION_COOKIE_AGE = 3600  # 1 hour in seconds
+SESSION_SAVE_EVERY_REQUEST = True  # Refresh session on each request
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False  # Session persists after browser close (for 1 hour)
+SESSION_COOKIE_SECURE = False  # Set to True in production with HTTPS
+SESSION_COOKIE_HTTPONLY = True  # Prevent JavaScript access to session cookie
+SESSION_COOKIE_SAMESITE = 'Lax'  # CSRF protection
+
+# Login Configuration
+LOGIN_URL = '/analysis/login/'
+LOGIN_REDIRECT_URL = '/analysis/'
+LOGOUT_REDIRECT_URL = '/analysis/login/'
