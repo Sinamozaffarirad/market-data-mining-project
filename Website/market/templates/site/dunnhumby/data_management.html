@@ -313,6 +313,8 @@ const tableDataCache = {}; // Cache to hold current page data
 const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
 let crudModal, confirmModal;
 const READ_ONLY_TABLES = ['basket_analysis', 'customer_segments'];
+let currentSortColumn = null;
+let currentSortDirection = 'asc';
 
 document.addEventListener("DOMContentLoaded", function() {
     crudModal = new bootstrap.Modal(document.getElementById('crudModal'));
@@ -448,6 +450,12 @@ async function loadTableData() {
         form.append('search', document.getElementById('globalSearch').value);
         form.append('filters', JSON.stringify(collectFilters()));
 
+        // Add sorting parameters
+        if (currentSortColumn) {
+            form.append('sort_column', currentSortColumn);
+            form.append('sort_direction', currentSortDirection);
+        }
+
         const res = await fetch('/analysis/api/table/', { method: 'POST', body: form });
         const json = await res.json();
 
@@ -507,7 +515,19 @@ function buildTable(json) {
 
     keys.forEach(k => {
         const th = document.createElement('th');
-        th.textContent = k.replace(/_/g, ' ').toUpperCase();
+        const displayName = k.replace(/_/g, ' ').toUpperCase();
+
+        // Add sorting for numeric columns (id, support, confidence, lift)
+        if (['id', 'support', 'confidence', 'lift'].includes(k.toLowerCase())) {
+            th.innerHTML = `
+                <div style="cursor: pointer; user-select: none;" onclick="sortTable('${k.toLowerCase()}')">
+                    ${displayName} <i class="fas fa-sort" id="sort-icon-${k.toLowerCase()}"></i>
+                </div>
+            `;
+            th.style.cursor = 'pointer';
+        } else {
+            th.textContent = displayName;
+        }
         headerRow.appendChild(th);
     });
 
@@ -568,6 +588,29 @@ function buildTable(json) {
 
     // Reset multi-select state after building the table
     resetMultiSelectState();
+}
+
+function sortTable(column) {
+    // Toggle sort direction
+    if (currentSortColumn === column) {
+        currentSortDirection = currentSortDirection === 'asc' ? 'desc' : 'asc';
+    } else {
+        currentSortColumn = column;
+        currentSortDirection = 'asc';
+    }
+
+    // Update sort icons
+    document.querySelectorAll('[id^="sort-icon-"]').forEach(icon => {
+        icon.className = 'fas fa-sort';
+    });
+
+    const icon = document.getElementById(`sort-icon-${column}`);
+    if (icon) {
+        icon.className = currentSortDirection === 'asc' ? 'fas fa-sort-up' : 'fas fa-sort-down';
+    }
+
+    // Reload data from server with sorting
+    loadTableData();
 }
 
 function editCell(cell, recordId, field) {

@@ -1178,6 +1178,8 @@ def api_get_table_data(request):
         limit = int(request.POST.get('limit', 50))
         search = request.POST.get('search', '')
         filters = json.loads(request.POST.get('filters', '{}')) if request.POST.get('filters') else {}
+        sort_column = request.POST.get('sort_column', '')
+        sort_direction = request.POST.get('sort_direction', 'asc')
 
         model_map = {
             'transactions': Transaction,
@@ -1213,9 +1215,23 @@ def api_get_table_data(request):
             'households': ['household_key', 'age_desc', 'income_desc', 'homeowner_desc', 'hh_comp_desc'],
             'campaigns': ['description'],
             'customer_segments': ['rfm_segment', 'household_key'],
-            'basket_analysis': ['basket_id', 'household_key']
+            'basket_analysis': ['basket_id', 'household_key'],
+            'association_rules': ['rule_type']
         }
-        if search and table_name in searchable_fields:
+
+        # Special handling for association_rules search
+        if search and table_name == 'association_rules':
+            q_objects = Q()
+            # Search in rule_type
+            q_objects |= Q(rule_type__icontains=search)
+            # Search in JSON fields by converting to string
+            q_objects |= Q(antecedent__icontains=search)
+            q_objects |= Q(consequent__icontains=search)
+            # Search by ID if numeric
+            if search.isnumeric():
+                q_objects |= Q(id=int(search))
+            queryset = queryset.filter(q_objects)
+        elif search and table_name in searchable_fields:
             q_objects = Q()
             for field in searchable_fields.get(table_name, []):
                 try:
@@ -1263,17 +1279,23 @@ def api_get_table_data(request):
             if filter_kwargs:
                 queryset = queryset.filter(**filter_kwargs)
         
-        # Ordering
-        ordering_fields = {
-            'transactions': ('-day', 'basket_id'),
-            'products': ('product_id',),
-            'households': ('household_key',),
-            'customer_segments': ('-total_spend',)
-        }
-        if table_name in ordering_fields:
-            queryset = queryset.order_by(*ordering_fields[table_name])
-        elif hasattr(model._meta, 'pk'):
-             queryset = queryset.order_by(model._meta.pk.name)
+        # Ordering - check for client-side sort first, then default ordering
+        if sort_column:
+            # Client requested sorting by a specific column
+            order_field = f"-{sort_column}" if sort_direction == 'desc' else sort_column
+            queryset = queryset.order_by(order_field)
+        else:
+            # Default ordering per table
+            ordering_fields = {
+                'transactions': ('-day', 'basket_id'),
+                'products': ('product_id',),
+                'households': ('household_key',),
+                'customer_segments': ('-total_spend',)
+            }
+            if table_name in ordering_fields:
+                queryset = queryset.order_by(*ordering_fields[table_name])
+            elif hasattr(model._meta, 'pk'):
+                 queryset = queryset.order_by(model._meta.pk.name)
 
 
         total_count = queryset.count()
