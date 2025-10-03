@@ -271,6 +271,7 @@ def customer_churn(request, pk):
     # Manually assign the churn_risk label if it doesn't exist on the model
     if segment and hasattr(segment, 'churn_probability'):
         prob = segment.churn_probability
+        segment.churn_probability_percent = prob * 100
         if prob is None:
             segment.churn_risk = "N/A"
         elif prob > 0.75:
