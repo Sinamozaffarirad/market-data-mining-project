@@ -46,6 +46,55 @@
             pointer-events: none;
         }
 
+        .floating-icons {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            overflow: hidden;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .floating-icon {
+            position: absolute;
+            color: rgba(255, 255, 255, 0.15);
+            animation: float 20s infinite ease-in-out;
+        }
+
+        .floating-icon:nth-child(1) { top: 10%; left: 10%; animation-delay: 0s; font-size: 3rem; }
+        .floating-icon:nth-child(2) { top: 20%; right: 15%; animation-delay: -2s; font-size: 2.5rem; }
+        .floating-icon:nth-child(3) { top: 60%; left: 8%; animation-delay: -4s; font-size: 3.5rem; }
+        .floating-icon:nth-child(4) { bottom: 25%; right: 10%; animation-delay: -6s; font-size: 2.8rem; }
+        .floating-icon:nth-child(5) { top: 40%; left: 5%; animation-delay: -8s; font-size: 2.3rem; }
+        .floating-icon:nth-child(6) { top: 70%; right: 20%; animation-delay: -10s; font-size: 3.2rem; }
+        .floating-icon:nth-child(7) { top: 15%; left: 80%; animation-delay: -12s; font-size: 2.6rem; }
+        .floating-icon:nth-child(8) { bottom: 15%; left: 25%; animation-delay: -14s; font-size: 2.9rem; }
+        .floating-icon:nth-child(9) { top: 50%; right: 5%; animation-delay: -16s; font-size: 3.3rem; }
+        .floating-icon:nth-child(10) { bottom: 40%; left: 15%; animation-delay: -18s; font-size: 2.7rem; }
+        .floating-icon:nth-child(11) { top: 5%; left: 35%; animation-delay: -1s; font-size: 2.4rem; }
+        .floating-icon:nth-child(12) { top: 80%; right: 8%; animation-delay: -3s; font-size: 3.1rem; }
+        .floating-icon:nth-child(13) { top: 35%; right: 25%; animation-delay: -5s; font-size: 2.6rem; }
+        .floating-icon:nth-child(14) { bottom: 10%; left: 40%; animation-delay: -7s; font-size: 2.9rem; }
+        .floating-icon:nth-child(15) { top: 25%; left: 20%; animation-delay: -9s; font-size: 3.4rem; }
+        .floating-icon:nth-child(16) { bottom: 50%; right: 30%; animation-delay: -11s; font-size: 2.5rem; }
+        .floating-icon:nth-child(17) { top: 45%; left: 70%; animation-delay: -13s; font-size: 3rem; }
+        .floating-icon:nth-child(18) { bottom: 30%; left: 5%; animation-delay: -15s; font-size: 2.8rem; }
+        .floating-icon:nth-child(19) { top: 55%; right: 12%; animation-delay: -17s; font-size: 3.2rem; }
+        .floating-icon:nth-child(20) { bottom: 5%; right: 40%; animation-delay: -19s; font-size: 2.6rem; }
+
+        @keyframes float {
+            0%, 100% {
+                transform: translateY(0px) rotate(0deg);
+                opacity: 0.15;
+            }
+            50% {
+                transform: translateY(-30px) rotate(10deg);
+                opacity: 0.25;
+            }
+        }
+
         .login-container {
             position: relative;
             z-index: 1;
@@ -290,6 +339,28 @@
     </style>
 </head>
 <body>
+    <div class="floating-icons">
+        <i class="fas fa-chart-line floating-icon"></i>
+        <i class="fas fa-shopping-basket floating-icon"></i>
+        <i class="fas fa-chart-bar floating-icon"></i>
+        <i class="fas fa-database floating-icon"></i>
+        <i class="fas fa-chart-pie floating-icon"></i>
+        <i class="fas fa-coins floating-icon"></i>
+        <i class="fas fa-users floating-icon"></i>
+        <i class="fas fa-receipt floating-icon"></i>
+        <i class="fas fa-project-diagram floating-icon"></i>
+        <i class="fas fa-network-wired floating-icon"></i>
+        <i class="fas fa-tags floating-icon"></i>
+        <i class="fas fa-cart-plus floating-icon"></i>
+        <i class="fas fa-user-friends floating-icon"></i>
+        <i class="fas fa-chart-area floating-icon"></i>
+        <i class="fas fa-percentage floating-icon"></i>
+        <i class="fas fa-shopping-cart floating-icon"></i>
+        <i class="fas fa-bullseye floating-icon"></i>
+        <i class="fas fa-dollar-sign floating-icon"></i>
+        <i class="fas fa-cubes floating-icon"></i>
+        <i class="fas fa-balance-scale floating-icon"></i>
+    </div>
     <div class="login-container">
         <div class="login-card">
             <div class="login-header">

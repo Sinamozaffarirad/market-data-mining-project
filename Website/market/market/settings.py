@@ -151,4 +151,4 @@ SESSION_COOKIE_SAMESITE = 'Lax'  # CSRF protection
 # Login Configuration
 LOGIN_URL = '/analysis/login/'
 LOGIN_REDIRECT_URL = '/analysis/'
-LOGOUT_REDIRECT_URL = '/analysis/login/'
+# Don't set LOGOUT_REDIRECT_URL globally - let each logout view handle it
