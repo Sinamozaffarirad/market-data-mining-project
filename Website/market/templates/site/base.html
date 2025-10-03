@@ -61,6 +61,24 @@
       max-width: 1500px;
       margin: 0 auto;
       flex-wrap: nowrap;
+      overflow: visible;
+    }
+
+    .nav-middle {
+      display: flex;
+      align-items: center;
+      flex: 1;
+      min-width: 0;
+      overflow-x: auto;
+      overflow-y: hidden;
+      -webkit-overflow-scrolling: touch;
+      margin-left: 3rem;
+      scrollbar-width: none; /* Hide scrollbar completely */
+    }
+
+    /* Hide scrollbar for webkit browsers */
+    .nav-middle::-webkit-scrollbar {
+      display: none;
     }
 
     .nav-brand {
@@ -73,6 +91,8 @@
       font-size: 1.5rem;
       letter-spacing: -0.025em;
       transition: all 0.3s ease;
+      flex-shrink: 0;
+      margin-right: 2rem;
     }
 
     .nav-brand:hover {
@@ -99,8 +119,10 @@
       gap: 0.3rem;
       list-style: none;
       margin: 0;
-      padding: 0;
-      margin-left: 1.2rem;
+      padding: 0.5rem 1rem;
+      flex-wrap: nowrap;
+      flex-shrink: 0;
+      min-width: max-content;
     }
 
     .nav-link {
@@ -184,46 +206,113 @@
       padding: 0.5rem;
     }
 
-    @media (max-width: 992px) {
+    @media (max-width: 1200px) {
+      .nav-middle {
+        margin-left: 2rem;
+      }
+
+      .nav-brand {
+        margin-right: 1.5rem;
+      }
+
+      .nav-links {
+        gap: 0.2rem;
+        padding-right: 1rem;
+      }
+
+      .nav-link {
+        padding: 0.75rem 0.8rem;
+        font-size: 0.8rem;
+      }
+    }
+
+    @media (max-width: 1540px) {
       .nav-container {
         padding: 0 1rem 0 0.5rem;
       }
 
-      .nav-links {
-        margin-left: 0.5rem;
-        gap: 0.2rem;
-      }
-      
-      .nav-links {
+      .nav-middle {
         display: none;
+      }
+
+      .nav-middle.show {
+        display: flex;
         position: absolute;
         top: 100%;
         left: 0;
         right: 0;
-        background: rgba(102, 126, 234, 0.95);
+        background: rgba(102, 126, 234, 0.98);
         backdrop-filter: blur(10px);
         flex-direction: column;
         padding: 1rem;
-        gap: 0;
         box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        overflow-x: visible;
+        z-index: 1000;
+        margin-left: 0;
       }
-      
-      .nav-links.show {
-        display: flex;
+
+      .nav-middle.show .nav-links {
+        flex-direction: column;
+        width: 100%;
+        padding: 0;
       }
-      
-      .nav-link {
+
+      .nav-middle.show .nav-link {
         width: 100%;
         text-align: center;
         margin: 0.25rem 0;
+        padding: 1rem;
       }
-      
+
+      .nav-brand {
+        font-size: 1.3rem;
+        margin-right: 1rem;
+      }
+
       .mobile-nav-toggle {
         display: block;
       }
-      
+
       .theme-toggle {
         margin-left: 0.5rem;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .nav-middle {
+        display: none;
+      }
+
+      .nav-middle.show {
+        display: flex;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: rgba(102, 126, 234, 0.98);
+        backdrop-filter: blur(10px);
+        flex-direction: column;
+        padding: 1rem;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        overflow-x: visible;
+        z-index: 1000;
+      }
+
+      .nav-middle.show .nav-links {
+        flex-direction: column;
+        width: 100%;
+        padding: 0;
+      }
+
+      .nav-middle.show .nav-link {
+        width: 100%;
+        text-align: center;
+        margin: 0.25rem 0;
+        padding: 1rem;
+      }
+
+      .mobile-nav-toggle {
+        display: block;
       }
     }
 
@@ -241,11 +330,72 @@
       .content {
         padding: 1rem;
       }
+
+      footer .row {
+        text-align: center !important;
+      }
+
+      footer .col-md-4 {
+        margin-bottom: 2rem;
+      }
+
+      footer .col-md-4 > div {
+        justify-content: center !important;
+      }
+
+      footer img {
+        width: 60px !important;
+        height: 60px !important;
+      }
+    }
+
+    @media (max-width: 576px) {
+      .nav-brand {
+        font-size: 1rem;
+      }
+
+      footer {
+        padding: 2rem 1rem !important;
+      }
+
+      footer img {
+        width: 50px !important;
+        height: 50px !important;
+      }
+
+      footer div[style*="font-size: 1.1rem"] {
+        font-size: 0.95rem !important;
+      }
+
+      footer div[style*="font-size: 1.5rem"] {
+        font-size: 1.2rem !important;
+      }
     }
 
     body {
       background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
       font-family: 'Inter', sans-serif;
+      overflow-x: hidden;
+      width: 100%;
+      max-width: 100vw;
+    }
+
+    html {
+      overflow-x: hidden;
+      width: 100%;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    .container-fluid {
+      width: 100%;
+      max-width: 100%;
+      padding-right: 15px;
+      padding-left: 15px;
+      margin-right: auto;
+      margin-left: auto;
     }
 
     .fade-up {
@@ -275,35 +425,43 @@
         </div>
         <span>Market Analytics</span>
       </a>
-      
-      <div class="nav-links" id="navLinks">
-        <a href="/analysis/" class="nav-link">
-          <i class="fas fa-home me-2"></i>
-          Dashboard
-        </a>
-        <a href="/analysis/basket-analysis/" class="nav-link">
-          <i class="fas fa-shopping-basket me-2"></i>
-          Basket Analysis
-        </a>
-        <a href="/analysis/association-rules/" class="nav-link">
-          <i class="fas fa-project-diagram me-2"></i>
-          Association Rules
-        </a>
-        <a href="/analysis/customer-segments/" class="nav-link">
-          <i class="fas fa-users me-2"></i>
-          Customer Segments
-        </a>
-        <a href="/analysis/data-management/" class="nav-link">
-          <i class="fas fa-database me-2"></i>
-          Data Management
-        </a>
-        <a href="{% url 'customers:search' %}" class="nav-link">
-          <i class="fas fa-user me-2"></i>
-          Customers
-        </a>
+
+      <div class="nav-middle" id="navMiddle">
+        <div class="nav-links">
+          <a href="/analysis/" class="nav-link">
+            <i class="fas fa-home me-2"></i>
+            Dashboard
+          </a>
+          <a href="/analysis/basket-analysis/" class="nav-link">
+            <i class="fas fa-shopping-basket me-2"></i>
+            Basket Analysis
+          </a>
+          <a href="/analysis/association-rules/" class="nav-link">
+            <i class="fas fa-project-diagram me-2"></i>
+            Association Rules
+          </a>
+          <a href="/analysis/customer-segments/" class="nav-link">
+            <i class="fas fa-users me-2"></i>
+            Customer Segments
+          </a>
+          <a href="/analysis/data-management/" class="nav-link">
+            <i class="fas fa-database me-2"></i>
+            Data Management
+          </a>
+          <a href="{% url 'customers:search' %}" class="nav-link">
+            <i class="fas fa-user me-2"></i>
+            Customers
+          </a>
+        </div>
       </div>
-      
+
       <div class="d-flex align-items-center">
+        {% if user.is_authenticated %}
+        <a href="{% url 'dunnhumby_site:logout' %}" class="nav-link" style="background: rgba(255,255,255,0.1); padding: 0.5rem 1rem; border-radius: 10px; margin-right: 1rem;">
+          <i class="fas fa-sign-out-alt me-2"></i>
+          Logout
+        </a>
+        {% endif %}
         <button class="mobile-nav-toggle" id="mobileNavToggle" aria-label="Toggle navigation">
           <i class="fas fa-bars"></i>
         </button>
@@ -318,6 +476,35 @@
       {% block content %}{% endblock %}
     </div>
   </main>
+
+  <!-- Footer -->
+  <footer style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 3rem 2rem 2rem; margin-top: 4rem; border-top: 3px solid rgba(255,255,255,0.2);">
+    <div class="container-fluid" style="max-width: 1400px;">
+      <div class="row align-items-center">
+        <div class="col-md-4 text-center text-md-start mb-3 mb-md-0">
+          <div style="display: flex; align-items: center; gap: 1rem; justify-content: center; justify-content: md-start;">
+            <img src="{% static 'images/kuLogo.png' %}" alt="University of Kashan Logo" style="width: 100px; height: 90px; filter: drop-shadow(0 2px 8px rgba(255,255,255,0.2));">
+            <div>
+              <div style="font-size: 1.1rem; font-weight: 700; margin-bottom: 0.25rem;">University of Kashan</div>
+              <div style="font-size: 0.9rem; opacity: 0.9;">Computer Engineering Department</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-md-4 text-center mb-3 mb-md-0">
+          <div style="font-size: 1.5rem; font-weight: 800; margin-bottom: 0.5rem;">Market Analytics Platform</div>
+          <div style="font-size: 0.875rem; opacity: 0.85;">Advanced Data Mining & Analysis System</div>
+        </div>
+
+        <div class="col-md-4 text-center text-md-end">
+          <div style="font-size: 0.9rem; margin-bottom: 0.5rem; opacity: 0.9;">
+            <i class="fas fa-shield-alt"></i> Protected by Django Authentication
+          </div>
+          <div style="font-size: 1.1rem; font-weight: 600;">© 2025</div>
+        </div>
+      </div>
+    </div>
+  </footer>
 
   <script>
     // Modern Navigation Controller
@@ -367,22 +554,22 @@
       
       setupMobileNav() {
         const mobileToggle = document.getElementById('mobileNavToggle');
-        const navLinks = document.getElementById('navLinks');
-        
-        if (mobileToggle && navLinks) {
+        const navMiddle = document.getElementById('navMiddle');
+
+        if (mobileToggle && navMiddle) {
           mobileToggle.addEventListener('click', () => {
-            navLinks.classList.toggle('show');
+            navMiddle.classList.toggle('show');
             const icon = mobileToggle.querySelector('i');
             if (icon) {
               icon.classList.toggle('fa-bars');
               icon.classList.toggle('fa-times');
             }
           });
-          
+
           // Close mobile nav when clicking outside
           document.addEventListener('click', (e) => {
             if (!e.target.closest('.modern-nav')) {
-              navLinks.classList.remove('show');
+              navMiddle.classList.remove('show');
               const icon = mobileToggle.querySelector('i');
               if (icon) {
                 icon.classList.add('fa-bars');

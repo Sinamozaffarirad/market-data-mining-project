@@ -4,6 +4,10 @@ from . import views
 app_name = "dunnhumby_site"
 
 urlpatterns = [
+    # Authentication
+    path("login/", views.user_login, name="login"),
+    path("logout/", views.user_logout, name="logout"),
+    # Main pages
     path("", views.site_index, name="index"),
     path("basket-analysis/", views.basket_analysis, name="basket_analysis"),
     path("association-rules/", views.association_rules, name="association_rules"),
