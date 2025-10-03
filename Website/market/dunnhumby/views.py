@@ -1,8 +1,10 @@
-from django.contrib.auth.decorators import login_required
+from django.contrib.auth.decorators import login_required, user_passes_test
+from django.contrib.auth import authenticate, login, logout
 from django.db import models
 from django.http import JsonResponse, HttpResponse
-from django.shortcuts import render, get_object_or_404
+from django.shortcuts import render, get_object_or_404, redirect
 from django.db import connection
+from django.contrib import messages
 from django.urls import reverse
 from django.db.models import Sum, Count, Avg, Max, Q, Min
 from math import sqrt
@@ -26,6 +28,58 @@ logger = logging.getLogger(__name__)
 # Define table categories based on their CRUD properties
 READ_ONLY_ANALYTICAL_TABLES = ['basket_analysis', 'customer_segments']
 MANAGED_ANALYTICAL_TABLES = ['association_rules']
+
+
+def admin_required(view_func):
+    """Decorator to require admin/staff status for views"""
+    def check_admin(user):
+        return user.is_authenticated and (user.is_staff or user.is_superuser)
+
+    decorated_view = user_passes_test(check_admin, login_url='/analysis/login/')(view_func)
+    return decorated_view
+
+
+def user_login(request):
+    """Login view for main website - only admins allowed"""
+    if request.user.is_authenticated and (request.user.is_staff or request.user.is_superuser):
+        return redirect('dunnhumby_site:index')
+
+    if request.method == 'POST':
+        username = request.POST.get('username')
+        password = request.POST.get('password')
+
+        user = authenticate(request, username=username, password=password)
+
+        if user is not None:
+            # Check if user is admin/staff
+            if user.is_staff or user.is_superuser:
+                login(request, user)
+
+                # Set session expiry (1 hour)
+                request.session.set_expiry(3600)
+
+                # Store device info for security
+                request.session['user_agent'] = request.META.get('HTTP_USER_AGENT', '')
+                request.session['ip_address'] = request.META.get('REMOTE_ADDR', '')
+
+                messages.success(request, f'Welcome back, {user.username}!')
+
+                # Redirect to next parameter or default
+                next_url = request.GET.get('next', '/analysis/')
+                return redirect(next_url)
+            else:
+                messages.error(request, 'Access denied. Admin privileges required.')
+        else:
+            messages.error(request, 'Invalid username or password.')
+
+    return render(request, 'site/login.html')
+
+
+def user_logout(request):
+    """Logout view"""
+    logout(request)
+    messages.success(request, 'You have been logged out successfully.')
+    return redirect('dunnhumby_site:login')
 
 
 def refresh_basket_analysis_logic():
@@ -635,7 +689,7 @@ def _get_data_statistics():
     }
 
 
-@login_required(login_url='/admin/login/')
+@admin_required
 def site_index(request):
     # Calculate dynamic metrics
     total_transactions = Transaction.objects.count()
@@ -675,7 +729,7 @@ def site_index(request):
     rev_change = ((float(recent_revenue) - float(prev_revenue)) / float(prev_revenue) * 100) if prev_revenue > 0 else 0
 
     tools = [
-        { 'title': 'Shopping Basket Analysis', 'description': 'Analyze baskets, top products, and patterns', 'url': 'basket-analysis/', 'icon': '📊' },
+        { 'title': 'Shopping Basket Analysis', 'description': 'Analyze baskets, top products, and patterns', 'url': 'basket-analysis/', 'icon': '🧺' },
         { 'title': 'Association Rules', 'description': 'Market basket association rules', 'url': 'association-rules/', 'icon': '🔗' },
         { 'title': 'Customer Segments', 'description': 'RFM segments & behavior', 'url': 'customer-segments/', 'icon': '👥' },
         { 'title': 'Data Management', 'description': 'View, edit, import/export data', 'url': 'data-management/', 'icon': '⚙️' },
@@ -697,7 +751,7 @@ def site_index(request):
     return render(request, 'site/index.html', context)
 
 
-@login_required(login_url='/admin/login/')
+@admin_required
 def api_market_trends(request):
     """
     API endpoint for real-time market trends data (last 12 months)
@@ -774,7 +828,7 @@ def api_market_trends(request):
         }, status=500)
 
 
-@login_required(login_url='/admin/login/')
+@admin_required
 def basket_analysis(request):
     """
     Optimized Market Basket Analysis for 2.6M+ transactions
@@ -927,7 +981,7 @@ def basket_analysis(request):
         return render(request, 'site/dunnhumby/basket_analysis.html', context)
 
 
-@login_required(login_url='/admin/login/')
+@admin_required
 def association_rules(request):
     if request.method == 'POST':
         try:
@@ -1008,7 +1062,7 @@ def association_rules(request):
     return render(request, 'site/dunnhumby/association_rules.html', ctx)
 
 
-@login_required(login_url='/admin/login/')
+@admin_required
 def data_management(request):
         return render(request, 'site/dunnhumby/data_management.html', {
         'title': 'Database Manipulation & Management',
@@ -1124,6 +1178,8 @@ def api_get_table_data(request):
         limit = int(request.POST.get('limit', 50))
         search = request.POST.get('search', '')
         filters = json.loads(request.POST.get('filters', '{}')) if request.POST.get('filters') else {}
+        sort_column = request.POST.get('sort_column', '')
+        sort_direction = request.POST.get('sort_direction', 'asc')
 
         model_map = {
             'transactions': Transaction,
@@ -1155,13 +1211,27 @@ def api_get_table_data(request):
         # Generic Search Logic
         searchable_fields = {
             'transactions': ['basket_id', 'household_key', 'product_id'],
-            'products': ['commodity_desc', 'brand', 'department', 'manufacturer'],
+            'products': ['product_id', 'commodity_desc', 'brand', 'department', 'manufacturer'],
             'households': ['household_key', 'age_desc', 'income_desc', 'homeowner_desc', 'hh_comp_desc'],
             'campaigns': ['description'],
             'customer_segments': ['rfm_segment', 'household_key'],
-            'basket_analysis': ['basket_id', 'household_key']
+            'basket_analysis': ['basket_id', 'household_key'],
+            'association_rules': ['rule_type']
         }
-        if search and table_name in searchable_fields:
+
+        # Special handling for association_rules search
+        if search and table_name == 'association_rules':
+            q_objects = Q()
+            # Search in rule_type
+            q_objects |= Q(rule_type__icontains=search)
+            # Search in JSON fields by converting to string
+            q_objects |= Q(antecedent__icontains=search)
+            q_objects |= Q(consequent__icontains=search)
+            # Search by ID if numeric
+            if search.isnumeric():
+                q_objects |= Q(id=int(search))
+            queryset = queryset.filter(q_objects)
+        elif search and table_name in searchable_fields:
             q_objects = Q()
             for field in searchable_fields.get(table_name, []):
                 try:
@@ -1209,17 +1279,23 @@ def api_get_table_data(request):
             if filter_kwargs:
                 queryset = queryset.filter(**filter_kwargs)
         
-        # Ordering
-        ordering_fields = {
-            'transactions': ('-day', 'basket_id'),
-            'products': ('product_id',),
-            'households': ('household_key',),
-            'customer_segments': ('-total_spend',)
-        }
-        if table_name in ordering_fields:
-            queryset = queryset.order_by(*ordering_fields[table_name])
-        elif hasattr(model._meta, 'pk'):
-             queryset = queryset.order_by(model._meta.pk.name)
+        # Ordering - check for client-side sort first, then default ordering
+        if sort_column:
+            # Client requested sorting by a specific column
+            order_field = f"-{sort_column}" if sort_direction == 'desc' else sort_column
+            queryset = queryset.order_by(order_field)
+        else:
+            # Default ordering per table
+            ordering_fields = {
+                'transactions': ('-day', 'basket_id'),
+                'products': ('product_id',),
+                'households': ('household_key',),
+                'customer_segments': ('-total_spend',)
+            }
+            if table_name in ordering_fields:
+                queryset = queryset.order_by(*ordering_fields[table_name])
+            elif hasattr(model._meta, 'pk'):
+                 queryset = queryset.order_by(model._meta.pk.name)
 
 
         total_count = queryset.count()
@@ -3177,7 +3253,7 @@ def training_status_api(request):
     return JsonResponse(ml_training_status)
 
 
-@login_required(login_url='/admin/login/')
+@admin_required
 def customer_segments(request):
     segments = CustomerSegment.objects.values('rfm_segment').annotate(
         count=Count('household_key'),

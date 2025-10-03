@@ -146,7 +146,8 @@
   color: inherit;
   position: relative;
   overflow: hidden;
-  display: block;
+  display: flex;
+  flex-direction: column;
 }
 
 .tool-card::before {
@@ -175,6 +176,12 @@
 .tool-card:hover .tool-content {
   position: relative;
   z-index: 1;
+}
+
+.tool-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
 }
 
 .tool-icon {
@@ -209,6 +216,7 @@
   color: #718096;
   margin-bottom: 2rem;
   line-height: 1.6;
+  flex: 1;
 }
 
 .tool-card:hover .tool-description {
@@ -218,21 +226,27 @@
 .tool-launch {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.5rem;
-  padding: 0.75rem 2rem;
-  background: var(--gradient-primary);
+  padding: 0.75rem 1.5rem;
+  background: #667eea;
   color: white;
   border-radius: 50px;
   font-weight: 600;
   text-decoration: none;
   transition: all var(--animation-speed) ease;
-  border: 2px solid transparent;
+  border: none;
+  white-space: nowrap;
+  flex-shrink: 0;
+  font-size: clamp(0.75rem, 1vw, 1rem);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .tool-card:hover .tool-launch {
   background: white;
   color: #667eea;
-  border-color: white;
 }
 
 .chart-section {
@@ -284,23 +298,58 @@
   animation-delay: calc(var(--animation-order) * 0.1s);
 }
 
+@media (max-width: 992px) {
+  .p-2[style*="flex: 0 0 20%"] {
+    flex: 0 0 33.333% !important;
+    max-width: 33.333% !important;
+  }
+}
+
 @media (max-width: 768px) {
   .hero-title {
-    font-size: 2.5rem;
+    font-size: 2rem !important;
     flex-direction: column;
     gap: 0.5rem;
   }
-  
+
   .hero-section {
     padding: 2rem 1rem;
   }
-  
+
   .metric-value {
     font-size: 2rem;
   }
-  
+
   .tool-card {
     padding: 2rem;
+  }
+
+  .p-2[style*="flex: 0 0 20%"] {
+    flex: 0 0 50% !important;
+    max-width: 50% !important;
+  }
+}
+
+@media (max-width: 576px) {
+  .hero-title {
+    font-size: 1.5rem !important;
+  }
+
+  .hero-subtitle {
+    font-size: 1rem !important;
+  }
+
+  .metric-value {
+    font-size: 1.5rem !important;
+  }
+
+  .p-2[style*="flex: 0 0 20%"] {
+    flex: 0 0 100% !important;
+    max-width: 100% !important;
+  }
+
+  .chart-section {
+    padding: 1.5rem !important;
   }
 }
 
