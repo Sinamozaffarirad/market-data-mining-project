@@ -1,8 +1,10 @@
-from django.contrib.auth.decorators import login_required
+from django.contrib.auth.decorators import login_required, user_passes_test
+from django.contrib.auth import authenticate, login, logout
 from django.db import models
 from django.http import JsonResponse, HttpResponse
-from django.shortcuts import render, get_object_or_404
+from django.shortcuts import render, get_object_or_404, redirect
 from django.db import connection
+from django.contrib import messages
 from django.urls import reverse
 from django.db.models import Sum, Count, Avg, Max, Q, Min
 from math import sqrt
@@ -26,6 +28,58 @@ logger = logging.getLogger(__name__)
 # Define table categories based on their CRUD properties
 READ_ONLY_ANALYTICAL_TABLES = ['basket_analysis', 'customer_segments']
 MANAGED_ANALYTICAL_TABLES = ['association_rules']
+
+
+def admin_required(view_func):
+    """Decorator to require admin/staff status for views"""
+    def check_admin(user):
+        return user.is_authenticated and (user.is_staff or user.is_superuser)
+
+    decorated_view = user_passes_test(check_admin, login_url='/analysis/login/')(view_func)
+    return decorated_view
+
+
+def user_login(request):
+    """Login view for main website - only admins allowed"""
+    if request.user.is_authenticated and (request.user.is_staff or request.user.is_superuser):
+        return redirect('dunnhumby_site:index')
+
+    if request.method == 'POST':
+        username = request.POST.get('username')
+        password = request.POST.get('password')
+
+        user = authenticate(request, username=username, password=password)
+
+        if user is not None:
+            # Check if user is admin/staff
+            if user.is_staff or user.is_superuser:
+                login(request, user)
+
+                # Set session expiry (1 hour)
+                request.session.set_expiry(3600)
+
+                # Store device info for security
+                request.session['user_agent'] = request.META.get('HTTP_USER_AGENT', '')
+                request.session['ip_address'] = request.META.get('REMOTE_ADDR', '')
+
+                messages.success(request, f'Welcome back, {user.username}!')
+
+                # Redirect to next parameter or default
+                next_url = request.GET.get('next', '/analysis/')
+                return redirect(next_url)
+            else:
+                messages.error(request, 'Access denied. Admin privileges required.')
+        else:
+            messages.error(request, 'Invalid username or password.')
+
+    return render(request, 'site/login.html')
+
+
+def user_logout(request):
+    """Logout view"""
+    logout(request)
+    messages.success(request, 'You have been logged out successfully.')
+    return redirect('dunnhumby_site:login')
 
 
 def refresh_basket_analysis_logic():
@@ -635,7 +689,7 @@ def _get_data_statistics():
     }
 
 
-@login_required(login_url='/admin/login/')
+@admin_required
 def site_index(request):
     # Calculate dynamic metrics
     total_transactions = Transaction.objects.count()
@@ -675,7 +729,7 @@ def site_index(request):
     rev_change = ((float(recent_revenue) - float(prev_revenue)) / float(prev_revenue) * 100) if prev_revenue > 0 else 0
 
     tools = [
-        { 'title': 'Shopping Basket Analysis', 'description': 'Analyze baskets, top products, and patterns', 'url': 'basket-analysis/', 'icon': '📊' },
+        { 'title': 'Shopping Basket Analysis', 'description': 'Analyze baskets, top products, and patterns', 'url': 'basket-analysis/', 'icon': '🧺' },
         { 'title': 'Association Rules', 'description': 'Market basket association rules', 'url': 'association-rules/', 'icon': '🔗' },
         { 'title': 'Customer Segments', 'description': 'RFM segments & behavior', 'url': 'customer-segments/', 'icon': '👥' },
         { 'title': 'Data Management', 'description': 'View, edit, import/export data', 'url': 'data-management/', 'icon': '⚙️' },
@@ -697,7 +751,7 @@ def site_index(request):
     return render(request, 'site/index.html', context)
 
 
-@login_required(login_url='/admin/login/')
+@admin_required
 def api_market_trends(request):
     """
     API endpoint for real-time market trends data (last 12 months)
@@ -774,7 +828,7 @@ def api_market_trends(request):
         }, status=500)
 
 
-@login_required(login_url='/admin/login/')
+@admin_required
 def basket_analysis(request):
     """
     Optimized Market Basket Analysis for 2.6M+ transactions
@@ -927,7 +981,7 @@ def basket_analysis(request):
         return render(request, 'site/dunnhumby/basket_analysis.html', context)
 
 
-@login_required(login_url='/admin/login/')
+@admin_required
 def association_rules(request):
     if request.method == 'POST':
         try:
@@ -1008,7 +1062,7 @@ def association_rules(request):
     return render(request, 'site/dunnhumby/association_rules.html', ctx)
 
 
-@login_required(login_url='/admin/login/')
+@admin_required
 def data_management(request):
         return render(request, 'site/dunnhumby/data_management.html', {
         'title': 'Database Manipulation & Management',
@@ -3177,7 +3231,7 @@ def training_status_api(request):
     return JsonResponse(ml_training_status)
 
 
-@login_required(login_url='/admin/login/')
+@admin_required
 def customer_segments(request):
     segments = CustomerSegment.objects.values('rfm_segment').annotate(
         count=Count('household_key'),
