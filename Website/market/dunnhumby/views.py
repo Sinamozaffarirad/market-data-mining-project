@@ -1211,7 +1211,7 @@ def api_get_table_data(request):
         # Generic Search Logic
         searchable_fields = {
             'transactions': ['basket_id', 'household_key', 'product_id'],
-            'products': ['commodity_desc', 'brand', 'department', 'manufacturer'],
+            'products': ['product_id', 'commodity_desc', 'brand', 'department', 'manufacturer'],
             'households': ['household_key', 'age_desc', 'income_desc', 'homeowner_desc', 'hh_comp_desc'],
             'campaigns': ['description'],
             'customer_segments': ['rfm_segment', 'household_key'],
