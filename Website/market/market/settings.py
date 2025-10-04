@@ -82,7 +82,7 @@ DATABASES = {
     "default": {
         "ENGINE": "mssql",
         "NAME": "marketdb",
-        "HOST": r"localhost\SQLEXPRESS",
+        "HOST": "localhost",
         "OPTIONS": {
             "driver": "ODBC Driver 17 for SQL Server",
             "Encrypt": "no",
