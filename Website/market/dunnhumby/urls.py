@@ -31,6 +31,7 @@ urlpatterns = [
     path("api/churn/", views.churn_api, name="churn_api"),
     path("api/differential/", views.api_differential_analysis, name="api_differential_analysis"),
     path("api/market-trends/", views.api_market_trends, name="api_market_trends"),
+    path("api/regenerate-segments/", views.api_regenerate_segments, name="api_regenerate_segments"),
     # ML API endpoints
     path("api/ml/predictive/", views.predictive_analysis_api, name="predictive_analysis_api"),
     path("api/ml/train/", views.train_ml_models, name="train_ml_models"),

@@ -114,7 +114,9 @@
           <div class="col-12">
             <div class="d-flex align-items-center justify-content-between mb-2">
               <h5 class="m-2">RFM Segments Overview</h5>
-              {% if segments %}<span class="badge bg-lpurple">{{ segments|length }} RFM segments</span>{% endif %}
+              <div class="d-flex gap-2 align-items-center">
+                {% if segments %}<span class="badge bg-lpurple">{{ segments|length }} RFM segments</span>{% endif %}
+              </div>
             </div>
             {% if segments %}
             <div class="row g-3">
@@ -464,6 +466,86 @@ document.addEventListener('DOMContentLoaded', function() {
         })
     });
 });
+
+// Regenerate Segments Button Handler
+document.getElementById('regenerateSegmentsBtn').addEventListener('click', function() {
+    const btn = this;
+    const originalHTML = btn.innerHTML;
+
+    // Show loading state
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Regenerating...';
+
+    // Call API to regenerate segments
+    fetch('/analysis/api/regenerate-segments/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Show success message
+            showNotification('Success', `Successfully regenerated ${data.count} customer segments!`, 'success');
+
+            // Reload page after 1.5 seconds to show updated segments
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
+        } else {
+            // Show error message
+            showNotification('Error', data.error || 'Failed to regenerate segments', 'error');
+            btn.disabled = false;
+            btn.innerHTML = originalHTML;
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('Error', 'An error occurred while regenerating segments', 'error');
+        btn.disabled = false;
+        btn.innerHTML = originalHTML;
+    });
+});
+
+// Helper function to get CSRF token
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+// Helper function to show notifications
+function showNotification(title, message, type) {
+    const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
+    const icon = type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle';
+
+    const notification = document.createElement('div');
+    notification.className = `alert ${alertClass} alert-dismissible fade show position-fixed`;
+    notification.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+    notification.innerHTML = `
+        <i class="fas ${icon} me-2"></i>
+        <strong>${title}:</strong> ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+
+    document.body.appendChild(notification);
+
+    // Auto remove after 5 seconds
+    setTimeout(() => {
+        notification.remove();
+    }, 5000);
+}
 </script>
 
 {% endblock %}
