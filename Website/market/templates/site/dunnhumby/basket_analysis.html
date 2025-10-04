@@ -5578,6 +5578,38 @@ document.addEventListener('DOMContentLoaded', function() {
   `;
   document.head.appendChild(style);
 });
+
+// Auto-refresh High-Value Baskets and Products every 30 seconds
+function refreshHighValueSections() {
+  fetch(window.location.href)
+    .then(response => response.text())
+    .then(html => {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, 'text/html');
+
+      // Refresh High-Value Baskets
+      const newBasketsGrid = doc.getElementById('basketsGrid');
+      const currentBasketsGrid = document.getElementById('basketsGrid');
+      if (newBasketsGrid && currentBasketsGrid) {
+        currentBasketsGrid.innerHTML = newBasketsGrid.innerHTML;
+      }
+
+      // Refresh High-Value Products
+      const newProductsGrid = doc.getElementById('topProductsGrid');
+      const currentProductsGrid = document.getElementById('topProductsGrid');
+      if (newProductsGrid && currentProductsGrid) {
+        currentProductsGrid.innerHTML = newProductsGrid.innerHTML;
+      }
+
+      console.log('High-value sections refreshed at:', new Date().toLocaleTimeString());
+    })
+    .catch(error => {
+      console.error('Error refreshing high-value sections:', error);
+    });
+}
+
+// Refresh every 30 seconds (30000 milliseconds)
+setInterval(refreshHighValueSections, 30000);
 </script>
 
 

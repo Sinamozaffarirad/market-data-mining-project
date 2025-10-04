@@ -537,12 +537,16 @@ class DashboardController {
     try {
       const response = await fetch('/analysis/api/market-trends/');
       const data = await response.json();
+
+      // Convert revenue to K dollars (divide by 1000)
+      const revenueInK = data.datasets.revenue.map(val => (val / 1000).toFixed(1));
+
       chartData = {
         labels: data.labels,
         datasets: [
           {
             label: 'Sales Volume ($K)',
-            data: data.datasets.sales_volume,
+            data: revenueInK,
             borderColor: '#667eea',
             backgroundColor: 'rgba(102, 126, 234, 0.1)',
             borderWidth: 3,
