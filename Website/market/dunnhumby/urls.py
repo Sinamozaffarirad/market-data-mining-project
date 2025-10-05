@@ -34,6 +34,7 @@ urlpatterns = [
     path("api/regenerate-segments/", views.api_regenerate_segments, name="api_regenerate_segments"),
     # ML API endpoints
     path("api/ml/predictive/", views.predictive_analysis_api, name="predictive_analysis_api"),
+    path("api/ml/predict-future/", views.predict_future_api, name="predict_future_api"),
     path("api/ml/train/", views.train_ml_models, name="train_ml_models"),
     path("api/ml/predictions/", views.get_predictions, name="get_predictions"),
     path("api/ml/recommendations/", views.get_recommendations, name="get_recommendations"),

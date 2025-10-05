@@ -3213,7 +3213,15 @@ def api_export_data(request):
 
 
 # Global variable to track training status
-ml_training_status = {'is_training': False, 'progress': 0, 'message': ''}
+ml_training_status = {
+    'status': 'idle',
+    'is_training': False,
+    'progress': 0,
+    'message': 'Ready for training.',
+    'used_cache': False,
+    'model_type': None,
+    'horizon': None
+}
 
 
 @csrf_exempt
@@ -3235,7 +3243,7 @@ def predictive_analysis_api(request):
         valid_horizons = {1, 3, 6, 12}
         selected_horizon = time_horizon if (time_horizon in valid_horizons) else 3
 
-        # Get department predictions specifically
+        # Get department predictions specifically (HISTORICAL validation method)
         department_predictions = ml_analyzer.get_department_predictions(model_type, selected_horizon)
 
         return JsonResponse({
@@ -3243,7 +3251,8 @@ def predictive_analysis_api(request):
             'status': 'success',
             'model_type': model_type,
             'time_horizon_months': selected_horizon,
-            'department_predictions': department_predictions
+            'department_predictions': department_predictions,
+            'prediction_type': 'historical_validation'
         })
 
     except Exception as e:
@@ -3251,50 +3260,182 @@ def predictive_analysis_api(request):
 
 
 @csrf_exempt
+def predict_future_api(request):
+    """API endpoint for ACTUAL future predictions using trained ML models"""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST method required'}, status=405)
+
+    try:
+        model_type = request.POST.get('model_type', 'neural_network')
+
+        # Get time horizon parameter
+        time_horizon_param = request.POST.get('time_horizon') or request.GET.get('time_horizon')
+        try:
+            time_horizon = int(time_horizon_param) if time_horizon_param else None
+        except (TypeError, ValueError):
+            time_horizon = None
+
+        valid_horizons = {1, 3, 6, 12}
+        selected_horizon = time_horizon if (time_horizon in valid_horizons) else 3
+
+        # Get ACTUAL future predictions using trained ML models
+        future_predictions = ml_analyzer.predict_future_purchases(
+            model_name=model_type,
+            time_horizon=selected_horizon,
+            top_n=10
+        )
+
+        return JsonResponse({
+            'success': True,
+            'status': 'success',
+            'model_type': model_type,
+            'time_horizon_months': selected_horizon,
+            'future_predictions': future_predictions,
+            'prediction_type': 'future_ml_based',
+            'description': f'Predicting purchases {selected_horizon} months beyond day 711 using {model_type} model'
+        })
+
+    except Exception as e:
+        import traceback
+        return JsonResponse({
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }, status=500)
+
+
+@csrf_exempt
 def train_ml_models(request):
     """Train ML models in background"""
     global ml_training_status
-    
-    # Get parameters from POST data
+
     model_type = request.POST.get('model_type', 'neural_network')
-    training_size = float(request.POST.get('training_size', 0.8))
-    
-    if ml_training_status['is_training']:
+
+    training_size_param = request.POST.get('training_size', 0.8)
+    try:
+        training_size = float(training_size_param)
+    except (TypeError, ValueError):
+        training_size = 0.8
+
+    training_size = max(0.1, min(training_size, 0.95))
+
+    time_horizon_param = request.POST.get('time_horizon')
+    horizon_lookup = {
+        '1': '1month',
+        '3': '3months',
+        '6': '6months',
+        '12': '12months'
+    }
+
+    horizon_key = None
+    if time_horizon_param is not None:
+        key = str(time_horizon_param).strip()
+        try:
+            horizon_key = horizon_lookup[str(int(key))]
+        except (ValueError, KeyError):
+            horizon_key = horizon_lookup.get(key)
+
+    force_value = request.POST.get('force_retrain', request.POST.get('force', 'false'))
+    force_retrain = str(force_value).lower() in {'1', 'true', 'yes', 'on'}
+
+    if ml_training_status.get('is_training'):
         return JsonResponse({
             'success': False,
             'error': 'Training already in progress',
             'status': 'training',
-            'message': 'Training already in progress',
-            'progress': ml_training_status['progress']
+            'message': ml_training_status.get('message', 'Training already in progress'),
+            'progress': ml_training_status.get('progress', 0),
+            'used_cache': ml_training_status.get('used_cache', False)
         })
-    
-    def train_models():
+
+    horizons_to_check = [horizon_key] if horizon_key else None
+
+    if not force_retrain and ml_analyzer.has_cached_models(horizons_to_check, refresh=True):
+        logger.info('Cached models detected for horizon %s; skipping retraining.', horizon_key or 'all')
+        ml_analyzer.refresh_cached_models()
+        ml_training_status = {
+            'status': 'completed',
+            'is_training': False,
+            'progress': 100,
+            'message': 'Using cached trained models.',
+            'used_cache': True,
+            'model_type': model_type,
+            'horizon': horizon_key
+        }
+        return JsonResponse({
+            'success': True,
+            'status': 'completed',
+            'message': 'Cached models loaded. No retraining required.',
+            'progress': 100,
+            'used_cache': True
+        })
+
+    def train_models_task():
         global ml_training_status
         try:
-            ml_training_status = {'is_training': True, 'progress': 10, 'message': 'Starting training...'}
-            
-            # Train models
-            success = ml_analyzer.train_models(training_size)
-            
+            logger.info('Starting ML training for horizon %s (force=%s, model=%s)', horizon_key or 'all', force_retrain, model_type)
+            ml_training_status = {
+                'status': 'training',
+                'is_training': True,
+                'progress': 10,
+                'message': 'Starting training...',
+                'used_cache': False,
+                'model_type': model_type,
+                'horizon': horizon_key
+            }
+
+            success = ml_analyzer.train_models(
+                training_size=training_size,
+                time_horizon=horizon_key,
+                force_retrain=force_retrain
+            )
+
+            ml_analyzer.refresh_cached_models()
+
             if success:
-                ml_training_status = {'is_training': False, 'progress': 100, 'message': 'Training completed successfully!'}
+                ml_training_status = {
+                    'status': 'completed',
+                    'is_training': False,
+                    'progress': 100,
+                    'message': 'Training completed successfully!',
+                    'used_cache': False,
+                    'model_type': model_type,
+                    'horizon': horizon_key
+                }
             else:
-                ml_training_status = {'is_training': False, 'progress': 0, 'message': 'Training failed'}
-                
-        except Exception as e:
-            ml_training_status = {'is_training': False, 'progress': 0, 'message': f'Training error: {str(e)}'}
-    
-    # Start training in background thread
-    thread = threading.Thread(target=train_models)
+                ml_training_status = {
+                    'status': 'failed',
+                    'is_training': False,
+                    'progress': 0,
+                    'message': 'Training failed. See logs for details.',
+                    'used_cache': False,
+                    'model_type': model_type,
+                    'horizon': horizon_key
+                }
+        except Exception as exc:
+            logger.exception('ML training error: %s', exc)
+            ml_training_status = {
+                'status': 'failed',
+                'is_training': False,
+                'progress': 0,
+                'message': f'Training error: {exc}',
+                'used_cache': False,
+                'model_type': model_type,
+                'horizon': horizon_key
+            }
+
+    thread = threading.Thread(target=train_models_task, name='ml_model_training')
     thread.daemon = True
     thread.start()
-    
+
     return JsonResponse({
         'success': True,
-        'status': 'started',
+        'status': 'training',
         'message': 'Model training started in background',
-        'progress': 10
+        'progress': 10,
+        'used_cache': False
     })
+
+
 
 
 @csrf_exempt
@@ -3371,6 +3512,7 @@ def get_model_performance(request):
     try:
         performance = ml_analyzer.get_model_performance()
         return JsonResponse({
+            'success': True,
             'status': 'success',
             'performance': performance,
             'training_status': ml_training_status
@@ -3383,7 +3525,9 @@ def get_model_performance(request):
 def training_status_api(request):
     """Get current training status"""
     global ml_training_status
-    return JsonResponse(ml_training_status)
+    status_payload = dict(ml_training_status)
+    status_payload['success'] = True
+    return JsonResponse(status_payload)
 
 
 @admin_required
