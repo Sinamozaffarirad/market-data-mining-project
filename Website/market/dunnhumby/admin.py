@@ -160,7 +160,7 @@ class DunnhumbyAdminSite(admin.AdminSite):
                     analyzer.save_segments_to_db()
                     count = len(analyzer.segments)
                     
-					# --- بخش اضافه شده برای ساخت پیام جدید ---
+						# --- بخش اضافه شده برای ساخت پیام جدید ---
                     summary_df = analyzer.get_segment_summary()
                     
                     summary_list = []
@@ -366,70 +366,6 @@ class DunnhumbyAdminSite(admin.AdminSite):
                 }
             )
             count += 1
-        
-        return count
-
-    def generate_rfm_segments(self):
-        """Generate RFM customer segments"""
-        # This would implement proper RFM analysis
-        # For now, simplified implementation
-        count = 0
-        try:
-            customers = Transaction.objects.values('household_key').annotate(
-                last_transaction=Max('day'),
-                total_transactions=Count('basket_id'),
-                total_spend=Sum('sales_value'),
-                avg_basket_value=Avg('sales_value')
-            )
-            
-            # Use truncate to safely clear all records
-            CustomerSegment.objects.all().delete()
-        except Exception as e:
-            # Log error and continue with update_or_create approach
-            print(f"Error in RFM segments: {e}")
-            return 0
-        
-        for customer in customers:
-            try:
-                # Simplified RFM scoring (1-5 scale)
-                recency_score = min(5, max(1, int((400 - customer['last_transaction']) / 80)))
-                frequency_score = min(5, max(1, int(customer['total_transactions'] / 20)))
-                monetary_score = min(5, max(1, int(customer['total_spend'] / 100)))
-                
-                # Determine segment based on scores
-                if recency_score >= 4 and frequency_score >= 4 and monetary_score >= 4:
-                    segment = "Champions"
-                elif recency_score >= 3 and frequency_score >= 3:
-                    segment = "Loyal Customers"
-                elif recency_score >= 4:
-                    segment = "New Customers"
-                elif monetary_score >= 4:
-                    segment = "Big Spenders"
-                elif frequency_score >= 4:
-                    segment = "Regular Customers"
-                elif recency_score <= 2:
-                    segment = "At Risk"
-                else:
-                    segment = "Standard"
-                
-                CustomerSegment.objects.update_or_create(
-                    household_key=customer['household_key'],
-                    defaults={
-                        'recency_score': recency_score,
-                        'frequency_score': frequency_score,
-                        'monetary_score': monetary_score,
-                        'rfm_segment': segment,
-                        'last_transaction_day': customer['last_transaction'],
-                        'total_transactions': customer['total_transactions'],
-                        'total_spend': customer['total_spend'],
-                        'avg_basket_value': customer['avg_basket_value']
-                    }
-                )
-                count += 1
-            except Exception as e:
-                # Skip this customer if there's an error
-                print(f"Skipping customer {customer['household_key']}: {e}")
-                continue
         
         return count
 
