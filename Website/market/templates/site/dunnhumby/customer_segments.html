@@ -100,6 +100,26 @@
 		border-radius: 5px;
 	}
 
+
+	    /* ----- بخش جدید: تعریف رنگ‌های منحصر به فرد برای هر سگمنت ----- */
+    .badge-base {
+        color: white;
+        padding: 5px 8px;
+        border-radius: 5px;
+        font-weight: 600;
+        font-size: 0.75rem;
+    }
+    .bg-champions { background-color: #28a745; }
+    .bg-loyal-customers { background-color: #007bff; }
+    .bg-potential-loyalists { background-color: #17a2b8; color: white !important; } /* Teal */
+    .bg-new-customers { background-color: #340696; color: white !important; } /* purple */
+    .bg-big-spenders { background-color: #6d74bd; color: white !important; } /* Gray */
+    .bg-regular-customers { background-color: #de5fc5; color: #212529 !important; } /* Light Pink */
+    .bg-need-attention { background-color: #fd7e14; color: #212529 !important;} /* Orange */
+    .bg-at-risk { background-color: #ffc107; color: #212529 !important; } /* Yellow */
+    .bg-cant-lose-them { background-color: #dc3545; } /* Red */
+    .bg-hibernating { background-color: #adb5bd; color: #212529 !important; } /* Light Gray */
+    .bg-lost { background-color: #343a40; } /* Dark */
 </style>
 
 
@@ -125,15 +145,19 @@
                 <div class="card h-100 shadow-sm segment-card" data-seg="{{ s.rfm_segment }}" style="cursor:pointer;">
                   <div class="card-body">
                     <div class="d-flex align-items-center justify-content-between mb-2">
-                      <span class="badge
-						{% if s.rfm_segment == 'Big Spenders' %} bg-secondary
-						{% elif s.rfm_segment == 'At Risk' %} bg-danger
-						{% elif s.rfm_segment == 'Regular Customers' %} bg-info text-dark
-						{% elif s.rfm_segment == 'Champions' %} bg-success
-						{% elif s.rfm_segment == 'New Customers' %} bg-warning text-dark
-						{% elif s.rfm_segment == 'Loyal Customers' %} bg-primary
-						{% else %} bg-purple text-light
-						{% endif %}
+						<span class="badge badge-base
+							{% if s.rfm_segment == 'Champions' %}bg-champions
+							{% elif s.rfm_segment == 'Loyal Customers' %}bg-loyal-customers
+							{% elif s.rfm_segment == 'Potential Loyalists' %}bg-potential-loyalists
+							{% elif s.rfm_segment == 'New Customers' %}bg-new-customers
+							{% elif s.rfm_segment == 'Big Spenders' %}bg-big-spenders
+							{% elif s.rfm_segment == 'Regular Customers' %}bg-regular-customers
+							{% elif s.rfm_segment == 'Need Attention' %}bg-need-attention
+							{% elif s.rfm_segment == 'At Risk' %}bg-at-risk
+							{% elif s.rfm_segment == 'Can\'t Lose Them' %}bg-cant-lose-them
+							{% elif s.rfm_segment == 'Hibernating' %}bg-hibernating
+							{% elif s.rfm_segment == 'Lost' %}bg-lost
+							{% else %}bg-secondary{% endif %}
 						">{{ s.rfm_segment }}</span>
 
                       <i class="fa-solid fa-layer-group text-muted"></i>
@@ -207,16 +231,20 @@
 							</div>
 						</a>
 						<div class="d-flex flex-column text-end">
-						<span class="badge mb-1
-							{% if c.rfm_segment == 'Big Spenders' %} bg-secondary
-							{% elif c.rfm_segment == 'At Risk' %} bg-danger
-							{% elif c.rfm_segment == 'Regular Customers' %} bg-info text-dark
-							{% elif c.rfm_segment == 'Champions' %} bg-success
-							{% elif c.rfm_segment == 'New Customers' %} bg-warning text-dark
-							{% elif c.rfm_segment == 'Loyal Customers' %} bg-primary
-							{% else %} bg-purple text-light
-							{% endif %}
-						">{{ c.rfm_segment }}</span>
+							<span class="badge mb-1 badge-base
+								{% if c.rfm_segment == 'Champions' %}bg-champions
+								{% elif c.rfm_segment == 'Loyal Customers' %}bg-loyal-customers
+								{% elif c.rfm_segment == 'Potential Loyalists' %}bg-potential-loyalists
+								{% elif c.rfm_segment == 'New Customers' %}bg-new-customers
+								{% elif c.rfm_segment == 'Big Spenders' %}bg-big-spenders
+								{% elif c.rfm_segment == 'Regular Customers' %}bg-regular-customers
+								{% elif c.rfm_segment == 'Need Attention' %}bg-need-attention
+								{% elif c.rfm_segment == 'At Risk' %}bg-at-risk
+								{% elif c.rfm_segment == 'Can\'t Lose Them' %}bg-cant-lose-them
+								{% elif c.rfm_segment == 'Hibernating' %}bg-hibernating
+								{% elif c.rfm_segment == 'Lost' %}bg-lost
+								{% else %}bg-secondary{% endif %}
+							">{{ c.rfm_segment }}</span>
 
 						<span class="badge 
 							{% if c.churn_risk == 'Very High Risk' %} bg-danger
@@ -251,22 +279,25 @@
             {% endif %}
           </div>
           
-          <!-- RFM Segmentation Guide (text blocks) -->
           <div class="col-12">
             <h5 class="m-2 mb-3">RFM and Churn Guide</h5>
             <div class="row g-4">
               <div class="col-6 col-lg-6">
                 <div class="card h-100 shadow-sm guide-card">
-                  <div class="card-body">
-                    <div class="d-flex align-items-center gap-2 mb-3"><i class="fa-solid fa-users-gear text-primary"></i><strong>RFM Segments</strong></div>
-                    <div class="mb-2"><span class="badge bg-success">Champions</span> High value, high frequency, recent customers — your best customers.</div>
-                    <div class="mb-2"><span class="badge bg-primary">Loyal Customers</span> High frequency and monetary value — reliable revenue source.</div>
-                    <div class="mb-2"><span class="badge bg-secondary">Big Spenders</span> High monetary value — generate strong revenue regardless of frequency.</div>
-					<div class="mb-2"><span class="badge bg-warning text-dark">New Customers</span> Recent but low frequency/monetary — onboarding opportunities.</div>
-                    <div class="mb-2"><span class="badge bg-info text-dark">Regular Customers</span> Frequent purchasers with moderate value — consistent revenue stream.</div>
-                    <div class="mb-2"><span class="badge bg-purple text-light">Satndard</span> Average customers with balanced but unremarkable behavior.</div>
-					<div class="mb-2"><span class="badge bg-danger">At Risk</span> Previously good customers but declining — urgent intervention required.</div>
-                  </div>
+					<div class="card-body">
+						<div class="d-flex align-items-center gap-2 mb-3"><i class="fa-solid fa-users-gear text-primary"></i><strong>RFM Segments Guide</strong></div>
+						<div class="mb-2"><span class="badge badge-base bg-champions">Champions</span> High value, high frequency, recent customers — your best customers.</div>
+						<div class="mb-2"><span class="badge badge-base bg-loyal-customers">Loyal Customers</span> High frequency and monetary value — reliable revenue source.</div>
+						<div class="mb-2"><span class="badge badge-base bg-potential-loyalists">Potential Loyalists</span> Recent customers with good frequency and spending. Nurture them.</div>
+						<div class="mb-2"><span class="badge badge-base bg-new-customers">New Customers</span> Recent but low frequency/monetary — focus on onboarding.</div>
+						<div class="mb-2"><span class="badge badge-base bg-big-spenders">Big Spenders</span> High monetary value, regardless of recency or frequency.</div>
+						<div class="mb-2"><span class="badge badge-base bg-regular-customers">Regular Customers</span> Consistent shoppers but not exceptional. Upsell opportunities.</div>
+						<div class="mb-2"><span class="badge badge-base bg-need-attention">Need Attention</span> Good customers (high F & M) who haven't purchased recently.</div>
+						<div class="mb-2"><span class="badge badge-base bg-at-risk">At Risk</span> Average customers who haven't shopped recently.</div>
+						<div class="mb-2"><span class="badge badge-base bg-cant-lose-them">Can't Lose Them</span> Your best customers who are on the verge of churning.</div>
+						<div class="mb-2"><span class="badge badge-base bg-hibernating">Hibernating</span> Low activity customers who might be lost.</div>
+						<div class="mb-2"><span class="badge badge-base bg-lost">Lost</span> Lowest scores across all dimensions.</div>
+					</div>
                 </div>
               </div>
               <div class="col-6 col-lg-6">

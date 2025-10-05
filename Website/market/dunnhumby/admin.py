@@ -12,7 +12,7 @@ from .models import (
 )
 import json
 from collections import defaultdict
-
+from .analytics import RFMAnalyzer
 
 class DunnhumbyAdminSite(admin.AdminSite):
     site_header = "Dunnhumby Market Analysis Admin"
@@ -153,9 +153,25 @@ class DunnhumbyAdminSite(admin.AdminSite):
                     result_message = f"Basket analysis refreshed successfully. {count} records processed."
                     
                 elif action == 'generate_segments':
-                    # Generate RFM segments
-                    count = self.generate_rfm_segments()
-                    result_message = f"Customer segments generated successfully. {count} segments created."
+                    # Use the advanced RFMAnalyzer from analytics.py
+                    analyzer = RFMAnalyzer()
+                    analyzer.calculate_rfm_scores()
+                    analyzer.segment_customers()
+                    analyzer.save_segments_to_db()
+                    count = len(analyzer.segments)
+                    
+					# --- بخش اضافه شده برای ساخت پیام جدید ---
+                    summary_df = analyzer.get_segment_summary()
+                    
+                    summary_list = []
+                    for index, row in summary_df.iterrows():
+                        summary_list.append(f"{row['Segment']}: {row['Count']} customers")
+                    
+                    summary_str = " | ".join(summary_list)
+                    
+                    result_message = (f"Customer segments generated for {count} customers. "
+                                      f"Distribution: {summary_str}")
+                    # --- پایان بخش اضافه شده ---
                     
                 elif action == 'clean_data':
                     # Clean inconsistent data
