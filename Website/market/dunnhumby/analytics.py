@@ -210,10 +210,10 @@ class RFMAnalyzer:
             results = cursor.fetchall()
         
         # Convert to DataFrame for easier processing
-        df = pd.DataFrame(results, columns=['customer_id', 'recency', 'frequency', 'monetary'])
+        df = pd.DataFrame(results, columns=['household_key', 'recency', 'frequency', 'monetary'])
         
-		# Convert monetary from Decimal to float for calculations
-        df['monetary'] = df['monetary'].astype(float) # <-- ADD THIS LINE
+        # Convert monetary from Decimal to float for calculations
+        df['monetary'] = df['monetary'].astype(float)
         
         # Calculate recency (days since last purchase, assuming max day is reference)
         max_day = df['recency'].max()
@@ -301,7 +301,7 @@ class RFMAnalyzer:
         
         for _, row in self.segments.iterrows():
             CustomerSegment.objects.create(
-                household_key=row['customer_id'],
+                household_key=row['household_key'],
                 recency_score=row['R'],
                 frequency_score=row['F'],
                 monetary_score=row['M'],
@@ -318,7 +318,7 @@ class RFMAnalyzer:
             self.segment_customers()
         
         summary = self.segments.groupby('Segment').agg({
-            'customer_id': 'count',
+            'household_key': 'count',
             'recency': 'mean',
             'frequency': 'mean',
             'monetary': ['mean', 'sum']
@@ -326,7 +326,6 @@ class RFMAnalyzer:
         
         summary.columns = ['Count', 'Avg_Recency', 'Avg_Frequency', 'Avg_Monetary', 'Total_Revenue']
         return summary.reset_index()
-
 
 class MarketBasketAnalyzer:
     """

@@ -828,123 +828,27 @@ def api_market_trends(request):
         }, status=500)
 
 
+from .analytics import RFMAnalyzer # ۱. کلاس اصلی را وارد می‌کنیم
+
 @admin_required
 @require_POST
 def api_regenerate_segments(request):
     """
-    API endpoint to regenerate customer segments based on basket analysis
-    Uses the same logic as admin.py generate_rfm_segments
+    API endpoint to regenerate customer segments by calling the RFMAnalyzer.
     """
-    from django.http import JsonResponse
-    from django.db import connection
-
     try:
-        count = 0
-
-        # Clear existing segments
-        CustomerSegment.objects.all().delete()
-
-        # Use raw SQL to avoid Django ORM precision issues with ODBC
-        with connection.cursor() as cursor:
-            cursor.execute("""
-                SELECT
-                    household_key,
-                    MAX(day) as last_transaction,
-                    COUNT(basket_id) as total_transactions,
-                    SUM(sales_value) as total_spend,
-                    AVG(sales_value) as avg_basket_value
-                FROM transactions
-                GROUP BY household_key
-            """)
-            customers = cursor.fetchall()
-
-            # Calculate quintile thresholds for RFM scores
-            # Extract values for percentile calculation
-            last_trans_days = sorted([int(c[1]) for c in customers])
-            trans_counts = sorted([int(c[2]) for c in customers])
-            spend_amounts = sorted([float(c[3]) for c in customers])
-
-            # Calculate quintile thresholds (divide into 5 equal groups)
-            n = len(customers)
-            recency_q = [last_trans_days[min(int(n * i / 5), n - 1)] for i in range(6)]
-            frequency_q = [trans_counts[min(int(n * i / 5), n - 1)] for i in range(6)]
-            monetary_q = [spend_amounts[min(int(n * i / 5), n - 1)] for i in range(6)]
-
-        # Generate new segments
-        for customer in customers:
-            try:
-                household_key, last_transaction, total_transactions, total_spend, avg_basket_value = customer
-
-                # Quintile-based RFM scoring (1-5 scale)
-                # NOTE: Higher quintile = WORSE for recency (inverted in this dataset)
-                # Score 1 = top 20%, Score 5 = bottom 20%
-                if last_transaction >= recency_q[4]:
-                    recency_score = 1
-                elif last_transaction >= recency_q[3]:
-                    recency_score = 2
-                elif last_transaction >= recency_q[2]:
-                    recency_score = 3
-                elif last_transaction >= recency_q[1]:
-                    recency_score = 4
-                else:
-                    recency_score = 5
-
-                if total_transactions >= frequency_q[4]:
-                    frequency_score = 1
-                elif total_transactions >= frequency_q[3]:
-                    frequency_score = 2
-                elif total_transactions >= frequency_q[2]:
-                    frequency_score = 3
-                elif total_transactions >= frequency_q[1]:
-                    frequency_score = 4
-                else:
-                    frequency_score = 5
-
-                if total_spend >= monetary_q[4]:
-                    monetary_score = 1
-                elif total_spend >= monetary_q[3]:
-                    monetary_score = 2
-                elif total_spend >= monetary_q[2]:
-                    monetary_score = 3
-                elif total_spend >= monetary_q[1]:
-                    monetary_score = 4
-                else:
-                    monetary_score = 5
-
-                # Determine segment based on scores
-                if recency_score >= 4 and frequency_score >= 4 and monetary_score >= 4:
-                    segment = "Champions"
-                elif recency_score >= 3 and frequency_score >= 3:
-                    segment = "Loyal Customers"
-                elif recency_score >= 4:
-                    segment = "New Customers"
-                elif monetary_score >= 4:
-                    segment = "Big Spenders"
-                elif frequency_score >= 4:
-                    segment = "Regular Customers"
-                elif recency_score <= 2:
-                    segment = "At Risk"
-                else:
-                    segment = "Standard"
-
-                CustomerSegment.objects.update_or_create(
-                    household_key=household_key,
-                    defaults={
-                        'recency_score': recency_score,
-                        'frequency_score': frequency_score,
-                        'monetary_score': monetary_score,
-                        'rfm_segment': segment,
-                        'last_transaction_day': last_transaction,
-                        'total_transactions': total_transactions,
-                        'total_spend': float(total_spend),
-                        'avg_basket_value': float(avg_basket_value)
-                    }
-                )
-                count += 1
-            except Exception as e:
-                logger.error(f"Error creating segment for household {household_key}: {e}")
-                continue
-
+        # ۲. یک نمونه از موتور تحلیلی می‌سازیم
+        analyzer = RFMAnalyzer()
+        
+        # ۳. تمام مراحل تحلیل را با فراخوانی متدهای کلاس انجام می‌دهیم
+        analyzer.calculate_rfm_scores()
+        analyzer.segment_customers()
+        analyzer.save_segments_to_db()
+        
+        # تعداد سگمنت‌های ایجاد شده را از کلاس می‌خوانیم
+        count = len(analyzer.segments)
+        
+        # ۴. پاسخ موفقیت‌آمیز را برمی‌گردانیم
         return JsonResponse({
             'success': True,
             'count': count,
@@ -959,7 +863,6 @@ def api_regenerate_segments(request):
             'success': False,
             'error': f'{str(e)} - Check server logs for details'
         }, status=500)
-
 
 @admin_required
 def basket_analysis(request):
@@ -3532,15 +3435,27 @@ def training_status_api(request):
 
 @admin_required
 def customer_segments(request):
-    segments = CustomerSegment.objects.values('rfm_segment').annotate(
+    # ۱. تعریف ترتیب منطقی و استراتژیک برای دسته‌ها
+    segment_order = [
+        "Champions", "Loyal Customers", "Big Spenders",
+        "Potential Loyalists", "New Customers", "Regular Customers",
+        "Can't Lose Them", "Need Attention", "At Risk",
+        "Hibernating", "Lost"
+    ]
+
+    # ۲. دریافت داده‌ها از دیتابیس (بدون تغییر)
+    segments_query = CustomerSegment.objects.values('rfm_segment').annotate(
         count=Count('household_key'),
         avg_spend=Avg('total_spend'),
         avg_transactions=Avg('total_transactions')
-    ).order_by('-count')
+    )
+
+    # ۳. مرتب‌سازی داده‌ها بر اساس ترتیب منطقی تعریف شده
+    segments_list = list(segments_query)
+    segments_list.sort(key=lambda s: segment_order.index(s['rfm_segment']) if s['rfm_segment'] in segment_order else len(segment_order))
 
     recent_customers = CustomerSegment.objects.order_by('-updated_at')[:20]
 
-    # assign churn risk label for each customer
     for c in recent_customers:
         prob = getattr(c, 'churn_probability', None)
         if prob is None:
@@ -3554,8 +3469,6 @@ def customer_segments(request):
         else:
             c.churn_risk = "Low Risk"
 
-    # --- بخش اصلاح شده برای Churn Overview ---
-    # کوئری اشتباه قبلی را با منطق مرتب‌سازی دستی جایگزین می‌کنیم
     risk_counts = CustomerSegment.objects.aggregate(
         low=Count('id', filter=Q(churn_probability__lte=0.25)),
         medium=Count('id', filter=Q(churn_probability__gt=0.25, churn_probability__lte=0.50)),
@@ -3569,14 +3482,13 @@ def customer_segments(request):
         {'risk_label': 'High Risk', 'count': risk_counts.get('high', 0)},
         {'risk_label': 'Very High Risk', 'count': risk_counts.get('very_high', 0)},
     ]
-    # -------------------------------------------
 
-    # حالا داده‌های مرتب‌شده جدید را به قالب ارسال می‌کنیم
+    # ۴. ارسال لیست مرتب‌شده به قالب
     return render(request, 'site/dunnhumby/customer_segments.html', {
         'title': 'Customer Segmentation',
-        'segments': segments,
+        'segments': segments_list, # <-- از لیست مرتب‌شده جدید استفاده می‌کنیم
         'recent_customers': recent_customers,
-        'churn_overview': churn_data_sorted, # <-- از متغیر جدید استفاده می‌کنیم
+        'churn_overview': churn_data_sorted,
     })
 
 
