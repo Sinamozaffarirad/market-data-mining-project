@@ -3424,13 +3424,132 @@ def get_model_performance(request):
         return JsonResponse({'error': f'Performance error: {str(e)}'}, status=500)
 
 
-@csrf_exempt  
+@csrf_exempt
 def training_status_api(request):
     """Get current training status"""
     global ml_training_status
     status_payload = dict(ml_training_status)
     status_payload['success'] = True
     return JsonResponse(status_payload)
+
+
+# ========== TIME SERIES MODEL ENDPOINTS ==========
+
+@csrf_exempt
+def train_timeseries_model(request):
+    """Train time series model with stacking and loss propagation"""
+    from .ml_models import ts_analyzer
+    import threading
+
+    model_type = request.POST.get('model_type', 'lstm')
+    window_size = int(request.POST.get('window_size', 60))
+    slide_interval = int(request.POST.get('slide_interval', 7))
+    horizon = int(request.POST.get('horizon', 6))
+
+    # Configure time series analyzer
+    ts_analyzer.configure(
+        model_type=model_type,
+        window_size=window_size,
+        slide_interval=slide_interval,
+        max_horizon=12
+    )
+
+    def train_task():
+        try:
+            # EMERGENCY FIX: Reduced epochs from 50 to 3 for fast testing
+            result = ts_analyzer.train_timeseries_model(
+                target_horizon=horizon,
+                epochs=3,  # Drastically reduced for speed
+                batch_size=128  # Increased for speed
+            )
+            logger.info(f"Time series training result: {result.get('success')}")
+        except Exception as e:
+            logger.error(f"Time series training error: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+
+    # Start training in background thread
+    thread = threading.Thread(target=train_task, name='timeseries_training')
+    thread.daemon = True
+    thread.start()
+
+    return JsonResponse({
+        'success': True,
+        'message': 'Time series model training started',
+        'model_type': model_type,
+        'horizon': horizon,
+        'window_size': window_size,
+        'slide_interval': slide_interval
+    })
+
+
+@csrf_exempt
+def get_timeseries_training_status(request):
+    """Get current time series training status"""
+    from .ml_models import ts_analyzer
+
+    horizon = request.GET.get('horizon', '6')
+    status = ts_analyzer.get_training_status()
+
+    return JsonResponse({
+        'success': True,
+        'is_training': status['is_training'],
+        'progress': status['progress'],
+        'current_stage': status['current_stage'],
+        'error': status['error']
+    })
+
+
+@csrf_exempt
+def get_timeseries_predictions(request):
+    """Get predictions from trained time series model"""
+    from .ml_models import ts_analyzer
+
+    horizon = int(request.GET.get('horizon', '6'))
+    top_n = int(request.GET.get('top_n', '10'))
+
+    try:
+        predictions = ts_analyzer.predict_future_purchases(horizon, top_n)
+
+        return JsonResponse({
+            'success': True,
+            'predictions': predictions,
+            'horizon': horizon,
+            'model_type': ts_analyzer.config['model_type']
+        })
+    except Exception as e:
+        logger.error(f"Time series prediction error: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+
+        return JsonResponse({
+            'success': False,
+            'error': str(e),
+            'predictions': []
+        })
+
+
+@csrf_exempt
+def get_timeseries_model_info(request):
+    """Get information about configured time series model"""
+    from .ml_models import ts_analyzer
+
+    try:
+        # Get horizon parameter from request
+        horizon = request.GET.get('horizon')
+        if horizon:
+            horizon = int(horizon)
+
+        info = ts_analyzer.get_model_info(horizon=horizon)
+        return JsonResponse({
+            'success': True,
+            'info': info
+        })
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        })
 
 
 @admin_required

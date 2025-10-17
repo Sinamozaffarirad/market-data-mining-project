@@ -1,0 +1,23 @@
+URGENT: Training is stuck at 50% for 3 hours!
+
+Quick fixes to apply:
+
+1. Reduce windows from 50 to 10:
+   Line 1237 in ml_models.py: 
+   Change: windows[:50]
+   To: windows[:10]
+
+2. Reduce epochs from 50 to 10:
+   Line 1280 in ml_models.py:
+   Change: epochs=50
+   To: epochs=10
+
+3. Or restart training with simpler settings:
+   - Use 1-month horizon (not 6-month)
+   - This will train only 1 model instead of 6
+
+The issue: 
+- 6 models × 50 epochs × 50 windows × backpropagation = VERY slow
+- Estimated: 6 models × 50 epochs × 5 minutes = 25+ hours!
+
+Solution: Reduce to 10 windows + 10 epochs = ~30 minutes total

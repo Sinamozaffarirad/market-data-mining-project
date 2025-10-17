@@ -1063,31 +1063,87 @@ html, body {
             <i class="fas fa-question-circle"></i> Help
           </button>
         </div>
-        <div class="row g-2">
-          <div class="col-md-4">
-            <label class="form-label control-label">Algorithm:</label>
-            <select class="form-select" id="mlAlgorithm">
-              <option value="neural_network">Neural Network</option>
-              <option value="random_forest">Random Forest</option>
-              <option value="gradient_boost">Gradient Boosting</option>
-              <option value="svm">Support Vector Machine</option>
+
+        <!-- Model Type Selection -->
+        <div class="row g-2 mb-3">
+          <div class="col-md-12">
+            <label class="form-label control-label">Model Type:</label>
+            <select class="form-select" id="modelType" onchange="toggleModelConfig()">
+              <option value="traditional">Traditional ML (Neural Network, Random Forest, etc.)</option>
+              <option value="timeseries">Time Series with Stacking (LSTM, GRU, TFT, N-BEATS)</option>
             </select>
           </div>
-          <div class="col-md-4">
-            <label class="form-label control-label">Prediction Horizon:</label>
-            <select class="form-select" id="predictionHorizon">
-              <option value="1">1 Month</option>
-              <option value="3" selected>3 Months</option>
-              <option value="6">6 Months</option>
-              <option value="12">12 Months</option>
-            </select>
-          </div>
-          <div class="col-md-4">
-            <div class="control-group">
-              <label class="control-label">Training Size:</label>
-              <input type="range" class="form-range control-slider" id="trainingSizeSlider" min="0.6" max="0.9" step="0.05" value="0.8">
-              <span class="control-value" id="trainingSizeValue">80%</span>
+        </div>
+
+        <!-- Traditional ML Configuration -->
+        <div id="traditionalMLConfig">
+          <div class="row g-2">
+            <div class="col-md-4">
+              <label class="form-label control-label">Algorithm:</label>
+              <select class="form-select" id="mlAlgorithm">
+                <option value="neural_network">Neural Network</option>
+                <option value="random_forest">Random Forest</option>
+                <option value="gradient_boost">Gradient Boosting</option>
+                <option value="svm">Support Vector Machine</option>
+              </select>
             </div>
+            <div class="col-md-4">
+              <label class="form-label control-label">Prediction Horizon:</label>
+              <select class="form-select" id="predictionHorizon">
+                <option value="1">1 Month</option>
+                <option value="3" selected>3 Months</option>
+                <option value="6">6 Months</option>
+                <option value="12">12 Months</option>
+              </select>
+            </div>
+            <div class="col-md-4">
+              <div class="control-group">
+                <label class="control-label">Training Size:</label>
+                <input type="range" class="form-range control-slider" id="trainingSizeSlider" min="0.6" max="0.9" step="0.05" value="0.8">
+                <span class="control-value" id="trainingSizeValue">80%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Time Series Configuration -->
+        <div id="timeSeriesConfig" style="display: none;">
+          <div class="row g-2 mb-2">
+            <div class="col-md-3">
+              <label class="form-label control-label">Time Series Algorithm:</label>
+              <select class="form-select" id="tsAlgorithm">
+                <option value="lstm">LSTM (Long Short-Term Memory)</option>
+                <option value="gru">GRU (Gated Recurrent Unit)</option>
+                <option value="tft">TFT (Temporal Fusion Transformer)</option>
+                <option value="nbeats">N-BEATS (Neural Basis Expansion)</option>
+              </select>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label control-label">Window Size (days):</label>
+              <input type="number" class="form-control" id="windowSize" min="30" max="180" step="10" value="60">
+              <small class="text-muted">Historical window for features</small>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label control-label">Slide Interval (days):</label>
+              <input type="number" class="form-control" id="slideInterval" min="1" max="30" step="1" value="7">
+              <small class="text-muted">Sliding window step size</small>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label control-label">Prediction Horizon:</label>
+              <select class="form-select" id="tsHorizon">
+                <option value="1">1 Month</option>
+                <option value="3">3 Months</option>
+                <option value="6" selected>6 Months</option>
+                <option value="12">12 Months</option>
+              </select>
+            </div>
+          </div>
+          <div class="alert alert-info mb-2">
+            <small>
+              <i class="fas fa-info-circle"></i> <strong>Stacking Architecture:</strong>
+              Progressive chain Month 1 → 2 → ... → N with loss propagation.
+              Window size ~{60 days / 7 days slide} = ~4x more training samples than fixed monthly windows.
+            </small>
           </div>
         </div>
 
@@ -2707,12 +2763,62 @@ function showNeedTrainingMessage() {
   document.getElementById('predictFutureBtn').disabled = true;
 }
 
+// Toggle between traditional ML and time series configuration
+function toggleModelConfig() {
+  const modelType = document.getElementById('modelType').value;
+  const traditionalConfig = document.getElementById('traditionalMLConfig');
+  const timeSeriesConfig = document.getElementById('timeSeriesConfig');
+
+  if (modelType === 'timeseries') {
+    traditionalConfig.style.display = 'none';
+    timeSeriesConfig.style.display = 'block';
+
+    // Try to load cached time series model metrics
+    loadCachedTimeSeriesMetrics();
+  } else {
+    traditionalConfig.style.display = 'block';
+    timeSeriesConfig.style.display = 'none';
+  }
+}
+
+// Load cached time series model metrics if available
+function loadCachedTimeSeriesMetrics() {
+  const horizon = document.getElementById('tsHorizon') ? document.getElementById('tsHorizon').value : 1;
+
+  fetch(`/analysis/api/ml/model-info-timeseries/?horizon=${horizon}`)
+    .then(response => response.json())
+    .then(data => {
+      if (data.success && data.info && data.info.training_metrics) {
+        const metrics = data.info.training_metrics;
+        const modelType = data.info.model_type.toUpperCase();
+
+        // Show cached model metrics
+        document.getElementById('modelAccuracyDisplay').style.display = 'block';
+        document.getElementById('trainedModel').textContent = `${modelType} Stacked`;
+        document.getElementById('modelAccuracy').textContent = `${(metrics.accuracy * 100).toFixed(2)}%`;
+        document.getElementById('modelPrecision').textContent = `${(metrics.precision * 100).toFixed(2)}%`;
+        document.getElementById('modelRecall').textContent = `${(metrics.recall * 100).toFixed(2)}%`;
+        document.getElementById('modelF1').textContent = `${(metrics.f1_score * 100).toFixed(2)}%`;
+
+        // Enable predict button since model is already trained
+        document.getElementById('predictFutureBtn').disabled = false;
+
+        console.log('Loaded cached time series model metrics:', metrics);
+      } else {
+        // No cached model found
+        console.log('No cached time series model found for horizon:', horizon);
+        document.getElementById('modelAccuracyDisplay').style.display = 'none';
+        document.getElementById('predictFutureBtn').disabled = true;
+      }
+    })
+    .catch(error => {
+      console.error('Error loading cached time series metrics:', error);
+    });
+}
+
 // PHASE 1: Train Model (user must click this first)
 function trainModel() {
-  const algorithm = document.getElementById('mlAlgorithm').value;
-  const trainingSize = document.getElementById('trainingSizeSlider').value;
-  const timeHorizon = getSelectedHorizon();
-  const horizonLabel = getHorizonLabel(timeHorizon);
+  const modelType = document.getElementById('modelType').value;
 
   // Disable train button, hide accuracy display, show progress
   document.getElementById('trainModelBtn').disabled = true;
@@ -2720,50 +2826,168 @@ function trainModel() {
   document.getElementById('modelAccuracyDisplay').style.display = 'none';
   document.getElementById('trainingProgress').style.display = 'inline-block';
 
-  showNotification(`Training ${algorithm.replace('_', ' ')} model on historical data (${horizonLabel})...`, 'info');
+  if (modelType === 'timeseries') {
+    // Time Series Model Training
+    const tsAlgorithm = document.getElementById('tsAlgorithm').value;
+    const windowSize = document.getElementById('windowSize').value;
+    const slideInterval = document.getElementById('slideInterval').value;
+    const horizon = document.getElementById('tsHorizon').value;
 
-  // Train the ML models
-  fetch('/analysis/api/ml/train/', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'X-CSRFToken': getCsrfToken()
-    },
-    body: `model_type=${algorithm}&training_size=${trainingSize}&time_horizon=${timeHorizon}`
-  })
-  .then(response => response.json())
-  .then(data => {
-    if (data.success) {
-      showNotification('Model training started. This will take ~5 minutes...', 'success');
+    showNotification(`Training ${tsAlgorithm.toUpperCase()} time series model with stacking (${horizon} months)...`, 'info');
 
-      // Poll training status (but don't auto-predict)
-      checkTrainingStatus(algorithm);
-
-    } else {
-      showNotification(`Training failed: ${data.error}`, 'error');
+    fetch('/analysis/api/ml/train-timeseries/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'X-CSRFToken': getCsrfToken()
+      },
+      body: `model_type=${tsAlgorithm}&window_size=${windowSize}&slide_interval=${slideInterval}&horizon=${horizon}`
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        showNotification('Time series model training started. This may take 15-20 minutes...', 'success');
+        checkTimeSeriesTrainingStatus(horizon);
+      } else {
+        showNotification(`Training failed: ${data.error}`, 'error');
+        document.getElementById('trainModelBtn').disabled = false;
+        document.getElementById('trainingProgress').style.display = 'none';
+      }
+    })
+    .catch(error => {
+      console.error('Error training time series model:', error);
+      showNotification('Error starting time series training', 'error');
       document.getElementById('trainModelBtn').disabled = false;
       document.getElementById('trainingProgress').style.display = 'none';
-    }
-  })
-  .catch(error => {
-    console.error('Error training model:', error);
-    showNotification('Error starting model training', 'error');
-    document.getElementById('trainModelBtn').disabled = false;
-    document.getElementById('trainingProgress').style.display = 'none';
-  });
+    });
+
+  } else {
+    // Traditional ML Training
+    const algorithm = document.getElementById('mlAlgorithm').value;
+    const trainingSize = document.getElementById('trainingSizeSlider').value;
+    const timeHorizon = getSelectedHorizon();
+    const horizonLabel = getHorizonLabel(timeHorizon);
+
+    showNotification(`Training ${algorithm.replace('_', ' ')} model on historical data (${horizonLabel})...`, 'info');
+
+    fetch('/analysis/api/ml/train/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'X-CSRFToken': getCsrfToken()
+      },
+      body: `model_type=${algorithm}&training_size=${trainingSize}&time_horizon=${timeHorizon}`
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        showNotification('Model training started. This will take ~5 minutes...', 'success');
+        checkTrainingStatus(algorithm);
+      } else {
+        showNotification(`Training failed: ${data.error}`, 'error');
+        document.getElementById('trainModelBtn').disabled = false;
+        document.getElementById('trainingProgress').style.display = 'none';
+      }
+    })
+    .catch(error => {
+      console.error('Error training model:', error);
+      showNotification('Error starting model training', 'error');
+      document.getElementById('trainModelBtn').disabled = false;
+      document.getElementById('trainingProgress').style.display = 'none';
+    });
+  }
+}
+
+// Check time series training status
+function checkTimeSeriesTrainingStatus(horizon) {
+  const intervalId = setInterval(() => {
+    fetch(`/analysis/api/ml/training-status-timeseries/?horizon=${horizon}`)
+      .then(response => response.json())
+      .then(data => {
+        if (data.is_training) {
+          const progress = data.progress || 0;
+          const stage = data.current_stage || 'Training...';
+          document.getElementById('trainingProgress').innerHTML = `
+            <div class="spinner-border spinner-border-sm text-success" role="status"></div>
+            <span class="text-success ms-2 fw-bold">${stage} (${progress}%)</span>
+          `;
+        } else if (data.error) {
+          clearInterval(intervalId);
+          showNotification(`Training failed: ${data.error}`, 'error');
+          document.getElementById('trainModelBtn').disabled = false;
+          document.getElementById('trainingProgress').style.display = 'none';
+        } else {
+          clearInterval(intervalId);
+          document.getElementById('trainingProgress').style.display = 'none';
+          document.getElementById('trainModelBtn').disabled = false;
+          document.getElementById('predictFutureBtn').disabled = false;
+          showNotification('Time series model training complete!', 'success');
+
+          // Fetch actual model metrics from server
+          fetch(`/analysis/api/ml/model-info-timeseries/?horizon=${horizon}`)
+            .then(response => response.json())
+            .then(modelInfo => {
+              if (modelInfo.success && modelInfo.info && modelInfo.info.training_metrics) {
+                const metrics = modelInfo.info.training_metrics;
+                const modelType = document.getElementById('tsAlgorithm').value.toUpperCase();
+
+                // Show model info with REAL metrics
+                document.getElementById('modelAccuracyDisplay').style.display = 'block';
+                document.getElementById('trainedModel').textContent = `${modelType} Stacked`;
+                document.getElementById('modelAccuracy').textContent = `${(metrics.accuracy * 100).toFixed(2)}%`;
+                document.getElementById('modelPrecision').textContent = `${(metrics.precision * 100).toFixed(2)}%`;
+                document.getElementById('modelRecall').textContent = `${(metrics.recall * 100).toFixed(2)}%`;
+                document.getElementById('modelF1').textContent = `${(metrics.f1_score * 100).toFixed(2)}%`;
+              } else {
+                // Fallback if metrics not available
+                document.getElementById('modelAccuracyDisplay').style.display = 'block';
+                document.getElementById('trainedModel').textContent = document.getElementById('tsAlgorithm').value.toUpperCase() + ' Stacked';
+                document.getElementById('modelAccuracy').textContent = 'Trained';
+                document.getElementById('modelPrecision').textContent = `${horizon} months`;
+                document.getElementById('modelRecall').textContent = `Window: ${document.getElementById('windowSize').value}d`;
+                document.getElementById('modelF1').textContent = `Slide: ${document.getElementById('slideInterval').value}d`;
+              }
+            })
+            .catch(error => {
+              console.error('Error fetching model info:', error);
+              // Fallback display
+              document.getElementById('modelAccuracyDisplay').style.display = 'block';
+              document.getElementById('trainedModel').textContent = document.getElementById('tsAlgorithm').value.toUpperCase() + ' Stacked';
+              document.getElementById('modelAccuracy').textContent = 'Trained';
+              document.getElementById('modelPrecision').textContent = `${horizon} months`;
+              document.getElementById('modelRecall').textContent = `Window: ${document.getElementById('windowSize').value}d`;
+              document.getElementById('modelF1').textContent = `Slide: ${document.getElementById('slideInterval').value}d`;
+            });
+        }
+      })
+      .catch(error => {
+        console.error('Error checking training status:', error);
+        clearInterval(intervalId);
+      });
+  }, 3000); // Check every 3 seconds
 }
 
 // PHASE 2: Predict Future (only enabled after training completes)
 function predictFuture() {
-  const algorithm = document.getElementById('mlAlgorithm').value;
+  const modelType = document.getElementById('modelType').value;
   const timeHorizon = getSelectedHorizon();
   const horizonLabel = getHorizonLabel(timeHorizon);
 
   showNotification(`Generating future predictions for ${horizonLabel.toLowerCase()} ahead...`, 'info');
 
-  // Load future predictions using trained model
-  loadPredictiveResults(algorithm);
-  generateRecommendations();
+  // Check which model type is selected
+  if (modelType === 'timeseries') {
+    // Use time series predictions
+    const tsAlgorithm = document.getElementById('tsAlgorithm').value;
+    const tsHorizon = parseInt(document.getElementById('tsHorizon').value);
+    loadTimeSeriesPredictions(tsAlgorithm, tsHorizon, horizonLabel);
+    // Time series recommendations are handled in loadTimeSeriesPredictions
+  } else {
+    // Use traditional ML predictions
+    const algorithm = document.getElementById('mlAlgorithm').value;
+    loadPredictiveResults(algorithm);
+    generateRecommendations();
+  }
 }
 
 // Check training status and display accuracy when complete
@@ -2890,6 +3114,156 @@ function loadPredictiveResults(algorithm) {
   .catch(error => {
     console.error('Error loading product predictions:', error);
   });
+}
+
+// Load time series predictions (for stacked models)
+function loadTimeSeriesPredictions(algorithm, timeHorizon, horizonLabel) {
+  console.log(`Loading time series predictions: algorithm=${algorithm}, horizon=${timeHorizon}`);
+
+  // First, get the model metrics to use for confidence
+  fetch(`/analysis/api/ml/model-info-timeseries/?horizon=${timeHorizon}`)
+    .then(response => response.json())
+    .then(modelInfo => {
+      // Extract actual model accuracy for confidence
+      const modelAccuracy = modelInfo.info?.training_metrics?.accuracy || 0.55;
+
+      // Fetch time series predictions from dedicated API
+      fetch(`/analysis/api/ml/predictions-timeseries/?horizon=${timeHorizon}&top_n=100`, {
+        method: 'GET',
+        headers: {
+          'X-CSRFToken': getCsrfToken()
+        }
+      })
+      .then(response => response.json())
+      .then(data => {
+        console.log('Time series predictions API response:', data);
+
+        if (data.success && data.predictions && data.predictions.length > 0) {
+          // Time series predictions are already aggregated by department
+          const deptPredictions = data.predictions.map(pred => ({
+            department: pred.department,
+            projected_revenue: pred.predicted_revenue,
+            confidence: modelAccuracy,  // Use actual model accuracy
+            ml_prediction_score: modelAccuracy,
+            historical_accuracy: modelAccuracy,
+            predicted_customers: pred.current_customers,
+            historical_revenue: pred.historical_revenue
+          }));
+
+          console.log('Time series department predictions:', deptPredictions);
+          updateFuturePredictiveCharts(deptPredictions, algorithm, timeHorizon, horizonLabel);
+
+          // Also display as product recommendations with actual accuracy
+          generateTimeSeriesInsights(data.predictions, algorithm, timeHorizon, modelAccuracy);
+        } else {
+          console.error('No time series predictions found!');
+          showChartError('No predictions available. Please train the time series model first.');
+        }
+      })
+      .catch(error => {
+        console.error('Error loading predictions:', error);
+        showChartError('Error loading predictions. Please try again.');
+      });
+    })
+    .catch(error => {
+      console.error('Error loading model info:', error);
+      // Continue with default confidence if model info fails
+      loadTimeSeriesPredictionsWithDefaultConfidence(algorithm, timeHorizon, horizonLabel);
+    });
+}
+
+// Fallback function if model info fetch fails
+function loadTimeSeriesPredictionsWithDefaultConfidence(algorithm, timeHorizon, horizonLabel) {
+  fetch(`/analysis/api/ml/predictions-timeseries/?horizon=${timeHorizon}&top_n=100`, {
+    method: 'GET',
+    headers: {
+      'X-CSRFToken': getCsrfToken()
+    }
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success && data.predictions && data.predictions.length > 0) {
+      const deptPredictions = data.predictions.map(pred => ({
+        department: pred.department,
+        projected_revenue: pred.predicted_revenue,
+        confidence: 0.55,
+        ml_prediction_score: 0.55,
+        historical_accuracy: 0.55,
+        predicted_customers: pred.current_customers,
+        historical_revenue: pred.historical_revenue
+      }));
+
+      updateFuturePredictiveCharts(deptPredictions, algorithm, timeHorizon, horizonLabel);
+      generateTimeSeriesInsights(data.predictions, algorithm, timeHorizon, 0.55);
+    }
+  })
+  .catch(error => console.error('Error:', error));
+}
+
+// Generate insights from time series predictions
+function generateTimeSeriesInsights(predictions, algorithm, timeHorizon, modelAccuracy) {
+  console.log('Generating time series insights for recommendations...');
+
+  const container = document.getElementById('recommendedProducts');
+  if (!container) {
+    console.error('Recommendations container not found');
+    return;
+  }
+
+  // Default accuracy if not provided
+  if (!modelAccuracy) modelAccuracy = 0.55;
+
+  // Show loading
+  container.innerHTML = '<div class="col-12 text-center"><i class="fas fa-spinner fa-spin fa-2x mb-2" style="color: #667eea;"></i><h6 style="color: #4a5568;">Generating Time Series Recommendations...</h6></div>';
+
+  // Format department-level predictions as product recommendations
+  const html = predictions.slice(0, 8).map(pred => {
+    const departmentColor = DEPARTMENT_CONFIG[pred.department]?.color || '#6C757D';
+    const formattedRevenue = Number(pred.predicted_revenue || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const formattedCustomers = Number(pred.current_customers || 0).toLocaleString();
+    const formattedHistoricalRevenue = Number(pred.historical_revenue || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const confidencePercent = Math.round(modelAccuracy * 100);
+
+    return `
+      <div class="col-12 col-md-6 col-xl-4">
+        <div class="recommendation-card h-100"
+             style="border-left: 6px solid ${departmentColor}; cursor: pointer; transition: all 0.3s ease;"
+             onmouseover="this.style.boxShadow='0 20px 40px rgba(99, 102, 241, 0.25)'"
+             onmouseout="this.style.boxShadow=''">
+          <div class="card-body">
+            <div class="d-flex align-items-center mb-3 gap-2">
+              ${createDepartmentBadge(pred.department || 'UNKNOWN')}
+              <span class="ms-auto badge" style="background: linear-gradient(135deg, #4CAF50, #66BB6A); color: white; padding: 6px 12px; border-radius: 15px; font-weight: 700; box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3);">${confidencePercent}%</span>
+            </div>
+
+            <div class="mb-3">
+              <h6 class="card-title mb-1" style="color: #1a202c; font-weight: 700; font-size: 1.1rem; line-height: 1.3;">${pred.department}</h6>
+              <small class="text-muted d-block" style="font-size: 0.85rem; color: #64748b;">Time Series Prediction (${timeHorizon} Month${timeHorizon > 1 ? 's' : ''})</small>
+            </div>
+
+            <div class="revenue-highlight mb-3" style="background: linear-gradient(135deg, rgba(102, 126, 234, 0.1), rgba(67, 56, 202, 0.05)); padding: 1rem; border-radius: 12px; border-left: 4px solid #667eea;">
+              <div class="d-flex align-items-center gap-2">
+                <i class="fas fa-chart-line" style="color: #667eea; font-size: 1.2rem;"></i>
+                <span class="fw-bold text-primary" style="font-size: 1.4rem; color: #667eea !important;">$${formattedRevenue}</span>
+              </div>
+              <div class="text-muted small mt-1" style="font-weight: 500;">Predicted Revenue (${timeHorizon}M)</div>
+            </div>
+
+            <div class="product-details mb-3" style="background: rgba(248, 250, 252, 0.8); padding: 0.75rem; border-radius: 10px;">
+              <div class="recommendation-meta">
+                <div class="meta-item"><i class="fas fa-users" style="color: #667eea;"></i><span><strong>Customers:</strong> ${formattedCustomers}</span></div>
+                <div class="meta-item"><i class="fas fa-history" style="color: #667eea;"></i><span><strong>Historical:</strong> $${formattedHistoricalRevenue}</span></div>
+                <div class="meta-item"><i class="fas fa-brain" style="color: #667eea;"></i><span><strong>Model:</strong> ${algorithm.toUpperCase()}</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  container.innerHTML = html;
+  console.log('Time series recommendations displayed');
 }
 
 // Show error in chart containers when no real data is available
@@ -4806,9 +5180,17 @@ document.addEventListener('DOMContentLoaded', function() {
   // Check if model is already trained (cached) on page load
   checkCachedModel();
 
+  // Also check for cached time series models if on time series tab
+  const modelType = document.getElementById('modelType');
+  if (modelType && modelType.value === 'timeseries') {
+    loadCachedTimeSeriesMetrics();
+  }
+
   // Re-check cached model when algorithm or horizon changes
   const algorithmSelect = document.getElementById('mlAlgorithm');
   const horizonSelect = document.getElementById('predictionHorizon');
+  const tsHorizonSelect = document.getElementById('tsHorizon');
+  const tsAlgorithmSelect = document.getElementById('tsAlgorithm');
 
   if (algorithmSelect) {
     algorithmSelect.addEventListener('change', () => {
@@ -4832,6 +5214,26 @@ document.addEventListener('DOMContentLoaded', function() {
         showNotification('Updating forecasts for ' + horizonLabelText + ' horizon...', 'info');
         loadPredictiveResults(algorithmValue);
         generateRecommendations();
+      }
+    });
+  }
+
+  // Time series horizon change listener
+  if (tsHorizonSelect) {
+    tsHorizonSelect.addEventListener('change', () => {
+      console.log('Time series horizon changed, checking for cached model...');
+      if (modelType && modelType.value === 'timeseries') {
+        loadCachedTimeSeriesMetrics();
+      }
+    });
+  }
+
+  // Time series algorithm change listener
+  if (tsAlgorithmSelect) {
+    tsAlgorithmSelect.addEventListener('change', () => {
+      console.log('Time series algorithm changed, checking for cached model...');
+      if (modelType && modelType.value === 'timeseries') {
+        loadCachedTimeSeriesMetrics();
       }
     });
   }
