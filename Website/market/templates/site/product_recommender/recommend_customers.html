@@ -1,0 +1,22 @@
+{% extends "site/base.html" %}
+{% block content %}
+<div class="container py-5">
+    <h1 class="fw-bold mb-4">
+        <i class="fas fa-user-check me-2 text-primary"></i>
+        Recommend Customers for Product
+    </h1>
+
+    <p class="text-muted mb-4">Select or search a product to find the best customers to recommend it to.</p>
+
+    <form method="GET" class="mb-5">
+        <div class="input-group">
+            <input type="text" name="query" class="form-control" placeholder="Search product by name, brand, or category...">
+            <button class="btn btn-primary" type="submit">Search</button>
+        </div>
+    </form>
+
+    <div id="results">
+        <p class="text-muted">Search results and customer recommendations will appear here.</p>
+    </div>
+</div>
+{% endblock %}
