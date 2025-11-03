@@ -25,4 +25,7 @@ urlpatterns = [
     # Public/staff site (non-admin) analytics
     path('analysis/', include('dunnhumby.urls', namespace='dunnhumby_site')),
     path('customers/', include('customers.urls', namespace='customers')),
+    path('analysis/product-recommender/', include('product_recommender.urls')),
+    path('analysis/customer-retention/', include('customer_retention.urls')),
+
 ]
