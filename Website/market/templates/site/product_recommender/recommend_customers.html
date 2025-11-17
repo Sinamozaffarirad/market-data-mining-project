@@ -1,22 +1,44 @@
 {% extends "site/base.html" %}
+{% load static %}
+
+{% block title %}Recommend Customers{% endblock %}
+
 {% block content %}
 <div class="container py-5">
-    <h1 class="fw-bold mb-4">
-        <i class="fas fa-user-check me-2 text-primary"></i>
-        Recommend Customers for Product
-    </h1>
 
-    <p class="text-muted mb-4">Select or search a product to find the best customers to recommend it to.</p>
+    <h1 class="fw-bold mb-4">Recommend Customers for Product</h1>
+    <p class="text-muted">Search for a product to find the best customer leads who have not purchased this item yet.</p>
 
-    <form method="GET" class="mb-5">
-        <div class="input-group">
-            <input type="text" name="query" class="form-control" placeholder="Search product by name, brand, or category...">
-            <button class="btn btn-primary" type="submit">Search</button>
-        </div>
+    <form method="GET" class="mb-4">
+        {{ form.query }}
+        <button class="btn btn-primary mt-2" type="submit">Search</button>
     </form>
 
-    <div id="results">
-        <p class="text-muted">Search results and customer recommendations will appear here.</p>
-    </div>
+    {% if query %}
+        <h5 class="text-muted mb-3">Results for "{{ query }}"</h5>
+    {% endif %}
+
+    {% if products %}
+        <ul class="list-group">
+            {% for p in products %}
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+                <div>
+                    <strong>{{ p.brand }}</strong> — {{ p.commodity_desc }}
+                    <br>
+                    <small class="text-muted">{{ p.sub_commodity_desc }} | {{ p.department }} (ID: {{ p.product_id }})</small>
+                </div>
+
+                <a href="{% url 'product_recommender:recommend_customers' p.product_id %}"
+                   class="btn btn-sm btn-success">
+                   Get Recommendations
+                </a>
+            </li>
+            {% endfor %}
+        </ul>
+    {% else %}
+        {% if query %}
+            <p class="text-danger">No products found.</p>
+        {% endif %}
+    {% endif %}
 </div>
 {% endblock %}
