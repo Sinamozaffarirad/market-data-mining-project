@@ -7,62 +7,47 @@
 {% block content %}
 <div class="container py-5">
 
-    <h1 class="fw-bold mb-2">Customer Recommendations for:</h1>
+    <h1 class="fw-bold mb-2">Customer Leads for Product:</h1>
     <h3 class="text-primary">{{ product.brand }} — {{ product.commodity_desc }}</h3>
     <p class="text-muted">{{ product.sub_commodity_desc }} | {{ product.department }}</p>
+    <p class="small text-muted">
+        Generated using <strong>Association Rules</strong>, <strong>User-Based Collaborative Filtering</strong>, and <strong>Content Similarity</strong>.
+    </p>
 
     <hr class="my-4">
 
     <div class="row mb-4 text-center">
-        <div class="col-md-3">
-            <div class="card h-100">
+        <div class="col-md-6">
+            <div class="card h-100 bg-light border-0">
                 <div class="card-body">
-                    <h5 class="card-title">{{ total_recommendations }}</h5>
-                    <p class="card-text">Total Customers Recommended</p>
+                    <h2 class="card-title text-primary fw-bold">{{ total_recommendations }}</h2>
+                    <p class="card-text text-muted">Total New Leads Found</p>
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
-            <div class="card h-100">
+        <div class="col-md-6">
+            <div class="card h-100 border-0">
                 <div class="card-body">
-                    <h5 class="card-title">{{ direct_buyers_count }}</h5>
-                    <p class="card-text">Direct Buyers (Used as Seed)</p>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card h-100">
-                <div class="card-body">
-                    <h5 class="card-title">{{ similar_buyers_count }}</h5>
-                    <p class="card-text">Similar Product Buyers</p>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card h-100">
-                <div class="card-body">
-                    <h5 class="card-title">{{ cf_customers_count }}</h5>
-                    <p class="card-text">Collaborative (Segment) Matches</p>
+                    <h2 class="card-title fw-bold">{{ direct_buyers_count }}</h2>
+                    <p class="card-text text-muted">Existing Direct Buyers (Seed Group)</p>
                 </div>
             </div>
         </div>
     </div>
 
-
-    <h4 class="mt-5 mb-3">Top Recommended Customers (Who haven't bought this product)</h4>
+    <h4 class="mt-5 mb-3">Top Recommended Customers</h4>
 
     {% if customers_page %}
     <div class="table-responsive">
-        <table class="table table-striped table-hover">
-            <thead>
+        <table class="table table-hover align-middle">
+            <thead class="table-light">
                 <tr>
                     <th scope="col">Household Key</th>
-                    <th scope="col">RFM Segment</th>
-                    <th scope="col">Score</th>
-                    <th scope="col">Age</th>
-                    <th scope="col">Income</th>
+                    <th scope="col">Recommender Score</th>
+                    <th scope="col">Demographics</th>
+                    <th scope="col">Income Status</th>
                     <th scope="col">Marital Status</th>
-                    <th scope="col">Details</th>
+                    <th scope="col">Action</th>
                 </tr>
             </thead>
             <tbody>
@@ -70,9 +55,24 @@
                 <tr>
                     <td><strong>{{ c.household_key }}</strong></td>
                     
-                    <td><span class="badge bg-secondary">{{ c.rfm_segment|default:"N/A" }}</span></td>
-                    <td><strong>{{ scores|get_item:c.household_key|floatformat:2 }}</strong></td>
-                    <td>{{ c.age_desc|default:"-" }}</td>
+                    <td>
+                        <div class="d-flex align-items-center">
+                            <span class="fw-bold me-2 text-success">{{ c.recommender_score|floatformat:2 }}</span>
+                            
+                            <div class="progress" style="height: 6px; width: 80px;">
+                                <div class="progress-bar bg-success" role="progressbar" 
+                                    style="width: calc(({{ c.recommender_score }} / {{ max_score }}) * 100%);" 
+                                    aria-valuenow="{{ c.recommender_score }}" 
+                                    aria-valuemin="0" 
+                                    aria-valuemax="{{ max_score }}">
+                                </div>
+                            </div>
+                        </div>
+                    </td>
+
+                    <td>
+                        <small class="d-block text-muted">Age: {{ c.age_desc|default:"-" }}</small>
+                    </td>
                     <td>{{ c.income_desc|default:"-" }}</td>
                     <td>{{ c.marital_status_code|default:"-" }}</td>
                     <td>
@@ -130,13 +130,14 @@
         </ul>
     </nav>
 
-
     {% else %}
-        <p class="text-danger">No suitable customer recommendations found based on current logic.</p>
+        <div class="alert alert-warning" role="alert">
+            No suitable leads found using the current algorithms (Association Rules & CF).
+        </div>
     {% endif %}
 
     <div class="text-center mt-4">
-        <a href="{% url 'product_recommender:home' %}" class="btn btn-primary">← Back to Product Search</a>
+        <a href="{% url 'product_recommender:home' %}" class="btn btn-secondary">← Back to Product Search</a>
     </div>
 
 </div>
