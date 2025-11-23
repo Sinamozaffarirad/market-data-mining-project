@@ -1,0 +1,38 @@
+{% extends "site/base.html" %}
+
+{% block title %}Product Detail {% endblock %}
+
+{% block content %}
+<div class="container py-5">
+
+    <h2 class="fw-bold">{{ product.brand }} — {{ product.commodity_desc }}</h2>
+    <p class="text-muted">{{ product.sub_commodity_desc }} | {{ product.department }}</p>
+
+    <hr>
+
+    <h4>Top Customers (Based on Purchase History)</h4>
+    <ul class="list-group mb-4">
+        {% for c in segments %}
+        <li class="list-group-item">
+            Household: {{ c.household_key }}
+            <br>
+            Segment: {{ c.rfm_segment }} — Churn: {{ c.churn_probability }}
+        </li>
+        {% endfor %}
+    </ul>
+
+    <h4>Association Rules Related to This Product</h4>
+    <ul class="list-group">
+        {% for r in rules %}
+        <li class="list-group-item">
+            <strong>Antecedent:</strong> {{ r.antecedent }}
+            <br>
+            <strong>Consequent:</strong> {{ r.consequent }}
+            <br>
+            Confidence: {{ r.confidence }}
+        </li>
+        {% endfor %}
+    </ul>
+
+</div>
+{% endblock %}
