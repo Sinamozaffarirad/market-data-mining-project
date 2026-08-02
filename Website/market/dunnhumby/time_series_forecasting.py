@@ -27,7 +27,7 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
 logger = logging.getLogger(__name__)
 MODEL_DIR = Path(__file__).resolve().parent.parent / "ml_models_cache" / "time_series"
-ARTIFACT_VERSION = 2
+ARTIFACT_VERSION = 3
 PERIOD_DAYS = 30
 VALID_HORIZONS = {1, 3, 6, 12}
 VALID_WINDOWS = {3, 6, 12}
@@ -377,7 +377,8 @@ class ProductRevenueTimeSeriesForecaster:
         )
         time_series_forecast = step_forecasts.sum(axis=1)
         actual = values[:, test_origin:test_origin + horizon].sum(axis=1)
-        baseline = self._one_step_baseline(observed[:, -window_size:]) * horizon
+        baseline_one_step = self._one_step_baseline(observed[:, -window_size:])
+        baseline = baseline_one_step * horizon
 
         lookback_active = observed[:, -window_size:].sum(axis=1) > 0
         actual_active = actual > 0
@@ -408,6 +409,17 @@ class ProductRevenueTimeSeriesForecaster:
 
         test_start_day = data_profile["analysis_start_day"] + test_origin * PERIOD_DAYS
         test_end_day = test_start_day + horizon * PERIOD_DAYS - 1
+        holdout_actual_vs_predicted = []
+        for step in range(horizon):
+            period_start = test_start_day + step * PERIOD_DAYS
+            holdout_actual_vs_predicted.append({
+                "period": int(test_origin + step + 1),
+                "start_day": int(period_start),
+                "end_day": int(period_start + PERIOD_DAYS - 1),
+                "actual_revenue": round(float(values[evaluation_mask, test_origin + step].sum()), 2),
+                "time_series_revenue": round(float(step_forecasts[evaluation_mask, step].sum()), 2),
+                "baseline_revenue": round(float(baseline_one_step[evaluation_mask].sum()), 2),
+            })
         report = {
             "artifact_version": ARTIFACT_VERSION,
             "forecast_method": "recursive_multi_step_monthly_revenue",
@@ -429,6 +441,7 @@ class ProductRevenueTimeSeriesForecaster:
                 "end_day": int(test_end_day),
                 "periods": list(range(test_origin + 1, test_origin + horizon + 1)),
             },
+            "holdout_actual_vs_predicted": holdout_actual_vs_predicted,
             "samples": {
                 "train": int(len(X_train)),
                 "train_by_origin": origin_counts,
@@ -498,6 +511,7 @@ class ProductRevenueTimeSeriesForecaster:
         sliding_step=1,
         top_n=20,
         revenue_threshold=None,
+        forecast_method="recommended",
     ):
         """Forecast beyond the data as-of day and return ranked products and totals."""
         horizon, window_size, sliding_step = int(horizon), int(window_size), int(sliding_step)
@@ -524,9 +538,30 @@ class ProductRevenueTimeSeriesForecaster:
         step_forecasts = self._recursive_predict(
             artifact["model"], observed, horizon, window_size, observed.shape[1]
         )
-        predicted_revenue = step_forecasts.sum(axis=1)
+        model_revenue = step_forecasts.sum(axis=1)
         latest_lags = observed[:, -window_size:]
-        baseline_revenue = self._one_step_baseline(latest_lags) * horizon
+        baseline_one_step = self._one_step_baseline(latest_lags)
+        baseline_steps = np.repeat(baseline_one_step[:, None], horizon, axis=1)
+        baseline_revenue = baseline_steps.sum(axis=1)
+        requested_method = str(forecast_method or "recommended")
+        valid_methods = {
+            "recommended", "time_series_model", "independent_recent_average_baseline"
+        }
+        if requested_method not in valid_methods:
+            raise ValueError(
+                "forecast_method must be recommended, time_series_model, or "
+                "independent_recent_average_baseline."
+            )
+        if requested_method == "recommended":
+            applied_method = artifact["report"]["selection_guidance"]["best_for_revenue_error"]
+        else:
+            applied_method = requested_method
+        selected_steps = (
+            step_forecasts
+            if applied_method == "time_series_model"
+            else baseline_steps
+        )
+        predicted_revenue = selected_steps.sum(axis=1)
         eligible = latest_lags.sum(axis=1) > 0
 
         recent_units = unit_panel.iloc[:, -window_size:].sum(axis=1).to_numpy(dtype=float)
@@ -548,6 +583,7 @@ class ProductRevenueTimeSeriesForecaster:
             {
                 "product_id": revenue_panel.index.astype(int),
                 "predicted_revenue": predicted_revenue,
+                "time_series_revenue": model_revenue,
                 "baseline_revenue": baseline_revenue,
                 "revenue_per_unit": revenue_per_unit,
                 "predicted_units": predicted_units,
@@ -609,6 +645,7 @@ class ProductRevenueTimeSeriesForecaster:
                     "brand": str(row.brand),
                     "size": str(row["size"]),
                     "predicted_revenue": round(float(row.predicted_revenue), 2),
+                    "time_series_revenue": round(float(row.time_series_revenue), 2),
                     "baseline_revenue": round(float(row.baseline_revenue), 2),
                     "revenue_change_vs_baseline": round(float(row.revenue_change_vs_baseline), 2),
                     "revenue_per_unit": (
@@ -619,7 +656,7 @@ class ProductRevenueTimeSeriesForecaster:
                         round(float(row.predicted_units), 2)
                         if pd.notna(row.predicted_units) else None
                     ),
-                    "monthly_predictions": [round(float(value), 2) for value in step_forecasts[
+                    "monthly_predictions": [round(float(value), 2) for value in selected_steps[
                         revenue_panel.index.get_loc(int(row.product_id))
                     ]],
                 }
@@ -630,7 +667,13 @@ class ProductRevenueTimeSeriesForecaster:
             "horizon_months": horizon,
             "window_size_months": window_size,
             "sliding_step_months": sliding_step,
-            "forecast_method": "recursive_multi_step_monthly_revenue",
+            "forecast_method_requested": requested_method,
+            "forecast_method_applied": applied_method,
+            "forecast_method": (
+                "recursive_multi_step_monthly_revenue"
+                if applied_method == "time_series_model"
+                else "independent_recent_average_baseline"
+            ),
             "forecast_period": {
                 "start_day": int(forecast_start_day),
                 "end_day": int(forecast_start_day + horizon * PERIOD_DAYS - 1),

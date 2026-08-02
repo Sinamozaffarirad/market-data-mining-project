@@ -606,7 +606,9 @@
         const navLinks = document.querySelectorAll('.nav-link');
         
         navLinks.forEach(link => {
-          const linkPath = new URL(link.href).pathname;
+          const href = link.getAttribute('href');
+          if (!href) return;
+          const linkPath = new URL(href, window.location.href).pathname;
           if (currentPath === linkPath || 
               (linkPath !== '/analysis/' && currentPath.startsWith(linkPath))) {
             link.classList.add('active');
