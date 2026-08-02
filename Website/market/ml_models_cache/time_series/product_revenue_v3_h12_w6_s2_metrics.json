@@ -1,0 +1,302 @@
+{
+  "artifact_version": 3,
+  "forecast_method": "recursive_multi_step_monthly_revenue",
+  "model": "HistGradientBoostingRegressor one-step residual model (scikit-learn)",
+  "target": "cumulative Product ID revenue for the next 12 complete 30-day period(s)",
+  "horizon_months": 12,
+  "window_size_months": 6,
+  "sliding_step_months": 2,
+  "training_size": 0.8,
+  "validation": "strict final-horizon chronological holdout; fitting targets end before the test starts; no random split and no future-revenue features",
+  "fit_origin_periods": [
+    7,
+    9,
+    11
+  ],
+  "available_pretest_origins": [
+    7,
+    9,
+    11
+  ],
+  "test_origin_period": 12,
+  "test_period": {
+    "start_day": 352,
+    "end_day": 711,
+    "periods": [
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23
+    ]
+  },
+  "holdout_actual_vs_predicted": [
+    {
+      "period": 12,
+      "start_day": 352,
+      "end_day": 381,
+      "actual_revenue": 366321.5,
+      "time_series_revenue": 261077.62,
+      "baseline_revenue": 368928.84
+    },
+    {
+      "period": 13,
+      "start_day": 382,
+      "end_day": 411,
+      "actual_revenue": 382127.07,
+      "time_series_revenue": 247794.02,
+      "baseline_revenue": 368928.84
+    },
+    {
+      "period": 14,
+      "start_day": 412,
+      "end_day": 441,
+      "actual_revenue": 387685.84,
+      "time_series_revenue": 234292.67,
+      "baseline_revenue": 368928.84
+    },
+    {
+      "period": 15,
+      "start_day": 442,
+      "end_day": 471,
+      "actual_revenue": 377569.1,
+      "time_series_revenue": 216897.38,
+      "baseline_revenue": 368928.84
+    },
+    {
+      "period": 16,
+      "start_day": 472,
+      "end_day": 501,
+      "actual_revenue": 376550.56,
+      "time_series_revenue": 204441.92,
+      "baseline_revenue": 368928.84
+    },
+    {
+      "period": 17,
+      "start_day": 502,
+      "end_day": 531,
+      "actual_revenue": 377508.22,
+      "time_series_revenue": 190592.66,
+      "baseline_revenue": 368928.84
+    },
+    {
+      "period": 18,
+      "start_day": 532,
+      "end_day": 561,
+      "actual_revenue": 358562.53,
+      "time_series_revenue": 178678.86,
+      "baseline_revenue": 368928.84
+    },
+    {
+      "period": 19,
+      "start_day": 562,
+      "end_day": 591,
+      "actual_revenue": 372615.26,
+      "time_series_revenue": 167860.89,
+      "baseline_revenue": 368928.84
+    },
+    {
+      "period": 20,
+      "start_day": 592,
+      "end_day": 621,
+      "actual_revenue": 397406.43,
+      "time_series_revenue": 158831.79,
+      "baseline_revenue": 368928.84
+    },
+    {
+      "period": 21,
+      "start_day": 622,
+      "end_day": 651,
+      "actual_revenue": 397589.99,
+      "time_series_revenue": 149662.03,
+      "baseline_revenue": 368928.84
+    },
+    {
+      "period": 22,
+      "start_day": 652,
+      "end_day": 681,
+      "actual_revenue": 385435.16,
+      "time_series_revenue": 141863.32,
+      "baseline_revenue": 368928.84
+    },
+    {
+      "period": 23,
+      "start_day": 682,
+      "end_day": 711,
+      "actual_revenue": 401681.79,
+      "time_series_revenue": 135295.62,
+      "baseline_revenue": 368928.84
+    }
+  ],
+  "samples": {
+    "train": 145415,
+    "train_by_origin": {
+      "7": 45344,
+      "9": 49701,
+      "11": 50370
+    },
+    "products_total": 91933,
+    "evaluation_products": 82291,
+    "lookback_active_products": 50605,
+    "cold_start_products_in_test": 31686
+  },
+  "data_profile": {
+    "source": "transactions joined to product metadata",
+    "grain": "Product ID x complete 30-day period",
+    "transaction_rows": 2595280,
+    "products_with_transactions": 91933,
+    "source_min_day": 1,
+    "as_of_day": 711,
+    "period_days": 30,
+    "complete_periods": 23,
+    "analysis_start_day": 22,
+    "excluded_leading_days": 21,
+    "zero_revenue_cells_rate": 0.750873
+  },
+  "time_series_model": {
+    "evaluation_products": 82291,
+    "actual_revenue": 4581053.45,
+    "predicted_revenue": 2287288.77,
+    "mae": 32.049831,
+    "rmse": 490.551112,
+    "wmape": 0.575722,
+    "smape": 1.518658,
+    "r2": 0.798579,
+    "top_k": 20,
+    "spearman": 0.387211,
+    "kendall_tau": 0.271977,
+    "ranking_at_k": {
+      "5": {
+        "k_used": 5,
+        "overlap_count": 4,
+        "precision_at_k": 0.8,
+        "recall_at_k": 0.8,
+        "jaccard_at_k": 0.666667,
+        "ndcg_at_k": 0.992033
+      },
+      "10": {
+        "k_used": 10,
+        "overlap_count": 9,
+        "precision_at_k": 0.9,
+        "recall_at_k": 0.9,
+        "jaccard_at_k": 0.818182,
+        "ndcg_at_k": 0.988989
+      },
+      "20": {
+        "k_used": 20,
+        "overlap_count": 18,
+        "precision_at_k": 0.9,
+        "recall_at_k": 0.9,
+        "jaccard_at_k": 0.818182,
+        "ndcg_at_k": 0.994678
+      }
+    },
+    "precision_at_k": 0.9,
+    "recall_at_k": 0.9,
+    "jaccard_at_k": 0.818182,
+    "ndcg_at_k": 0.994678
+  },
+  "independent_recent_average_baseline": {
+    "evaluation_products": 82291,
+    "actual_revenue": 4581053.45,
+    "predicted_revenue": 4427146.04,
+    "mae": 29.250982,
+    "rmse": 211.649882,
+    "wmape": 0.525445,
+    "smape": 1.326831,
+    "r2": 0.962505,
+    "top_k": 20,
+    "spearman": 0.45096,
+    "kendall_tau": 0.346622,
+    "ranking_at_k": {
+      "5": {
+        "k_used": 5,
+        "overlap_count": 4,
+        "precision_at_k": 0.8,
+        "recall_at_k": 0.8,
+        "jaccard_at_k": 0.666667,
+        "ndcg_at_k": 0.992033
+      },
+      "10": {
+        "k_used": 10,
+        "overlap_count": 10,
+        "precision_at_k": 1.0,
+        "recall_at_k": 1.0,
+        "jaccard_at_k": 1.0,
+        "ndcg_at_k": 0.996426
+      },
+      "20": {
+        "k_used": 20,
+        "overlap_count": 16,
+        "precision_at_k": 0.8,
+        "recall_at_k": 0.8,
+        "jaccard_at_k": 0.666667,
+        "ndcg_at_k": 0.991248
+      }
+    },
+    "precision_at_k": 0.8,
+    "recall_at_k": 0.8,
+    "jaccard_at_k": 0.666667,
+    "ndcg_at_k": 0.991248
+  },
+  "model_ranking_similarity": {
+    "spearman": 0.926584,
+    "kendall_tau": 0.834875,
+    "top_k_overlap": {
+      "5": {
+        "k_used": 5,
+        "overlap_count": 5,
+        "precision_at_k": 1.0,
+        "recall_at_k": 1.0,
+        "jaccard_at_k": 1.0,
+        "ndcg_at_k": 1.0
+      },
+      "10": {
+        "k_used": 10,
+        "overlap_count": 9,
+        "precision_at_k": 0.9,
+        "recall_at_k": 0.9,
+        "jaccard_at_k": 0.818182,
+        "ndcg_at_k": 0.999504
+      },
+      "20": {
+        "k_used": 20,
+        "overlap_count": 18,
+        "precision_at_k": 0.9,
+        "recall_at_k": 0.9,
+        "jaccard_at_k": 0.818182,
+        "ndcg_at_k": 0.999247
+      }
+    },
+    "interpretation": "Similarity compares the two model rankings; it is not accuracy against actual revenue."
+  },
+  "selection_guidance": {
+    "best_for_revenue_error": "independent_recent_average_baseline",
+    "best_for_revenue_error_basis": "WMAPE only",
+    "overall_error_assessment": "independent_recent_average_baseline",
+    "error_metric_wins": {
+      "time_series_model": 0,
+      "independent_recent_average_baseline": 4,
+      "metrics_compared": [
+        "mae",
+        "rmse",
+        "wmape",
+        "smape"
+      ]
+    },
+    "best_for_top_k_ranking": "time_series_model"
+  },
+  "required_caveats": [
+    "The dataset provides 23 complete aligned periods, so the final holdout is one horizon block rather than many independent years.",
+    "Products with no revenue in the lookback are cold starts; the revenue-only model predicts zero for them and reports their count.",
+    "The legacy customer-repurchase classifier has a different target and its classification Accuracy must not be compared with these revenue metrics.",
+    "Revenue per unit is historical sales_value divided by positive quantity; quantity units vary by product and are not documented as a universal physical unit."
+  ]
+}

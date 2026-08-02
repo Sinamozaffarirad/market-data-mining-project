@@ -3132,7 +3132,7 @@ ml_training_status = {
 
 @csrf_exempt
 def predictive_analysis_api(request):
-    """API endpoint for predictive market basket analysis - returns department predictions"""
+    """Return household-department repurchase probabilities by department."""
     if request.method != 'POST':
         return JsonResponse({'error': 'POST method required'}, status=405)
 
@@ -3149,8 +3149,8 @@ def predictive_analysis_api(request):
         valid_horizons = {1, 3, 6, 12}
         selected_horizon = time_horizon if (time_horizon in valid_horizons) else 3
 
-        # Get department predictions specifically (HISTORICAL validation method)
         department_predictions = ml_analyzer.get_department_predictions(model_type, selected_horizon)
+        horizon_key = {1: '1month', 3: '3months', 6: '6months', 12: '12months'}[selected_horizon]
 
         return JsonResponse({
             'success': True,
@@ -3158,7 +3158,8 @@ def predictive_analysis_api(request):
             'model_type': model_type,
             'time_horizon_months': selected_horizon,
             'department_predictions': department_predictions,
-            'prediction_type': 'historical_validation'
+            'model_metrics': ml_analyzer.get_model_performance().get(f'{horizon_key}_{model_type}', {}),
+            'prediction_type': 'household_department_repurchase_probability'
         })
 
     except Exception as e:
@@ -3181,7 +3182,8 @@ def _time_series_params(request):
         threshold = float(threshold) if threshold not in (None, '') else None
     except (TypeError, ValueError) as exc:
         raise ValueError('revenue_threshold must be numeric.') from exc
-    return horizon, window_size, sliding_step, training_size, top_n, threshold
+    forecast_method = source.get('forecast_method', 'recommended')
+    return horizon, window_size, sliding_step, training_size, top_n, threshold, forecast_method
 
 
 @csrf_exempt
@@ -3190,7 +3192,7 @@ def train_product_time_series(request):
     if request.method != 'POST':
         return JsonResponse({'success': False, 'error': 'POST method required'}, status=405)
     try:
-        horizon, window_size, sliding_step, training_size, _, _ = _time_series_params(request)
+        horizon, window_size, sliding_step, training_size, _, _, _ = _time_series_params(request)
         report = product_revenue_forecaster.train(
             horizon=horizon,
             window_size=window_size,
@@ -3211,13 +3213,14 @@ def product_time_series_forecast(request):
     if request.method not in {'GET', 'POST'}:
         return JsonResponse({'success': False, 'error': 'GET or POST method required'}, status=405)
     try:
-        horizon, window_size, sliding_step, _, top_n, threshold = _time_series_params(request)
+        horizon, window_size, sliding_step, _, top_n, threshold, forecast_method = _time_series_params(request)
         result = product_revenue_forecaster.forecast(
             horizon=horizon,
             window_size=window_size,
             sliding_step=sliding_step,
             top_n=top_n,
             revenue_threshold=threshold,
+            forecast_method=forecast_method,
         )
         return JsonResponse({'success': True, **result})
     except ValueError as exc:
@@ -3230,7 +3233,7 @@ def product_time_series_forecast(request):
 def product_time_series_report(request):
     """Return the persisted chronological-validation report without retraining."""
     try:
-        horizon, window_size, sliding_step, _, _, _ = _time_series_params(request)
+        horizon, window_size, sliding_step, _, _, _, _ = _time_series_params(request)
         report = product_revenue_forecaster.get_report(
             horizon=horizon, window_size=window_size, sliding_step=sliding_step
         )
@@ -3243,7 +3246,7 @@ def product_time_series_report(request):
 
 @csrf_exempt
 def predict_future_api(request):
-    """API endpoint for ACTUAL future predictions using trained ML models"""
+    """Score future household-department repurchase probabilities."""
     if request.method != 'POST':
         return JsonResponse({'error': 'POST method required'}, status=405)
 
@@ -3260,7 +3263,6 @@ def predict_future_api(request):
         valid_horizons = {1, 3, 6, 12}
         selected_horizon = time_horizon if (time_horizon in valid_horizons) else 3
 
-        # Get ACTUAL future predictions using trained ML models
         future_predictions = ml_analyzer.predict_future_purchases(
             model_name=model_type,
             time_horizon=selected_horizon,
@@ -3273,8 +3275,11 @@ def predict_future_api(request):
             'model_type': model_type,
             'time_horizon_months': selected_horizon,
             'future_predictions': future_predictions,
-            'prediction_type': 'future_ml_based',
-            'description': f'Predicting purchases {selected_horizon} months beyond day 711 using {model_type} model'
+            'prediction_type': 'household_department_repurchase_probability',
+            'description': (
+                f'Probability that an existing household-department pair repurchases within '
+                f'{selected_horizon} month(s) after day 711; this is not a revenue forecast.'
+            )
         })
 
     except Exception as e:

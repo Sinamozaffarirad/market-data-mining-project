@@ -1,6 +1,8 @@
 import numpy as np
 from django.test import SimpleTestCase
+from sklearn.ensemble import GradientBoostingClassifier
 
+from .repurchase_classifier import MODEL_FEATURES, PredictiveMarketBasketAnalyzer
 from .time_series_forecasting import ProductRevenueTimeSeriesForecaster
 
 
@@ -56,3 +58,30 @@ class ProductRevenueTimeSeriesTests(SimpleTestCase):
                 sliding_step=1,
                 training_size=0.8,
             )
+
+
+class RepurchaseClassifierTests(SimpleTestCase):
+    def test_training_targets_end_before_chronological_test_snapshot(self):
+        origins, test_origin, _, status = PredictiveMarketBasketAnalyzer._split_origins(
+            max_day=711, horizon_days=90, training_size=0.8
+        )
+        self.assertEqual(status, "chronological_holdout")
+        self.assertTrue(origins)
+        self.assertTrue(all(origin + 90 <= test_origin for origin in origins))
+
+    def test_twelve_month_holdout_is_not_fabricated(self):
+        origins, test_origin, candidates, status = PredictiveMarketBasketAnalyzer._split_origins(
+            max_day=711, horizon_days=360, training_size=0.8
+        )
+        self.assertEqual(origins, [])
+        self.assertIsNone(test_origin)
+        self.assertTrue(candidates)
+        self.assertEqual(status, "unavailable_insufficient_independent_windows")
+
+    def test_target_columns_are_never_model_features(self):
+        self.assertNotIn("target", MODEL_FEATURES)
+        self.assertFalse(any("repurchase" in feature for feature in MODEL_FEATURES))
+
+    def test_gradient_boost_option_is_a_real_gradient_boosting_classifier(self):
+        estimator = PredictiveMarketBasketAnalyzer._classifier("gradient_boost")
+        self.assertIsInstance(estimator, GradientBoostingClassifier)

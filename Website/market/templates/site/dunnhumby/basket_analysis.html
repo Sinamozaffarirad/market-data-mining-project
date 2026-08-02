@@ -720,6 +720,26 @@ html, body {
   margin-left: 0;
   margin-right: 0;
 }
+
+.predictive-subnav .nav-link {
+  color: #334155 !important;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.6rem;
+  font-weight: 600;
+}
+
+.predictive-subnav .nav-link:hover {
+  color: #1d4ed8 !important;
+  background: #eff6ff;
+}
+
+.predictive-subnav .nav-link.active {
+  color: #fff !important;
+  background: linear-gradient(135deg, #2563eb, #4f46e5);
+  border-color: transparent;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+}
 </style>
 {% endblock %}
 
@@ -1050,15 +1070,24 @@ html, body {
           Predictive Market Basket Analysis
         </h4>
         <p style="color: #6c757d; line-height: 1.6; margin: 0;">
-          Uses machine learning algorithms (Neural Networks, Random Forest, SVM) to predict future purchase 
-          patterns based on historical data and customer behavior profiles.
+          Two distinct predictive tasks: household-department repurchase classification and Product ID revenue forecasting. Each has its own target, validation, and metrics.
         </p>
+      </div>
+
+      <div class="nav nav-pills predictive-subnav gap-2 mb-3" role="tablist" aria-label="Predictive analysis models">
+        <button class="nav-link" id="legacyRepurchaseTab" type="button" onclick="showPredictiveSubtab('legacy')">
+          <i class="fas fa-users"></i> Legacy Repurchase Classification
+        </button>
+        <button class="nav-link active" id="revenueForecastTab" type="button" onclick="showPredictiveSubtab('revenue')">
+          <i class="fas fa-chart-line"></i> Product Revenue Forecasting
+        </button>
       </div>
 
       <!-- ML Algorithm Selection -->
       <div class="interactive-controls">
+        <div data-predictive-panel="legacy" style="display:none;">
         <div class="d-flex justify-content-between align-items-center mb-3">
-          <h5 class="mb-0"><i class="fas fa-robot"></i> Legacy Customer-Repurchase Configuration</h5>
+          <h5 class="mb-0"><i class="fas fa-robot"></i> Customer Department Repurchase Classifier</h5>
           <button class="btn btn-outline-info btn-sm" onclick="showPredictiveHelp()" title="Configuration Help">
             <i class="fas fa-question-circle"></i> Help
           </button>
@@ -1069,7 +1098,7 @@ html, body {
             <select class="form-select" id="mlAlgorithm">
               <option value="neural_network">Neural Network</option>
               <option value="random_forest">Random Forest</option>
-              <option value="gradient_boost">Gradient Boosting</option>
+              <option value="gradient_boost" selected>Gradient Boosting</option>
               <option value="svm">Support Vector Machine</option>
             </select>
           </div>
@@ -1097,7 +1126,7 @@ html, body {
             <i class="fas fa-graduation-cap"></i> Train Model
           </button>
           <button class="btn btn-primary" id="predictFutureBtn" onclick="predictFuture()" disabled>
-            <i class="fas fa-crystal-ball"></i> Predict Future
+            <i class="fas fa-percentage"></i> Score Repurchase Probability
           </button>
           <div id="trainingProgress" style="display: none;" class="ms-3">
             <div class="spinner-border spinner-border-sm text-success" role="status"></div>
@@ -1113,25 +1142,42 @@ html, body {
               <h6 class="mb-1">✓ Model Training Complete</h6>
               <div class="d-flex gap-3 flex-wrap">
                 <span><strong>Model:</strong> <span id="trainedModel">-</span></span>
-                <span><strong>Accuracy:</strong> <span id="modelAccuracy" class="text-success fw-bold">-</span></span>
+                <span><strong>Balanced Accuracy:</strong> <span id="modelAccuracy" class="text-success fw-bold">-</span></span>
                 <span><strong>Precision:</strong> <span id="modelPrecision">-</span></span>
                 <span><strong>Recall:</strong> <span id="modelRecall">-</span></span>
                 <span><strong>F1 Score:</strong> <span id="modelF1">-</span></span>
               </div>
-              <small class="text-muted">Loading predictions using this trained model...</small>
+              <small class="text-muted">Classification metrics for a chronological holdout; these are not revenue accuracy.</small>
             </div>
           </div>
         </div>
 
         <div class="alert alert-secondary small mt-3 mb-0">
-          <strong>Important:</strong> the legacy models above classify customer repurchase likelihood. Their Accuracy, Precision, Recall, and F1 are not revenue-forecast metrics and must not be compared with the product time-series results below.
+          <strong>Output:</strong> probability that a household buys again from a department it previously purchased from. All aggregates stop at the prediction day. No dollar forecast is produced here.
         </div>
 
-        <hr class="my-4">
+        <div class="row g-2 mt-2">
+          <div class="col-lg-5"><div class="bg-white border rounded p-3 h-100">
+            <h6 class="mb-2">Expected repurchase households by department</h6>
+            <div style="height:320px"><canvas id="legacyProbabilityChart"></canvas></div>
+          </div></div>
+          <div class="col-lg-7"><div class="bg-white border rounded p-3 h-100">
+            <h6 class="mb-2">Department probability scores</h6>
+            <div class="table-responsive" style="max-height:320px;overflow-y:auto">
+              <table class="table table-sm table-hover align-middle mb-0">
+                <thead class="table-light sticky-top"><tr><th>Department</th><th class="text-end">Avg probability</th><th class="text-end">Expected households</th><th class="text-end">High likelihood</th><th class="text-end">Scored</th></tr></thead>
+                <tbody id="legacyProbabilityRows"><tr><td colspan="5" class="text-center text-muted py-4">Train or load a classifier, then score repurchase probabilities.</td></tr></tbody>
+              </table>
+            </div>
+          </div></div>
+        </div>
+        </div>
+
+        <div data-predictive-panel="revenue">
         <div class="d-flex justify-content-between align-items-center mb-2">
           <div>
             <h6 class="mb-1"><i class="fas fa-chart-line text-primary"></i> Product Revenue Time Series</h6>
-            <small class="text-muted">Leakage-safe recursive multi-step forecast: each Product ID uses ordered prior-period revenue. The legacy customer-repurchase models above remain unchanged.</small>
+            <small class="text-muted">Leakage-safe recursive multi-step forecast using ordered prior-period Product ID revenue and a strict chronological holdout.</small>
           </div>
           <span class="badge bg-info text-dark">scikit-learn</span>
         </div>
@@ -1174,6 +1220,14 @@ html, body {
             <label class="form-label control-label" for="timeSeriesThreshold">Revenue threshold:</label>
             <input class="form-control" id="timeSeriesThreshold" type="number" min="0" step="0.01" placeholder="Optional">
           </div>
+          <div class="col-md-2">
+            <label class="form-label control-label" for="timeSeriesMethod">Future method:</label>
+            <select class="form-select" id="timeSeriesMethod">
+              <option value="recommended" selected>Recommended by WMAPE</option>
+              <option value="time_series_model">Time-series model</option>
+              <option value="independent_recent_average_baseline">Recent-average baseline</option>
+            </select>
+          </div>
           <div class="col-md-2 d-flex flex-column justify-content-end gap-2">
             <button class="btn btn-success w-100" id="trainTimeSeriesBtn" type="button" onclick="trainProductTimeSeries()">
               <i class="fas fa-graduation-cap"></i> Train Time Series
@@ -1184,27 +1238,38 @@ html, body {
           </div>
         </div>
         <div id="timeSeriesReport" class="mt-3" aria-live="polite"></div>
+        <div class="d-flex flex-wrap gap-2 mt-2">
+          <button class="btn btn-outline-primary btn-sm" id="downloadForecastBtn" type="button" onclick="downloadTimeSeriesForecast()" disabled><i class="fas fa-download"></i> Download forecast CSV</button>
+          <button class="btn btn-outline-secondary btn-sm" id="downloadMetricsBtn" type="button" onclick="downloadTimeSeriesMetrics()" disabled><i class="fas fa-download"></i> Download validation JSON</button>
+        </div>
         <div class="row g-2 mt-1">
-          <div class="col-lg-7">
+          <div class="col-lg-4">
             <div class="bg-white border rounded p-2 h-100">
               <h6 class="small mb-2">Forecast revenue by Department <span class="text-muted">(all eligible products after threshold)</span></h6>
               <div style="height: 320px;"><canvas id="timeSeriesDepartmentChart"></canvas></div>
             </div>
           </div>
-          <div class="col-lg-5">
+          <div class="col-lg-4">
             <div class="bg-white border rounded p-2 h-100">
               <h6 class="small mb-2">Out-of-time model comparison</h6>
               <div style="height: 320px;"><canvas id="timeSeriesComparisonChart"></canvas></div>
             </div>
           </div>
+          <div class="col-lg-4">
+            <div class="bg-white border rounded p-2 h-100">
+              <h6 class="small mb-2">Holdout actual vs predicted</h6>
+              <div style="height: 320px;"><canvas id="timeSeriesActualChart"></canvas></div>
+            </div>
+          </div>
+        </div>
         </div>
       </div>
 
       <!-- Prediction Results -->
-      <div class="alert alert-light border small mb-2">
+      <div class="alert alert-light border small mb-2" style="display:none!important">
         <strong>Legacy charts:</strong> the two charts below belong to the customer-repurchase classifier above. They are retained for comparison with the existing project, but they do <strong>not</strong> measure Product ID revenue forecasting. Use the Product Revenue Time Series report and table for the professor's new time-series requirement.
       </div>
-      <div class="row g-2">
+      <div class="row g-2" style="display:none!important">
         <div class="col-md-6">
           <div class="chart-container" style="min-height: 500px;">
             <div class="d-flex justify-content-between align-items-center mb-3">
@@ -1242,15 +1307,15 @@ html, body {
       </div>
 
       <!-- Recommended Products -->
-      <div class="chart-container mb-3">
+      <div class="chart-container mb-3" data-predictive-panel="revenue">
         <div class="d-flex justify-content-between align-items-center mb-2">
           <h5 class="mb-0"><i class="fas fa-list-ol"></i> Product Revenue Forecast Results</h5>
-          <small class="text-muted">Sorted by predicted cumulative revenue for the selected horizon</small>
+          <small class="text-muted">Sorted by the selected future method; downloadable as CSV</small>
         </div>
         <div class="table-responsive" style="max-height: 520px; overflow-y: auto;">
           <table class="table table-sm table-hover align-middle mb-0">
             <thead class="table-light sticky-top"><tr>
-              <th>Rank</th><th>Product ID</th><th>Department</th><th>Commodity</th><th>Sub-commodity</th><th>Manufacturer</th><th>Brand</th><th>Size</th><th class="text-end">Predicted Revenue</th><th class="text-end">Independent Baseline</th><th class="text-end">Change</th><th class="text-end">Revenue / Unit</th>
+              <th>Rank</th><th>Product ID</th><th>Department</th><th>Commodity</th><th>Sub-commodity</th><th>Manufacturer</th><th>Brand</th><th>Size</th><th class="text-end">Selected-method Revenue</th><th class="text-end">Independent Baseline</th><th class="text-end">Change</th><th class="text-end">Historical avg revenue / recorded quantity <i class="fas fa-info-circle text-muted" title="Historical sales_value divided by positive recorded quantity. Quantity units vary for gasoline and weighted products."></i></th>
             </tr></thead>
             <tbody id="timeSeriesForecastRows"><tr><td colspan="12" class="text-center text-muted py-4">Train the Product Revenue Time Series model to see product-level forecasts.</td></tr></tbody>
           </table>
@@ -1258,7 +1323,7 @@ html, body {
       </div>
 
       <!-- Recommended Products -->
-      <div class="chart-container" style="min-height: 800px !important;">
+      <div class="chart-container" style="display:none!important; min-height: 800px !important;">
         <div class="d-flex justify-content-between align-items-center mb-3">
           <h5 class="mb-0"><i class="fas fa-lightbulb"></i> AI-Powered Product Recommendations <small class="text-muted" style="font-size: 0.7rem;">Legacy customer-repurchase output</small></h5>
           <div>
@@ -5026,6 +5091,7 @@ function getTimeSeriesConfig() {
     training_size: Number(document.getElementById('trainingSizeSlider')?.value || 0.8),
     top_n: Number(document.getElementById('timeSeriesTopN')?.value || 20),
     revenue_threshold: document.getElementById('timeSeriesThreshold')?.value || '',
+    forecast_method: document.getElementById('timeSeriesMethod')?.value || 'recommended',
   };
 }
 
@@ -5034,6 +5100,9 @@ const TIME_SERIES_ENDPOINTS = {
   train: '/analysis/api/ml/time-series/train/',
   forecast: '/analysis/api/ml/time-series/forecast/',
 };
+
+let lastTimeSeriesForecast = null;
+let lastTimeSeriesReport = null;
 
 async function timeSeriesRequest(url, data) {
   const response = await fetch(url, {
@@ -6315,6 +6384,242 @@ document.addEventListener('DOMContentLoaded', function() {
   `;
   document.head.appendChild(style);
 });
+
+// Corrected Predictive Market Basket interface.
+function showPredictiveSubtab(name) {
+  const selected = name === 'legacy' ? 'legacy' : 'revenue';
+  document.querySelectorAll('[data-predictive-panel]').forEach(panel => {
+    panel.style.display = panel.dataset.predictivePanel === selected ? '' : 'none';
+  });
+  document.getElementById('legacyRepurchaseTab')?.classList.toggle('active', selected === 'legacy');
+  document.getElementById('revenueForecastTab')?.classList.toggle('active', selected === 'revenue');
+  if (selected === 'legacy') checkCachedModel();
+}
+
+function displayPercent(value) {
+  return value == null ? 'N/A' : `${(Number(value) * 100).toFixed(2)}%`;
+}
+
+function renderLegacyModelMetrics(metrics, algorithm) {
+  const container = document.getElementById('modelAccuracyDisplay');
+  if (!container) return;
+  const valid = metrics && metrics.validation_status === 'chronological_holdout';
+  container.className = `alert mt-3 ${valid ? 'alert-success' : 'alert-warning'}`;
+  if (!metrics) {
+    container.innerHTML = '<strong>No corrected model is cached for this selection.</strong> Train it before scoring.';
+    container.style.display = 'block';
+    document.getElementById('predictFutureBtn').disabled = true;
+    return;
+  }
+  const horizonNote = valid
+    ? `Test snapshot: day ${metrics.test_origin}; ${Number(metrics.test_rows || 0).toLocaleString()} household-department pairs.`
+    : escapeHtml(metrics.validation_note || 'No independent chronological holdout is available.');
+  container.innerHTML = `
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+      <div><h6 class="mb-1">${valid ? 'Chronological validation available' : 'Training complete; validation unavailable'}</h6>
+        <div class="d-flex gap-3 flex-wrap small">
+          <span><strong>Estimator:</strong> ${escapeHtml(metrics.estimator || algorithm)}</span>
+          <span><strong>Balanced Accuracy:</strong> ${displayPercent(metrics.balanced_accuracy)}</span>
+          <span><strong>ROC-AUC:</strong> ${metrics.roc_auc == null ? 'N/A' : Number(metrics.roc_auc).toFixed(3)}</span>
+          <span><strong>PR-AUC:</strong> ${metrics.pr_auc == null ? 'N/A' : Number(metrics.pr_auc).toFixed(3)}</span>
+          <span><strong>Precision:</strong> ${displayPercent(metrics.precision)}</span>
+          <span><strong>Recall:</strong> ${displayPercent(metrics.recall)}</span>
+          <span><strong>F1:</strong> ${displayPercent(metrics.f1)}</span>
+          <span><strong>Brier:</strong> ${metrics.brier_score == null ? 'N/A' : Number(metrics.brier_score).toFixed(3)}</span>
+        </div>
+        <small class="d-block text-muted mt-1">${horizonNote} Actual positive rate: ${displayPercent(metrics.positive_rate)}; mean predicted probability: ${displayPercent(metrics.mean_predicted_probability)}; calibration gap: ${metrics.calibration_gap == null ? 'N/A' : (Number(metrics.calibration_gap) * 100).toFixed(2) + ' pp'}. Output is repurchase probability, never forecast dollars.</small>
+      </div>
+      <span class="badge ${valid ? 'bg-success' : 'bg-warning text-dark'}">${valid ? 'Leakage-safe holdout' : 'No honest holdout metric'}</span>
+    </div>`;
+  container.style.display = 'block';
+  document.getElementById('predictFutureBtn').disabled = false;
+}
+
+async function getSelectedLegacyMetrics() {
+  const algorithm = document.getElementById('mlAlgorithm')?.value || 'neural_network';
+  const horizon = getSelectedHorizon();
+  const horizonKey = {1: '1month', 3: '3months', 6: '6months', 12: '12months'}[horizon];
+  const response = await fetch('/analysis/api/ml/performance/');
+  const data = await response.json();
+  return {algorithm, metrics: data.performance?.[`${horizonKey}_${algorithm}`] || null};
+}
+
+async function checkCachedModel() {
+  try {
+    const {algorithm, metrics} = await getSelectedLegacyMetrics();
+    renderLegacyModelMetrics(metrics, algorithm);
+    if (metrics) await scoreLegacyRepurchases();
+  } catch (error) {
+    renderLegacyModelMetrics(null, '');
+  }
+}
+
+async function loadModelPerformance() {
+  return checkCachedModel();
+}
+
+function renderLegacyProbabilityResults(predictions) {
+  const rows = document.getElementById('legacyProbabilityRows');
+  if (rows) {
+    rows.innerHTML = predictions.length ? predictions.map(item => `<tr>
+      <td><strong>${escapeHtml(item.department || 'Unknown')}</strong></td>
+      <td class="text-end">${displayPercent(item.average_repurchase_probability)}</td>
+      <td class="text-end">${Number(item.expected_repurchase_households || 0).toLocaleString(undefined, {maximumFractionDigits: 1})}</td>
+      <td class="text-end">${Number(item.high_likelihood_households || 0).toLocaleString()}</td>
+      <td class="text-end">${Number(item.households_scored || 0).toLocaleString()}</td>
+    </tr>`).join('') : '<tr><td colspan="5" class="text-center text-muted py-4">No scores returned.</td></tr>';
+  }
+  const canvas = document.getElementById('legacyProbabilityChart');
+  if (!canvas || typeof Chart === 'undefined') return;
+  if (charts.legacyProbability) charts.legacyProbability.destroy();
+  charts.legacyProbability = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels: predictions.map(item => item.department || 'Unknown'),
+      datasets: [{label: 'Expected repurchase households', data: predictions.map(item => Number(item.expected_repurchase_households || 0)), backgroundColor: '#7c3aed'}],
+    },
+    options: {indexAxis: 'y', responsive: true, maintainAspectRatio: false, scales: {x: {beginAtZero: true}}, plugins: {legend: {display: false}}},
+  });
+}
+
+async function scoreLegacyRepurchases() {
+  const algorithm = document.getElementById('mlAlgorithm')?.value || 'neural_network';
+  const timeHorizon = getSelectedHorizon();
+  const response = await fetch('/analysis/api/ml/predict-future/', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': getCsrfToken()},
+    body: new URLSearchParams({model_type: algorithm, time_horizon: timeHorizon}).toString(),
+  });
+  const data = await response.json();
+  if (!response.ok || !data.success) throw new Error(data.error || 'Repurchase scoring failed.');
+  renderLegacyProbabilityResults(data.future_predictions || []);
+  return data;
+}
+
+async function predictFuture() {
+  const button = document.getElementById('predictFutureBtn');
+  if (button) button.disabled = true;
+  try {
+    await scoreLegacyRepurchases();
+    showNotification('Household-department repurchase probabilities updated.', 'success');
+  } catch (error) {
+    showNotification(error.message, 'error');
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
+async function loadPredictiveResults() {
+  return scoreLegacyRepurchases();
+}
+
+function renderTimeSeriesReport(report) {
+  const container = document.getElementById('timeSeriesReport');
+  if (!container || !report) return;
+  const model = report.time_series_model || {};
+  const baseline = report.independent_recent_average_baseline || {};
+  const guidance = report.selection_guidance || {};
+  const assessment = guidance.overall_error_assessment;
+  const statusLabel = assessment === 'time_series_model' ? 'Time series wins'
+    : (assessment === 'independent_recent_average_baseline' ? 'Baseline wins' : 'Mixed');
+  const statusClass = assessment === 'time_series_model' ? 'bg-success'
+    : (assessment === 'independent_recent_average_baseline' ? 'bg-secondary' : 'bg-warning text-dark');
+  const errorWinner = guidance.best_for_revenue_error === 'time_series_model' ? 'Time-series model' : 'Recent-average baseline';
+  const rankingWinner = guidance.best_for_top_k_ranking === 'time_series_model' ? 'Time-series model' : 'Recent-average baseline';
+  const test = report.test_period || {};
+  const samples = report.samples || {};
+  lastTimeSeriesReport = report;
+  document.getElementById('downloadMetricsBtn').disabled = false;
+  container.innerHTML = `
+    <div class="alert alert-info mb-0">
+      <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+        <div><strong>Strict chronological holdout</strong><small class="d-block text-muted">Test days ${test.start_day ?? 'N/A'}-${test.end_day ?? 'N/A'}; window ${report.window_size_months}, step ${report.sliding_step_months}, horizon ${report.horizon_months} complete 30-day periods.</small></div>
+        <div class="d-flex gap-1"><span class="badge ${statusClass}">${statusLabel}</span><span class="badge bg-dark">${Number(samples.evaluation_products || 0).toLocaleString()} products</span></div>
+      </div>
+      <div class="table-responsive mt-3"><table class="table table-sm table-bordered bg-white mb-0">
+        <thead><tr><th>Method</th><th>MAE</th><th>RMSE</th><th>WMAPE <i class="fas fa-info-circle text-muted" title="Total absolute revenue error divided by total actual revenue. Lower is better."></i></th><th>RÂ²</th><th>Spearman <i class="fas fa-info-circle text-muted" title="Rank correlation between actual and predicted Product ID revenue. Higher is better."></i></th><th>Precision@K</th><th>NDCG@K <i class="fas fa-info-circle text-muted" title="Top-K ranking quality that gives more credit to correctly ordered high-revenue products. Higher is better."></i></th></tr></thead>
+        <tbody>
+          <tr><td><strong>Time-series model</strong></td><td>${metricCell(model.mae)}</td><td>${metricCell(model.rmse)}</td><td>${metricCell(model.wmape, true)}</td><td>${metricCell(model.r2)}</td><td>${metricCell(model.spearman)}</td><td>${metricCell(model.precision_at_k, true)}</td><td>${metricCell(model.ndcg_at_k, true)}</td></tr>
+          <tr><td>Recent-average baseline</td><td>${metricCell(baseline.mae)}</td><td>${metricCell(baseline.rmse)}</td><td>${metricCell(baseline.wmape, true)}</td><td>${metricCell(baseline.r2)}</td><td>${metricCell(baseline.spearman)}</td><td>${metricCell(baseline.precision_at_k, true)}</td><td>${metricCell(baseline.ndcg_at_k, true)}</td></tr>
+        </tbody>
+      </table></div>
+      <div class="small mt-2"><span class="badge bg-success me-1">Lowest WMAPE: ${errorWinner}</span><span class="badge bg-primary">Best Top-${Number(model.top_k || 20)} ranking: ${rankingWinner}</span>
+        <span class="d-block text-muted mt-1">Cold starts <i class="fas fa-info-circle" title="Products with holdout revenue but no revenue in the lookback. A revenue-only model has no signal for them."></i>: ${Number(samples.cold_start_products_in_test || 0).toLocaleString()}. Classification Accuracy is intentionally absent from this revenue section.</span>
+        <span id="timeSeriesAppliedMethod" class="d-block fw-semibold mt-1"></span>
+      </div>
+    </div>`;
+  renderTimeSeriesComparisonChart(report);
+  renderTimeSeriesActualChart(report);
+}
+
+function renderTimeSeriesActualChart(report) {
+  const canvas = document.getElementById('timeSeriesActualChart');
+  if (!canvas || typeof Chart === 'undefined') return;
+  const points = report.holdout_actual_vs_predicted || [];
+  if (charts.timeSeriesActual) charts.timeSeriesActual.destroy();
+  charts.timeSeriesActual = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels: points.map(point => `Days ${point.start_day}-${point.end_day}`),
+      datasets: [
+        {label: 'Actual', data: points.map(point => Number(point.actual_revenue || 0)), borderColor: '#111827', backgroundColor: '#111827'},
+        {label: 'Time series', data: points.map(point => Number(point.time_series_revenue || 0)), borderColor: '#2563eb', backgroundColor: '#2563eb'},
+        {label: 'Baseline', data: points.map(point => Number(point.baseline_revenue || 0)), borderColor: '#94a3b8', backgroundColor: '#94a3b8'},
+      ],
+    },
+    options: {responsive: true, maintainAspectRatio: false, scales: {y: {beginAtZero: true, title: {display: true, text: 'Total revenue'}}}, plugins: {legend: {position: 'bottom'}}},
+  });
+}
+
+async function forecastProductTimeSeries() {
+  const rows = document.getElementById('timeSeriesForecastRows');
+  const button = document.getElementById('forecastTimeSeriesBtn');
+  const config = getTimeSeriesConfig();
+  button.disabled = true;
+  rows.innerHTML = '<tr><td colspan="12" class="text-center text-muted py-4"><i class="fas fa-spinner fa-spin"></i> Forecasting product revenue...</td></tr>';
+  try {
+    const data = await timeSeriesRequest(TIME_SERIES_ENDPOINTS.forecast, config);
+    lastTimeSeriesForecast = data;
+    renderTimeSeriesReport(data.model_report);
+    renderTimeSeriesDepartmentChart(data.department_forecast || []);
+    document.getElementById('downloadForecastBtn').disabled = false;
+    const applied = data.forecast_method_applied === 'time_series_model' ? 'Time-series model' : 'Recent-average baseline';
+    const notice = document.getElementById('timeSeriesAppliedMethod');
+    if (notice) notice.textContent = `Future forecast method applied: ${applied}${data.forecast_method_requested === 'recommended' ? ' (recommended by holdout WMAPE)' : ''}.`;
+    const predictions = data.predictions || [];
+    rows.innerHTML = predictions.length ? predictions.map(product => {
+      const change = Number(product.revenue_change_vs_baseline || 0);
+      return `<tr><td>${product.forecast_rank}</td><td><strong>${escapeHtml(product.product_id)}</strong></td><td>${escapeHtml(product.department || 'Unknown')}</td><td>${escapeHtml(product.commodity || 'Unknown')}</td><td>${escapeHtml(product.sub_commodity || 'Unknown')}</td><td>${escapeHtml(product.manufacturer ?? 'Unknown')}</td><td>${escapeHtml(product.brand || 'Unknown')}</td><td>${escapeHtml(product.size || 'N/A')}</td><td class="text-end fw-bold">$${Number(product.predicted_revenue || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td><td class="text-end">$${Number(product.baseline_revenue || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td><td class="text-end ${change >= 0 ? 'text-success' : 'text-danger'}">${change >= 0 ? '+' : '-'}$${Math.abs(change).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td><td class="text-end">${product.revenue_per_unit == null ? 'N/A' : '$' + Number(product.revenue_per_unit).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 4})}</td></tr>`;
+    }).join('') : '<tr><td colspan="12" class="text-center text-muted py-4">No products satisfy the selected threshold.</td></tr>';
+  } catch (error) {
+    rows.innerHTML = `<tr><td colspan="12" class="text-center text-danger py-4">${escapeHtml(error.message)}</td></tr>`;
+    showNotification(error.message, 'error');
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function downloadBlob(filename, content, type) {
+  const url = URL.createObjectURL(new Blob([content], {type}));
+  const anchor = document.createElement('a');
+  anchor.href = url; anchor.download = filename; document.body.appendChild(anchor); anchor.click(); anchor.remove();
+  URL.revokeObjectURL(url);
+}
+
+function downloadTimeSeriesForecast() {
+  if (!lastTimeSeriesForecast) return;
+  const columns = ['forecast_rank','product_id','department','commodity','sub_commodity','manufacturer','brand','size','predicted_revenue','time_series_revenue','baseline_revenue','revenue_change_vs_baseline','revenue_per_unit','predicted_units'];
+  const quote = value => `"${String(value ?? '').replaceAll('"', '""')}"`;
+  const csv = [columns.join(','), ...(lastTimeSeriesForecast.predictions || []).map(row => columns.map(key => quote(row[key])).join(','))].join('\n');
+  downloadBlob(`product_revenue_forecast_h${lastTimeSeriesForecast.horizon_months}.csv`, csv, 'text/csv;charset=utf-8');
+}
+
+function downloadTimeSeriesMetrics() {
+  if (!lastTimeSeriesReport) return;
+  downloadBlob(`product_revenue_validation_h${lastTimeSeriesReport.horizon_months}.json`, JSON.stringify(lastTimeSeriesReport, null, 2), 'application/json');
+}
+
+document.addEventListener('DOMContentLoaded', () => showPredictiveSubtab('revenue'));
 
 // Auto-refresh High-Value Baskets and Products every 30 seconds
 function refreshHighValueSections() {
