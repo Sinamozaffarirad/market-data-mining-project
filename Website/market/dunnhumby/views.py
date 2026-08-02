@@ -15,6 +15,7 @@ from .models import (
     AssociationRule, CustomerSegment
 )
 from .ml_models import ml_analyzer
+from .time_series_forecasting import product_revenue_forecaster
 import json
 from collections import defaultdict
 import threading
@@ -3162,6 +3163,82 @@ def predictive_analysis_api(request):
 
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
+
+
+def _time_series_params(request):
+    """Parse the small, explicit configuration surface of the product forecaster."""
+    source = request.POST if request.method == 'POST' else request.GET
+    try:
+        horizon = int(source.get('time_horizon', 3))
+        window_size = int(source.get('window_size', 6))
+        sliding_step = int(source.get('sliding_step', 1))
+        training_size = float(source.get('training_size', 0.8))
+        top_n = int(source.get('top_n', 20))
+    except (TypeError, ValueError) as exc:
+        raise ValueError('Invalid time-series configuration values.') from exc
+    threshold = source.get('revenue_threshold')
+    try:
+        threshold = float(threshold) if threshold not in (None, '') else None
+    except (TypeError, ValueError) as exc:
+        raise ValueError('revenue_threshold must be numeric.') from exc
+    return horizon, window_size, sliding_step, training_size, top_n, threshold
+
+
+@csrf_exempt
+def train_product_time_series(request):
+    """Train the Product ID revenue forecaster with chronological validation."""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'POST method required'}, status=405)
+    try:
+        horizon, window_size, sliding_step, training_size, _, _ = _time_series_params(request)
+        report = product_revenue_forecaster.train(
+            horizon=horizon,
+            window_size=window_size,
+            sliding_step=sliding_step,
+            training_size=training_size,
+        )
+        return JsonResponse({'success': True, 'report': report})
+    except ValueError as exc:
+        return JsonResponse({'success': False, 'error': str(exc)}, status=400)
+    except Exception as exc:
+        logger.exception('Product time-series training failed')
+        return JsonResponse({'success': False, 'error': str(exc)}, status=500)
+
+
+@csrf_exempt
+def product_time_series_forecast(request):
+    """Return Top-N Product ID revenue forecasts from a trained time-series model."""
+    if request.method not in {'GET', 'POST'}:
+        return JsonResponse({'success': False, 'error': 'GET or POST method required'}, status=405)
+    try:
+        horizon, window_size, sliding_step, _, top_n, threshold = _time_series_params(request)
+        result = product_revenue_forecaster.forecast(
+            horizon=horizon,
+            window_size=window_size,
+            sliding_step=sliding_step,
+            top_n=top_n,
+            revenue_threshold=threshold,
+        )
+        return JsonResponse({'success': True, **result})
+    except ValueError as exc:
+        return JsonResponse({'success': False, 'error': str(exc)}, status=400)
+    except Exception as exc:
+        logger.exception('Product time-series forecasting failed')
+        return JsonResponse({'success': False, 'error': str(exc)}, status=500)
+
+
+def product_time_series_report(request):
+    """Return the persisted chronological-validation report without retraining."""
+    try:
+        horizon, window_size, sliding_step, _, _, _ = _time_series_params(request)
+        report = product_revenue_forecaster.get_report(
+            horizon=horizon, window_size=window_size, sliding_step=sliding_step
+        )
+        if report is None:
+            return JsonResponse({'success': False, 'error': 'No report exists for this horizon/window yet.'}, status=404)
+        return JsonResponse({'success': True, 'report': report})
+    except ValueError as exc:
+        return JsonResponse({'success': False, 'error': str(exc)}, status=400)
 
 
 @csrf_exempt
