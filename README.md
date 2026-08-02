@@ -108,6 +108,31 @@ market-data-mining-project/
 - **Support Vector Machines**: Kernel-based classification
 - **Gradient Boosting**: Sequential learning for improved accuracy
 
+### Task 1: Product Revenue Time-Series Forecasting
+
+The predictive page now keeps the legacy customer-repurchase classifiers separate
+from the Product ID revenue forecast. The revenue pipeline uses:
+
+- complete 30-day periods ending on the dataset's latest day;
+- configurable 3/6/12-period sliding windows and 1/2/3-period steps;
+- a strict final 1/3/6/12-period chronological holdout with no random split;
+- recursive multi-step forecasting from ordered Product ID revenue lags;
+- an independent recent-average baseline on the identical holdout population; and
+- MAE, RMSE, WMAPE, sMAPE, R2, Spearman, Kendall Tau, and Top-5/10/20 Precision,
+  Recall, Jaccard, and NDCG.
+
+Run the focused checks from the repository root:
+
+```powershell
+.\.venv\Scripts\python.exe Website\market\manage.py check
+.\.venv\Scripts\python.exe Website\market\manage.py test dunnhumby.tests
+```
+
+The trained versioned artifacts and validation reports are stored under
+`Website/market/ml_models_cache/time_series/`. A 12-period window with a
+12-period final holdout is intentionally rejected for this 711-day dataset because
+there is not enough pre-holdout history to train it without leakage.
+
 ### Analysis Types
 1. **Descriptive Analysis**: Historical pattern discovery
 2. **Predictive Analysis**: Future trend forecasting

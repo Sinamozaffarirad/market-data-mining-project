@@ -1,0 +1,64 @@
+{
+  "forecast_method": "direct_multi_step_lagged_revenue",
+  "model": "HistGradientBoostingRegressor (scikit-learn)",
+  "target": "cumulative product revenue for the next 3 month(s)",
+  "horizon_months": 3,
+  "window_size_months": 3,
+  "sliding_step_months": 1,
+  "training_size": 0.8,
+  "validation": "chronological holdout; no random split and no future-revenue features",
+  "train_origins": [
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17
+  ],
+  "test_origins": [
+    18,
+    19,
+    20,
+    21
+  ],
+  "samples": {
+    "train": 1385040,
+    "test": 369344,
+    "products": 92336
+  },
+  "time_series_model": {
+    "mae": 7.584234,
+    "rmse": 219.053996,
+    "wmape": 0.613507,
+    "r2": 0.057149,
+    "top_k": 20,
+    "spearman": 0.627178,
+    "kendall_tau": 0.5439,
+    "precision_at_k": 0.075,
+    "recall_at_k": 0.075,
+    "jaccard_at_k": 0.039136,
+    "ndcg_at_k": 0.061023
+  },
+  "independent_recent_sales_baseline": {
+    "mae": 6.63322,
+    "rmse": 49.654604,
+    "wmape": 0.536577,
+    "r2": 0.951554,
+    "top_k": 20,
+    "spearman": 0.616753,
+    "kendall_tau": 0.538382,
+    "precision_at_k": 0.75,
+    "recall_at_k": 0.75,
+    "jaccard_at_k": 0.602564,
+    "ndcg_at_k": 0.828307
+  }
+}

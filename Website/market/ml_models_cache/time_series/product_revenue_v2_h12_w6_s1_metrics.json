@@ -1,0 +1,208 @@
+{
+  "artifact_version": 2,
+  "forecast_method": "recursive_multi_step_monthly_revenue",
+  "model": "HistGradientBoostingRegressor one-step residual model (scikit-learn)",
+  "target": "cumulative Product ID revenue for the next 12 complete 30-day period(s)",
+  "horizon_months": 12,
+  "window_size_months": 6,
+  "sliding_step_months": 1,
+  "training_size": 0.8,
+  "validation": "strict final-horizon chronological holdout; fitting targets end before the test starts; no random split and no future-revenue features",
+  "fit_origin_periods": [
+    8,
+    9,
+    10,
+    11
+  ],
+  "available_pretest_origins": [
+    7,
+    8,
+    9,
+    10,
+    11
+  ],
+  "test_origin_period": 12,
+  "test_period": {
+    "start_day": 352,
+    "end_day": 711,
+    "periods": [
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23
+    ]
+  },
+  "samples": {
+    "train": 197506,
+    "train_by_origin": {
+      "8": 47569,
+      "9": 49701,
+      "10": 49866,
+      "11": 50370
+    },
+    "products_total": 91933,
+    "evaluation_products": 82291,
+    "lookback_active_products": 50605,
+    "cold_start_products_in_test": 31686
+  },
+  "data_profile": {
+    "source": "transactions joined to product metadata",
+    "grain": "Product ID x complete 30-day period",
+    "transaction_rows": 2595280,
+    "products_with_transactions": 91933,
+    "source_min_day": 1,
+    "as_of_day": 711,
+    "period_days": 30,
+    "complete_periods": 23,
+    "analysis_start_day": 22,
+    "excluded_leading_days": 21,
+    "zero_revenue_cells_rate": 0.750873
+  },
+  "time_series_model": {
+    "evaluation_products": 82291,
+    "actual_revenue": 4581053.45,
+    "predicted_revenue": 2391045.15,
+    "mae": 31.593534,
+    "rmse": 579.431103,
+    "wmape": 0.567525,
+    "smape": 1.483073,
+    "r2": 0.718978,
+    "top_k": 20,
+    "spearman": 0.387789,
+    "kendall_tau": 0.272769,
+    "ranking_at_k": {
+      "5": {
+        "k_used": 5,
+        "overlap_count": 4,
+        "precision_at_k": 0.8,
+        "recall_at_k": 0.8,
+        "jaccard_at_k": 0.666667,
+        "ndcg_at_k": 0.992033
+      },
+      "10": {
+        "k_used": 10,
+        "overlap_count": 10,
+        "precision_at_k": 1.0,
+        "recall_at_k": 1.0,
+        "jaccard_at_k": 1.0,
+        "ndcg_at_k": 0.996417
+      },
+      "20": {
+        "k_used": 20,
+        "overlap_count": 18,
+        "precision_at_k": 0.9,
+        "recall_at_k": 0.9,
+        "jaccard_at_k": 0.818182,
+        "ndcg_at_k": 0.993891
+      }
+    },
+    "precision_at_k": 0.9,
+    "recall_at_k": 0.9,
+    "jaccard_at_k": 0.818182,
+    "ndcg_at_k": 0.993891
+  },
+  "independent_recent_average_baseline": {
+    "evaluation_products": 82291,
+    "actual_revenue": 4581053.45,
+    "predicted_revenue": 4427146.04,
+    "mae": 29.250982,
+    "rmse": 211.649882,
+    "wmape": 0.525445,
+    "smape": 1.326831,
+    "r2": 0.962505,
+    "top_k": 20,
+    "spearman": 0.45096,
+    "kendall_tau": 0.346621,
+    "ranking_at_k": {
+      "5": {
+        "k_used": 5,
+        "overlap_count": 4,
+        "precision_at_k": 0.8,
+        "recall_at_k": 0.8,
+        "jaccard_at_k": 0.666667,
+        "ndcg_at_k": 0.992033
+      },
+      "10": {
+        "k_used": 10,
+        "overlap_count": 10,
+        "precision_at_k": 1.0,
+        "recall_at_k": 1.0,
+        "jaccard_at_k": 1.0,
+        "ndcg_at_k": 0.996426
+      },
+      "20": {
+        "k_used": 20,
+        "overlap_count": 16,
+        "precision_at_k": 0.8,
+        "recall_at_k": 0.8,
+        "jaccard_at_k": 0.666667,
+        "ndcg_at_k": 0.991248
+      }
+    },
+    "precision_at_k": 0.8,
+    "recall_at_k": 0.8,
+    "jaccard_at_k": 0.666667,
+    "ndcg_at_k": 0.991248
+  },
+  "model_ranking_similarity": {
+    "spearman": 0.925046,
+    "kendall_tau": 0.830603,
+    "top_k_overlap": {
+      "5": {
+        "k_used": 5,
+        "overlap_count": 5,
+        "precision_at_k": 1.0,
+        "recall_at_k": 1.0,
+        "jaccard_at_k": 1.0,
+        "ndcg_at_k": 1.0
+      },
+      "10": {
+        "k_used": 10,
+        "overlap_count": 10,
+        "precision_at_k": 1.0,
+        "recall_at_k": 1.0,
+        "jaccard_at_k": 1.0,
+        "ndcg_at_k": 0.999939
+      },
+      "20": {
+        "k_used": 20,
+        "overlap_count": 17,
+        "precision_at_k": 0.85,
+        "recall_at_k": 0.85,
+        "jaccard_at_k": 0.73913,
+        "ndcg_at_k": 0.998917
+      }
+    },
+    "interpretation": "Similarity compares the two model rankings; it is not accuracy against actual revenue."
+  },
+  "selection_guidance": {
+    "best_for_revenue_error": "independent_recent_average_baseline",
+    "best_for_revenue_error_basis": "WMAPE only",
+    "overall_error_assessment": "independent_recent_average_baseline",
+    "error_metric_wins": {
+      "time_series_model": 0,
+      "independent_recent_average_baseline": 4,
+      "metrics_compared": [
+        "mae",
+        "rmse",
+        "wmape",
+        "smape"
+      ]
+    },
+    "best_for_top_k_ranking": "time_series_model"
+  },
+  "required_caveats": [
+    "The dataset provides 23 complete aligned periods, so the final holdout is one horizon block rather than many independent years.",
+    "Products with no revenue in the lookback are cold starts; the revenue-only model predicts zero for them and reports their count.",
+    "The legacy customer-repurchase classifier has a different target and its classification Accuracy must not be compared with these revenue metrics.",
+    "Revenue per unit is historical sales_value divided by positive quantity; quantity units vary by product and are not documented as a universal physical unit."
+  ]
+}

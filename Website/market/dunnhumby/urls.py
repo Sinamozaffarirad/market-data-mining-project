@@ -40,4 +40,7 @@ urlpatterns = [
     path("api/ml/recommendations/", views.get_recommendations, name="get_recommendations"),
     path("api/ml/performance/", views.get_model_performance, name="get_model_performance"),
     path("api/ml/training-status/", views.training_status_api, name="training_status_api"),
+    path("api/ml/time-series/train/", views.train_product_time_series, name="train_product_time_series"),
+    path("api/ml/time-series/forecast/", views.product_time_series_forecast, name="product_time_series_forecast"),
+    path("api/ml/time-series/report/", views.product_time_series_report, name="product_time_series_report"),
 ]

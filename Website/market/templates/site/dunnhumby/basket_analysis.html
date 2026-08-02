@@ -1058,7 +1058,7 @@ html, body {
       <!-- ML Algorithm Selection -->
       <div class="interactive-controls">
         <div class="d-flex justify-content-between align-items-center mb-3">
-          <h5 class="mb-0"><i class="fas fa-robot"></i> Machine Learning Configuration</h5>
+          <h5 class="mb-0"><i class="fas fa-robot"></i> Legacy Customer-Repurchase Configuration</h5>
           <button class="btn btn-outline-info btn-sm" onclick="showPredictiveHelp()" title="Configuration Help">
             <i class="fas fa-question-circle"></i> Help
           </button>
@@ -1122,9 +1122,88 @@ html, body {
             </div>
           </div>
         </div>
+
+        <div class="alert alert-secondary small mt-3 mb-0">
+          <strong>Important:</strong> the legacy models above classify customer repurchase likelihood. Their Accuracy, Precision, Recall, and F1 are not revenue-forecast metrics and must not be compared with the product time-series results below.
+        </div>
+
+        <hr class="my-4">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <div>
+            <h6 class="mb-1"><i class="fas fa-chart-line text-primary"></i> Product Revenue Time Series</h6>
+            <small class="text-muted">Leakage-safe recursive multi-step forecast: each Product ID uses ordered prior-period revenue. The legacy customer-repurchase models above remain unchanged.</small>
+          </div>
+          <span class="badge bg-info text-dark">scikit-learn</span>
+        </div>
+        <div class="row g-2">
+          <div class="col-md-2">
+            <label class="form-label control-label" for="timeSeriesHorizon">Forecast Horizon:</label>
+            <select class="form-select" id="timeSeriesHorizon">
+              <option value="1">1 month</option>
+              <option value="3" selected>3 months</option>
+              <option value="6">6 months</option>
+              <option value="12">12 months</option>
+            </select>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label control-label" for="timeSeriesWindow">Revenue Window:</label>
+            <select class="form-select" id="timeSeriesWindow">
+              <option value="3">3 months</option>
+              <option value="6" selected>6 months</option>
+              <option value="12">12 months</option>
+            </select>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label control-label" for="timeSeriesStep">Sliding Step:</label>
+            <select class="form-select" id="timeSeriesStep">
+              <option value="1" selected>1 month</option>
+              <option value="2">2 months</option>
+              <option value="3">3 months</option>
+            </select>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label control-label" for="timeSeriesTopN">Top products:</label>
+            <select class="form-select" id="timeSeriesTopN">
+              <option value="10">Top 10</option>
+              <option value="20" selected>Top 20</option>
+              <option value="50">Top 50</option>
+              <option value="100">Top 100</option>
+            </select>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label control-label" for="timeSeriesThreshold">Revenue threshold:</label>
+            <input class="form-control" id="timeSeriesThreshold" type="number" min="0" step="0.01" placeholder="Optional">
+          </div>
+          <div class="col-md-2 d-flex flex-column justify-content-end gap-2">
+            <button class="btn btn-success w-100" id="trainTimeSeriesBtn" type="button" onclick="trainProductTimeSeries()">
+              <i class="fas fa-graduation-cap"></i> Train Time Series
+            </button>
+            <button class="btn btn-primary w-100" id="forecastTimeSeriesBtn" type="button" onclick="forecastProductTimeSeries()" disabled>
+              <i class="fas fa-crystal-ball"></i> Forecast Products
+            </button>
+          </div>
+        </div>
+        <div id="timeSeriesReport" class="mt-3" aria-live="polite"></div>
+        <div class="row g-2 mt-1">
+          <div class="col-lg-7">
+            <div class="bg-white border rounded p-2 h-100">
+              <h6 class="small mb-2">Forecast revenue by Department <span class="text-muted">(all eligible products after threshold)</span></h6>
+              <div style="height: 320px;"><canvas id="timeSeriesDepartmentChart"></canvas></div>
+            </div>
+          </div>
+          <div class="col-lg-5">
+            <div class="bg-white border rounded p-2 h-100">
+              <h6 class="small mb-2">Out-of-time model comparison</h6>
+              <div style="height: 320px;"><canvas id="timeSeriesComparisonChart"></canvas></div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- Prediction Results -->
+      <div class="alert alert-light border small mb-2">
+        <strong>Legacy charts:</strong> the two charts below belong to the customer-repurchase classifier above. They are retained for comparison with the existing project, but they do <strong>not</strong> measure Product ID revenue forecasting. Use the Product Revenue Time Series report and table for the professor's new time-series requirement.
+      </div>
       <div class="row g-2">
         <div class="col-md-6">
           <div class="chart-container" style="min-height: 500px;">
@@ -1163,9 +1242,25 @@ html, body {
       </div>
 
       <!-- Recommended Products -->
+      <div class="chart-container mb-3">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h5 class="mb-0"><i class="fas fa-list-ol"></i> Product Revenue Forecast Results</h5>
+          <small class="text-muted">Sorted by predicted cumulative revenue for the selected horizon</small>
+        </div>
+        <div class="table-responsive" style="max-height: 520px; overflow-y: auto;">
+          <table class="table table-sm table-hover align-middle mb-0">
+            <thead class="table-light sticky-top"><tr>
+              <th>Rank</th><th>Product ID</th><th>Department</th><th>Commodity</th><th>Sub-commodity</th><th>Manufacturer</th><th>Brand</th><th>Size</th><th class="text-end">Predicted Revenue</th><th class="text-end">Independent Baseline</th><th class="text-end">Change</th><th class="text-end">Revenue / Unit</th>
+            </tr></thead>
+            <tbody id="timeSeriesForecastRows"><tr><td colspan="12" class="text-center text-muted py-4">Train the Product Revenue Time Series model to see product-level forecasts.</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Recommended Products -->
       <div class="chart-container" style="min-height: 800px !important;">
         <div class="d-flex justify-content-between align-items-center mb-3">
-          <h5 class="mb-0"><i class="fas fa-lightbulb"></i> AI-Powered Product Recommendations</h5>
+          <h5 class="mb-0"><i class="fas fa-lightbulb"></i> AI-Powered Product Recommendations <small class="text-muted" style="font-size: 0.7rem;">Legacy customer-repurchase output</small></h5>
           <div>
             <button class="btn btn-outline-primary btn-sm" onclick="expandSection('recommendations')" title="View All in Popup">
               <i class="fas fa-expand-arrows-alt"></i> Expand
@@ -2463,7 +2558,7 @@ function generateRecommendations() {
       if (recSection && data.recommendations[0].historical_accuracy) {
         const modelAcc = (data.recommendations[0].historical_accuracy * 100).toFixed(1);
         recSection.innerHTML = `<i class="fas fa-lightbulb"></i> AI-Powered Product Recommendations
-          <small class="text-muted" style="font-size: 0.75rem;">Model Accuracy: ${modelAcc}%</small>`;
+          <small class="text-muted" style="font-size: 0.75rem;">Legacy customer-repurchase model · Accuracy: ${modelAcc}%</small>`;
       }
 
       const html = data.recommendations.map(rec => {
@@ -4921,6 +5016,186 @@ function getHorizonLabel(months) {
   if (value === 6) return '6 Months';
   if (value === 12) return '12 Months';
   return `${value || 3} Months`;
+}
+
+function getTimeSeriesConfig() {
+  return {
+    time_horizon: Number(document.getElementById('timeSeriesHorizon')?.value || 3),
+    window_size: Number(document.getElementById('timeSeriesWindow')?.value || 6),
+    sliding_step: Number(document.getElementById('timeSeriesStep')?.value || 1),
+    training_size: Number(document.getElementById('trainingSizeSlider')?.value || 0.8),
+    top_n: Number(document.getElementById('timeSeriesTopN')?.value || 20),
+    revenue_threshold: document.getElementById('timeSeriesThreshold')?.value || '',
+  };
+}
+
+const TIME_SERIES_ENDPOINTS = {
+  // Kept as plain paths so a stale Django URL resolver cannot prevent this page rendering.
+  train: '/analysis/api/ml/time-series/train/',
+  forecast: '/analysis/api/ml/time-series/forecast/',
+};
+
+async function timeSeriesRequest(url, data) {
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'X-CSRFToken': getCsrfToken(),
+    },
+    body: new URLSearchParams(data).toString(),
+  });
+  const body = await response.text();
+  let payload;
+  try {
+    payload = JSON.parse(body);
+  } catch (error) {
+    const message = `Server returned ${response.status} ${response.statusText || ''} instead of JSON. Restart the Django server so it loads the new time-series URLs, then refresh this page.`;
+    console.error(message, body.slice(0, 500));
+    throw new Error(message);
+  }
+  if (!response.ok || !payload.success) throw new Error(payload.error || 'Time-series request failed.');
+  return payload;
+}
+
+function metricCell(value, percent = false) {
+  const numeric = Number(value || 0);
+  return percent ? `${(numeric * 100).toFixed(2)}%` : numeric.toFixed(4);
+}
+
+function renderTimeSeriesReport(report) {
+  const container = document.getElementById('timeSeriesReport');
+  if (!container || !report) return;
+  const model = report.time_series_model || {};
+  const baseline = report.independent_recent_average_baseline || {};
+  const guidance = report.selection_guidance || {};
+  const errorWinner = guidance.best_for_revenue_error === 'time_series_model' ? 'Time-series model' : 'Recent-sales baseline';
+  const rankingWinner = guidance.best_for_top_k_ranking === 'time_series_model' ? 'Time-series model' : 'Recent-sales baseline';
+  const overallError = guidance.overall_error_assessment === 'mixed_no_clear_winner'
+    ? 'Mixed — no clear winner across MAE, RMSE, WMAPE and sMAPE'
+    : (guidance.overall_error_assessment === 'time_series_model' ? 'Time-series model' : 'Recent-sales baseline');
+  const testPeriod = report.test_period || {};
+  const samples = report.samples || {};
+  container.innerHTML = `
+    <div class="alert alert-info mb-0">
+      <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+        <div>
+          <strong>Chronological validation complete.</strong>
+          <span class="ms-1">${escapeHtml(report.target || 'Product revenue forecast')}</span>
+          <small class="d-block text-muted mt-1">Window ${report.window_size_months} periods, step ${report.sliding_step_months} period(s), horizon ${report.horizon_months} period(s). Test days ${testPeriod.start_day ?? 'N/A'}–${testPeriod.end_day ?? 'N/A'}. ${escapeHtml(report.validation || '')}</small>
+        </div>
+        <span class="badge bg-secondary">${Number(samples.evaluation_products || 0).toLocaleString()} evaluated products</span>
+      </div>
+      <div class="table-responsive mt-3">
+        <table class="table table-sm table-bordered mb-0 bg-white">
+          <thead><tr><th>Method</th><th>MAE</th><th>RMSE</th><th>WMAPE</th><th>R²</th><th>Spearman</th><th>Kendall τ</th><th>Precision@K</th><th>NDCG@K</th><th>Jaccard@K</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Time-series model</strong></td><td>${metricCell(model.mae)}</td><td>${metricCell(model.rmse)}</td><td>${metricCell(model.wmape, true)}</td><td>${metricCell(model.r2)}</td><td>${metricCell(model.spearman)}</td><td>${metricCell(model.kendall_tau)}</td><td>${metricCell(model.precision_at_k, true)}</td><td>${metricCell(model.ndcg_at_k, true)}</td><td>${metricCell(model.jaccard_at_k, true)}</td></tr>
+            <tr><td>Independent recent-average baseline</td><td>${metricCell(baseline.mae)}</td><td>${metricCell(baseline.rmse)}</td><td>${metricCell(baseline.wmape, true)}</td><td>${metricCell(baseline.r2)}</td><td>${metricCell(baseline.spearman)}</td><td>${metricCell(baseline.kendall_tau)}</td><td>${metricCell(baseline.precision_at_k, true)}</td><td>${metricCell(baseline.ndcg_at_k, true)}</td><td>${metricCell(baseline.jaccard_at_k, true)}</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="mt-3 small">
+        <span class="badge bg-success me-1">Lowest WMAPE: ${errorWinner}</span>
+        <span class="badge bg-warning text-dark me-1">Overall error assessment: ${overallError}</span>
+        <span class="badge bg-primary">Best Top-${Number(model.top_k || baseline.top_k || 20)} ranking model: ${rankingWinner}</span>
+        <span class="d-block text-muted mt-2">Fit samples: ${Number(samples.train || 0).toLocaleString()}; cold-start products in test: ${Number(samples.cold_start_products_in_test || 0).toLocaleString()}. Use WMAPE/RMSE for revenue error and Precision@K, NDCG@K and Jaccard@K for top-product selection.</span>
+      </div>
+    </div>`;
+  renderTimeSeriesComparisonChart(report);
+}
+
+function renderTimeSeriesComparisonChart(report) {
+  const canvas = document.getElementById('timeSeriesComparisonChart');
+  if (!canvas || typeof Chart === 'undefined') return;
+  const model = report.time_series_model || {};
+  const baseline = report.independent_recent_average_baseline || {};
+  if (charts.timeSeriesComparison) charts.timeSeriesComparison.destroy();
+  charts.timeSeriesComparison = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels: ['WMAPE (lower)', 'NDCG@20 (higher)', 'Precision@20 (higher)'],
+      datasets: [
+        {label: 'Time series', data: [Number(model.wmape || 0), Number(model.ndcg_at_k || 0), Number(model.precision_at_k || 0)], backgroundColor: '#2563eb'},
+        {label: 'Independent baseline', data: [Number(baseline.wmape || 0), Number(baseline.ndcg_at_k || 0), Number(baseline.precision_at_k || 0)], backgroundColor: '#94a3b8'},
+      ],
+    },
+    options: {responsive: true, maintainAspectRatio: false, scales: {y: {beginAtZero: true}}, plugins: {legend: {position: 'bottom'}}},
+  });
+}
+
+function renderTimeSeriesDepartmentChart(rows) {
+  const canvas = document.getElementById('timeSeriesDepartmentChart');
+  if (!canvas || typeof Chart === 'undefined') return;
+  const departments = (rows || []).slice(0, 12);
+  if (charts.timeSeriesDepartment) charts.timeSeriesDepartment.destroy();
+  charts.timeSeriesDepartment = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels: departments.map(row => row.department || 'Unknown'),
+      datasets: [{label: 'Predicted revenue', data: departments.map(row => Number(row.predicted_revenue || 0)), backgroundColor: '#0ea5e9'}],
+    },
+    options: {indexAxis: 'y', responsive: true, maintainAspectRatio: false, scales: {x: {beginAtZero: true, title: {display: true, text: 'Revenue'}}}, plugins: {legend: {display: false}}},
+  });
+}
+
+async function trainProductTimeSeries() {
+  const button = document.getElementById('trainTimeSeriesBtn');
+  const forecastButton = document.getElementById('forecastTimeSeriesBtn');
+  const reportContainer = document.getElementById('timeSeriesReport');
+  const config = getTimeSeriesConfig();
+  button.disabled = true;
+  forecastButton.disabled = true;
+  reportContainer.innerHTML = '<div class="alert alert-warning mb-0"><i class="fas fa-spinner fa-spin"></i> Building sliding windows, training the product revenue model, and validating it in chronological order…</div>';
+  try {
+    const data = await timeSeriesRequest(TIME_SERIES_ENDPOINTS.train, config);
+    renderTimeSeriesReport(data.report);
+    forecastButton.disabled = false;
+    showNotification('Product time-series model trained successfully.', 'success');
+    await forecastProductTimeSeries();
+  } catch (error) {
+    reportContainer.innerHTML = `<div class="alert alert-danger mb-0">${escapeHtml(error.message)}</div>`;
+    showNotification(error.message, 'error');
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function forecastProductTimeSeries() {
+  const rows = document.getElementById('timeSeriesForecastRows');
+  const button = document.getElementById('forecastTimeSeriesBtn');
+  const config = getTimeSeriesConfig();
+  button.disabled = true;
+  rows.innerHTML = '<tr><td colspan="12" class="text-center text-muted py-4"><i class="fas fa-spinner fa-spin"></i> Forecasting product revenue…</td></tr>';
+  try {
+    const data = await timeSeriesRequest(TIME_SERIES_ENDPOINTS.forecast, config);
+    renderTimeSeriesReport(data.model_report);
+    renderTimeSeriesDepartmentChart(data.department_forecast || []);
+    const predictions = data.predictions || [];
+    if (!predictions.length) {
+      rows.innerHTML = '<tr><td colspan="12" class="text-center text-muted py-4">No products satisfy the selected revenue threshold.</td></tr>';
+      return;
+    }
+    rows.innerHTML = predictions.map(product => {
+      const change = Number(product.revenue_change_vs_baseline || 0);
+      const changeClass = change >= 0 ? 'text-success' : 'text-danger';
+      const changeText = `${change >= 0 ? '+' : '-'}$${Math.abs(change).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+      return `<tr>
+        <td>${product.forecast_rank}</td><td><strong>${escapeHtml(product.product_id)}</strong></td>
+        <td>${escapeHtml(product.department || 'Unknown')}</td><td>${escapeHtml(product.commodity || 'Unknown')}</td>
+        <td>${escapeHtml(product.sub_commodity || 'Unknown')}</td><td>${escapeHtml(product.manufacturer ?? 'Unknown')}</td>
+        <td>${escapeHtml(product.brand || 'Unknown')}</td><td>${escapeHtml(product.size || 'N/A')}</td>
+        <td class="text-end fw-bold">$${Number(product.predicted_revenue || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+        <td class="text-end">$${Number(product.baseline_revenue || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+        <td class="text-end ${changeClass}">${changeText}</td>
+        <td class="text-end">${product.revenue_per_unit == null ? 'N/A' : '$' + Number(product.revenue_per_unit).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 4})}</td>
+      </tr>`;
+    }).join('');
+  } catch (error) {
+    rows.innerHTML = `<tr><td colspan="12" class="text-center text-danger py-4">${escapeHtml(error.message)}</td></tr>`;
+    showNotification(error.message, 'error');
+  } finally {
+    button.disabled = false;
+  }
 }
 
 function updatePredictiveCharts(predictions, algorithm) {
