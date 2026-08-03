@@ -6,7 +6,11 @@ those models intact and adds a separate, comparable revenue-forecasting task:
 * one Product ID by one complete 30-day period is the analytical grain;
 * ordered prior-period revenue is supplied through overlapping sliding windows;
 * the final forecast horizon is a strictly out-of-time holdout;
-* a one-period model is rolled forward recursively for multi-step forecasts; and
+* an independent direct gradient-boosting model is preserved as a comparison;
+* an encoder-decoder RNN recursively feeds each predicted period into the next;
+* a joint multi-step loss is propagated through the complete supervised rollout;
+* long-horizon forecasts are reconciled to a separately estimated aggregate
+  revenue path; and
 * revenue errors and Top-K product-ranking metrics are reported against the same
   independent recent-average baseline and the same evaluation population.
 """
@@ -24,10 +28,12 @@ from scipy.stats import kendalltau, spearmanr
 from sklearn.ensemble import HistGradientBoostingRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
+from .autoregressive_rnn import AutoregressiveRevenueRNN
+
 
 logger = logging.getLogger(__name__)
 MODEL_DIR = Path(__file__).resolve().parent.parent / "ml_models_cache" / "time_series"
-ARTIFACT_VERSION = 3
+ARTIFACT_VERSION = 6
 PERIOD_DAYS = 30
 VALID_HORIZONS = {1, 3, 6, 12}
 VALID_WINDOWS = {3, 6, 12}
@@ -36,7 +42,7 @@ RANKING_CUTOFFS = (5, 10, 20)
 
 
 class ProductRevenueTimeSeriesForecaster:
-    """Global recursive forecaster trained from each product's revenue sequence."""
+    """Compare independent direct and recursive neural sequence forecasts."""
 
     def __init__(self):
         MODEL_DIR.mkdir(parents=True, exist_ok=True)
@@ -152,7 +158,7 @@ class ProductRevenueTimeSeriesForecaster:
 
     @staticmethod
     def _feature_matrix(lag_values: np.ndarray, target_period_index: int) -> np.ndarray:
-        """Create ordered lag and summary features using only observed/predicted history."""
+        """Create ordered lag and summary features using only observed history."""
         lag_values = np.maximum(np.asarray(lag_values, dtype=float), 0.0)
         recent_width = min(3, lag_values.shape[1])
         recent = lag_values[:, -recent_width:]
@@ -211,7 +217,7 @@ class ProductRevenueTimeSeriesForecaster:
 
     def _build_training_samples(self, panel: pd.DataFrame, origins: list[int], window_size: int):
         values = panel.to_numpy(dtype=float)
-        features, residual_targets, sample_ids = [], [], []
+        features, residual_targets, sample_ids, sample_actuals = [], [], [], []
         product_ids = panel.index.to_numpy(dtype=int)
         origin_counts = {}
         for origin in origins:
@@ -224,6 +230,7 @@ class ProductRevenueTimeSeriesForecaster:
             features.append(self._feature_matrix(lags[active], origin))
             residual_targets.append(np.log1p(actual) - np.log1p(baseline))
             sample_ids.append(product_ids[active])
+            sample_actuals.append(actual)
             origin_counts[str(origin + 1)] = int(active.sum())
         if not features:
             raise ValueError("No active product histories are available for model fitting.")
@@ -231,34 +238,202 @@ class ProductRevenueTimeSeriesForecaster:
             np.vstack(features),
             np.concatenate(residual_targets),
             np.concatenate(sample_ids),
+            np.concatenate(sample_actuals),
             origin_counts,
         )
 
-    def _recursive_predict(
-        self, model, observed_history: np.ndarray, horizon: int, window_size: int, first_target_index: int
-    ) -> np.ndarray:
-        """Forecast one period at a time, feeding each prediction into the next step."""
-        history = np.maximum(np.asarray(observed_history, dtype=float), 0.0).copy()
-        predictions = []
-        for step in range(horizon):
-            lags = history[:, -window_size:]
+    @staticmethod
+    def _build_sequence_samples(panel, origins, window_size, horizon, training_end):
+        """Build masked multi-step sequences without crossing the training boundary."""
+        values = panel.to_numpy(dtype=float)
+        lag_batches, target_batches, mask_batches, period_batches = [], [], [], []
+        origin_counts, supervised_by_origin = {}, {}
+        for origin in origins:
+            available_steps = min(int(horizon), int(training_end) - int(origin))
+            if available_steps <= 0:
+                continue
+            lags = values[:, origin - window_size:origin]
             active = lags.sum(axis=1) > 0
-            next_values = np.zeros(len(lags), dtype=float)
-            if np.any(active):
-                baseline = self._one_step_baseline(lags[active])
-                correction = model.predict(
-                    self._feature_matrix(lags[active], first_target_index + step)
-                )
-                next_values[active] = np.maximum(
+            if not np.any(active):
+                continue
+            targets = np.zeros((int(active.sum()), int(horizon)), dtype=float)
+            mask = np.zeros_like(targets, dtype=bool)
+            targets[:, :available_steps] = values[
+                active, origin:origin + available_steps
+            ]
+            mask[:, :available_steps] = True
+            lag_batches.append(lags[active])
+            target_batches.append(targets)
+            mask_batches.append(mask)
+            period_batches.append(np.full(int(active.sum()), origin, dtype=int))
+            origin_counts[str(origin + 1)] = int(active.sum())
+            supervised_by_origin[str(origin + 1)] = int(available_steps)
+        if not lag_batches:
+            raise ValueError("No active multi-step sequences are available for recurrent training.")
+        return (
+            np.vstack(lag_batches),
+            np.vstack(target_batches),
+            np.vstack(mask_batches),
+            np.concatenate(period_batches),
+            origin_counts,
+            supervised_by_origin,
+        )
+
+    @classmethod
+    def _fit_sequence_model(cls, lags, targets, target_mask, start_periods):
+        model = AutoregressiveRevenueRNN(
+            hidden_size=16,
+            epochs=10,
+            batch_size=8192,
+            learning_rate=0.008,
+            huber_delta=0.75,
+            gradient_clip=5.0,
+            l2=1e-5,
+            feedback_rate=0.5,
+            random_state=42,
+        )
+        return model.fit(lags, targets, target_mask, start_periods)
+
+    @staticmethod
+    def _production_origins(period_count, window_size, sliding_step, training_size):
+        """Use every fully observed target when refitting the future-production model."""
+        candidates = list(range(window_size, period_count, sliding_step))
+        if candidates and candidates[-1] != period_count - 1:
+            candidates.append(period_count - 1)
+        if len(candidates) < 2:
+            raise ValueError("Not enough fully observed origins for production refitting.")
+        keep = max(2, int(np.ceil(len(candidates) * training_size)))
+        return candidates[-keep:], candidates
+
+    @staticmethod
+    def _new_regressor():
+        return HistGradientBoostingRegressor(
+            loss="squared_error",
+            learning_rate=0.05,
+            max_iter=220,
+            max_leaf_nodes=31,
+            min_samples_leaf=40,
+            l2_regularization=1.0,
+            random_state=42,
+        )
+
+    @classmethod
+    def _fit_estimators(cls, features, target, sample_actual):
+        """Fit equal-weight and revenue-aware estimators for a stable ensemble."""
+        unweighted = cls._new_regressor()
+        unweighted.fit(features, target)
+        weights = 1.0 + np.log1p(np.maximum(sample_actual, 0.0))
+        weights = np.minimum(weights, np.quantile(weights, 0.995))
+        weights = weights / weights.mean()
+        revenue_weighted = cls._new_regressor()
+        revenue_weighted.fit(features, target, sample_weight=weights)
+        return {
+            "equal_product_weight": unweighted,
+            "log_revenue_weight": revenue_weighted,
+        }
+
+    @classmethod
+    def _direct_predict(
+        cls, estimators, observed_history, horizon, window_size, first_target_index
+    ):
+        """Predict every lead from observed history, avoiding recursive error compounding."""
+        observed = np.maximum(np.asarray(observed_history, dtype=float), 0.0)
+        lags = observed[:, -window_size:]
+        active = lags.sum(axis=1) > 0
+        forecasts = np.zeros((len(lags), horizon), dtype=float)
+        if not np.any(active):
+            return forecasts
+        baseline = cls._one_step_baseline(lags[active])
+        for step in range(horizon):
+            features = cls._feature_matrix(lags[active], first_target_index + step)
+            component_forecasts = []
+            selected_estimators = (
+                [estimators["equal_product_weight"]]
+                if horizon <= 1 else list(estimators.values())
+            )
+            for model in selected_estimators:
+                correction = model.predict(features)
+                component_forecasts.append(np.maximum(
                     np.expm1(np.log1p(baseline) + correction), 0.0
-                )
-            predictions.append(next_values)
-            history = np.column_stack((history, next_values))
-        return np.column_stack(predictions)
+                ))
+            forecasts[active, step] = np.mean(component_forecasts, axis=0)
+        return forecasts
+
+    @staticmethod
+    def _aggregate_total_forecast(observed_history, horizon):
+        """Damped robust trend for total revenue, using only observed periods."""
+        totals = np.maximum(np.asarray(observed_history, dtype=float), 0.0).sum(axis=0)
+        recent = totals[-min(6, len(totals)):]
+        recent_level = recent[-min(3, len(recent)):]
+        level = float(np.average(recent_level, weights=np.arange(1, len(recent_level) + 1)))
+        trend = float(np.median(np.diff(recent))) if len(recent) > 1 else 0.0
+        trend = float(np.clip(trend, -0.03 * level, 0.03 * level))
+        damping = 0.7
+        return np.array([
+            max(level + trend * sum(damping ** power for power in range(step + 1)), 0.0)
+            for step in range(horizon)
+        ])
+
+    @staticmethod
+    def _reconciliation_power(horizon):
+        """Apply only a light drift guard without erasing model-specific paths."""
+        if horizon >= 12 or 1 < horizon <= 3:
+            return 0.25
+        return 0.0
+
+    @classmethod
+    def _reconcile_to_aggregate(cls, forecasts, observed_history, horizon):
+        """Align product forecasts to a separately forecast aggregate total."""
+        forecasts = np.maximum(np.asarray(forecasts, dtype=float), 0.0)
+        if horizon <= 1:
+            return forecasts
+        target_totals = cls._aggregate_total_forecast(observed_history, horizon)
+        raw_totals = forecasts.sum(axis=0)
+        full_scale = np.divide(
+            target_totals,
+            raw_totals,
+            out=np.ones_like(target_totals),
+            where=raw_totals > 0,
+        )
+        reconciliation_power = cls._reconciliation_power(horizon)
+        return forecasts * np.power(full_scale, reconciliation_power)
+
+    @staticmethod
+    def _aggregate_period_metrics(actual_steps, predicted_steps, mask):
+        actual_totals = np.asarray(actual_steps, dtype=float)[mask].sum(axis=0)
+        predicted_totals = np.asarray(predicted_steps, dtype=float)[mask].sum(axis=0)
+        error = predicted_totals - actual_totals
+        total_actual = float(actual_totals.sum())
+        return {
+            "periods": int(len(actual_totals)),
+            "mae": round(float(np.mean(np.abs(error))), 6),
+            "rmse": round(float(np.sqrt(np.mean(error ** 2))), 6),
+            "wmape": round(float(np.abs(error).sum() / total_actual), 6) if total_actual else 0.0,
+            "bias_percent": round(float(error.sum() / total_actual), 6) if total_actual else 0.0,
+            "actual_total": round(total_actual, 2),
+            "predicted_total": round(float(predicted_totals.sum()), 2),
+        }
 
     @staticmethod
     def _stable_descending_order(product_ids: np.ndarray, values: np.ndarray) -> np.ndarray:
         return np.lexsort((np.asarray(product_ids), -np.asarray(values, dtype=float)))
+
+    @staticmethod
+    def _rank_biased_overlap(first_ids, second_ids, persistence=0.9):
+        """Finite extrapolated RBO, emphasizing agreement near the top."""
+        first_ids, second_ids = list(first_ids), list(second_ids)
+        depth = min(len(first_ids), len(second_ids))
+        if depth == 0:
+            return 0.0
+        weighted_overlap = 0.0
+        first_seen, second_seen = set(), set()
+        agreement = 0.0
+        for index in range(depth):
+            first_seen.add(first_ids[index])
+            second_seen.add(second_ids[index])
+            agreement = len(first_seen & second_seen) / float(index + 1)
+            weighted_overlap += (1.0 - persistence) * agreement * persistence ** index
+        return float(weighted_overlap + agreement * persistence ** depth)
 
     @classmethod
     def _ranking_metrics(cls, product_ids, actual, predicted, cutoffs=RANKING_CUTOFFS):
@@ -295,6 +470,9 @@ class ProductRevenueTimeSeriesForecaster:
                 "recall_at_k": round(overlap / k, 6) if k else 0.0,
                 "jaccard_at_k": round(overlap / union, 6) if union else 0.0,
                 "ndcg_at_k": round(dcg / ideal_dcg, 6) if ideal_dcg else 0.0,
+                "rank_biased_overlap": round(cls._rank_biased_overlap(
+                    actual_top_ids, predicted_top_ids
+                ), 6),
             }
         return {
             "spearman": round(float(np.nan_to_num(spearman)), 6),
@@ -331,7 +509,8 @@ class ProductRevenueTimeSeriesForecaster:
             "ranking_at_k": ranking["ranking_at_k"],
         }
         metrics.update({key: primary.get(key, 0.0) for key in (
-            "precision_at_k", "recall_at_k", "jaccard_at_k", "ndcg_at_k"
+            "precision_at_k", "recall_at_k", "jaccard_at_k", "ndcg_at_k",
+            "rank_biased_overlap",
         )})
         return metrics
 
@@ -345,8 +524,32 @@ class ProductRevenueTimeSeriesForecaster:
             "interpretation": "Similarity compares the two model rankings; it is not accuracy against actual revenue.",
         }
 
+    @classmethod
+    def _top_rank_comparison(cls, product_ids, actual, sequence, independent, limit=3):
+        product_ids = np.asarray(product_ids)
+        actual_order = cls._stable_descending_order(product_ids, actual)
+        sequence_order = cls._stable_descending_order(product_ids, sequence)
+        independent_order = cls._stable_descending_order(product_ids, independent)
+        sequence_positions = {
+            int(product_ids[index]): position + 1
+            for position, index in enumerate(sequence_order)
+        }
+        independent_positions = {
+            int(product_ids[index]): position + 1
+            for position, index in enumerate(independent_order)
+        }
+        return [
+            {
+                "actual_rank": rank + 1,
+                "product_id": int(product_ids[index]),
+                "sequence_rank": int(sequence_positions[int(product_ids[index])]),
+                "independent_rank": int(independent_positions[int(product_ids[index])]),
+            }
+            for rank, index in enumerate(actual_order[:int(limit)])
+        ]
+
     def train(self, horizon=3, window_size=6, sliding_step=1, training_size=0.8, top_k=20):
-        """Fit the recursive model, run the strict final-horizon test, and persist it."""
+        """Validate recursive RNN and independent direct forecasts, then refit both."""
         horizon, window_size, sliding_step = int(horizon), int(window_size), int(sliding_step)
         training_size = float(training_size)
         self._validate_configuration(horizon, window_size, sliding_step, training_size)
@@ -355,57 +558,110 @@ class ProductRevenueTimeSeriesForecaster:
         origins, test_origin, all_candidates = self._training_origins(
             revenue_panel.shape[1], horizon, window_size, sliding_step, training_size
         )
-        X_train, residual_target, _, origin_counts = self._build_training_samples(
-            revenue_panel, origins, window_size
+        direct_features, direct_target, _, direct_actual, direct_counts = (
+            self._build_training_samples(revenue_panel, origins, window_size)
         )
-
-        model = HistGradientBoostingRegressor(
-            loss="squared_error",
-            learning_rate=0.05,
-            max_iter=220,
-            max_leaf_nodes=31,
-            min_samples_leaf=40,
-            l2_regularization=1.0,
-            random_state=42,
+        validation_direct = self._fit_estimators(
+            direct_features, direct_target, direct_actual
         )
-        model.fit(X_train, residual_target)
+        (
+            sequence_lags,
+            sequence_targets,
+            sequence_mask,
+            sequence_periods,
+            sequence_counts,
+            supervised_by_origin,
+        ) = self._build_sequence_samples(
+            revenue_panel, origins, window_size, horizon, test_origin
+        )
+        validation_sequence = self._fit_sequence_model(
+            sequence_lags, sequence_targets, sequence_mask, sequence_periods
+        )
 
         values = revenue_panel.to_numpy(dtype=float)
         observed = values[:, :test_origin]
-        step_forecasts = self._recursive_predict(
-            model, observed, horizon, window_size, test_origin
+        lookback = observed[:, -window_size:]
+        lookback_active = lookback.sum(axis=1) > 0
+        raw_sequence_steps = np.zeros((len(values), horizon), dtype=float)
+        raw_sequence_steps[lookback_active] = validation_sequence.predict(
+            lookback[lookback_active], test_origin, horizon
         )
-        time_series_forecast = step_forecasts.sum(axis=1)
-        actual = values[:, test_origin:test_origin + horizon].sum(axis=1)
-        baseline_one_step = self._one_step_baseline(observed[:, -window_size:])
-        baseline = baseline_one_step * horizon
+        raw_independent_steps = self._direct_predict(
+            validation_direct, observed, horizon, window_size, test_origin
+        )
+        sequence_steps = self._reconcile_to_aggregate(
+            raw_sequence_steps, observed, horizon
+        )
+        independent_steps = self._reconcile_to_aggregate(
+            raw_independent_steps, observed, horizon
+        )
+        baseline_one_step = self._one_step_baseline(lookback)
+        baseline_steps = np.repeat(baseline_one_step[:, None], horizon, axis=1)
 
-        lookback_active = observed[:, -window_size:].sum(axis=1) > 0
+        actual_steps = values[:, test_origin:test_origin + horizon]
+        actual = actual_steps.sum(axis=1)
+        sequence_forecast = sequence_steps.sum(axis=1)
+        independent_forecast = independent_steps.sum(axis=1)
+        baseline_forecast = baseline_steps.sum(axis=1)
         actual_active = actual > 0
         evaluation_mask = lookback_active | actual_active
         evaluation_ids = revenue_panel.index.to_numpy(dtype=int)[evaluation_mask]
         actual_eval = actual[evaluation_mask]
-        time_series_eval = time_series_forecast[evaluation_mask]
-        baseline_eval = baseline[evaluation_mask]
+        sequence_eval = sequence_forecast[evaluation_mask]
+        independent_eval = independent_forecast[evaluation_mask]
+        baseline_eval = baseline_forecast[evaluation_mask]
 
-        model_metrics = self._evaluate(evaluation_ids, actual_eval, time_series_eval, top_k)
-        baseline_metrics = self._evaluate(evaluation_ids, actual_eval, baseline_eval, top_k)
+        sequence_metrics = self._evaluate(
+            evaluation_ids, actual_eval, sequence_eval, top_k
+        )
+        independent_metrics = self._evaluate(
+            evaluation_ids, actual_eval, independent_eval, top_k
+        )
+        baseline_metrics = self._evaluate(
+            evaluation_ids, actual_eval, baseline_eval, top_k
+        )
+        aggregate_period_metrics = {
+            "time_series_model": self._aggregate_period_metrics(
+                actual_steps, sequence_steps, evaluation_mask
+            ),
+            "independent_direct_model": self._aggregate_period_metrics(
+                actual_steps, independent_steps, evaluation_mask
+            ),
+            "recent_average_baseline": self._aggregate_period_metrics(
+                actual_steps, baseline_steps, evaluation_mask
+            ),
+        }
         ranking_similarity = self._ranking_similarity(
-            evaluation_ids, time_series_eval, baseline_eval
+            evaluation_ids, sequence_eval, independent_eval
+        )
+        top_rank_comparison = self._top_rank_comparison(
+            evaluation_ids, actual_eval, sequence_eval, independent_eval
         )
         lower_is_better = ("mae", "rmse", "wmape", "smape")
-        model_error_wins = sum(
-            model_metrics[key] < baseline_metrics[key] for key in lower_is_better
+        sequence_wins = sum(
+            sequence_metrics[key] < independent_metrics[key]
+            for key in lower_is_better
         )
-        baseline_error_wins = sum(
-            baseline_metrics[key] < model_metrics[key] for key in lower_is_better
+        independent_wins = sum(
+            independent_metrics[key] < sequence_metrics[key]
+            for key in lower_is_better
         )
-        if model_error_wins > baseline_error_wins:
-            overall_error_assessment = "time_series_model"
-        elif baseline_error_wins > model_error_wins:
-            overall_error_assessment = "independent_recent_average_baseline"
+        if sequence_wins > independent_wins:
+            assessment = "time_series_model"
+        elif independent_wins > sequence_wins:
+            assessment = "independent_direct_model"
         else:
-            overall_error_assessment = "mixed_no_clear_winner"
+            assessment = "mixed_no_clear_winner"
+        best_error_method = (
+            "time_series_model"
+            if sequence_metrics["wmape"] <= independent_metrics["wmape"]
+            else "independent_direct_model"
+        )
+        best_ranking_method = (
+            "time_series_model"
+            if sequence_metrics["ndcg_at_k"] >= independent_metrics["ndcg_at_k"]
+            else "independent_direct_model"
+        )
 
         test_start_day = data_profile["analysis_start_day"] + test_origin * PERIOD_DAYS
         test_end_day = test_start_day + horizon * PERIOD_DAYS - 1
@@ -416,23 +672,55 @@ class ProductRevenueTimeSeriesForecaster:
                 "period": int(test_origin + step + 1),
                 "start_day": int(period_start),
                 "end_day": int(period_start + PERIOD_DAYS - 1),
-                "actual_revenue": round(float(values[evaluation_mask, test_origin + step].sum()), 2),
-                "time_series_revenue": round(float(step_forecasts[evaluation_mask, step].sum()), 2),
-                "baseline_revenue": round(float(baseline_one_step[evaluation_mask].sum()), 2),
+                "actual_revenue": round(float(actual_steps[evaluation_mask, step].sum()), 2),
+                "time_series_revenue": round(float(sequence_steps[evaluation_mask, step].sum()), 2),
+                "independent_revenue": round(float(independent_steps[evaluation_mask, step].sum()), 2),
+                "baseline_revenue": round(float(baseline_steps[evaluation_mask, step].sum()), 2),
             })
+        reconciliation_power = self._reconciliation_power(horizon)
         report = {
             "artifact_version": ARTIFACT_VERSION,
-            "forecast_method": "recursive_multi_step_monthly_revenue",
-            "model": "HistGradientBoostingRegressor one-step residual model (scikit-learn)",
-            "target": f"cumulative Product ID revenue for the next {horizon} complete 30-day period(s)",
+            "forecast_method": "autoregressive_encoder_decoder_rnn_with_bptt",
+            "model_architecture": {
+                "time_series_model": "NumPy tanh encoder-decoder RNN",
+                "independent_direct_model": (
+                    "50/50 equal-product and revenue-weighted HistGradientBoosting ensemble"
+                ),
+                "recursive_feedback": True,
+                "joint_multi_step_loss": True,
+                "backpropagation_through_time": True,
+                "hidden_units": int(validation_sequence.hidden_size),
+                "feedback_rate": float(validation_sequence.feedback_rate),
+            },
+            "sequence_training": {
+                "loss": "masked multi-step Huber loss on normalized log revenue",
+                "epochs": int(validation_sequence.epochs),
+                "loss_history": validation_sequence.training_history_,
+                "supervised_forecast_steps": int(validation_sequence.supervised_steps_),
+                "maximum_supervised_rollout": int(validation_sequence.max_supervised_horizon_),
+                "supervised_steps_by_origin": supervised_by_origin,
+            },
+            "aggregate_reconciliation": {
+                "power": reconciliation_power,
+                "mode": (
+                    "full" if reconciliation_power == 1.0
+                    else "partial" if reconciliation_power > 0.0
+                    else "disabled"
+                ),
+                "applied_equally_to_compared_models": True,
+            },
+            "target": f"monthly Product ID revenue for the next {horizon} complete 30-day period(s)",
             "horizon_months": horizon,
             "window_size_months": window_size,
             "sliding_step_months": sliding_step,
             "training_size": training_size,
             "validation": (
-                "strict final-horizon chronological holdout; fitting targets end before the test starts; "
-                "no random split and no future-revenue features"
+                "strict final-horizon chronological holdout; every training target ends before "
+                "the holdout; overlapping windows stay on the training side; no random split or "
+                "future-revenue features"
             ),
+            "temporal_evidence_strength": "limited" if len(origins) < 6 else "moderate",
+            "temporal_fit_origins": int(len(origins)),
             "fit_origin_periods": [origin + 1 for origin in origins],
             "available_pretest_origins": [origin + 1 for origin in all_candidates],
             "test_origin_period": test_origin + 1,
@@ -443,46 +731,89 @@ class ProductRevenueTimeSeriesForecaster:
             },
             "holdout_actual_vs_predicted": holdout_actual_vs_predicted,
             "samples": {
-                "train": int(len(X_train)),
-                "train_by_origin": origin_counts,
+                "independent_train": int(len(direct_features)),
+                "sequence_train": int(len(sequence_lags)),
+                "independent_train_by_origin": direct_counts,
+                "sequence_train_by_origin": sequence_counts,
                 "products_total": int(len(revenue_panel)),
                 "evaluation_products": int(evaluation_mask.sum()),
                 "lookback_active_products": int(lookback_active.sum()),
                 "cold_start_products_in_test": int((~lookback_active & actual_active).sum()),
             },
             "data_profile": data_profile,
-            "time_series_model": model_metrics,
-            "independent_recent_average_baseline": baseline_metrics,
+            "time_series_model": sequence_metrics,
+            "independent_direct_model": independent_metrics,
+            "recent_average_baseline": baseline_metrics,
+            "holdout_period_total_metrics": aggregate_period_metrics,
             "model_ranking_similarity": ranking_similarity,
+            "top_product_rank_comparison": top_rank_comparison,
             "selection_guidance": {
-                "best_for_revenue_error": (
-                    "time_series_model"
-                    if model_metrics["wmape"] < baseline_metrics["wmape"]
-                    else "independent_recent_average_baseline"
-                ),
-                "best_for_revenue_error_basis": "WMAPE only",
-                "overall_error_assessment": overall_error_assessment,
+                "best_for_revenue_error": best_error_method,
+                "best_for_revenue_error_basis": "cumulative Product ID WMAPE",
+                "overall_error_assessment": assessment,
                 "error_metric_wins": {
-                    "time_series_model": int(model_error_wins),
-                    "independent_recent_average_baseline": int(baseline_error_wins),
+                    "time_series_model": int(sequence_wins),
+                    "independent_direct_model": int(independent_wins),
                     "metrics_compared": list(lower_is_better),
                 },
-                "best_for_top_k_ranking": (
-                    "time_series_model"
-                    if model_metrics["ndcg_at_k"] >= baseline_metrics["ndcg_at_k"]
-                    else "independent_recent_average_baseline"
-                ),
+                "best_for_top_k_ranking": best_ranking_method,
             },
             "required_caveats": [
                 "The dataset provides 23 complete aligned periods, so the final holdout is one horizon block rather than many independent years.",
-                "Products with no revenue in the lookback are cold starts; the revenue-only model predicts zero for them and reports their count.",
-                "The legacy customer-repurchase classifier has a different target and its classification Accuracy must not be compared with these revenue metrics.",
-                "Revenue per unit is historical sales_value divided by positive quantity; quantity units vary by product and are not documented as a universal physical unit.",
+                "For long horizons, the validation-side RNN is supervised only for the future steps available before the holdout; the maximum supervised rollout is reported explicitly.",
+                "Product rows increase cross-sectional samples but do not replace missing calendar history.",
+                "Products with no revenue in the lookback are cold starts; revenue-only models predict zero for them and report their count.",
+                "The legacy repurchase classifier has a different target and its classification Accuracy must not be compared with revenue errors.",
             ],
+        }
+
+        production_origins, production_candidates = self._production_origins(
+            revenue_panel.shape[1], window_size, sliding_step, training_size
+        )
+        production_features, production_target, _, production_actual, production_counts = (
+            self._build_training_samples(revenue_panel, production_origins, window_size)
+        )
+        production_direct = self._fit_estimators(
+            production_features, production_target, production_actual
+        )
+        (
+            production_lags,
+            production_sequence_targets,
+            production_sequence_mask,
+            production_periods,
+            production_sequence_counts,
+            production_supervised_by_origin,
+        ) = self._build_sequence_samples(
+            revenue_panel,
+            production_origins,
+            window_size,
+            horizon,
+            revenue_panel.shape[1],
+        )
+        production_sequence = self._fit_sequence_model(
+            production_lags,
+            production_sequence_targets,
+            production_sequence_mask,
+            production_periods,
+        )
+        report["production_refit"] = {
+            "fit_after_holdout_evaluation": True,
+            "purpose": "future periods after the dataset as-of day only",
+            "origin_periods": [origin + 1 for origin in production_origins],
+            "available_origins": [origin + 1 for origin in production_candidates],
+            "independent_samples": int(len(production_features)),
+            "sequence_samples": int(len(production_lags)),
+            "independent_samples_by_origin": production_counts,
+            "sequence_samples_by_origin": production_sequence_counts,
+            "sequence_supervised_steps_by_origin": production_supervised_by_origin,
+            "sequence_maximum_supervised_rollout": int(
+                production_sequence.max_supervised_horizon_
+            ),
         }
         artifact = {
             "artifact_version": ARTIFACT_VERSION,
-            "model": model,
+            "production_direct_estimators": production_direct,
+            "production_sequence_model": production_sequence,
             "horizon": horizon,
             "window_size": window_size,
             "sliding_step": sliding_step,
@@ -513,7 +844,7 @@ class ProductRevenueTimeSeriesForecaster:
         revenue_threshold=None,
         forecast_method="recommended",
     ):
-        """Forecast beyond the data as-of day and return ranked products and totals."""
+        """Forecast with both compared models and return side-by-side product results."""
         horizon, window_size, sliding_step = int(horizon), int(window_size), int(sliding_step)
         self._validate_configuration(horizon, window_size, sliding_step, 0.8)
         path = self._artifact_path(horizon, window_size, sliding_step)
@@ -535,34 +866,51 @@ class ProductRevenueTimeSeriesForecaster:
             raise ValueError("Not enough complete history for the requested window.")
 
         observed = revenue_panel.to_numpy(dtype=float)
-        step_forecasts = self._recursive_predict(
-            artifact["model"], observed, horizon, window_size, observed.shape[1]
-        )
-        model_revenue = step_forecasts.sum(axis=1)
         latest_lags = observed[:, -window_size:]
+        eligible = latest_lags.sum(axis=1) > 0
+        raw_sequence_steps = np.zeros((len(observed), horizon), dtype=float)
+        raw_sequence_steps[eligible] = artifact["production_sequence_model"].predict(
+            latest_lags[eligible], observed.shape[1], horizon
+        )
+        raw_independent_steps = self._direct_predict(
+            artifact["production_direct_estimators"],
+            observed,
+            horizon,
+            window_size,
+            observed.shape[1],
+        )
+        sequence_steps = self._reconcile_to_aggregate(
+            raw_sequence_steps, observed, horizon
+        )
+        independent_steps = self._reconcile_to_aggregate(
+            raw_independent_steps, observed, horizon
+        )
         baseline_one_step = self._one_step_baseline(latest_lags)
         baseline_steps = np.repeat(baseline_one_step[:, None], horizon, axis=1)
+        sequence_revenue = sequence_steps.sum(axis=1)
+        independent_revenue = independent_steps.sum(axis=1)
         baseline_revenue = baseline_steps.sum(axis=1)
         requested_method = str(forecast_method or "recommended")
         valid_methods = {
-            "recommended", "time_series_model", "independent_recent_average_baseline"
+            "recommended", "time_series_model", "independent_direct_model",
+            "recent_average_baseline",
         }
         if requested_method not in valid_methods:
             raise ValueError(
-                "forecast_method must be recommended, time_series_model, or "
-                "independent_recent_average_baseline."
+                "forecast_method must be recommended, time_series_model, "
+                "independent_direct_model, or recent_average_baseline."
             )
         if requested_method == "recommended":
             applied_method = artifact["report"]["selection_guidance"]["best_for_revenue_error"]
         else:
             applied_method = requested_method
-        selected_steps = (
-            step_forecasts
-            if applied_method == "time_series_model"
-            else baseline_steps
-        )
+        method_steps = {
+            "time_series_model": sequence_steps,
+            "independent_direct_model": independent_steps,
+            "recent_average_baseline": baseline_steps,
+        }
+        selected_steps = method_steps[applied_method]
         predicted_revenue = selected_steps.sum(axis=1)
-        eligible = latest_lags.sum(axis=1) > 0
 
         recent_units = unit_panel.iloc[:, -window_size:].sum(axis=1).to_numpy(dtype=float)
         recent_revenue = revenue_panel.iloc[:, -window_size:].sum(axis=1).to_numpy(dtype=float)
@@ -572,18 +920,24 @@ class ProductRevenueTimeSeriesForecaster:
             out=np.full_like(recent_revenue, np.nan),
             where=recent_units > 0,
         )
+        # Quantity is not a consistent retail "unit" in this source (notably fuel and
+        # weighted products).  Do not manufacture enormous unit forecasts when the
+        # historical revenue/quantity rate is below one cent.
+        unit_estimate_available = np.isfinite(revenue_per_unit) & (revenue_per_unit >= 0.01)
         predicted_units = np.divide(
             predicted_revenue,
             revenue_per_unit,
             out=np.full_like(predicted_revenue, np.nan),
-            where=np.isfinite(revenue_per_unit) & (revenue_per_unit > 0),
+            where=unit_estimate_available,
         )
 
         result = pd.DataFrame(
             {
                 "product_id": revenue_panel.index.astype(int),
+                "panel_position": np.arange(len(revenue_panel)),
                 "predicted_revenue": predicted_revenue,
-                "time_series_revenue": model_revenue,
+                "time_series_revenue": sequence_revenue,
+                "independent_revenue": independent_revenue,
                 "baseline_revenue": baseline_revenue,
                 "revenue_per_unit": revenue_per_unit,
                 "predicted_units": predicted_units,
@@ -598,20 +952,18 @@ class ProductRevenueTimeSeriesForecaster:
             result = result[result["predicted_revenue"] >= threshold]
 
         result["department"] = result["department"].fillna("Unknown")
-        department_forecast = (
-            result.groupby("department", dropna=False)["predicted_revenue"]
-            .sum()
-            .sort_values(ascending=False)
-            .reset_index()
-        )
+        department_forecast = result.groupby("department", dropna=False)[[
+            "predicted_revenue", "time_series_revenue", "independent_revenue",
+            "baseline_revenue",
+        ]].sum().sort_values("predicted_revenue", ascending=False).reset_index()
         result = result.sort_values(
             ["predicted_revenue", "product_id"], ascending=[False, True]
         )
         top_n = max(1, min(int(top_n), 500))
         top_result = result.head(top_n).copy()
         top_result["forecast_rank"] = np.arange(1, len(top_result) + 1)
-        top_result["revenue_change_vs_baseline"] = (
-            top_result["predicted_revenue"] - top_result["baseline_revenue"]
+        top_result["revenue_change_time_series_vs_independent"] = (
+            top_result["time_series_revenue"] - top_result["independent_revenue"]
         )
         top_result = top_result.fillna(
             {
@@ -646,8 +998,11 @@ class ProductRevenueTimeSeriesForecaster:
                     "size": str(row["size"]),
                     "predicted_revenue": round(float(row.predicted_revenue), 2),
                     "time_series_revenue": round(float(row.time_series_revenue), 2),
+                    "independent_revenue": round(float(row.independent_revenue), 2),
                     "baseline_revenue": round(float(row.baseline_revenue), 2),
-                    "revenue_change_vs_baseline": round(float(row.revenue_change_vs_baseline), 2),
+                    "revenue_change_time_series_vs_independent": round(
+                        float(row.revenue_change_time_series_vs_independent), 2
+                    ),
                     "revenue_per_unit": (
                         round(float(row.revenue_per_unit), 4)
                         if pd.notna(row.revenue_per_unit) else None
@@ -656,9 +1011,18 @@ class ProductRevenueTimeSeriesForecaster:
                         round(float(row.predicted_units), 2)
                         if pd.notna(row.predicted_units) else None
                     ),
-                    "monthly_predictions": [round(float(value), 2) for value in selected_steps[
-                        revenue_panel.index.get_loc(int(row.product_id))
-                    ]],
+                    "time_series_monthly_predictions": [
+                        round(float(value), 2)
+                        for value in sequence_steps[int(row.panel_position)]
+                    ],
+                    "independent_monthly_predictions": [
+                        round(float(value), 2)
+                        for value in independent_steps[int(row.panel_position)]
+                    ],
+                    "baseline_monthly_predictions": [
+                        round(float(value), 2)
+                        for value in baseline_steps[int(row.panel_position)]
+                    ],
                 }
             )
 
@@ -669,11 +1033,11 @@ class ProductRevenueTimeSeriesForecaster:
             "sliding_step_months": sliding_step,
             "forecast_method_requested": requested_method,
             "forecast_method_applied": applied_method,
-            "forecast_method": (
-                "recursive_multi_step_monthly_revenue"
-                if applied_method == "time_series_model"
-                else "independent_recent_average_baseline"
-            ),
+            "forecast_method": {
+                "time_series_model": "autoregressive_encoder_decoder_rnn_with_bptt",
+                "independent_direct_model": "independent_direct_gradient_boosting_ensemble",
+                "recent_average_baseline": "recent_average_naive_benchmark",
+            }[applied_method],
             "forecast_period": {
                 "start_day": int(forecast_start_day),
                 "end_day": int(forecast_start_day + horizon * PERIOD_DAYS - 1),
@@ -685,6 +1049,9 @@ class ProductRevenueTimeSeriesForecaster:
                 {
                     "department": str(row.department),
                     "predicted_revenue": round(float(row.predicted_revenue), 2),
+                    "time_series_revenue": round(float(row.time_series_revenue), 2),
+                    "independent_revenue": round(float(row.independent_revenue), 2),
+                    "baseline_revenue": round(float(row.baseline_revenue), 2),
                 }
                 for _, row in department_forecast.iterrows()
             ],
