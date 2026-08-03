@@ -19,6 +19,7 @@ from __future__ import annotations
 import json
 import logging
 import pickle
+from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
@@ -33,12 +34,18 @@ from .autoregressive_rnn import AutoregressiveRevenueRNN
 
 logger = logging.getLogger(__name__)
 MODEL_DIR = Path(__file__).resolve().parent.parent / "ml_models_cache" / "time_series"
-ARTIFACT_VERSION = 6
+ARTIFACT_VERSION = 7
 PERIOD_DAYS = 30
 VALID_HORIZONS = {1, 3, 6, 12}
 VALID_WINDOWS = {3, 6, 12}
 VALID_STEPS = {1, 2, 3}
 RANKING_CUTOFFS = (5, 10, 20)
+AUTO_HIDDEN_UNITS = 16
+AUTO_FEEDBACK_RATE = 0.5
+AUTO_EPOCHS = 10
+VALID_PARAMETER_MODES = {"auto", "custom"}
+VALID_HIDDEN_UNITS = {8, 16, 32, 64}
+VALID_EPOCHS = {5, 10, 15, 20, 30}
 
 
 class ProductRevenueTimeSeriesForecaster:
@@ -48,15 +55,77 @@ class ProductRevenueTimeSeriesForecaster:
         MODEL_DIR.mkdir(parents=True, exist_ok=True)
 
     @staticmethod
-    def _artifact_path(horizon: int, window_size: int, sliding_step: int) -> Path:
-        return MODEL_DIR / (
-            f"product_revenue_v{ARTIFACT_VERSION}_h{horizon}_w{window_size}_s{sliding_step}.pkl"
-        )
+    def _resolve_architecture(parameter_mode="auto", hidden_units=None, feedback_rate=None, epochs=None):
+        mode = str(parameter_mode or "auto").lower()
+        if mode not in VALID_PARAMETER_MODES:
+            raise ValueError("parameter_mode must be auto or custom.")
+        if mode == "auto":
+            hidden, feedback, epoch_count = (
+                AUTO_HIDDEN_UNITS, AUTO_FEEDBACK_RATE, AUTO_EPOCHS
+            )
+        else:
+            try:
+                hidden = int(hidden_units)
+                feedback = float(feedback_rate)
+                epoch_count = int(epochs)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    "Custom mode requires numeric hidden_units, feedback_rate, and epochs."
+                ) from exc
+            if hidden not in VALID_HIDDEN_UNITS:
+                raise ValueError("hidden_units must be 8, 16, 32, or 64.")
+            if not 0.1 <= feedback <= 1.0:
+                raise ValueError("feedback_rate must be between 0.10 and 1.00.")
+            if epoch_count not in VALID_EPOCHS:
+                raise ValueError("epochs must be 5, 10, 15, 20, or 30.")
+        return {
+            "parameter_mode": mode,
+            "hidden_units": hidden,
+            "feedback_rate": round(feedback, 4),
+            "epochs": epoch_count,
+            "recursive_feedback": True,
+            "joint_multi_step_loss": True,
+            "backpropagation_through_time": True,
+        }
 
     @staticmethod
-    def _metrics_path(horizon: int, window_size: int, sliding_step: int) -> Path:
+    def _configuration_key(horizon, window_size, sliding_step, training_size, architecture):
+        return (
+            f"h{int(horizon)}_w{int(window_size)}_s{int(sliding_step)}"
+            f"_tr{int(round(float(training_size) * 100)):02d}"
+            f"_{architecture['parameter_mode']}_hu{architecture['hidden_units']}"
+            f"_fb{int(round(architecture['feedback_rate'] * 100)):03d}"
+            f"_e{architecture['epochs']}"
+        )
+
+    @classmethod
+    def _artifact_path(
+        cls, horizon, window_size, sliding_step, training_size=0.8,
+        parameter_mode="auto", hidden_units=None, feedback_rate=None, epochs=None,
+    ) -> Path:
+        architecture = cls._resolve_architecture(
+            parameter_mode, hidden_units, feedback_rate, epochs
+        )
+        key = cls._configuration_key(
+            horizon, window_size, sliding_step, training_size, architecture
+        )
         return MODEL_DIR / (
-            f"product_revenue_v{ARTIFACT_VERSION}_h{horizon}_w{window_size}_s{sliding_step}_metrics.json"
+            f"product_revenue_v{ARTIFACT_VERSION}_{key}.pkl"
+        )
+
+    @classmethod
+    def _metrics_path(
+        cls, horizon, window_size, sliding_step, training_size=0.8,
+        parameter_mode="auto", hidden_units=None, feedback_rate=None, epochs=None,
+    ) -> Path:
+        architecture = cls._resolve_architecture(
+            parameter_mode, hidden_units, feedback_rate, epochs
+        )
+        key = cls._configuration_key(
+            horizon, window_size, sliding_step, training_size, architecture
+        )
+        return MODEL_DIR / (
+            f"product_revenue_v{ARTIFACT_VERSION}_{key}_metrics.json"
         )
 
     @staticmethod
@@ -280,16 +349,19 @@ class ProductRevenueTimeSeriesForecaster:
         )
 
     @classmethod
-    def _fit_sequence_model(cls, lags, targets, target_mask, start_periods):
+    def _fit_sequence_model(
+        cls, lags, targets, target_mask, start_periods, architecture=None
+    ):
+        architecture = architecture or cls._resolve_architecture()
         model = AutoregressiveRevenueRNN(
-            hidden_size=16,
-            epochs=10,
+            hidden_size=architecture["hidden_units"],
+            epochs=architecture["epochs"],
             batch_size=8192,
             learning_rate=0.008,
             huber_delta=0.75,
             gradient_clip=5.0,
             l2=1e-5,
-            feedback_rate=0.5,
+            feedback_rate=architecture["feedback_rate"],
             random_state=42,
         )
         return model.fit(lags, targets, target_mask, start_periods)
@@ -493,6 +565,9 @@ class ProductRevenueTimeSeriesForecaster:
             "evaluation_products": int(len(actual)),
             "actual_revenue": round(total_actual, 2),
             "predicted_revenue": round(float(predicted.sum()), 2),
+            "bias_percent": round(
+                float((predicted.sum() - total_actual) / total_actual), 6
+            ) if total_actual else 0.0,
             "mae": round(float(mean_absolute_error(actual, predicted)), 6),
             "rmse": round(float(mean_squared_error(actual, predicted) ** 0.5), 6),
             "wmape": round(float(absolute_error.sum() / total_actual), 6) if total_actual else 0.0,
@@ -548,11 +623,21 @@ class ProductRevenueTimeSeriesForecaster:
             for rank, index in enumerate(actual_order[:int(limit)])
         ]
 
-    def train(self, horizon=3, window_size=6, sliding_step=1, training_size=0.8, top_k=20):
+    def train(
+        self, horizon=3, window_size=6, sliding_step=1, training_size=0.8,
+        top_k=20, parameter_mode="auto", hidden_units=None,
+        feedback_rate=None, epochs=None,
+    ):
         """Validate recursive RNN and independent direct forecasts, then refit both."""
         horizon, window_size, sliding_step = int(horizon), int(window_size), int(sliding_step)
         training_size = float(training_size)
         self._validate_configuration(horizon, window_size, sliding_step, training_size)
+        architecture_config = self._resolve_architecture(
+            parameter_mode, hidden_units, feedback_rate, epochs
+        )
+        configuration_key = self._configuration_key(
+            horizon, window_size, sliding_step, training_size, architecture_config
+        )
 
         revenue_panel, _, _, data_profile = self.load_product_panels()
         origins, test_origin, all_candidates = self._training_origins(
@@ -575,7 +660,8 @@ class ProductRevenueTimeSeriesForecaster:
             revenue_panel, origins, window_size, horizon, test_origin
         )
         validation_sequence = self._fit_sequence_model(
-            sequence_lags, sequence_targets, sequence_mask, sequence_periods
+            sequence_lags, sequence_targets, sequence_mask, sequence_periods,
+            architecture_config,
         )
 
         values = revenue_panel.to_numpy(dtype=float)
@@ -680,6 +766,9 @@ class ProductRevenueTimeSeriesForecaster:
         reconciliation_power = self._reconciliation_power(horizon)
         report = {
             "artifact_version": ARTIFACT_VERSION,
+            "configuration_key": configuration_key,
+            "saved_at_utc": datetime.now(timezone.utc).isoformat(),
+            "training_configuration": architecture_config,
             "forecast_method": "autoregressive_encoder_decoder_rnn_with_bptt",
             "model_architecture": {
                 "time_series_model": "NumPy tanh encoder-decoder RNN",
@@ -744,6 +833,16 @@ class ProductRevenueTimeSeriesForecaster:
             "time_series_model": sequence_metrics,
             "independent_direct_model": independent_metrics,
             "recent_average_baseline": baseline_metrics,
+            "bias_diagnostics": {
+                "time_series_bias_percent": sequence_metrics["bias_percent"],
+                "independent_bias_percent": independent_metrics["bias_percent"],
+                "recent_average_bias_percent": baseline_metrics["bias_percent"],
+                "interpretation": (
+                    "Negative values mean underprediction. Sparse products, cold starts, "
+                    "log-target shrinkage, and an unusually strong holdout period can all "
+                    "create negative aggregate bias."
+                ),
+            },
             "holdout_period_total_metrics": aggregate_period_metrics,
             "model_ranking_similarity": ranking_similarity,
             "top_product_rank_comparison": top_rank_comparison,
@@ -795,6 +894,7 @@ class ProductRevenueTimeSeriesForecaster:
             production_sequence_targets,
             production_sequence_mask,
             production_periods,
+            architecture_config,
         )
         report["production_refit"] = {
             "fit_after_holdout_evaluation": True,
@@ -812,6 +912,8 @@ class ProductRevenueTimeSeriesForecaster:
         }
         artifact = {
             "artifact_version": ARTIFACT_VERSION,
+            "configuration_key": configuration_key,
+            "training_configuration": architecture_config,
             "production_direct_estimators": production_direct,
             "production_sequence_model": production_sequence,
             "horizon": horizon,
@@ -820,16 +922,27 @@ class ProductRevenueTimeSeriesForecaster:
             "data_profile": data_profile,
             "report": report,
         }
-        artifact_path = self._artifact_path(horizon, window_size, sliding_step)
-        metrics_path = self._metrics_path(horizon, window_size, sliding_step)
+        path_args = (
+            horizon, window_size, sliding_step, training_size,
+            architecture_config["parameter_mode"], architecture_config["hidden_units"],
+            architecture_config["feedback_rate"], architecture_config["epochs"],
+        )
+        artifact_path = self._artifact_path(*path_args)
+        metrics_path = self._metrics_path(*path_args)
         with artifact_path.open("wb") as handle:
             pickle.dump(artifact, handle)
         with metrics_path.open("w", encoding="utf-8") as handle:
             json.dump(report, handle, indent=2)
         return report
 
-    def get_report(self, horizon=3, window_size=6, sliding_step=1):
-        path = self._metrics_path(int(horizon), int(window_size), int(sliding_step))
+    def get_report(
+        self, horizon=3, window_size=6, sliding_step=1, training_size=0.8,
+        parameter_mode="auto", hidden_units=None, feedback_rate=None, epochs=None,
+    ):
+        path = self._metrics_path(
+            int(horizon), int(window_size), int(sliding_step), float(training_size),
+            parameter_mode, hidden_units, feedback_rate, epochs,
+        )
         if not path.exists():
             return None
         with path.open(encoding="utf-8") as handle:
@@ -843,17 +956,38 @@ class ProductRevenueTimeSeriesForecaster:
         top_n=20,
         revenue_threshold=None,
         forecast_method="recommended",
+        training_size=0.8,
+        parameter_mode="auto",
+        hidden_units=None,
+        feedback_rate=None,
+        epochs=None,
     ):
         """Forecast with both compared models and return side-by-side product results."""
         horizon, window_size, sliding_step = int(horizon), int(window_size), int(sliding_step)
-        self._validate_configuration(horizon, window_size, sliding_step, 0.8)
-        path = self._artifact_path(horizon, window_size, sliding_step)
+        training_size = float(training_size)
+        self._validate_configuration(horizon, window_size, sliding_step, training_size)
+        architecture_config = self._resolve_architecture(
+            parameter_mode, hidden_units, feedback_rate, epochs
+        )
+        configuration_key = self._configuration_key(
+            horizon, window_size, sliding_step, training_size, architecture_config
+        )
+        path = self._artifact_path(
+            horizon, window_size, sliding_step, training_size,
+            architecture_config["parameter_mode"], architecture_config["hidden_units"],
+            architecture_config["feedback_rate"], architecture_config["epochs"],
+        )
         if not path.exists():
-            raise ValueError("No trained time-series model for this horizon/window/step. Train it first.")
+            raise ValueError(
+                "No saved model matches this exact horizon, window, step, and "
+                "parameter configuration. Train and validate it first."
+            )
         with path.open("rb") as handle:
             artifact = pickle.load(handle)
         if artifact.get("artifact_version") != ARTIFACT_VERSION:
             raise ValueError("The saved model is obsolete. Retrain it with the corrected validation pipeline.")
+        if artifact.get("configuration_key") != configuration_key:
+            raise ValueError("Saved-model configuration mismatch. Retrain this configuration.")
 
         revenue_panel, unit_panel, products, data_profile = self.load_product_panels()
         trained_profile = artifact.get("data_profile", {})
@@ -1029,6 +1163,9 @@ class ProductRevenueTimeSeriesForecaster:
         forecast_start_day = data_profile["as_of_day"] + 1
         return {
             "horizon_months": horizon,
+            "configuration_key": configuration_key,
+            "saved_at_utc": artifact["report"].get("saved_at_utc"),
+            "training_configuration": artifact.get("training_configuration", {}),
             "window_size_months": window_size,
             "sliding_step_months": sliding_step,
             "forecast_method_requested": requested_method,

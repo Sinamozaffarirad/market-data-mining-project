@@ -315,6 +315,34 @@
   background: rgba(248, 249, 250, 0.7);
 }
 
+.predictive-scroll {
+  scrollbar-gutter: stable both-edges;
+  overscroll-behavior: contain;
+  scroll-behavior: smooth;
+  scroll-padding-bottom: 2rem;
+  padding-bottom: 0.75rem;
+}
+
+.predictive-scroll::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.predictive-scroll::-webkit-scrollbar-track {
+  background: #eef2f7;
+  border-radius: 6px;
+}
+
+.predictive-scroll::-webkit-scrollbar-thumb {
+  background: rgba(102, 126, 234, 0.55);
+  border: 2px solid #eef2f7;
+  border-radius: 6px;
+}
+
+.predictive-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(102, 126, 234, 0.8);
+}
+
 .recommendation-card {
   border-radius: 20px;
   border: 2px solid rgba(255, 255, 255, 0.8);
@@ -1163,7 +1191,7 @@ html, body {
           </div></div>
           <div class="col-lg-7"><div class="bg-white border rounded p-3 h-100">
             <h6 class="mb-2">Department probability scores</h6>
-            <div class="table-responsive" style="max-height:320px;overflow-y:auto">
+            <div class="table-responsive predictive-scroll" tabindex="0" aria-label="Scrollable department probability scores" style="max-height:320px;overflow:auto">
               <table class="table table-sm table-hover align-middle mb-0">
                 <thead class="table-light sticky-top"><tr><th>Department</th><th class="text-end">Avg probability</th><th class="text-end">Expected households</th><th class="text-end">High likelihood</th><th class="text-end">Scored</th></tr></thead>
                 <tbody id="legacyProbabilityRows"><tr><td colspan="5" class="text-center text-muted py-4">Train or load a classifier, then score repurchase probabilities.</td></tr></tbody>
@@ -1184,7 +1212,7 @@ html, body {
         <div class="row g-2">
           <div class="col-md-2">
             <label class="form-label control-label" for="timeSeriesHorizon">Forecast Horizon:</label>
-            <select class="form-select" id="timeSeriesHorizon">
+            <select class="form-select" id="timeSeriesHorizon" onchange="handleTimeSeriesModelConfigChange()">
               <option value="1">1 month</option>
               <option value="3" selected>3 months</option>
               <option value="6">6 months</option>
@@ -1193,7 +1221,7 @@ html, body {
           </div>
           <div class="col-md-2">
             <label class="form-label control-label" for="timeSeriesWindow">Lookback window:</label>
-            <select class="form-select" id="timeSeriesWindow">
+            <select class="form-select" id="timeSeriesWindow" onchange="handleTimeSeriesModelConfigChange()">
               <option value="3">3 months</option>
               <option value="6" selected>6 months</option>
               <option value="12">12 months</option>
@@ -1201,7 +1229,7 @@ html, body {
           </div>
           <div class="col-md-2">
             <label class="form-label control-label" for="timeSeriesStep">Window step:</label>
-            <select class="form-select" id="timeSeriesStep">
+            <select class="form-select" id="timeSeriesStep" onchange="handleTimeSeriesModelConfigChange()">
               <option value="1" selected>1 month</option>
               <option value="2">2 months</option>
               <option value="3">3 months</option>
@@ -1229,13 +1257,33 @@ html, body {
               <option value="recent_average_baseline">Recent-average benchmark</option>
             </select>
           </div>
-          <div class="col-12 d-flex flex-wrap justify-content-start gap-2 pt-1">
+          <div class="col-12">
+            <div class="border rounded bg-white p-3 mt-1">
+              <div class="d-flex flex-wrap align-items-end gap-3">
+                <div style="min-width:180px">
+                  <label class="form-label control-label" for="timeSeriesParameterMode">Parameter mode:</label>
+                  <select class="form-select form-select-sm" id="timeSeriesParameterMode" onchange="setTimeSeriesParameterMode()">
+                    <option value="auto" selected>Auto (recommended)</option>
+                    <option value="custom">Custom</option>
+                  </select>
+                </div>
+                <div id="timeSeriesCustomParameters" class="d-flex flex-wrap gap-2" aria-label="Custom recurrent model parameters">
+                  <div style="min-width:140px"><label class="form-label small mb-1" for="timeSeriesHiddenUnits">Hidden units</label><select class="form-select form-select-sm" id="timeSeriesHiddenUnits" disabled onchange="handleTimeSeriesModelConfigChange()"><option value="8">8</option><option value="16" selected>16</option><option value="32">32</option><option value="64">64</option></select></div>
+                  <div style="min-width:150px"><label class="form-label small mb-1" for="timeSeriesFeedbackRate">Feedback weight</label><select class="form-select form-select-sm" id="timeSeriesFeedbackRate" disabled onchange="handleTimeSeriesModelConfigChange()"><option value="0.25">0.25</option><option value="0.5" selected>0.50</option><option value="0.75">0.75</option><option value="1">1.00</option></select></div>
+                  <div style="min-width:130px"><label class="form-label small mb-1" for="timeSeriesEpochs">Epochs</label><select class="form-select form-select-sm" id="timeSeriesEpochs" disabled onchange="handleTimeSeriesModelConfigChange()"><option value="5">5</option><option value="10" selected>10</option><option value="15">15</option><option value="20">20</option><option value="30">30</option></select></div>
+                </div>
+                <div class="small text-muted flex-grow-1" style="min-width:260px"><strong class="text-dark">Required architecture:</strong> recursive feedback, joint multi-step loss, and BPTT remain enabled in both modes. Max supervised rollout is calculated from available calendar history, not chosen by the user.</div>
+              </div>
+            </div>
+          </div>
+          <div class="col-12 d-flex flex-wrap align-items-center justify-content-start gap-2 pt-1">
             <button class="btn btn-success" id="trainTimeSeriesBtn" type="button" onclick="trainProductTimeSeries()">
               <i class="fas fa-graduation-cap"></i> Train & validate models
             </button>
             <button class="btn btn-primary" id="forecastTimeSeriesBtn" type="button" onclick="forecastProductTimeSeries()" disabled>
               <i class="fas fa-crystal-ball"></i> Forecast future revenue
             </button>
+            <span id="timeSeriesSavedModelStatus" class="badge bg-secondary">Checking saved model…</span>
           </div>
         </div>
         <details class="border rounded bg-white px-3 py-2 mt-2 small">
@@ -1254,20 +1302,20 @@ html, body {
         </div>
         <div class="row g-2 mt-1">
           <div class="col-lg-4">
-            <div class="bg-white border rounded p-2 h-100">
-              <h6 class="small mb-2">Department forecast comparison <span class="text-muted">(eligible products)</span></h6>
+            <div class="bg-white border rounded p-2 h-100" id="timeSeriesDepartmentChartContainer">
+              <div class="d-flex justify-content-between align-items-start gap-2"><h6 class="small mb-2">Department forecast comparison <span class="text-muted">(eligible products)</span></h6><button class="btn btn-outline-primary btn-sm" type="button" onclick="expandChart('timeSeriesDepartmentChartContainer')" title="Expand department forecast chart"><i class="fas fa-expand-arrows-alt"></i> Expand</button></div>
               <div style="height: 320px;"><canvas id="timeSeriesDepartmentChart"></canvas></div>
             </div>
           </div>
           <div class="col-lg-4">
-            <div class="bg-white border rounded p-2 h-100">
-              <h6 class="small mb-2">Holdout accuracy and Top-20 ranking</h6>
+            <div class="bg-white border rounded p-2 h-100" id="timeSeriesComparisonChartContainer">
+              <div class="d-flex justify-content-between align-items-start gap-2"><h6 class="small mb-2">Holdout error and Top-20 ranking</h6><button class="btn btn-outline-primary btn-sm" type="button" onclick="expandChart('timeSeriesComparisonChartContainer')" title="Expand holdout comparison chart"><i class="fas fa-expand-arrows-alt"></i> Expand</button></div>
               <div style="height: 320px;"><canvas id="timeSeriesComparisonChart"></canvas></div>
             </div>
           </div>
           <div class="col-lg-4">
-            <div class="bg-white border rounded p-2 h-100">
-              <h6 class="small mb-2">Holdout total revenue by 30-day period</h6>
+            <div class="bg-white border rounded p-2 h-100" id="timeSeriesActualChartContainer">
+              <div class="d-flex justify-content-between align-items-start gap-2"><h6 class="small mb-2">Holdout total revenue by 30-day period</h6><button class="btn btn-outline-primary btn-sm" type="button" onclick="expandChart('timeSeriesActualChartContainer')" title="Expand holdout revenue chart"><i class="fas fa-expand-arrows-alt"></i> Expand</button></div>
               <div style="height: 320px;"><canvas id="timeSeriesActualChart"></canvas></div>
               <small class="text-muted d-block mt-1">All lines are produced from the same forecast origin without seeing holdout revenue. The recent-average benchmark is constant by definition.</small>
             </div>
@@ -1325,14 +1373,16 @@ html, body {
             <div class="input-group input-group-sm" style="width:230px"><span class="input-group-text"><i class="fas fa-search"></i></span><input id="forecastProductSearch" class="form-control" type="search" placeholder="Find product or category" oninput="filterForecastRows()"></div>
             <button class="btn btn-outline-secondary btn-sm" type="button" onclick="setAllForecastDetails(true)"><i class="fas fa-angle-double-down"></i> Expand all</button>
             <button class="btn btn-outline-secondary btn-sm" type="button" onclick="setAllForecastDetails(false)"><i class="fas fa-angle-double-up"></i> Collapse all</button>
+            <button class="btn btn-outline-primary btn-sm" type="button" onclick="expandSection('timeSeriesForecast')"><i class="fas fa-expand-arrows-alt"></i> Expand results</button>
           </div>
         </div>
-        <div class="table-responsive" style="max-height: 520px; overflow-y: auto;">
+        <div class="table-responsive predictive-scroll" id="timeSeriesForecastScroll" tabindex="0" aria-label="Scrollable product revenue forecast results" style="max-height: 620px; overflow: auto;">
           <table class="table table-sm table-hover align-middle mb-0" id="productRevenueForecastTable">
             <thead class="table-light sticky-top"><tr>
               <th style="width:48px">Rank</th><th>Product</th><th>Department</th><th>Commodity</th><th class="text-end">Recursive time series</th><th class="text-end">Independent model</th><th class="text-end">Difference</th><th class="text-end">Historical revenue / quantity <i class="fas fa-info-circle text-muted" title="Historical sales_value divided by positive recorded quantity. Quantity units vary for gasoline and weighted products."></i></th><th class="text-center" style="width:72px">Details</th>
             </tr></thead>
             <tbody id="timeSeriesForecastRows"><tr><td colspan="9" class="text-center text-muted py-4">Train and validate the models to see product-level forecasts.</td></tr></tbody>
+            <tfoot><tr><td colspan="9" style="height:20px;border:0;background:white"></td></tr></tfoot>
           </table>
         </div>
         <div id="forecastResultSummary" class="small text-muted mt-2"></div>
@@ -3718,6 +3768,18 @@ function expandChart(chartId) {
       title = 'Comparative Analysis Results';
       container = document.getElementById('comparisonChartContainer');
       break;
+    case 'timeSeriesDepartmentChartContainer':
+      title = 'Department Forecast Comparison';
+      container = document.getElementById('timeSeriesDepartmentChartContainer');
+      break;
+    case 'timeSeriesComparisonChartContainer':
+      title = 'Holdout Error and Top-20 Ranking';
+      container = document.getElementById('timeSeriesComparisonChartContainer');
+      break;
+    case 'timeSeriesActualChartContainer':
+      title = 'Holdout Total Revenue by 30-Day Period';
+      container = document.getElementById('timeSeriesActualChartContainer');
+      break;
     default:
       console.warn('Unknown chart ID:', chartId);
       title = 'Chart Analysis';
@@ -3981,6 +4043,12 @@ function getChartKey(chartId) {
       return 'trends';
     case 'comparisonChart':
       return 'comparison';
+    case 'timeSeriesDepartmentChartContainer':
+      return 'timeSeriesDepartment';
+    case 'timeSeriesComparisonChartContainer':
+      return 'timeSeriesComparison';
+    case 'timeSeriesActualChartContainer':
+      return 'timeSeriesActual';
     default:
       return null;
   }
@@ -4014,6 +4082,10 @@ function expandSection(sectionType) {
       title = 'All Differential Analysis Insights';
       container = document.getElementById('differentialInsights');
       break;
+    case 'timeSeriesForecast':
+      title = 'Product Revenue Forecast Results';
+      container = document.getElementById('productRevenueForecastTable');
+      break;
   }
   
   if (container) {
@@ -4035,9 +4107,18 @@ function expandSection(sectionType) {
         </div>
       `;
     } else {
-      content = container.innerHTML;
+      if (sectionType === 'timeSeriesForecast') {
+        const forecastClone = container.cloneNode(true);
+        forecastClone.querySelectorAll('[data-forecast-detail]').forEach(row => { row.style.display = ''; });
+        forecastClone.querySelectorAll('button[aria-controls]').forEach(button => button.remove());
+        content = forecastClone.innerHTML;
+      } else {
+        content = container.innerHTML;
+      }
       if (sectionType === 'baskets' || sectionType === 'recommendations' || sectionType === 'differential') {
         content = `<div class="row g-3">${content}</div>`;
+      } else if (sectionType === 'timeSeriesForecast') {
+        content = `<div class="table-responsive predictive-scroll" style="max-height:68vh;overflow:auto"><table class="table table-sm table-hover align-middle bg-white">${content}</table></div>`;
       }
     }
 
@@ -5100,21 +5181,80 @@ function getHorizonLabel(months) {
 }
 
 function getTimeSeriesConfig() {
+  const parameterMode = document.getElementById('timeSeriesParameterMode')?.value || 'auto';
   return {
     time_horizon: Number(document.getElementById('timeSeriesHorizon')?.value || 3),
     window_size: Number(document.getElementById('timeSeriesWindow')?.value || 6),
     sliding_step: Number(document.getElementById('timeSeriesStep')?.value || 1),
-    training_size: Number(document.getElementById('trainingSizeSlider')?.value || 0.8),
+    training_size: 0.8,
     top_n: Number(document.getElementById('timeSeriesTopN')?.value || 20),
     revenue_threshold: document.getElementById('timeSeriesThreshold')?.value || '',
     forecast_method: document.getElementById('timeSeriesMethod')?.value || 'recommended',
+    parameter_mode: parameterMode,
+    hidden_units: Number(document.getElementById('timeSeriesHiddenUnits')?.value || 16),
+    feedback_rate: Number(document.getElementById('timeSeriesFeedbackRate')?.value || 0.5),
+    epochs: Number(document.getElementById('timeSeriesEpochs')?.value || 10),
   };
+}
+
+function timeSeriesModelConfigKey(config = getTimeSeriesConfig()) {
+  const mode = config.parameter_mode || 'auto';
+  const architecture = mode === 'auto' ? 'hu16-fb0.5-e10' : `hu${config.hidden_units}-fb${config.feedback_rate}-e${config.epochs}`;
+  return `h${config.time_horizon}-w${config.window_size}-s${config.sliding_step}-tr${config.training_size}-${mode}-${architecture}`;
+}
+
+let lastReadyTimeSeriesModelKey = null;
+let savedModelCheckSerial = 0;
+
+function setTimeSeriesParameterMode() {
+  const custom = document.getElementById('timeSeriesParameterMode')?.value === 'custom';
+  ['timeSeriesHiddenUnits', 'timeSeriesFeedbackRate', 'timeSeriesEpochs'].forEach(id => {
+    const control = document.getElementById(id);
+    if (control) control.disabled = !custom;
+  });
+  handleTimeSeriesModelConfigChange();
+}
+
+function setSavedModelStatus(label, className = 'bg-secondary') {
+  const status = document.getElementById('timeSeriesSavedModelStatus');
+  if (!status) return;
+  status.className = `badge ${className}`;
+  status.textContent = label;
+}
+
+function handleTimeSeriesModelConfigChange() {
+  lastReadyTimeSeriesModelKey = null;
+  const forecastButton = document.getElementById('forecastTimeSeriesBtn');
+  if (forecastButton) forecastButton.disabled = true;
+  setSavedModelStatus('Checking saved model…', 'bg-secondary');
+  refreshSavedTimeSeriesModel();
+}
+
+async function refreshSavedTimeSeriesModel() {
+  const serial = ++savedModelCheckSerial;
+  const config = getTimeSeriesConfig();
+  const key = timeSeriesModelConfigKey(config);
+  try {
+    const data = await timeSeriesRequest(TIME_SERIES_ENDPOINTS.report, config);
+    if (serial !== savedModelCheckSerial || key !== timeSeriesModelConfigKey()) return;
+    lastReadyTimeSeriesModelKey = key;
+    renderTimeSeriesReportV5(data.report);
+    document.getElementById('forecastTimeSeriesBtn').disabled = false;
+    const savedAt = data.report.saved_at_utc ? new Date(data.report.saved_at_utc).toLocaleString() : 'earlier';
+    setSavedModelStatus(`Saved model ready · ${savedAt}`, 'bg-success');
+  } catch (error) {
+    if (serial !== savedModelCheckSerial || key !== timeSeriesModelConfigKey()) return;
+    lastReadyTimeSeriesModelKey = null;
+    document.getElementById('forecastTimeSeriesBtn').disabled = true;
+    setSavedModelStatus('No saved model for this configuration', 'bg-warning text-dark');
+  }
 }
 
 const TIME_SERIES_ENDPOINTS = {
   // Kept as plain paths so a stale Django URL resolver cannot prevent this page rendering.
   train: '/analysis/api/ml/time-series/train/',
   forecast: '/analysis/api/ml/time-series/forecast/',
+  report: '/analysis/api/ml/time-series/report/',
 };
 
 let lastTimeSeriesForecast = null;
@@ -5196,8 +5336,11 @@ async function trainProductTimeSeries() {
   reportContainer.innerHTML = '<div class="alert alert-warning mb-0"><i class="fas fa-spinner fa-spin"></i> Building sliding windows, training the product revenue model, and validating it in chronological order…</div>';
   try {
     const data = await timeSeriesRequest(TIME_SERIES_ENDPOINTS.train, config);
+    lastReadyTimeSeriesModelKey = timeSeriesModelConfigKey(config);
     renderTimeSeriesReportV5(data.report);
     forecastButton.disabled = false;
+    const savedAt = data.report.saved_at_utc ? new Date(data.report.saved_at_utc).toLocaleString() : 'now';
+    setSavedModelStatus(`Saved model ready · ${savedAt}`, 'bg-success');
     showNotification('Product time-series model trained successfully.', 'success');
     await forecastProductTimeSeries();
   } catch (error) {
@@ -6512,9 +6655,10 @@ function renderTimeSeriesActualChart(report) {
   const canvas = document.getElementById('timeSeriesActualChart');
   if (!canvas || typeof Chart === 'undefined') return;
   const points = report.holdout_actual_vs_predicted || [];
+  const chartType = points.length < 3 ? 'bar' : 'line';
   if (charts.timeSeriesActual) charts.timeSeriesActual.destroy();
   charts.timeSeriesActual = new Chart(canvas, {
-    type: 'line',
+    type: chartType,
     data: {
       labels: points.map(point => `Days ${point.start_day}-${point.end_day}`),
       datasets: [
@@ -6560,12 +6704,16 @@ function renderTimeSeriesReportV5(report) {
   const rolloutWarning = Number(training.maximum_supervised_rollout || 0) < Number(report.horizon_months || 0)
     ? `<div class="alert alert-warning py-2 px-3 small mt-2 mb-0"><strong>Long-horizon limitation:</strong> this holdout has ${Number(training.maximum_supervised_rollout || 0)} supervised recursive step(s) available before the test boundary, while the model is evaluated over ${Number(report.horizon_months || 0)}. The remaining steps are genuine recursive extrapolation.</div>`
     : '';
+  const bothUnderpredict = Number(sequence.bias_percent || 0) < 0 && Number(independent.bias_percent || 0) < 0;
+  const biasWarning = bothUnderpredict
+    ? `<div class="alert alert-warning py-2 px-3 small mt-2 mb-0"><strong>Negative holdout bias:</strong> Recursive RNN ${metricCell(sequence.bias_percent, true)} and independent direct ${metricCell(independent.bias_percent, true)}. Both estimated less total revenue than actually occurred. This is visible rather than corrected with holdout data; cold starts, sparse Product IDs, log-target shrinkage, and a strong final period are contributing risks.</div>`
+    : '';
   const methods = [
     ['Recursive RNN', sequence, 'table-primary'],
     ['Independent direct model', independent, ''],
     ['Recent-average benchmark', baseline, ''],
   ];
-  const metricRows = methods.map(([label, metrics, rowClass]) => `<tr class="${rowClass}"><td><strong>${label}</strong></td><td>${metricCell(metrics.mae)}</td><td>${metricCell(metrics.rmse)}</td><td>${metricCell(metrics.wmape, true)}</td><td>${metricCell(metrics.smape, true)}</td><td>${metricCell(metrics.r2)}</td><td>${metricCell(metrics.spearman)}</td><td>${metricCell(metrics.kendall_tau)}</td></tr>`).join('');
+  const metricRows = methods.map(([label, metrics, rowClass]) => `<tr class="${rowClass}"><td><strong>${label}</strong></td><td>${metricCell(metrics.mae)}</td><td>${metricCell(metrics.rmse)}</td><td>${metricCell(metrics.wmape, true)}</td><td>${metricCell(metrics.smape, true)}</td><td>${metricCell(metrics.bias_percent, true)}</td><td>${metricCell(metrics.r2)}</td><td>${metricCell(metrics.precision_at_k, true)}</td><td>${metricCell(metrics.spearman)}</td><td>${metricCell(metrics.kendall_tau)}</td></tr>`).join('');
   const rankingRows = [5, 10, 20].flatMap(k => methods.map(([label, metrics]) => {
     const item = (metrics.ranking_at_k || {})[String(k)] || {};
     return `<tr><td>${k}</td><td>${label}</td><td>${Number(item.overlap_count || 0)} / ${Number(item.k_used || k)}</td><td>${metricCell(item.precision_at_k, true)}</td><td>${metricCell(item.recall_at_k, true)}</td><td>${metricCell(item.jaccard_at_k, true)}</td><td>${metricCell(item.ndcg_at_k, true)}</td><td>${metricCell(item.rank_biased_overlap, true)}</td></tr>`;
@@ -6586,11 +6734,14 @@ function renderTimeSeriesReportV5(report) {
         <span class="badge bg-light text-dark border">BPTT: ${architecture.backpropagation_through_time ? 'yes' : 'no'}</span>
         <span class="badge bg-light text-dark border">Hidden units: ${Number(architecture.hidden_units || 0)}</span>
         <span class="badge bg-light text-dark border">Feedback weight: ${metricCell(architecture.feedback_rate)}</span>
+        <span class="badge bg-light text-dark border">Epochs: ${Number(training.epochs || 0)}</span>
+        <span class="badge bg-light text-dark border">Mode: ${escapeHtml((report.training_configuration || {}).parameter_mode || 'auto')}</span>
         <span class="badge bg-light text-dark border">Max supervised rollout: ${Number(training.maximum_supervised_rollout || 0)}</span>
       </div>
       ${rolloutWarning}
+      ${biasWarning}
       <div class="small fw-semibold mt-3">Cumulative Product ID revenue error and full-ranking correlation</div>
-      <div class="table-responsive mt-1"><table class="table table-sm table-bordered bg-white mb-0"><thead><tr><th>Method</th><th>MAE</th><th>RMSE</th><th>WMAPE</th><th>sMAPE</th><th>R&sup2;</th><th>Spearman</th><th>Kendall &tau;</th></tr></thead><tbody>${metricRows}</tbody></table></div>
+      <div class="table-responsive predictive-scroll mt-1"><table class="table table-sm table-bordered bg-white mb-0"><thead><tr><th>Method</th><th>MAE</th><th>RMSE</th><th>WMAPE</th><th>sMAPE</th><th>Bias</th><th>R&sup2;</th><th>Precision@${Number(sequence.top_k || 20)}</th><th>Spearman</th><th>Kendall &tau;</th></tr></thead><tbody>${metricRows}</tbody></table></div>
       <div class="d-flex flex-wrap gap-2 mt-2 small">
         <span class="badge bg-light text-dark border">Period-total WMAPE · RNN ${metricCell(sequencePeriod.wmape, true)} · direct ${metricCell(independentPeriod.wmape, true)} · recent average ${metricCell(baselinePeriod.wmape, true)}</span>
         <span class="badge bg-light text-dark border">Best product WMAPE: ${forecastMethodLabel(guidance.best_for_revenue_error)}</span>
@@ -6609,9 +6760,10 @@ function renderTimeSeriesActualChartV5(report) {
   const canvas = document.getElementById('timeSeriesActualChart');
   if (!canvas || typeof Chart === 'undefined') return;
   const points = report.holdout_actual_vs_predicted || [];
+  const chartType = points.length < 3 ? 'bar' : 'line';
   if (charts.timeSeriesActual) charts.timeSeriesActual.destroy();
   charts.timeSeriesActual = new Chart(canvas, {
-    type: 'line',
+    type: chartType,
     data: {
       labels: points.map(point => `Days ${point.start_day}–${point.end_day}`),
       datasets: [
@@ -6621,7 +6773,7 @@ function renderTimeSeriesActualChartV5(report) {
         {label: 'Recent average', data: points.map(point => Number(point.baseline_revenue || 0)), borderColor: '#94a3b8', backgroundColor: '#94a3b8', borderDash: [6, 4]},
       ],
     },
-    options: {responsive: true, maintainAspectRatio: false, interaction: {mode: 'index', intersect: false}, scales: {y: {beginAtZero: false, grace: '10%', title: {display: true, text: 'Total revenue'}}}, plugins: {legend: {position: 'bottom'}}},
+    options: {responsive: true, maintainAspectRatio: false, interaction: {mode: 'index', intersect: false}, scales: {y: {beginAtZero: chartType === 'bar', grace: '10%', title: {display: true, text: 'Total revenue'}}}, plugins: {legend: {position: 'bottom'}}},
   });
 }
 
@@ -6645,7 +6797,7 @@ async function forecastProductTimeSeries() {
     rows.innerHTML = `<tr><td colspan="9" class="text-center text-danger py-4">${escapeHtml(error.message)}</td></tr>`;
     showNotification(error.message, 'error');
   } finally {
-    button.disabled = false;
+    button.disabled = lastReadyTimeSeriesModelKey !== timeSeriesModelConfigKey();
   }
 }
 
@@ -6692,7 +6844,7 @@ function renderProductForecastRows(predictions, response) {
       <div class="row g-3">
         <div class="col-lg-4"><div class="border rounded bg-white p-3 h-100"><h6 class="small fw-bold mb-2">Product information</h6><dl class="row small mb-0"><dt class="col-5">Sub-commodity</dt><dd class="col-7">${escapeHtml(product.sub_commodity || 'Unknown')}</dd><dt class="col-5">Manufacturer</dt><dd class="col-7">${escapeHtml(product.manufacturer ?? 'Unknown')}</dd><dt class="col-5">Brand</dt><dd class="col-7">${escapeHtml(product.brand || 'Unknown')}</dd><dt class="col-5">Size</dt><dd class="col-7">${escapeHtml(product.size || 'N/A')}</dd></dl></div></div>
         <div class="col-lg-3"><div class="border rounded bg-white p-3 h-100"><h6 class="small fw-bold mb-2">Horizon totals</h6><div class="small d-flex justify-content-between"><span>Recursive RNN</span><strong>${forecastMoney(product.time_series_revenue)}</strong></div><div class="small d-flex justify-content-between mt-2"><span>Independent direct</span><strong>${forecastMoney(product.independent_revenue)}</strong></div><div class="small d-flex justify-content-between mt-2"><span>Recent average</span><strong>${forecastMoney(product.baseline_revenue)}</strong></div><div class="small d-flex justify-content-between mt-2"><span>Estimated units</span><strong>${product.predicted_units == null ? 'N/A' : Number(product.predicted_units).toLocaleString(undefined, {maximumFractionDigits: 2})}</strong></div></div></div>
-        <div class="col-lg-5"><div class="border rounded bg-white p-2 h-100"><h6 class="small fw-bold px-1 mb-2">Forecast by 30-day period</h6><div class="table-responsive" style="max-height:220px"><table class="table table-sm mb-0"><thead><tr><th>Period</th><th class="text-end">Recursive</th><th class="text-end">Independent</th><th class="text-end">Recent avg</th></tr></thead><tbody>${monthlyRows}</tbody></table></div></div></div>
+        <div class="col-lg-5"><div class="border rounded bg-white p-2 h-100"><h6 class="small fw-bold px-1 mb-2">Forecast by 30-day period</h6><div class="table-responsive predictive-scroll" tabindex="0" aria-label="Scrollable forecast periods for product ${escapeHtml(product.product_id)}" style="max-height:260px;overflow:auto"><table class="table table-sm mb-0"><thead class="sticky-top bg-white"><tr><th>Period</th><th class="text-end">Recursive</th><th class="text-end">Independent</th><th class="text-end">Recent avg</th></tr></thead><tbody>${monthlyRows}</tbody><tfoot><tr><td colspan="4" style="height:12px;border:0"></td></tr></tfoot></table></div></div></div>
       </div>
     </td></tr>`;
   }).join('');
@@ -6758,7 +6910,10 @@ function downloadTimeSeriesMetrics() {
   downloadBlob(`product_revenue_validation_h${lastTimeSeriesReport.horizon_months}.json`, JSON.stringify(lastTimeSeriesReport, null, 2), 'application/json');
 }
 
-document.addEventListener('DOMContentLoaded', () => showPredictiveSubtab('revenue'));
+document.addEventListener('DOMContentLoaded', () => {
+  showPredictiveSubtab('revenue');
+  setTimeSeriesParameterMode();
+});
 
 // Auto-refresh High-Value Baskets and Products every 30 seconds
 function refreshHighValueSections() {
