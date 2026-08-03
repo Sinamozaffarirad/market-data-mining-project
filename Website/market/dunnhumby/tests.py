@@ -145,6 +145,18 @@ class ProductRevenueTimeSeriesTests(SimpleTestCase):
         )
         self.assertEqual(metrics["bias_percent"], -0.2)
 
+    def test_product_metrics_report_positive_bias_for_overprediction(self):
+        metrics = self.forecaster._evaluate(
+            np.array([1, 2]), np.array([100.0, 50.0]), np.array([120.0, 60.0]), 2
+        )
+        self.assertEqual(metrics["bias_percent"], 0.2)
+
+    def test_saved_report_explains_bias_in_both_directions(self):
+        report = {"bias_diagnostics": {"interpretation": "stale text"}}
+        refreshed = self.forecaster._refresh_report_interpretation(report)
+        self.assertIn("underprediction", refreshed["bias_diagnostics"]["interpretation"])
+        self.assertIn("overprediction", refreshed["bias_diagnostics"]["interpretation"])
+
     def test_impossible_window_and_holdout_fails_explicitly(self):
         with self.assertRaisesRegex(ValueError, "Not enough complete history"):
             self.forecaster._training_origins(
