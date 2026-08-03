@@ -343,6 +343,108 @@
   background: rgba(102, 126, 234, 0.8);
 }
 
+.product-revenue-results-card,
+.admin .chart-container.product-revenue-results-card {
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow: hidden !important;
+}
+
+#timeSeriesForecastScroll {
+  max-height: none;
+  overflow-x: auto;
+  overflow-y: visible;
+  padding-bottom: 0;
+}
+
+.forecast-pagination {
+  min-height: 38px;
+}
+
+.expanded-chart-stage {
+  height: min(68vh, 720px);
+  min-height: 420px;
+  padding: 1rem;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+}
+
+#detailModal.predictive-chart-modal .modal-dialog,
+#detailModal.predictive-results-modal .modal-dialog {
+  width: min(96vw, 1500px);
+  max-width: min(96vw, 1500px);
+}
+
+#detailModal.predictive-chart-modal .modal-body,
+#detailModal.predictive-results-modal .modal-body {
+  padding: 1.25rem;
+}
+
+.forecast-expanded-toolbar {
+  position: sticky;
+  top: -1.25rem;
+  z-index: 5;
+  margin: -1.25rem -1.25rem 1rem;
+  padding: 1rem 1.25rem;
+  background: rgba(248, 250, 252, 0.97);
+  border-bottom: 1px solid #e5e7eb;
+  backdrop-filter: blur(8px);
+}
+
+.forecast-expanded-card {
+  border: 1px solid #dbe3ee;
+  border-radius: 12px;
+  background: #fff;
+  margin-bottom: 0.75rem;
+  overflow: hidden;
+}
+
+.forecast-expanded-card > summary {
+  display: grid;
+  grid-template-columns: 60px minmax(150px, 1.2fr) minmax(130px, 1fr) repeat(3, minmax(125px, .8fr));
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+.forecast-expanded-card > summary::-webkit-details-marker {
+  display: none;
+}
+
+.forecast-expanded-card[open] > summary {
+  background: #f4f7ff;
+  border-bottom: 1px solid #dbe3ee;
+}
+
+.forecast-expanded-detail {
+  padding: 1rem;
+}
+
+.academic-evidence-summary {
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-left: 4px solid #2563eb;
+  border-radius: 8px;
+  padding: .75rem;
+}
+
+@media (max-width: 992px) {
+  .forecast-expanded-card > summary {
+    grid-template-columns: 48px 1fr 1fr;
+  }
+  .forecast-expanded-card > summary .expanded-summary-secondary {
+    display: none;
+  }
+  .expanded-chart-stage {
+    height: 62vh;
+    min-height: 340px;
+  }
+}
+
 .recommendation-card {
   border-radius: 20px;
   border: 2px solid rgba(255, 255, 255, 0.8);
@@ -1366,17 +1468,17 @@ html, body {
       </div>
 
       <!-- Recommended Products -->
-      <div class="chart-container mb-3" data-predictive-panel="revenue">
+      <div class="chart-container product-revenue-results-card mb-3" data-predictive-panel="revenue">
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
           <div><h5 class="mb-0"><i class="fas fa-list-ol"></i> Product Revenue Forecast Results</h5><small class="text-muted">Recursive and independent forecasts are shown side by side.</small></div>
           <div class="d-flex flex-wrap gap-2 align-items-center">
-            <div class="input-group input-group-sm" style="width:230px"><span class="input-group-text"><i class="fas fa-search"></i></span><input id="forecastProductSearch" class="form-control" type="search" placeholder="Find product or category" oninput="filterForecastRows()"></div>
+            <div class="input-group input-group-sm" style="width:230px"><span class="input-group-text"><i class="fas fa-search"></i></span><input id="forecastProductSearch" class="form-control" type="search" placeholder="Find product or category" oninput="forecastCurrentPage=1;filterForecastRows()"></div>
             <button class="btn btn-outline-secondary btn-sm" type="button" onclick="setAllForecastDetails(true)"><i class="fas fa-angle-double-down"></i> Expand all</button>
             <button class="btn btn-outline-secondary btn-sm" type="button" onclick="setAllForecastDetails(false)"><i class="fas fa-angle-double-up"></i> Collapse all</button>
             <button class="btn btn-outline-primary btn-sm" type="button" onclick="expandSection('timeSeriesForecast')"><i class="fas fa-expand-arrows-alt"></i> Expand results</button>
           </div>
         </div>
-        <div class="table-responsive predictive-scroll" id="timeSeriesForecastScroll" tabindex="0" aria-label="Scrollable product revenue forecast results" style="max-height: 620px; overflow: auto;">
+        <div class="table-responsive predictive-scroll" id="timeSeriesForecastScroll" tabindex="0" aria-label="Product revenue forecast results">
           <table class="table table-sm table-hover align-middle mb-0" id="productRevenueForecastTable">
             <thead class="table-light sticky-top"><tr>
               <th style="width:48px">Rank</th><th>Product</th><th>Department</th><th>Commodity</th><th class="text-end">Recursive time series</th><th class="text-end">Independent model</th><th class="text-end">Difference</th><th class="text-end">Historical revenue / quantity <i class="fas fa-info-circle text-muted" title="Historical sales_value divided by positive recorded quantity. Quantity units vary for gasoline and weighted products."></i></th><th class="text-center" style="width:72px">Details</th>
@@ -1385,7 +1487,14 @@ html, body {
             <tfoot><tr><td colspan="9" style="height:20px;border:0;background:white"></td></tr></tfoot>
           </table>
         </div>
-        <div id="forecastResultSummary" class="small text-muted mt-2"></div>
+        <div class="forecast-pagination d-flex flex-wrap justify-content-between align-items-center gap-2 mt-2">
+          <div id="forecastResultSummary" class="small text-muted"></div>
+          <div class="btn-group btn-group-sm" role="group" aria-label="Forecast result pages">
+            <button class="btn btn-outline-secondary" id="forecastPreviousPage" type="button" onclick="changeForecastPage(-1)"><i class="fas fa-chevron-left"></i> Previous</button>
+            <span class="btn btn-light disabled" id="forecastPageStatus">Page 1 of 1</span>
+            <button class="btn btn-outline-secondary" id="forecastNextPage" type="button" onclick="changeForecastPage(1)">Next <i class="fas fa-chevron-right"></i></button>
+          </div>
+        </div>
       </div>
 
       <!-- Recommended Products -->
@@ -3748,6 +3857,22 @@ function showTopProductDetails(datasetSource) {
 }
 
 
+let expandedChartInstance = null;
+
+function setPredictiveModalMode(mode) {
+  const modal = document.getElementById('detailModal');
+  if (!modal) return;
+  modal.classList.remove('predictive-chart-modal', 'predictive-results-modal');
+  if (mode) modal.classList.add(mode);
+  modal.addEventListener('hidden.bs.modal', () => {
+    modal.classList.remove('predictive-chart-modal', 'predictive-results-modal');
+    if (expandedChartInstance) {
+      expandedChartInstance.destroy();
+      expandedChartInstance = null;
+    }
+  }, {once: true});
+}
+
 function expandChart(chartId) {
   let title, content, container;
 
@@ -3797,9 +3922,10 @@ function expandChart(chartId) {
     // Always create canvas for expansion if we have a chart or if it's a comparison chart
     if (canvas || (chartKey === 'comparison' && charts.comparison)) {
       content = `
-        <div style="background: white; padding: 2rem; border-radius: 15px; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
-          <canvas id="${chartId}_expanded" height="600" style="max-width: 100%; max-height: 70vh;"></canvas>
+        <div class="expanded-chart-stage">
+          <canvas id="${chartId}_expanded"></canvas>
         </div>
+        <p class="small text-muted mt-2 mb-0">The expanded view uses the same saved holdout data and scales as the chart on the page.</p>
       `;
     } else {
       // Fallback for non-canvas content (placeholder or other content)
@@ -3815,13 +3941,10 @@ function expandChart(chartId) {
       `;
     }
 
-    const modalContent = `
-      <div id="expandedChartContent" style="max-height: 80vh; overflow-y: auto;">
-        ${content}
-      </div>
-    `;
+    const modalContent = `<div id="expandedChartContent">${content}</div>`;
 
     showDetailModal(title || 'Chart Analysis', modalContent);
+    setPredictiveModalMode('predictive-chart-modal');
 
     // Re-create the chart in the expanded canvas if it exists
     setTimeout(() => {
@@ -3887,61 +4010,56 @@ function recreateExpandedChart(chartId) {
 
   if (!originalChart) {
     console.log('No original chart found for key:', chartKey);
+    expandedCanvas.style.display = 'none';
+    expandedCanvas.parentElement.innerHTML = '<div class="alert alert-info mb-0">Generate a forecast first so this chart has data to expand.</div>';
     return;
   }
 
-  // Create a new chart with the same data but larger size
-  const newChart = new Chart(expandedCanvas, {
-    type: originalChart.config.type,
-    data: originalChart.data,
-    options: {
-      ...originalChart.options,
-      responsive: true,
-      maintainAspectRatio: false,
-      devicePixelRatio: window.devicePixelRatio || 2,
-      plugins: {
-        ...originalChart.options.plugins,
-        title: {
-          ...originalChart.options.plugins?.title,
-          font: { size: 20, weight: 'bold' },
-          padding: 30
+  // Chart.js options are resolver Proxies. Spreading those Proxies into a new
+  // chart throws in Chart.js, so expanded charts use plain copied data and a
+  // small, explicit option set instead.
+  const plainData = {
+    labels: Array.from(originalChart.data.labels || []),
+    datasets: (originalChart.data.datasets || []).map(dataset => ({
+      label: dataset.label,
+      data: Array.from(dataset.data || []),
+      backgroundColor: dataset.backgroundColor,
+      borderColor: dataset.borderColor,
+      borderWidth: dataset.borderWidth,
+      borderDash: dataset.borderDash ? Array.from(dataset.borderDash) : undefined,
+      tension: dataset.tension,
+      fill: dataset.fill,
+      pointRadius: dataset.pointRadius,
+      pointHoverRadius: dataset.pointHoverRadius,
+    })),
+  };
+  const isDepartment = chartKey === 'timeSeriesDepartment';
+  const isActual = chartKey === 'timeSeriesActual';
+  const chartType = originalChart.config.type || 'bar';
+  const options = {
+    responsive: true,
+    maintainAspectRatio: false,
+    devicePixelRatio: window.devicePixelRatio || 2,
+    indexAxis: isDepartment ? 'y' : 'x',
+    interaction: {mode: 'index', intersect: false},
+    plugins: {
+      legend: {position: 'bottom', labels: {font: {size: 14}, padding: 18}},
+      tooltip: {enabled: true},
+    },
+    scales: isDepartment
+      ? {x: {beginAtZero: true, title: {display: true, text: 'Revenue'}}, y: {ticks: {autoSkip: false}}}
+      : {
+          y: {beginAtZero: chartType === 'bar' && isActual, grace: '10%', title: {display: isActual, text: 'Total revenue'}},
+          x: {ticks: {maxRotation: isActual ? 35 : 0, minRotation: 0}},
         },
-        legend: {
-          ...originalChart.options.plugins?.legend,
-          labels: {
-            ...originalChart.options.plugins?.legend?.labels,
-            font: { weight: 'bold', size: 16 },
-            padding: 25
-          }
-        }
-      },
-      scales: originalChart.options.scales ? {
-        ...originalChart.options.scales,
-        y: {
-          ...originalChart.options.scales.y,
-          title: {
-            ...originalChart.options.scales.y?.title,
-            font: { weight: 'bold', size: 16 }
-          },
-          ticks: {
-            ...originalChart.options.scales.y?.ticks,
-            font: { size: 14 }
-          }
-        },
-        x: {
-          ...originalChart.options.scales.x,
-          title: {
-            ...originalChart.options.scales.x?.title,
-            font: { weight: 'bold', size: 16 }
-          },
-          ticks: {
-            ...originalChart.options.scales.x?.ticks,
-            font: { size: 14 }
-          }
-        }
-      } : undefined
-    }
-  });
+  };
+  if (expandedChartInstance) expandedChartInstance.destroy();
+  try {
+    expandedChartInstance = new Chart(expandedCanvas, {type: chartType, data: plainData, options});
+  } catch (error) {
+    console.error('Unable to create expanded chart', error);
+    expandedCanvas.parentElement.innerHTML = `<div class="alert alert-danger mb-0">Unable to display this chart: ${escapeHtml(error.message)}</div>`;
+  }
 }
 
 function recreateComparisonChartExpanded(canvas) {
@@ -4054,7 +4172,93 @@ function getChartKey(chartId) {
   }
 }
 
+function expandedForecastCard(product) {
+  const rank = Number(product.forecast_rank || 0);
+  const difference = Number(product.revenue_change_time_series_vs_independent || 0);
+  const searchText = [product.product_id, product.department, product.commodity, product.sub_commodity, product.manufacturer, product.brand, product.size].join(' ').toLowerCase();
+  const sequenceMonthly = product.time_series_monthly_predictions || [];
+  const independentMonthly = product.independent_monthly_predictions || [];
+  const baselineMonthly = product.baseline_monthly_predictions || [];
+  const months = Math.max(sequenceMonthly.length, independentMonthly.length, baselineMonthly.length);
+  const monthlyRows = Array.from({length: months}, (_, index) => `
+    <tr><td>Period ${index + 1}</td><td class="text-end">${forecastMoney(sequenceMonthly[index])}</td><td class="text-end">${forecastMoney(independentMonthly[index])}</td><td class="text-end">${forecastMoney(baselineMonthly[index])}</td></tr>
+  `).join('');
+  return `
+    <details class="forecast-expanded-card" data-expanded-forecast-card data-search="${escapeHtml(searchText)}">
+      <summary>
+        <span class="badge bg-light text-dark border">#${rank}</span>
+        <span><strong>${escapeHtml(product.product_id)}</strong><small class="d-block text-muted">${escapeHtml(product.brand || 'Unknown brand')}</small></span>
+        <span class="expanded-summary-secondary">${escapeHtml(product.department || 'Unknown')}<small class="d-block text-muted">${escapeHtml(product.commodity || 'Unknown')}</small></span>
+        <span class="text-end"><small class="d-block text-muted">Recursive</small><strong class="text-primary">${forecastMoney(product.time_series_revenue)}</strong></span>
+        <span class="text-end expanded-summary-secondary"><small class="d-block text-muted">Independent</small><strong style="color:#6d28d9">${forecastMoney(product.independent_revenue)}</strong></span>
+        <span class="text-end expanded-summary-secondary"><small class="d-block text-muted">Difference</small><strong>${difference >= 0 ? '+' : '&minus;'}${forecastMoney(Math.abs(difference))}</strong></span>
+      </summary>
+      <div class="forecast-expanded-detail">
+        <div class="row g-3">
+          <div class="col-lg-4">
+            <h6 class="small fw-bold">Product information</h6>
+            <dl class="row small mb-0"><dt class="col-5">Sub-commodity</dt><dd class="col-7">${escapeHtml(product.sub_commodity || 'Unknown')}</dd><dt class="col-5">Manufacturer</dt><dd class="col-7">${escapeHtml(product.manufacturer ?? 'Unknown')}</dd><dt class="col-5">Brand</dt><dd class="col-7">${escapeHtml(product.brand || 'Unknown')}</dd><dt class="col-5">Size</dt><dd class="col-7">${escapeHtml(product.size || 'N/A')}</dd><dt class="col-5">Revenue / quantity</dt><dd class="col-7">${forecastUnitRate(product.revenue_per_unit)}</dd></dl>
+          </div>
+          <div class="col-lg-3">
+            <h6 class="small fw-bold">Horizon totals</h6>
+            <div class="small d-flex justify-content-between"><span>Recursive RNN</span><strong>${forecastMoney(product.time_series_revenue)}</strong></div>
+            <div class="small d-flex justify-content-between mt-2"><span>Independent direct</span><strong>${forecastMoney(product.independent_revenue)}</strong></div>
+            <div class="small d-flex justify-content-between mt-2"><span>Recent average</span><strong>${forecastMoney(product.baseline_revenue)}</strong></div>
+            <div class="small d-flex justify-content-between mt-2"><span>Estimated units</span><strong>${product.predicted_units == null ? 'N/A' : Number(product.predicted_units).toLocaleString(undefined, {maximumFractionDigits: 2})}</strong></div>
+          </div>
+          <div class="col-lg-5">
+            <h6 class="small fw-bold">Forecast by 30-day period</h6>
+            <div class="table-responsive"><table class="table table-sm table-bordered mb-0"><thead class="table-light"><tr><th>Period</th><th class="text-end">Recursive</th><th class="text-end">Independent</th><th class="text-end">Recent avg</th></tr></thead><tbody>${monthlyRows}</tbody></table></div>
+          </div>
+        </div>
+      </div>
+    </details>`;
+}
+
+function showExpandedForecastResults() {
+  const predictions = lastTimeSeriesForecast?.predictions || [];
+  if (!predictions.length) {
+    showNotification('Forecast products first, then open the expanded results.', 'info');
+    return;
+  }
+  const content = `
+    <div class="forecast-expanded-toolbar d-flex flex-wrap justify-content-between align-items-center gap-2">
+      <div><strong>${predictions.length.toLocaleString()} ranked products</strong><small class="d-block text-muted">Select one product to inspect its metadata and period-by-period forecast.</small></div>
+      <div class="d-flex flex-wrap gap-2">
+        <div class="input-group input-group-sm" style="width:260px"><span class="input-group-text"><i class="fas fa-search"></i></span><input id="expandedForecastSearch" class="form-control" type="search" placeholder="Find product or category" oninput="filterExpandedForecastCards()"></div>
+        <button class="btn btn-outline-secondary btn-sm" type="button" onclick="toggleExpandedForecastCards(true)">Open all</button>
+        <button class="btn btn-outline-secondary btn-sm" type="button" onclick="toggleExpandedForecastCards(false)">Close all</button>
+      </div>
+    </div>
+    <div id="expandedForecastSummary" class="small text-muted mb-2">${predictions.length.toLocaleString()} products shown.</div>
+    <div id="expandedForecastCards">${predictions.map(expandedForecastCard).join('')}</div>`;
+  showDetailModal('Product Revenue Forecast Results', content);
+  setPredictiveModalMode('predictive-results-modal');
+}
+
+function filterExpandedForecastCards() {
+  const query = (document.getElementById('expandedForecastSearch')?.value || '').trim().toLowerCase();
+  let visible = 0;
+  document.querySelectorAll('[data-expanded-forecast-card]').forEach(card => {
+    const matches = !query || (card.dataset.search || '').includes(query);
+    card.style.display = matches ? '' : 'none';
+    if (matches) visible += 1;
+  });
+  const summary = document.getElementById('expandedForecastSummary');
+  if (summary) summary.textContent = `${visible.toLocaleString()} matching product${visible === 1 ? '' : 's'} shown.`;
+}
+
+function toggleExpandedForecastCards(open) {
+  document.querySelectorAll('[data-expanded-forecast-card]').forEach(card => {
+    if (card.style.display !== 'none') card.open = open;
+  });
+}
+
 function expandSection(sectionType) {
+  if (sectionType === 'timeSeriesForecast') {
+    showExpandedForecastResults();
+    return;
+  }
   let title, content, container;
   
   switch(sectionType) {
@@ -4082,10 +4286,6 @@ function expandSection(sectionType) {
       title = 'All Differential Analysis Insights';
       container = document.getElementById('differentialInsights');
       break;
-    case 'timeSeriesForecast':
-      title = 'Product Revenue Forecast Results';
-      container = document.getElementById('productRevenueForecastTable');
-      break;
   }
   
   if (container) {
@@ -4107,18 +4307,9 @@ function expandSection(sectionType) {
         </div>
       `;
     } else {
-      if (sectionType === 'timeSeriesForecast') {
-        const forecastClone = container.cloneNode(true);
-        forecastClone.querySelectorAll('[data-forecast-detail]').forEach(row => { row.style.display = ''; });
-        forecastClone.querySelectorAll('button[aria-controls]').forEach(button => button.remove());
-        content = forecastClone.innerHTML;
-      } else {
-        content = container.innerHTML;
-      }
+      content = container.innerHTML;
       if (sectionType === 'baskets' || sectionType === 'recommendations' || sectionType === 'differential') {
         content = `<div class="row g-3">${content}</div>`;
-      } else if (sectionType === 'timeSeriesForecast') {
-        content = `<div class="table-responsive predictive-scroll" style="max-height:68vh;overflow:auto"><table class="table table-sm table-hover align-middle bg-white">${content}</table></div>`;
       }
     }
 
@@ -5259,6 +5450,9 @@ const TIME_SERIES_ENDPOINTS = {
 
 let lastTimeSeriesForecast = null;
 let lastTimeSeriesReport = null;
+let forecastCurrentPage = 1;
+const FORECAST_PAGE_SIZE = 10;
+let forecastResultContext = '';
 
 async function timeSeriesRequest(url, data) {
   const response = await fetch(url, {
@@ -6704,10 +6898,26 @@ function renderTimeSeriesReportV5(report) {
   const rolloutWarning = Number(training.maximum_supervised_rollout || 0) < Number(report.horizon_months || 0)
     ? `<div class="alert alert-warning py-2 px-3 small mt-2 mb-0"><strong>Long-horizon limitation:</strong> this holdout has ${Number(training.maximum_supervised_rollout || 0)} supervised recursive step(s) available before the test boundary, while the model is evaluated over ${Number(report.horizon_months || 0)}. The remaining steps are genuine recursive extrapolation.</div>`
     : '';
-  const bothUnderpredict = Number(sequence.bias_percent || 0) < 0 && Number(independent.bias_percent || 0) < 0;
-  const biasWarning = bothUnderpredict
-    ? `<div class="alert alert-warning py-2 px-3 small mt-2 mb-0"><strong>Negative holdout bias:</strong> Recursive RNN ${metricCell(sequence.bias_percent, true)} and independent direct ${metricCell(independent.bias_percent, true)}. Both estimated less total revenue than actually occurred. This is visible rather than corrected with holdout data; cold starts, sparse Product IDs, log-target shrinkage, and a strong final period are contributing risks.</div>`
+  const sequenceBias = Number(sequence.bias_percent || 0);
+  const independentBias = Number(independent.bias_percent || 0);
+  const biasDirection = value => value < 0 ? 'underprediction' : value > 0 ? 'overprediction' : 'no aggregate bias';
+  const hasMaterialBias = Math.abs(sequenceBias) >= 0.05 || Math.abs(independentBias) >= 0.05;
+  const biasWarning = hasMaterialBias
+    ? `<div class="alert alert-warning py-2 px-3 small mt-2 mb-0"><strong>Holdout bias diagnostic:</strong> Recursive RNN ${metricCell(sequenceBias, true)} (${biasDirection(sequenceBias)}); independent direct ${metricCell(independentBias, true)} (${biasDirection(independentBias)}). These values are reported rather than corrected with holdout actuals. Short/medium horizons are affected by sparse Product IDs and log-target shrinkage; long recursive horizons can also accumulate feedback error.</div>`
     : '';
+  const bestModelWmape = Math.min(Number(sequence.wmape || 0), Number(independent.wmape || 0));
+  const baselineWmape = Number(baseline.wmape || 0);
+  const productErrorImprovement = baselineWmape > 0 ? (baselineWmape - bestModelWmape) / baselineWmape : 0;
+  const bestTop20Precision = Math.max(Number(sequence.precision_at_k || 0), Number(independent.precision_at_k || 0));
+  const bestTop20Ndcg = Math.max(Number(sequence.ndcg_at_k || 0), Number(independent.ndcg_at_k || 0));
+  const bestFullRank = Math.max(Number(sequence.spearman || 0), Number(independent.spearman || 0));
+  const rankStrength = bestFullRank >= 0.5 ? 'strong rank agreement' : bestFullRank >= 0.3 ? 'moderate rank agreement' : 'weak rank agreement';
+  const aggregateMethods = [
+    ['Recursive RNN', Number(sequencePeriod.wmape || Infinity)],
+    ['Independent direct', Number(independentPeriod.wmape || Infinity)],
+    ['Recent-average benchmark', Number(baselinePeriod.wmape || Infinity)],
+  ].sort((a, b) => a[1] - b[1]);
+  const aggregateWinner = aggregateMethods[0];
   const methods = [
     ['Recursive RNN', sequence, 'table-primary'],
     ['Independent direct model', independent, ''],
@@ -6740,6 +6950,16 @@ function renderTimeSeriesReportV5(report) {
       </div>
       ${rolloutWarning}
       ${biasWarning}
+      <div class="academic-evidence-summary small mt-2">
+        <div class="fw-semibold mb-1"><i class="fas fa-graduation-cap text-primary me-1"></i>Evidence summary for presentation</div>
+        <div class="row g-2">
+          <div class="col-md-3"><span class="text-muted d-block">Product revenue error</span><strong>${metricCell(productErrorImprovement, true)} improvement</strong><br><span class="text-muted">best model vs recent average WMAPE</span></div>
+          <div class="col-md-3"><span class="text-muted d-block">Top-${Number(sequence.top_k || 20)} recovery</span><strong>${metricCell(bestTop20Precision, true)} precision</strong><br><span class="text-muted">NDCG ${metricCell(bestTop20Ndcg, true)}</span></div>
+          <div class="col-md-3"><span class="text-muted d-block">Full product ranking</span><strong>Spearman ${metricCell(bestFullRank)}</strong><br><span class="text-muted">${rankStrength}</span></div>
+          <div class="col-md-3"><span class="text-muted d-block">Aggregate total winner</span><strong>${aggregateWinner[0]}</strong><br><span class="text-muted">period WMAPE ${metricCell(aggregateWinner[1], true)}</span></div>
+        </div>
+        <div class="border-top mt-2 pt-2 text-muted"><strong class="text-dark">Defence statement:</strong> report this as a model-versus-benchmark comparison, not as an “accuracy percentage.” R&sup2; is influenced by high-revenue products; sparse zero periods inflate sMAPE, so cumulative WMAPE and ranking metrics are the primary evidence.</div>
+      </div>
       <div class="small fw-semibold mt-3">Cumulative Product ID revenue error and full-ranking correlation</div>
       <div class="table-responsive predictive-scroll mt-1"><table class="table table-sm table-bordered bg-white mb-0"><thead><tr><th>Method</th><th>MAE</th><th>RMSE</th><th>WMAPE</th><th>sMAPE</th><th>Bias</th><th>R&sup2;</th><th>Precision@${Number(sequence.top_k || 20)}</th><th>Spearman</th><th>Kendall &tau;</th></tr></thead><tbody>${metricRows}</tbody></table></div>
       <div class="d-flex flex-wrap gap-2 mt-2 small">
@@ -6819,6 +7039,8 @@ function renderProductForecastRows(predictions, response) {
     if (summary) summary.textContent = 'No matching products.';
     return;
   }
+  forecastCurrentPage = 1;
+  forecastResultContext = `${Number(response.products_after_threshold || 0).toLocaleString()} products passed the threshold; ranked by ${forecastMethodLabel(response.forecast_method_applied)}.`;
   rows.innerHTML = predictions.map(product => {
     const rank = Number(product.forecast_rank);
     const difference = Number(product.revenue_change_time_series_vs_independent || 0);
@@ -6844,7 +7066,7 @@ function renderProductForecastRows(predictions, response) {
       <div class="row g-3">
         <div class="col-lg-4"><div class="border rounded bg-white p-3 h-100"><h6 class="small fw-bold mb-2">Product information</h6><dl class="row small mb-0"><dt class="col-5">Sub-commodity</dt><dd class="col-7">${escapeHtml(product.sub_commodity || 'Unknown')}</dd><dt class="col-5">Manufacturer</dt><dd class="col-7">${escapeHtml(product.manufacturer ?? 'Unknown')}</dd><dt class="col-5">Brand</dt><dd class="col-7">${escapeHtml(product.brand || 'Unknown')}</dd><dt class="col-5">Size</dt><dd class="col-7">${escapeHtml(product.size || 'N/A')}</dd></dl></div></div>
         <div class="col-lg-3"><div class="border rounded bg-white p-3 h-100"><h6 class="small fw-bold mb-2">Horizon totals</h6><div class="small d-flex justify-content-between"><span>Recursive RNN</span><strong>${forecastMoney(product.time_series_revenue)}</strong></div><div class="small d-flex justify-content-between mt-2"><span>Independent direct</span><strong>${forecastMoney(product.independent_revenue)}</strong></div><div class="small d-flex justify-content-between mt-2"><span>Recent average</span><strong>${forecastMoney(product.baseline_revenue)}</strong></div><div class="small d-flex justify-content-between mt-2"><span>Estimated units</span><strong>${product.predicted_units == null ? 'N/A' : Number(product.predicted_units).toLocaleString(undefined, {maximumFractionDigits: 2})}</strong></div></div></div>
-        <div class="col-lg-5"><div class="border rounded bg-white p-2 h-100"><h6 class="small fw-bold px-1 mb-2">Forecast by 30-day period</h6><div class="table-responsive predictive-scroll" tabindex="0" aria-label="Scrollable forecast periods for product ${escapeHtml(product.product_id)}" style="max-height:260px;overflow:auto"><table class="table table-sm mb-0"><thead class="sticky-top bg-white"><tr><th>Period</th><th class="text-end">Recursive</th><th class="text-end">Independent</th><th class="text-end">Recent avg</th></tr></thead><tbody>${monthlyRows}</tbody><tfoot><tr><td colspan="4" style="height:12px;border:0"></td></tr></tfoot></table></div></div></div>
+        <div class="col-lg-5"><div class="border rounded bg-white p-2 h-100"><h6 class="small fw-bold px-1 mb-2">Forecast by 30-day period</h6><div class="table-responsive"><table class="table table-sm mb-0"><thead class="bg-white"><tr><th>Period</th><th class="text-end">Recursive</th><th class="text-end">Independent</th><th class="text-end">Recent avg</th></tr></thead><tbody>${monthlyRows}</tbody></table></div></div></div>
       </div>
     </td></tr>`;
   }).join('');
@@ -6877,17 +7099,35 @@ function setAllForecastDetails(expanded) {
 
 function filterForecastRows() {
   const query = (document.getElementById('forecastProductSearch')?.value || '').trim().toLowerCase();
-  let visible = 0;
-  document.querySelectorAll('#timeSeriesForecastRows tr[data-forecast-main]').forEach(mainRow => {
-    const matches = !query || (mainRow.dataset.search || '').includes(query);
-    mainRow.style.display = matches ? '' : 'none';
+  const allRows = Array.from(document.querySelectorAll('#timeSeriesForecastRows tr[data-forecast-main]'));
+  const matchingRows = allRows.filter(mainRow => !query || (mainRow.dataset.search || '').includes(query));
+  const totalPages = Math.max(1, Math.ceil(matchingRows.length / FORECAST_PAGE_SIZE));
+  forecastCurrentPage = Math.min(Math.max(forecastCurrentPage, 1), totalPages);
+  const start = (forecastCurrentPage - 1) * FORECAST_PAGE_SIZE;
+  const visibleRows = new Set(matchingRows.slice(start, start + FORECAST_PAGE_SIZE));
+  allRows.forEach(mainRow => {
+    const visible = visibleRows.has(mainRow);
+    mainRow.style.display = visible ? '' : 'none';
     const button = mainRow.querySelector('button[aria-controls]');
     const detail = button ? document.getElementById(button.getAttribute('aria-controls')) : null;
-    if (detail) detail.style.display = matches && button.getAttribute('aria-expanded') === 'true' ? '' : 'none';
-    if (matches) visible += 1;
+    if (detail) detail.style.display = visible && button.getAttribute('aria-expanded') === 'true' ? '' : 'none';
   });
   const summary = document.getElementById('forecastResultSummary');
-  if (summary && query) summary.textContent = `${visible} matching product${visible === 1 ? '' : 's'} shown.`;
+  const shownStart = matchingRows.length ? start + 1 : 0;
+  const shownEnd = Math.min(start + FORECAST_PAGE_SIZE, matchingRows.length);
+  if (summary) summary.textContent = `Showing ${shownStart}-${shownEnd} of ${matchingRows.length.toLocaleString()} product${matchingRows.length === 1 ? '' : 's'}${query ? ' matching the search' : ''}; ${forecastResultContext}`;
+  const pageStatus = document.getElementById('forecastPageStatus');
+  const previous = document.getElementById('forecastPreviousPage');
+  const next = document.getElementById('forecastNextPage');
+  if (pageStatus) pageStatus.textContent = `Page ${forecastCurrentPage} of ${totalPages}`;
+  if (previous) previous.disabled = forecastCurrentPage <= 1;
+  if (next) next.disabled = forecastCurrentPage >= totalPages;
+}
+
+function changeForecastPage(delta) {
+  forecastCurrentPage += Number(delta || 0);
+  filterForecastRows();
+  document.getElementById('productRevenueForecastTable')?.scrollIntoView({behavior: 'smooth', block: 'start'});
 }
 
 function downloadBlob(filename, content, type) {

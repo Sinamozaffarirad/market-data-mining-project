@@ -55,6 +55,18 @@ class ProductRevenueTimeSeriesForecaster:
         MODEL_DIR.mkdir(parents=True, exist_ok=True)
 
     @staticmethod
+    def _refresh_report_interpretation(report):
+        """Refresh explanatory metadata when loading an otherwise valid artifact."""
+        if report and report.get("bias_diagnostics") is not None:
+            report["bias_diagnostics"]["interpretation"] = (
+                "Negative values mean underprediction and positive values mean "
+                "overprediction. Sparse products, cold starts, and log-target "
+                "shrinkage can create negative aggregate bias; long recursive "
+                "rollouts can also accumulate feedback error in either direction."
+            )
+        return report
+
+    @staticmethod
     def _resolve_architecture(parameter_mode="auto", hidden_units=None, feedback_rate=None, epochs=None):
         mode = str(parameter_mode or "auto").lower()
         if mode not in VALID_PARAMETER_MODES:
@@ -838,9 +850,10 @@ class ProductRevenueTimeSeriesForecaster:
                 "independent_bias_percent": independent_metrics["bias_percent"],
                 "recent_average_bias_percent": baseline_metrics["bias_percent"],
                 "interpretation": (
-                    "Negative values mean underprediction. Sparse products, cold starts, "
-                    "log-target shrinkage, and an unusually strong holdout period can all "
-                    "create negative aggregate bias."
+                    "Negative values mean underprediction and positive values mean "
+                    "overprediction. Sparse products, cold starts, and log-target "
+                    "shrinkage can create negative aggregate bias; long recursive "
+                    "rollouts can also accumulate feedback error in either direction."
                 ),
             },
             "holdout_period_total_metrics": aggregate_period_metrics,
@@ -946,7 +959,7 @@ class ProductRevenueTimeSeriesForecaster:
         if not path.exists():
             return None
         with path.open(encoding="utf-8") as handle:
-            return json.load(handle)
+            return self._refresh_report_interpretation(json.load(handle))
 
     def forecast(
         self,
@@ -988,6 +1001,7 @@ class ProductRevenueTimeSeriesForecaster:
             raise ValueError("The saved model is obsolete. Retrain it with the corrected validation pipeline.")
         if artifact.get("configuration_key") != configuration_key:
             raise ValueError("Saved-model configuration mismatch. Retrain this configuration.")
+        artifact["report"] = self._refresh_report_interpretation(artifact["report"])
 
         revenue_panel, unit_panel, products, data_profile = self.load_product_panels()
         trained_profile = artifact.get("data_profile", {})
