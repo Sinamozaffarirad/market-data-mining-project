@@ -32,6 +32,29 @@ class ProductRevenueTimeSeriesTests(SimpleTestCase):
         self.assertLess(max(origins), test_origin)
         self.assertTrue(set(origins).isdisjoint({20, 21, 22}))
 
+    def test_auto_architecture_uses_professor_aligned_defaults(self):
+        architecture = self.forecaster._resolve_architecture(
+            "auto", hidden_units=64, feedback_rate=1.0, epochs=30
+        )
+        self.assertEqual(architecture["hidden_units"], 16)
+        self.assertEqual(architecture["feedback_rate"], 0.5)
+        self.assertEqual(architecture["epochs"], 10)
+        self.assertTrue(architecture["recursive_feedback"])
+        self.assertTrue(architecture["joint_multi_step_loss"])
+        self.assertTrue(architecture["backpropagation_through_time"])
+
+    def test_custom_architecture_has_a_distinct_saved_model_key(self):
+        automatic = self.forecaster._resolve_architecture("auto")
+        custom = self.forecaster._resolve_architecture("custom", 32, 0.75, 15)
+        auto_key = self.forecaster._configuration_key(3, 6, 1, 0.8, automatic)
+        custom_key = self.forecaster._configuration_key(3, 6, 1, 0.8, custom)
+        self.assertNotEqual(auto_key, custom_key)
+        self.assertIn("custom_hu32_fb075_e15", custom_key)
+
+    def test_invalid_custom_architecture_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "hidden_units"):
+            self.forecaster._resolve_architecture("custom", 12, 0.5, 10)
+
     def test_direct_forecast_does_not_compound_its_own_predictions(self):
         history = np.array([[10.0, 10.0, 10.0], [0.0, 0.0, 0.0]])
         forecast = self.forecaster._direct_predict(
@@ -115,6 +138,12 @@ class ProductRevenueTimeSeriesTests(SimpleTestCase):
             self.assertEqual(metrics["ranking_at_k"][cutoff]["jaccard_at_k"], 1.0)
             self.assertEqual(metrics["ranking_at_k"][cutoff]["ndcg_at_k"], 1.0)
             self.assertEqual(metrics["ranking_at_k"][cutoff]["rank_biased_overlap"], 1.0)
+
+    def test_product_metrics_report_negative_bias_for_underprediction(self):
+        metrics = self.forecaster._evaluate(
+            np.array([1, 2]), np.array([100.0, 50.0]), np.array([80.0, 40.0]), 2
+        )
+        self.assertEqual(metrics["bias_percent"], -0.2)
 
     def test_impossible_window_and_holdout_fails_explicitly(self):
         with self.assertRaisesRegex(ValueError, "Not enough complete history"):

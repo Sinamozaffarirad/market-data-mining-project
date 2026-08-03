@@ -3183,7 +3183,14 @@ def _time_series_params(request):
     except (TypeError, ValueError) as exc:
         raise ValueError('revenue_threshold must be numeric.') from exc
     forecast_method = source.get('forecast_method', 'recommended')
-    return horizon, window_size, sliding_step, training_size, top_n, threshold, forecast_method
+    parameter_mode = source.get('parameter_mode', 'auto')
+    hidden_units = source.get('hidden_units') or None
+    feedback_rate = source.get('feedback_rate') or None
+    epochs = source.get('epochs') or None
+    return (
+        horizon, window_size, sliding_step, training_size, top_n, threshold,
+        forecast_method, parameter_mode, hidden_units, feedback_rate, epochs,
+    )
 
 
 @csrf_exempt
@@ -3192,12 +3199,19 @@ def train_product_time_series(request):
     if request.method != 'POST':
         return JsonResponse({'success': False, 'error': 'POST method required'}, status=405)
     try:
-        horizon, window_size, sliding_step, training_size, _, _, _ = _time_series_params(request)
+        (
+            horizon, window_size, sliding_step, training_size, _, _, _,
+            parameter_mode, hidden_units, feedback_rate, epochs,
+        ) = _time_series_params(request)
         report = product_revenue_forecaster.train(
             horizon=horizon,
             window_size=window_size,
             sliding_step=sliding_step,
             training_size=training_size,
+            parameter_mode=parameter_mode,
+            hidden_units=hidden_units,
+            feedback_rate=feedback_rate,
+            epochs=epochs,
         )
         return JsonResponse({'success': True, 'report': report})
     except ValueError as exc:
@@ -3213,7 +3227,10 @@ def product_time_series_forecast(request):
     if request.method not in {'GET', 'POST'}:
         return JsonResponse({'success': False, 'error': 'GET or POST method required'}, status=405)
     try:
-        horizon, window_size, sliding_step, _, top_n, threshold, forecast_method = _time_series_params(request)
+        (
+            horizon, window_size, sliding_step, training_size, top_n, threshold,
+            forecast_method, parameter_mode, hidden_units, feedback_rate, epochs,
+        ) = _time_series_params(request)
         result = product_revenue_forecaster.forecast(
             horizon=horizon,
             window_size=window_size,
@@ -3221,6 +3238,11 @@ def product_time_series_forecast(request):
             top_n=top_n,
             revenue_threshold=threshold,
             forecast_method=forecast_method,
+            training_size=training_size,
+            parameter_mode=parameter_mode,
+            hidden_units=hidden_units,
+            feedback_rate=feedback_rate,
+            epochs=epochs,
         )
         return JsonResponse({'success': True, **result})
     except ValueError as exc:
@@ -3233,9 +3255,14 @@ def product_time_series_forecast(request):
 def product_time_series_report(request):
     """Return the persisted chronological-validation report without retraining."""
     try:
-        horizon, window_size, sliding_step, _, _, _, _ = _time_series_params(request)
+        (
+            horizon, window_size, sliding_step, training_size, _, _, _,
+            parameter_mode, hidden_units, feedback_rate, epochs,
+        ) = _time_series_params(request)
         report = product_revenue_forecaster.get_report(
-            horizon=horizon, window_size=window_size, sliding_step=sliding_step
+            horizon=horizon, window_size=window_size, sliding_step=sliding_step,
+            training_size=training_size, parameter_mode=parameter_mode,
+            hidden_units=hidden_units, feedback_rate=feedback_rate, epochs=epochs,
         )
         if report is None:
             return JsonResponse({'success': False, 'error': 'No report exists for this horizon/window yet.'}, status=404)
