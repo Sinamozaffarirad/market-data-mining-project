@@ -133,7 +133,7 @@
         <div class="row g-4">
           <div class="col-12">
             <div class="d-flex align-items-center justify-content-between mb-2">
-              <h5 class="m-2">RFM Segments Overview</h5>
+              <div><h5 class="m-2 mb-0">Current Lifetime RFM Segments</h5><small class="text-muted ms-2">All available purchases, as of dataset day {{ lifetime_rfm_cutoff_day|default:"N/A" }}.</small></div>
               <div class="d-flex gap-2 align-items-center">
                 {% if segments %}<span class="badge bg-lpurple">{{ segments|length }} RFM segments</span>{% endif %}
               </div>
@@ -177,6 +177,28 @@
               <div class="info-box">No segments available. Generate them in Data Management.</div>
             {% endif %}
           </div>
+		  <div class="col-12 mt-4">
+			<div class="card shadow-sm border-0">
+			  <div class="card-body">
+				<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+				  <div><h5 class="mb-1"><i class="fa-solid fa-clock-rotate-left me-2 text-primary"></i>Churn Dataset Generation Method</h5>
+				  <small class="text-muted">Historical windows create labels from this fixed dataset. Training creates a model version; it does not add new customer transactions.</small></div>
+				  {% if active_experiment %}<span class="badge bg-success">Active: {{ active_experiment.method|title }} · {{ active_experiment.observation_window_days }}d / {{ active_experiment.prediction_horizon_days }}d</span>{% else %}<span class="badge bg-secondary">No active time-window model</span>{% endif %}
+				</div>
+				<form id="churnExperimentForm" class="row g-3 align-items-end">
+				  <div class="col-md-3"><label class="form-label">Method</label><select class="form-select" name="method" id="windowMethod"><option value="sliding">Sliding Windows</option><option value="non_overlapping">Non-overlapping Windows</option></select></div>
+				  <div class="col-md-2"><label class="form-label">Observation</label><select class="form-select" name="observation_window_days"><option value="30">30 days</option><option value="90" selected>90 days</option><option value="180">180 days</option></select></div>
+				  <div class="col-md-2"><label class="form-label">Prediction horizon</label><select class="form-select" name="prediction_horizon_days"><option value="14">14 days</option><option value="30" selected>30 days</option><option value="60">60 days</option><option value="90">90 days</option></select></div>
+				  <div class="col-md-2" id="stepControl"><label class="form-label">Sliding step</label><select class="form-select" name="sliding_step_days"><option value="7">7 days</option><option value="14">14 days</option><option value="30" selected>30 days</option></select></div>
+				  <div class="col-md-3"><button class="btn btn-primary w-100" type="submit" id="runExperimentButton"><i class="fa-solid fa-play me-2"></i>Train experiment</button></div>
+				</form>
+				<div class="small text-muted mt-2" id="stepHelp">Sliding windows overlap. Labels always begin after each cutoff day.</div>
+				<div class="small text-primary mt-1 d-none" id="trainingProgress"></div>
+					{% if experiments_page %}<div class="table-responsive mt-3"><table class="table table-sm align-middle mb-0"><thead><tr><th>Generated at</th><th>Method</th><th>Settings</th><th>Samples</th><th>Recall</th><th>F1</th><th>ROC-AUC</th><th></th></tr></thead><tbody>{% for experiment in experiments_page %}<tr><td>{{ experiment.created_at|date:"Y-m-d H:i" }}</td><td>{{ experiment.method|title }}</td><td>Obs {{ experiment.observation_window_days }}d · Horizon {{ experiment.prediction_horizon_days }}d · Step {{ experiment.step_size_days }}d{% if experiment.method == 'non_overlapping' %} (auto){% endif %}</td><td>{{ experiment.training_samples }}</td><td>{{ experiment.recall|floatformat:3 }}</td><td>{{ experiment.f1|floatformat:3 }}</td><td>{{ experiment.roc_auc|floatformat:3 }}</td><td>{% if experiment.is_active %}<span class="badge bg-success">Active</span>{% else %}<button class="btn btn-sm btn-outline-primary activate-experiment" data-id="{{ experiment.id }}">Activate</button>{% endif %}</td></tr>{% empty %}<tr><td colspan="8" class="text-center text-muted">No churn experiments have been generated yet.</td></tr>{% endfor %}</tbody></table></div>
+					{% if experiments_page.paginator.num_pages > 1 %}<nav class="d-flex justify-content-between align-items-center mt-3" aria-label="Churn experiment pages"><span class="small text-muted">Page {{ experiments_page.number }} of {{ experiments_page.paginator.num_pages }} · {{ experiments_page.paginator.count }} experiments</span><div class="btn-group btn-group-sm">{% if experiments_page.has_previous %}<a class="btn btn-outline-secondary" href="?experiments_page={{ experiments_page.previous_page_number }}">Previous</a>{% else %}<button class="btn btn-outline-secondary" disabled>Previous</button>{% endif %}{% if experiments_page.has_next %}<a class="btn btn-outline-secondary" href="?experiments_page={{ experiments_page.next_page_number }}">Next</a>{% else %}<button class="btn btn-outline-secondary" disabled>Next</button>{% endif %}</div></nav>{% endif %}{% endif %}
+			  </div>
+			</div>
+		  </div>
 		  <div class="col-12 mt-4">
 			<div class="d-flex align-items-center justify-content-between mb-2">
 				<h5 class="m-0">Churn Risk Overview</h5>
@@ -499,7 +521,8 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // Regenerate Segments Button Handler
-document.getElementById('regenerateSegmentsBtn').addEventListener('click', function() {
+const regenerateSegmentsButton = document.getElementById('regenerateSegmentsBtn');
+if (regenerateSegmentsButton) regenerateSegmentsButton.addEventListener('click', function() {
     const btn = this;
     const originalHTML = btn.innerHTML;
 
@@ -555,6 +578,69 @@ function getCookie(name) {
     }
     return cookieValue;
 }
+
+const methodSelect = document.getElementById('windowMethod');
+const stepControl = document.getElementById('stepControl');
+const stepHelp = document.getElementById('stepHelp');
+function updateWindowControls() {
+    const nonOverlapping = methodSelect.value === 'non_overlapping';
+    stepControl.classList.toggle('d-none', nonOverlapping);
+    stepHelp.textContent = nonOverlapping
+        ? 'Step size is calculated automatically: observation window + prediction horizon.'
+        : 'Sliding windows overlap. Labels always begin after each cutoff day.';
+}
+methodSelect.addEventListener('change', updateWindowControls);
+updateWindowControls();
+
+function refreshDashboard(showNewestExperiment = false) {
+    // A cache-busting URL makes sure the new active experiment and its scores
+    // are rendered from the server rather than an older browser page.
+    const nextUrl = new URL(window.location.href);
+    nextUrl.searchParams.set('refresh', Date.now().toString());
+    if (showNewestExperiment) nextUrl.searchParams.set('experiments_page', '1');
+    window.location.assign(nextUrl.toString());
+}
+
+document.getElementById('churnExperimentForm').addEventListener('submit', async function(event) {
+    event.preventDefault();
+    const button = document.getElementById('runExperimentButton');
+    const progress = document.getElementById('trainingProgress');
+    const startedAt = Date.now();
+    button.disabled = true;
+    button.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Training…';
+    progress.classList.remove('d-none');
+    progress.textContent = 'Building time windows and training models… 0s elapsed';
+    const progressTimer = window.setInterval(() => {
+        progress.textContent = `Building time windows and training models… ${Math.floor((Date.now() - startedAt) / 1000)}s elapsed`;
+    }, 1000);
+    try {
+        const response = await fetch('/analysis/api/churn/experiments/run/', {method: 'POST', body: new FormData(this)});
+        const payload = await response.json();
+        if (!payload.success) throw new Error(payload.error || 'Training failed.');
+        const history = payload.history || {};
+        const elapsed = Number(payload.experiment.elapsed_seconds || 0).toFixed(1);
+        showNotification('Experiment complete', `Finished in ${elapsed}s. Recall ${payload.experiment.recall.toFixed(3)}, F1 ${payload.experiment.f1.toFixed(3)}. Saved ${history.snapshots || 0} RFM snapshots and ${history.historical_predictions || 0} historical predictions. Activate it when you are ready.`, 'success');
+        window.setTimeout(() => refreshDashboard(true), 1200);
+    } catch (error) {
+        showNotification('Training failed', error.message, 'error');
+        button.disabled = false;
+        button.innerHTML = '<i class="fa-solid fa-play me-2"></i>Train experiment';
+        progress.classList.add('d-none');
+    } finally {
+        window.clearInterval(progressTimer);
+    }
+});
+
+document.querySelectorAll('.activate-experiment').forEach(button => button.addEventListener('click', async function() {
+    if (!window.confirm('Use this experiment to update the dashboard churn-risk scores?')) return;
+    const response = await fetch(`/analysis/api/churn/experiments/${this.dataset.id}/activate/`, {method: 'POST'});
+    const payload = await response.json();
+    if (payload.success) {
+        showNotification('Experiment activated', 'Dashboard scores were updated. Refreshing the page now...', 'success');
+        window.setTimeout(refreshDashboard, 700);
+    }
+    else showNotification('Activation failed', payload.error || 'Could not activate experiment.', 'error');
+}));
 
 // Helper function to show notifications
 function showNotification(title, message, type) {
