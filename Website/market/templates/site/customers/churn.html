@@ -43,7 +43,8 @@
                     
                     <hr>
 
-                    <h5 class="text-center text-muted mb-3">RFM Profile</h5>
+                    <h5 class="text-center text-muted mb-1">Current Lifetime RFM Profile</h5>
+                    <p class="text-center text-muted small mb-3">Current dashboard state, using all available purchases. It will remain unchanged while this experimental transaction dataset remains fixed.</p>
                     <div class="d-flex justify-content-around text-center my-3">
                         <div>
                             <div class="text-muted small">RECENCY</div>
@@ -87,6 +88,33 @@
     <div class="text-center">
         <p class="text-muted">No churn data available for this customer.</p>
         <p>Please ensure that the customer segmentation analysis has been run.</p>
+    </div>
+    {% endif %}
+
+    {% if history_by_method %}
+    <div class="card shadow-sm mt-4">
+        <div class="card-body">
+            <h5 class="mb-1">Customer Journey: RFM and Churn Timeline</h5>
+             <p class="text-muted small mb-3">These are simulated checkpoints from the fixed dataset, not newly arriving shop activity. Each checkpoint uses purchases before its cutoff day; the forecast estimates no purchase in the following horizon, and the outcome shows what happened later in the dataset.</p>
+            <ul class="nav nav-tabs" role="tablist">
+                {% for history in history_by_method %}<li class="nav-item"><button class="nav-link {% if forloop.first %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#history-{{ history.method }}" type="button">{{ history.label }}</button></li>{% endfor %}
+            </ul>
+            <div class="tab-content pt-3">
+                {% for history in history_by_method %}<div class="tab-pane fade {% if forloop.first %}show active{% endif %}" id="history-{{ history.method }}">
+                    <div class="small text-muted mb-2">{{ history.experiment.observation_window_days }}-day observation · {{ history.experiment.prediction_horizon_days }}-day horizon · {{ history.experiment.step_size_days }}-day step</div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-6 col-md-3"><div class="border rounded p-2 h-100"><div class="text-muted small">Checkpoints</div><div class="fw-bold">{{ history.summary.snapshot_count }}</div></div></div>
+                        <div class="col-6 col-md-3"><div class="border rounded p-2 h-100"><div class="text-muted small">Forecast coverage</div><div class="fw-bold">{{ history.summary.scored_count }}/{{ history.summary.snapshot_count }}</div></div></div>
+                        <div class="col-6 col-md-3"><div class="border rounded p-2 h-100"><div class="text-muted small">Later outcome</div><div class="fw-bold text-success">{{ history.summary.returned_count }} returned</div><div class="small text-danger">{{ history.summary.churned_count }} churned</div></div></div>
+                        <div class="col-6 col-md-3"><div class="border rounded p-2 h-100"><div class="text-muted small">Latest RFM health</div><div class="fw-bold">{{ history.summary.latest_health_label }}{% if history.summary.latest_health_score is not None %} ({{ history.summary.latest_health_score }}/15){% endif %}</div></div></div>
+                    </div>
+                    <div class="small text-muted mb-2">RFM health combines Recency, Frequency, and Monetary scores: Strong = 12-15, Healthy = 9-11, Weak = 6-8, Critical = 3-5.</div>
+                    <div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Checkpoint</th><th>RFM health</th><th>RFM segment</th><th>Change</th><th>Risk forecast</th><th>What happened next</th></tr></thead><tbody>
+                        {% for prediction in history.predictions %}<tr><td>Dataset day {{ prediction.snapshot.cutoff_day }}</td><td><span class="badge bg-{{ prediction.health_class }}">{{ prediction.health_label }}</span> <span class="small text-muted">{{ prediction.health_score }}/15 ({{ prediction.snapshot.r_score }}-{{ prediction.snapshot.f_score }}-{{ prediction.snapshot.m_score }})</span></td><td>{{ prediction.snapshot.rfm_segment }}</td><td>{{ prediction.health_change }}</td><td>{% if prediction.probability_percent is not None %}<span class="badge bg-{{ prediction.risk_class }}{% if prediction.risk_class == 'warning' or prediction.risk_class == 'info' %} text-dark{% endif %}">{{ prediction.risk_label }}</span> {{ prediction.probability_percent|floatformat:1 }}%{% else %}<span class="text-muted">Not scored yet</span>{% endif %}</td><td>{% if prediction.actual_outcome == 'Churned' %}<span class="text-danger fw-semibold">Churned</span>{% elif prediction.actual_outcome == 'Returned' %}<span class="text-success fw-semibold">Returned</span>{% else %}<span class="text-muted">Not known yet</span>{% endif %}</td></tr>{% empty %}<tr><td colspan="6" class="text-muted text-center py-3">No historical checkpoint exists yet. Train a new experiment; this customer must also have purchased during at least one observation window.</td></tr>{% endfor %}
+                    </tbody></table></div>
+                </div>{% endfor %}
+            </div>
+        </div>
     </div>
     {% endif %}
 

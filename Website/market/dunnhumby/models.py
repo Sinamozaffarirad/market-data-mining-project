@@ -223,3 +223,85 @@ class CustomerSegment(models.Model):
 
     def __str__(self):
         return f"Customer {self.household_key} - {self.rfm_segment}"
+
+
+class ChurnExperiment(models.Model):
+    """A reproducible time-window churn training run."""
+    method = models.CharField(max_length=24)
+    observation_window_days = models.PositiveIntegerField()
+    prediction_horizon_days = models.PositiveIntegerField()
+    step_size_days = models.PositiveIntegerField()
+    accuracy = models.FloatField(null=True, blank=True)
+    precision = models.FloatField(null=True, blank=True)
+    recall = models.FloatField(null=True, blank=True)
+    f1 = models.FloatField(null=True, blank=True)
+    roc_auc = models.FloatField(null=True, blank=True)
+    pr_auc = models.FloatField(null=True, blank=True)
+    training_samples = models.PositiveIntegerField(default=0)
+    validation_samples = models.PositiveIntegerField(default=0)
+    test_samples = models.PositiveIntegerField(default=0)
+    churn_rate = models.FloatField(null=True, blank=True)
+    training_time_seconds = models.FloatField(null=True, blank=True)
+    prediction_time_seconds = models.FloatField(null=True, blank=True)
+    current_cutoff_day = models.IntegerField(null=True, blank=True)
+    is_active = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+
+class ChurnCustomerScore(models.Model):
+    """Predicted current churn probability for one experiment and household."""
+    experiment = models.ForeignKey(ChurnExperiment, on_delete=models.CASCADE, related_name="scores")
+    household_key = models.BigIntegerField()
+    churn_probability = models.FloatField()
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["experiment", "household_key"], name="unique_churn_score_per_experiment")]
+        indexes = [models.Index(fields=["experiment", "churn_probability"])]
+
+
+class CustomerStateSnapshot(models.Model):
+    """Customer RFM state at one cutoff; shared by all experiments using that cutoff."""
+    household_key = models.BigIntegerField()
+    cutoff_day = models.IntegerField()
+    observation_window_days = models.PositiveIntegerField()
+    recency_days = models.FloatField()
+    frequency = models.FloatField()
+    monetary = models.FloatField()
+    r_score = models.PositiveSmallIntegerField()
+    f_score = models.PositiveSmallIntegerField()
+    m_score = models.PositiveSmallIntegerField()
+    rfm_segment = models.CharField(max_length=32)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["household_key", "cutoff_day", "observation_window_days"], name="unique_customer_state_snapshot")]
+        indexes = [models.Index(fields=["household_key", "cutoff_day"])]
+
+
+class CustomerChurnOutcome(models.Model):
+    """Observed churn outcome after a historical snapshot; never created for current cutoffs."""
+    snapshot = models.ForeignKey(CustomerStateSnapshot, on_delete=models.CASCADE, related_name="outcomes")
+    prediction_horizon_days = models.PositiveIntegerField()
+    is_churn = models.BooleanField()
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["snapshot", "prediction_horizon_days"], name="unique_snapshot_churn_outcome")]
+
+
+class CustomerChurnPrediction(models.Model):
+    """A probability made by a particular model version for one customer snapshot."""
+    HISTORICAL = "historical"
+    CURRENT = "current"
+    PREDICTION_TYPES = [(HISTORICAL, "Historical walk-forward"), (CURRENT, "Current forecast")]
+    experiment = models.ForeignKey(ChurnExperiment, on_delete=models.CASCADE, related_name="history_predictions")
+    snapshot = models.ForeignKey(CustomerStateSnapshot, on_delete=models.CASCADE, related_name="predictions")
+    churn_probability = models.FloatField()
+    prediction_type = models.CharField(max_length=16, choices=PREDICTION_TYPES)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["experiment", "snapshot", "prediction_type"], name="unique_experiment_snapshot_prediction")]
+        indexes = [models.Index(fields=["experiment", "prediction_type"])]

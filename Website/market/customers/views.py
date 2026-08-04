@@ -5,10 +5,11 @@ from django.contrib.auth.decorators import login_required
 from .models import CustomerProfile, Transaction, Product, CustomerRecommendationCache
 from collections import defaultdict
 from django.core.paginator import Paginator
-from dunnhumby.models import AssociationRule, CustomerSegment, BasketAnalysis
+from dunnhumby.models import AssociationRule, CustomerSegment, BasketAnalysis, ChurnExperiment, CustomerChurnPrediction, CustomerStateSnapshot
 from dunnhumby.collab_filter import get_cf_recommendations
 from django.utils import timezone
 from django.db import models
+from types import SimpleNamespace
 import re
 import logging
 
@@ -263,7 +264,7 @@ def customer_churn(request, pk):
     # Manually assign the churn_risk label if it doesn't exist on the model
     if segment and hasattr(segment, 'churn_probability'):
         prob = segment.churn_probability
-        segment.churn_probability_percent = prob * 100
+        segment.churn_probability_percent = prob * 100 if prob is not None else None
         if prob is None:
             segment.churn_risk = "N/A"
         elif prob > 0.75:
@@ -275,9 +276,79 @@ def customer_churn(request, pk):
         else:
             segment.churn_risk = "Low Risk"
 
+    history_by_method = []
+    for method, label in [('sliding', 'Sliding Windows'), ('non_overlapping', 'Non-overlapping Windows')]:
+        experiment = ChurnExperiment.objects.filter(method=method).order_by('-created_at').first()
+        if not experiment:
+            continue
+        snapshots = CustomerStateSnapshot.objects.filter(
+            household_key=pk, observation_window_days=experiment.observation_window_days,
+            outcomes__prediction_horizon_days=experiment.prediction_horizon_days,
+        ).distinct().prefetch_related('outcomes').order_by('cutoff_day')
+        prediction_map = {item.snapshot_id: item for item in CustomerChurnPrediction.objects.filter(
+            experiment=experiment, snapshot__household_key=pk, prediction_type=CustomerChurnPrediction.HISTORICAL
+        )}
+        rows = []
+        previous_health_score = None
+        for snapshot in snapshots:
+            stored_prediction = prediction_map.get(snapshot.pk)
+            outcome = next((item for item in snapshot.outcomes.all() if item.prediction_horizon_days == experiment.prediction_horizon_days), None)
+            probability = stored_prediction.churn_probability if stored_prediction else None
+            health_score = int(snapshot.r_score + snapshot.f_score + snapshot.m_score)
+            if health_score >= 12:
+                health_label, health_class = 'Strong', 'success'
+            elif health_score >= 9:
+                health_label, health_class = 'Healthy', 'primary'
+            elif health_score >= 6:
+                health_label, health_class = 'Weak', 'warning'
+            else:
+                health_label, health_class = 'Critical', 'danger'
+
+            if probability is None:
+                risk_label, risk_class = 'Not scored', 'secondary'
+            elif probability > .75:
+                risk_label, risk_class = 'Very high', 'danger'
+            elif probability > .50:
+                risk_label, risk_class = 'High', 'warning'
+            elif probability > .25:
+                risk_label, risk_class = 'Medium', 'info'
+            else:
+                risk_label, risk_class = 'Low', 'success'
+
+            if previous_health_score is None:
+                health_change = 'First checkpoint'
+            elif health_score >= previous_health_score + 2:
+                health_change = 'Improving'
+            elif health_score <= previous_health_score - 2:
+                health_change = 'Worsening'
+            else:
+                health_change = 'Stable'
+            previous_health_score = health_score
+            rows.append(SimpleNamespace(
+                snapshot=snapshot, probability_percent=probability * 100 if probability is not None else None,
+                actual_outcome='Churned' if outcome and outcome.is_churn else 'Returned' if outcome else 'Not known yet',
+                health_score=health_score, health_label=health_label, health_class=health_class,
+                risk_label=risk_label, risk_class=risk_class, health_change=health_change,
+            ))
+        scored_count = sum(row.probability_percent is not None for row in rows)
+        returned_count = sum(row.actual_outcome == 'Returned' for row in rows)
+        churned_count = sum(row.actual_outcome == 'Churned' for row in rows)
+        health_change = rows[-1].health_score - rows[0].health_score if len(rows) > 1 else None
+        history_by_method.append({
+            'method': method, 'label': label, 'experiment': experiment, 'predictions': rows,
+            'summary': {
+                'snapshot_count': len(rows), 'scored_count': scored_count,
+                'returned_count': returned_count, 'churned_count': churned_count,
+                'latest_health_label': rows[-1].health_label if rows else 'No snapshot',
+                'latest_health_score': rows[-1].health_score if rows else None,
+                'health_change': health_change,
+            },
+        })
+
     context = {
         "household": household,
         "segment": segment,
+        "history_by_method": history_by_method,
     }
     return render(request, "site/customers/churn.html", context)
 

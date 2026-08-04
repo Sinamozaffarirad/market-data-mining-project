@@ -271,13 +271,13 @@ class RFMAnalyzer:
             elif r <= 2 and f >= 3 and m >= 3:
                 return "Need Attention"
             
-            # At Risk: Were good customers but haven't purchased recently
-            elif r <= 2 and f >= 2 and m >= 2:
-                return "At Risk"
-            
             # Can't Lose: High value customers who haven't purchased recently
             elif r <= 2 and f >= 4 and m >= 4:
                 return "Can't Lose Them"
+
+            # At Risk: Were good customers but haven't purchased recently
+            elif r <= 2 and f >= 2 and m >= 2:
+                return "At Risk"
             
             # Hibernating: Low recency, were customers before
             elif r <= 2:

@@ -12,18 +12,75 @@ import logging
 from .models import (
     Transaction, DunnhumbyProduct, Household, Campaign, Coupon,
     CouponRedemption, CampaignMember, CausalData, BasketAnalysis,
-    AssociationRule, CustomerSegment
+    AssociationRule, CustomerSegment, ChurnExperiment, ChurnCustomerScore,
+    CustomerStateSnapshot, CustomerChurnOutcome, CustomerChurnPrediction
 )
 from .ml_models import ml_analyzer
 from .time_series_forecasting import product_revenue_forecaster
 import json
+import pandas as pd
 from collections import defaultdict
 import threading
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from django.db import transaction as db_transaction
+from .churn_windows import ChurnWindowConfig, WindowMethod, train_and_score
 
 logger = logging.getLogger(__name__)
+
+
+def _persist_churn_history(experiment, historical_snapshots, historical_predictions, current_snapshots, current_scores, horizon_days):
+    """Persist reusable states, known outcomes, and this experiment's probabilities."""
+    states = pd.concat([historical_snapshots.drop(columns=['is_churn']), current_snapshots], ignore_index=True)
+    unique_states = states.drop_duplicates(['household_key', 'cutoff_day', 'observation_window_days'])
+    CustomerStateSnapshot.objects.bulk_create([
+        CustomerStateSnapshot(
+            household_key=int(row.household_key), cutoff_day=int(row.cutoff_day), observation_window_days=int(row.observation_window_days),
+            recency_days=float(row.recency_days), frequency=float(row.frequency), monetary=float(row.monetary),
+            r_score=int(row.r_score), f_score=int(row.f_score), m_score=int(row.m_score), rfm_segment=str(row.rfm_segment),
+        ) for row in unique_states.itertuples(index=False)
+    ], ignore_conflicts=True, batch_size=150)
+
+    # Do not put every household in an ``IN`` clause: SQL Server allows only
+    # 2,100 query parameters and this dataset contains more households than that.
+    desired_keys = {
+        (int(row.household_key), int(row.cutoff_day), int(row.observation_window_days))
+        for row in unique_states.itertuples(index=False)
+    }
+    lookup = {(household, cutoff, observation): pk for household, cutoff, observation, pk in CustomerStateSnapshot.objects.filter(
+        observation_window_days=experiment.observation_window_days,
+        cutoff_day__in=states.cutoff_day.unique().tolist(),
+    ).values_list('household_key', 'cutoff_day', 'observation_window_days', 'pk')
+        if (int(household), int(cutoff), int(observation)) in desired_keys}
+
+    missing_keys = desired_keys.difference(lookup)
+    if missing_keys:
+        raise RuntimeError(f'Could not save {len(missing_keys)} customer RFM snapshots.')
+
+    CustomerChurnOutcome.objects.bulk_create([
+        CustomerChurnOutcome(snapshot_id=lookup[(int(row.household_key), int(row.cutoff_day), int(row.observation_window_days))], prediction_horizon_days=horizon_days, is_churn=bool(row.is_churn))
+        for row in historical_snapshots.itertuples(index=False)
+    ], ignore_conflicts=True, batch_size=500)
+
+    CustomerChurnPrediction.objects.bulk_create([
+        CustomerChurnPrediction(experiment=experiment, snapshot_id=lookup[(int(row.household_key), int(row.cutoff_day), int(row.observation_window_days))], churn_probability=float(row.churn_probability), prediction_type=CustomerChurnPrediction.HISTORICAL)
+        for row in historical_predictions.itertuples(index=False)
+    ], ignore_conflicts=True, batch_size=400)
+
+    score_map = dict(zip(current_scores['household_key'].astype(int), current_scores['churn_probability'].astype(float)))
+    CustomerChurnPrediction.objects.bulk_create([
+        CustomerChurnPrediction(experiment=experiment, snapshot_id=lookup[(int(row.household_key), int(row.cutoff_day), int(row.observation_window_days))], churn_probability=float(score_map[int(row.household_key)]), prediction_type=CustomerChurnPrediction.CURRENT)
+        for row in current_snapshots.itertuples(index=False)
+    ], ignore_conflicts=True, batch_size=400)
+
+    historical_count = experiment.history_predictions.filter(prediction_type=CustomerChurnPrediction.HISTORICAL).count()
+    current_count = experiment.history_predictions.filter(prediction_type=CustomerChurnPrediction.CURRENT).count()
+    return {
+        'snapshots': len(desired_keys),
+        'outcomes': int(historical_snapshots.drop_duplicates(['household_key', 'cutoff_day', 'observation_window_days']).shape[0]),
+        'historical_predictions': historical_count,
+        'current_predictions': current_count,
+    }
 
 
 # Define table categories based on their CRUD properties
@@ -3595,12 +3652,87 @@ def customer_segments(request):
     ]
 
     # ۴. ارسال لیست مرتب‌شده به قالب
+    active_experiment = ChurnExperiment.objects.filter(is_active=True).first()
+    experiment_paginator = Paginator(ChurnExperiment.objects.order_by('-created_at'), 10)
+    experiments_page = experiment_paginator.get_page(request.GET.get('experiments_page', 1))
     return render(request, 'site/dunnhumby/customer_segments.html', {
         'title': 'Customer Segmentation',
         'segments': segments_list, # <-- از لیست مرتب‌شده جدید استفاده می‌کنیم
         'recent_customers': recent_customers,
         'churn_overview': churn_data_sorted,
+        'active_experiment': active_experiment,
+        'experiments_page': experiments_page,
+        'lifetime_rfm_cutoff_day': Transaction.objects.aggregate(max_day=Max('day'))['max_day'],
     })
+
+
+@admin_required
+@csrf_exempt
+@require_POST
+def run_churn_experiment(request):
+    """Train a leakage-safe experiment and persist its current-customer scores."""
+    try:
+        method = WindowMethod(request.POST.get('method', WindowMethod.SLIDING.value))
+        observation = int(request.POST.get('observation_window_days', 90))
+        horizon = int(request.POST.get('prediction_horizon_days', 30))
+        step = request.POST.get('sliding_step_days')
+        step = int(step) if step else None
+        if observation <= 0 or horizon <= 0:
+            raise ValueError('Observation window and prediction horizon must be positive.')
+        config = ChurnWindowConfig(method, observation, horizon, step)
+        metrics, scores, historical_snapshots, historical_predictions, current_snapshots = train_and_score(config)
+        # Saving the experiment, current scores, and history is one operation. If
+        # any history row fails, Django rolls everything back instead of leaving a
+        # completed-looking experiment with an empty customer history.
+        with db_transaction.atomic():
+            experiment = ChurnExperiment.objects.create(
+                method=config.method.value,
+                observation_window_days=config.observation_window_days,
+                prediction_horizon_days=config.prediction_horizon_days,
+                step_size_days=config.step_size(),
+                accuracy=metrics['accuracy'], precision=metrics['precision'], recall=metrics['recall'],
+                f1=metrics['f1'], roc_auc=metrics['roc_auc'], pr_auc=metrics['pr_auc'],
+                training_samples=metrics['training_samples'], validation_samples=metrics['validation_samples'],
+                test_samples=metrics['test_samples'], churn_rate=metrics['churn_rate'],
+                training_time_seconds=metrics['training_time_seconds'], prediction_time_seconds=metrics['prediction_time_seconds'],
+                current_cutoff_day=metrics['current_cutoff_day'],
+            )
+            ChurnCustomerScore.objects.bulk_create([
+                ChurnCustomerScore(experiment=experiment, household_key=int(row.household_key), churn_probability=float(row.churn_probability))
+                for row in scores.itertuples(index=False)
+            ], batch_size=500)
+            history_stats = _persist_churn_history(
+                experiment, historical_snapshots, historical_predictions, current_snapshots,
+                scores, config.prediction_horizon_days,
+            )
+        return JsonResponse({'success': True, 'experiment': {
+            'id': experiment.id, 'method': experiment.method, 'recall': experiment.recall,
+            'f1': experiment.f1, 'roc_auc': experiment.roc_auc, 'samples': experiment.training_samples,
+            'elapsed_seconds': metrics['total_time_seconds'],
+        }, 'history': history_stats})
+    except (TypeError, ValueError) as exc:
+        return JsonResponse({'success': False, 'error': str(exc)}, status=400)
+    except Exception as exc:
+        logger.exception('Churn experiment failed')
+        return JsonResponse({'success': False, 'error': f'Churn training failed: {exc}'}, status=500)
+
+
+@admin_required
+@csrf_exempt
+@require_POST
+def activate_churn_experiment(request, experiment_id):
+    """Make one experiment the dashboard model and update only dashboard score values."""
+    experiment = get_object_or_404(ChurnExperiment, pk=experiment_id)
+    score_map = dict(experiment.scores.values_list('household_key', 'churn_probability'))
+    segments = list(CustomerSegment.objects.filter(household_key__in=score_map).only('id', 'household_key', 'churn_probability'))
+    for segment in segments:
+        segment.churn_probability = score_map[segment.household_key]
+    with db_transaction.atomic():
+        ChurnExperiment.objects.filter(is_active=True).update(is_active=False)
+        experiment.is_active = True
+        experiment.save(update_fields=['is_active'])
+        CustomerSegment.objects.bulk_update(segments, ['churn_probability'], batch_size=1000)
+    return JsonResponse({'success': True, 'message': 'The selected experiment is now the active dashboard model.'})
 
 
 
