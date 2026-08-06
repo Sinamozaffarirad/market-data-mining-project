@@ -61,13 +61,13 @@
 		transform: scaleX(0);
 		transition: transform 0.3s ease;
 	}
-	{% comment %} .guide-card:hover {
+	/* .guide-card:hover {
 		transform: translateY(-5px);
 		box-shadow: 0 15px 35px rgba(0,0,0,0.1);
 	}
 	.guide-card:hover::before {
 		transform: scaleX(1);
-	} {% endcomment %}
+	} */
 
 
 	.profile-link {
@@ -120,6 +120,53 @@
     .bg-cant-lose-them { background-color: #dc3545; } /* Red */
     .bg-hibernating { background-color: #adb5bd; color: #212529 !important; } /* Light Gray */
     .bg-lost { background-color: #343a40; } /* Dark */
+#churnExperimentForm ~ .table-responsive {
+  max-height: none;
+  overflow-x: auto;
+  overflow-y: visible;
+}
+#churnExperimentForm ~ .table-responsive thead {
+  position: static;
+}
+/* #churnExperimentForm ~ .table-responsive thead th:first-child::after {
+  content: " (Iran)";
+} */
+#churnExperimentForm ~ .table-responsive table {
+  min-width: 1050px;
+  width: 100%;
+  table-layout: fixed;
+}
+#churnExperimentForm ~ .table-responsive th,
+#churnExperimentForm ~ .table-responsive td {
+  vertical-align: middle;
+  white-space: nowrap;
+}
+#churnExperimentForm ~ .table-responsive th:nth-child(1), #churnExperimentForm ~ .table-responsive td:nth-child(1) { width: 15%; }
+#churnExperimentForm ~ .table-responsive th:nth-child(2), #churnExperimentForm ~ .table-responsive td:nth-child(2) { width: 13%; }
+#churnExperimentForm ~ .table-responsive th:nth-child(3), #churnExperimentForm ~ .table-responsive td:nth-child(3) {
+  width: 26%;
+  white-space: normal;
+}
+#churnExperimentForm ~ .table-responsive th:nth-child(4), #churnExperimentForm ~ .table-responsive td:nth-child(4) { width: 8%; }
+#churnExperimentForm ~ .table-responsive th:nth-child(5), #churnExperimentForm ~ .table-responsive td:nth-child(5) { width: 7%; }
+#churnExperimentForm ~ .table-responsive th:nth-child(6), #churnExperimentForm ~ .table-responsive td:nth-child(6) { width: 6%; }
+#churnExperimentForm ~ .table-responsive th:nth-child(7), #churnExperimentForm ~ .table-responsive td:nth-child(7) { width: 8%; }
+#churnExperimentForm ~ .table-responsive th:nth-child(8), #churnExperimentForm ~ .table-responsive td:nth-child(8) { width: 17%; }
+/* The status/activate control and Delete always occupy the same two slots. */
+.experiment-actions {
+  display: inline-grid;
+  grid-template-columns: 84px 64px;
+  column-gap: 1.5rem;
+  align-items: center;
+  white-space: nowrap;
+}
+.experiment-actions > * { justify-self: center; }
+@media (min-width: 768px) {
+  /* Keep the Train button aligned right when Non-overlapping hides the step control. */
+  #stepControl.d-none + div {
+    margin-left: auto;
+  }
+}
 </style>
 
 
@@ -193,6 +240,7 @@
 				  <div class="col-md-3"><button class="btn btn-primary w-100" type="submit" id="runExperimentButton"><i class="fa-solid fa-play me-2"></i>Train experiment</button></div>
 				</form>
 				<div class="small text-muted mt-2" id="stepHelp">Sliding windows overlap. Labels always begin after each cutoff day.</div>
+				<div id="windowBoundaryStatus" class="alert mt-2 mb-0 py-2 small" data-min-day="{{ dataset_day_bounds.min_day|default:'' }}" data-max-day="{{ dataset_day_bounds.max_day|default:'' }}" role="status"></div>
 				<div class="small text-primary mt-1 d-none" id="trainingProgress"></div>
 					{% if experiments_page %}<div class="table-responsive mt-3"><table class="table table-sm align-middle mb-0"><thead><tr><th>Generated at</th><th>Method</th><th>Settings</th><th>Samples</th><th>Recall</th><th>F1</th><th>ROC-AUC</th><th></th></tr></thead><tbody>{% for experiment in experiments_page %}<tr><td>{{ experiment.created_at|date:"Y-m-d H:i" }}</td><td>{{ experiment.method|title }}</td><td>Obs {{ experiment.observation_window_days }}d · Horizon {{ experiment.prediction_horizon_days }}d · Step {{ experiment.step_size_days }}d{% if experiment.method == 'non_overlapping' %} (auto){% endif %}</td><td>{{ experiment.training_samples }}</td><td>{{ experiment.recall|floatformat:3 }}</td><td>{{ experiment.f1|floatformat:3 }}</td><td>{{ experiment.roc_auc|floatformat:3 }}</td><td>{% if experiment.is_active %}<span class="badge bg-success">Active</span>{% else %}<button class="btn btn-sm btn-outline-primary activate-experiment" data-id="{{ experiment.id }}">Activate</button>{% endif %}</td></tr>{% empty %}<tr><td colspan="8" class="text-center text-muted">No churn experiments have been generated yet.</td></tr>{% endfor %}</tbody></table></div>
 					{% if experiments_page.paginator.num_pages > 1 %}<nav class="d-flex justify-content-between align-items-center mt-3" aria-label="Churn experiment pages"><span class="small text-muted">Page {{ experiments_page.number }} of {{ experiments_page.paginator.num_pages }} · {{ experiments_page.paginator.count }} experiments</span><div class="btn-group btn-group-sm">{% if experiments_page.has_previous %}<a class="btn btn-outline-secondary" href="?experiments_page={{ experiments_page.previous_page_number }}">Previous</a>{% else %}<button class="btn btn-outline-secondary" disabled>Previous</button>{% endif %}{% if experiments_page.has_next %}<a class="btn btn-outline-secondary" href="?experiments_page={{ experiments_page.next_page_number }}">Next</a>{% else %}<button class="btn btn-outline-secondary" disabled>Next</button>{% endif %}</div></nav>{% endif %}{% endif %}
@@ -342,6 +390,7 @@
   </div>
 </div>
 
+<div id="generatedExperimentData" class="d-none" data-experiments='[{% for experiment in experiments_page %}{"id":{{ experiment.id }},"active":{% if experiment.is_active %}true{% else %}false{% endif %}}{% if not forloop.last %},{% endif %}{% endfor %}]'></div>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const csrftoken = (document.cookie.split('; ').find(r => r.startsWith('csrftoken=')) || '').split('=')[1] || '';
@@ -582,14 +631,72 @@ function getCookie(name) {
 const methodSelect = document.getElementById('windowMethod');
 const stepControl = document.getElementById('stepControl');
 const stepHelp = document.getElementById('stepHelp');
+const observationSelect = document.querySelector('[name="observation_window_days"]');
+const horizonSelect = document.querySelector('[name="prediction_horizon_days"]');
+const stepSelect = document.querySelector('[name="sliding_step_days"]');
+const boundaryStatus = document.getElementById('windowBoundaryStatus');
+const trainExperimentButton = document.getElementById('runExperimentButton');
+
+function updateBoundaryStatus() {
+    const minDay = Number(boundaryStatus.dataset.minDay);
+    const maxDay = Number(boundaryStatus.dataset.maxDay);
+    const observation = Number(observationSelect.value);
+    const horizon = Number(horizonSelect.value);
+    const nonOverlapping = methodSelect.value === 'non_overlapping';
+    const step = nonOverlapping ? observation + horizon : Number(stepSelect.value);
+
+    if (!Number.isFinite(minDay) || !Number.isFinite(maxDay) || maxDay < minDay || !step) {
+        boundaryStatus.className = 'alert alert-warning mt-2 mb-0 py-2 small';
+        boundaryStatus.textContent = 'Dataset range is unavailable. Training will validate the selected window settings.';
+        trainExperimentButton.disabled = false;
+        return;
+    }
+
+    const firstEnd = minDay + observation + horizon - 1;
+    const completeWindows = firstEnd > maxDay ? 0 : Math.floor((maxDay - firstEnd) / step) + 1;
+    const lastEnd = completeWindows ? firstEnd + (completeWindows - 1) * step : minDay - 1;
+    const nextEnd = firstEnd + completeWindows * step;
+    const missingDays = Math.max(0, nextEnd - maxDay);
+    const tailDays = Math.max(0, maxDay - lastEnd);
+
+    if (completeWindows >= 3) {
+        boundaryStatus.className = 'alert alert-success mt-2 mb-0 py-2 small';
+        boundaryStatus.innerHTML = `<strong>Ready to train.</strong> Dataset days ${minDay}-${maxDay}; ${completeWindows} complete historical windows are available. ${tailDays} trailing day(s) are excluded because their future outcome is incomplete.`;
+        trainExperimentButton.disabled = false;
+        return;
+    }
+
+    trainExperimentButton.disabled = true;
+    boundaryStatus.className = 'alert alert-warning mt-2 mb-0 py-2 small';
+    let recommendation = 'Choose smaller observation/horizon values.';
+    if (nonOverlapping) {
+        const suggestedStep = 30;
+        const slidingWindows = firstEnd > maxDay ? 0 : Math.floor((maxDay - firstEnd) / suggestedStep) + 1;
+        recommendation = `Switch to Sliding Windows with a ${suggestedStep}-day step (${slidingWindows} complete windows). <button type="button" class="btn btn-sm btn-outline-primary ms-2" id="useSlidingRecommendation">Use this setup</button>`;
+    }
+    boundaryStatus.innerHTML = `<strong>Cannot train this configuration.</strong> Only ${completeWindows} complete window(s) fit in days ${minDay}-${maxDay}. The next window would end on day ${nextEnd}, ${missingDays} day(s) beyond the dataset. ${recommendation}`;
+    const recommendationButton = document.getElementById('useSlidingRecommendation');
+    if (recommendationButton) {
+        recommendationButton.addEventListener('click', () => {
+            methodSelect.value = 'sliding';
+            stepSelect.value = '30';
+            updateWindowControls();
+        });
+    }
+}
+
 function updateWindowControls() {
     const nonOverlapping = methodSelect.value === 'non_overlapping';
     stepControl.classList.toggle('d-none', nonOverlapping);
     stepHelp.textContent = nonOverlapping
         ? 'Step size is calculated automatically: observation window + prediction horizon.'
         : 'Sliding windows overlap. Labels always begin after each cutoff day.';
+    updateBoundaryStatus();
 }
 methodSelect.addEventListener('change', updateWindowControls);
+observationSelect.addEventListener('change', updateBoundaryStatus);
+horizonSelect.addEventListener('change', updateBoundaryStatus);
+stepSelect.addEventListener('change', updateBoundaryStatus);
 updateWindowControls();
 
 function refreshDashboard(showNewestExperiment = false) {
@@ -619,7 +726,7 @@ document.getElementById('churnExperimentForm').addEventListener('submit', async 
         if (!payload.success) throw new Error(payload.error || 'Training failed.');
         const history = payload.history || {};
         const elapsed = Number(payload.experiment.elapsed_seconds || 0).toFixed(1);
-        showNotification('Experiment complete', `Finished in ${elapsed}s. Recall ${payload.experiment.recall.toFixed(3)}, F1 ${payload.experiment.f1.toFixed(3)}. Saved ${history.snapshots || 0} RFM snapshots and ${history.historical_predictions || 0} historical predictions. Activate it when you are ready.`, 'success');
+        showNotification('Experiment complete', `Finished in ${elapsed}s. Recall ${payload.experiment.recall.toFixed(3)}, F1 ${payload.experiment.f1.toFixed(3)}. Saved ${history.window_records || 0} window-history records, including ${history.scored_records || 0} scored checkpoints. Activate it when you are ready.`, 'success');
         window.setTimeout(() => refreshDashboard(true), 1200);
     } catch (error) {
         showNotification('Training failed', error.message, 'error');
@@ -663,6 +770,46 @@ function showNotification(title, message, type) {
         notification.remove();
     }, 5000);
 }
+// Add a delete action to every generated-rule row without changing its layout.
+const generatedExperiments = JSON.parse(document.getElementById('generatedExperimentData').dataset.experiments);
+const experimentResultsTable = document.querySelector('#churnExperimentForm ~ .table-responsive table');
+if (experimentResultsTable) {
+    experimentResultsTable.querySelector('thead th:last-child').textContent = 'Actions';
+}
+document.querySelectorAll('#churnExperimentForm ~ .table-responsive tbody tr').forEach((row, index) => {
+    const experiment = generatedExperiments[index];
+    if (!experiment) return;
+    const actionCell = row.lastElementChild;
+    const actionGroup = document.createElement('div');
+    actionGroup.className = 'experiment-actions';
+    while (actionCell.firstChild) actionGroup.appendChild(actionCell.firstChild);
+    actionCell.appendChild(actionGroup);
+    const deleteButton = document.createElement('button');
+    deleteButton.type = 'button';
+    deleteButton.className = 'btn btn-sm btn-outline-danger';
+    deleteButton.textContent = 'Delete';
+    if (experiment.active) {
+        deleteButton.disabled = true;
+        deleteButton.title = 'Activate another rule before deleting the active rule.';
+        actionGroup.appendChild(deleteButton);
+        return;
+    }
+    deleteButton.addEventListener('click', async () => {
+        const warning = experiment.active
+            ? 'This is the active rule. Activate another rule first, then delete it. Continue?'
+            : 'Delete this rule? The reusable RFM/history cache will be kept.';
+        if (!window.confirm(warning)) return;
+        const response = await fetch(`/analysis/api/churn/experiments/${experiment.id}/delete/`, {method: 'POST'});
+        const payload = await response.json();
+        if (!payload.success) {
+            showNotification('Delete unavailable', payload.error || 'Could not delete this rule.', 'error');
+            return;
+        }
+        showNotification('Rule deleted', payload.message, 'success');
+        window.setTimeout(refreshDashboard, 600);
+    });
+    actionGroup.appendChild(deleteButton);
+});
 </script>
 
 {% endblock %}

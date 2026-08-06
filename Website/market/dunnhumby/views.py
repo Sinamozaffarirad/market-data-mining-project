@@ -9,11 +9,14 @@ from django.urls import reverse
 from django.db.models import Sum, Count, Avg, Max, Q, Min
 from math import sqrt
 import logging
+import gzip
+import pickle
 from .models import (
     Transaction, DunnhumbyProduct, Household, Campaign, Coupon,
     CouponRedemption, CampaignMember, CausalData, BasketAnalysis,
     AssociationRule, CustomerSegment, ChurnExperiment, ChurnCustomerScore,
-    CustomerStateSnapshot, CustomerChurnOutcome, CustomerChurnPrediction
+    CustomerStateSnapshot, CustomerChurnOutcome, CustomerChurnPrediction, CustomerWindowHistory,
+    ChurnWindowCache, CachedCustomerWindow, ChurnExperimentWindowPrediction
 )
 from .ml_models import ml_analyzer
 from .time_series_forecasting import product_revenue_forecaster
@@ -24,9 +27,117 @@ import threading
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from django.db import transaction as db_transaction
-from .churn_windows import ChurnWindowConfig, WindowMethod, train_and_score
+from .churn_windows import ChurnWindowConfig, WindowMethod, build_history_dataset, train_and_score
 
 logger = logging.getLogger(__name__)
+
+
+def _source_dataset_signature():
+    """A lightweight version marker for this project's fixed transaction dataset."""
+    source = Transaction.objects.aggregate(total=Count('id'), first_day=Min('day'), last_day=Max('day'))
+    return f"{source['total'] or 0}:{source['first_day'] or 0}:{source['last_day'] or 0}"
+
+
+def _find_window_cache(config):
+    return ChurnWindowCache.objects.filter(
+        method=config.method.value,
+        observation_window_days=config.observation_window_days,
+        prediction_horizon_days=config.prediction_horizon_days,
+        step_size_days=config.step_size(),
+        dataset_signature=_source_dataset_signature(),
+    ).first()
+
+
+def _read_cached_training_dataset(cache):
+    if not cache or not cache.training_dataset_blob:
+        return None
+    return pickle.loads(gzip.decompress(bytes(cache.training_dataset_blob)))
+
+
+def _write_cached_training_dataset(cache, dataset):
+    if cache.training_dataset_blob:
+        return
+    cache.training_dataset_blob = gzip.compress(pickle.dumps(dataset, protocol=pickle.HIGHEST_PROTOCOL))
+    cache.save(update_fields=['training_dataset_blob'])
+
+
+def _get_or_build_window_cache(config, historical_snapshots=None, training_dataset=None):
+    """Return a shared RFM/outcome cache, creating it only once per source version."""
+    cache, created = ChurnWindowCache.objects.get_or_create(
+        method=config.method.value,
+        observation_window_days=config.observation_window_days,
+        prediction_horizon_days=config.prediction_horizon_days,
+        step_size_days=config.step_size(),
+        dataset_signature=_source_dataset_signature(),
+    )
+    if created or not cache.customer_windows.exists():
+        snapshots = historical_snapshots if historical_snapshots is not None else build_history_dataset(config)
+        if snapshots.empty:
+            raise ValueError('No complete history windows can be built for this rule.')
+        CachedCustomerWindow.objects.bulk_create([
+            CachedCustomerWindow(
+                cache=cache, household_key=int(row.household_key),
+                observation_start=int(row.observation_start), observation_end=int(row.observation_end),
+                cutoff_day=int(row.cutoff_day), label_start=int(row.label_start), label_end=int(row.label_end),
+                recency_days=float(row.recency_days), frequency=float(row.frequency), monetary=float(row.monetary),
+                r_score=int(row.r_score), f_score=int(row.f_score), m_score=int(row.m_score),
+                rfm_segment=str(row.rfm_segment), is_churn=bool(row.is_churn),
+            )
+            for row in snapshots.itertuples(index=False)
+        ], batch_size=500)
+    if training_dataset is not None:
+        _write_cached_training_dataset(cache, training_dataset)
+    return cache, {'window_records': cache.customer_windows.count(), 'cache_reused': not created}
+
+
+def _persist_cache_predictions(experiment, cache, historical_predictions):
+    """Save only model-specific probabilities; RFM/outcomes stay in the shared cache."""
+    if historical_predictions.empty:
+        return 0
+    window_ids = {
+        (int(household), int(cutoff)): pk
+        for household, cutoff, pk in CachedCustomerWindow.objects.filter(cache=cache).values_list('household_key', 'cutoff_day', 'pk')
+    }
+    predictions = [
+        ChurnExperimentWindowPrediction(
+            experiment=experiment,
+            window_id=window_ids[(int(row.household_key), int(row.cutoff_day))],
+            churn_probability=float(row.churn_probability),
+        )
+        for row in historical_predictions.itertuples(index=False)
+        if (int(row.household_key), int(row.cutoff_day)) in window_ids
+    ]
+    ChurnExperimentWindowPrediction.objects.bulk_create(predictions, batch_size=500)
+    return len(predictions)
+
+
+def _persist_window_history(experiment, historical_snapshots, historical_predictions):
+    """Save each complete historical window as one experiment-owned customer record."""
+    probability_by_window = {
+        (int(row.household_key), int(row.cutoff_day), int(row.observation_window_days)): float(row.churn_probability)
+        for row in historical_predictions.itertuples(index=False)
+    }
+    records = [
+        CustomerWindowHistory(
+            experiment=experiment,
+            household_key=int(row.household_key),
+            observation_start=int(row.observation_start), observation_end=int(row.observation_end),
+            cutoff_day=int(row.cutoff_day), label_start=int(row.label_start), label_end=int(row.label_end),
+            recency_days=float(row.recency_days), frequency=float(row.frequency), monetary=float(row.monetary),
+            r_score=int(row.r_score), f_score=int(row.f_score), m_score=int(row.m_score),
+            rfm_segment=str(row.rfm_segment), is_churn=bool(row.is_churn),
+            churn_probability=probability_by_window.get((
+                int(row.household_key), int(row.cutoff_day), int(row.observation_window_days),
+            )),
+        )
+        for row in historical_snapshots.itertuples(index=False)
+    ]
+    CustomerWindowHistory.objects.bulk_create(records, batch_size=100)
+    return {
+        'window_records': len(records),
+        'scored_records': sum(record.churn_probability is not None for record in records),
+        'outcomes': len(records),
+    }
 
 
 def _persist_churn_history(experiment, historical_snapshots, historical_predictions, current_snapshots, current_scores, horizon_days):
@@ -3653,7 +3764,19 @@ def customer_segments(request):
 
     # ۴. ارسال لیست مرتب‌شده به قالب
     active_experiment = ChurnExperiment.objects.filter(is_active=True).first()
-    experiment_paginator = Paginator(ChurnExperiment.objects.order_by('-created_at'), 10)
+    # Present one row per rule configuration.  Old duplicate runs are retained
+    # only until that configuration is trained again, but never clutter the UI.
+    visible_experiments = []
+    seen_rules = set()
+    for experiment in ChurnExperiment.objects.order_by('-created_at'):
+        rule_key = (
+            experiment.method, experiment.observation_window_days,
+            experiment.prediction_horizon_days, experiment.step_size_days,
+        )
+        if rule_key not in seen_rules:
+            visible_experiments.append(experiment)
+            seen_rules.add(rule_key)
+    experiment_paginator = Paginator(visible_experiments, 5)
     experiments_page = experiment_paginator.get_page(request.GET.get('experiments_page', 1))
     return render(request, 'site/dunnhumby/customer_segments.html', {
         'title': 'Customer Segmentation',
@@ -3663,6 +3786,7 @@ def customer_segments(request):
         'active_experiment': active_experiment,
         'experiments_page': experiments_page,
         'lifetime_rfm_cutoff_day': Transaction.objects.aggregate(max_day=Max('day'))['max_day'],
+        'dataset_day_bounds': Transaction.objects.aggregate(min_day=Min('day'), max_day=Max('day')),
     })
 
 
@@ -3680,11 +3804,28 @@ def run_churn_experiment(request):
         if observation <= 0 or horizon <= 0:
             raise ValueError('Observation window and prediction horizon must be positive.')
         config = ChurnWindowConfig(method, observation, horizon, step)
-        metrics, scores, historical_snapshots, historical_predictions, current_snapshots = train_and_score(config)
+        reusable_cache = _find_window_cache(config)
+        cached_training_dataset = _read_cached_training_dataset(reusable_cache)
+        metrics, scores, historical_snapshots, historical_predictions, current_snapshots, training_dataset = train_and_score(
+            config, cached_training_dataset=cached_training_dataset,
+        )
+        window_cache, history_stats = _get_or_build_window_cache(
+            config, historical_snapshots, training_dataset=training_dataset,
+        )
         # Saving the experiment, current scores, and history is one operation. If
         # any history row fails, Django rolls everything back instead of leaving a
         # completed-looking experiment with an empty customer history.
         with db_transaction.atomic():
+            previous_runs = ChurnExperiment.objects.filter(
+                method=config.method.value,
+                observation_window_days=config.observation_window_days,
+                prediction_horizon_days=config.prediction_horizon_days,
+                step_size_days=config.step_size(),
+            )
+            replace_active_rule = previous_runs.filter(is_active=True).exists()
+            # A new generation of the same rule supersedes its old model,
+            # scores, and window history. Related rows are removed by cascade.
+            previous_runs.delete()
             experiment = ChurnExperiment.objects.create(
                 method=config.method.value,
                 observation_window_days=config.observation_window_days,
@@ -3696,15 +3837,20 @@ def run_churn_experiment(request):
                 test_samples=metrics['test_samples'], churn_rate=metrics['churn_rate'],
                 training_time_seconds=metrics['training_time_seconds'], prediction_time_seconds=metrics['prediction_time_seconds'],
                 current_cutoff_day=metrics['current_cutoff_day'],
+                is_active=replace_active_rule,
+                window_cache=window_cache,
             )
             ChurnCustomerScore.objects.bulk_create([
                 ChurnCustomerScore(experiment=experiment, household_key=int(row.household_key), churn_probability=float(row.churn_probability))
                 for row in scores.itertuples(index=False)
             ], batch_size=500)
-            history_stats = _persist_churn_history(
-                experiment, historical_snapshots, historical_predictions, current_snapshots,
-                scores, config.prediction_horizon_days,
-            )
+            history_stats['scored_records'] = _persist_cache_predictions(experiment, window_cache, historical_predictions)
+            if replace_active_rule:
+                score_map = dict(experiment.scores.values_list('household_key', 'churn_probability'))
+                segments = list(CustomerSegment.objects.filter(household_key__in=score_map).only('id', 'household_key', 'churn_probability'))
+                for segment in segments:
+                    segment.churn_probability = score_map[segment.household_key]
+                CustomerSegment.objects.bulk_update(segments, ['churn_probability'], batch_size=1000)
         return JsonResponse({'success': True, 'experiment': {
             'id': experiment.id, 'method': experiment.method, 'recall': experiment.recall,
             'f1': experiment.f1, 'roc_auc': experiment.roc_auc, 'samples': experiment.training_samples,
@@ -3733,6 +3879,89 @@ def activate_churn_experiment(request, experiment_id):
         experiment.save(update_fields=['is_active'])
         CustomerSegment.objects.bulk_update(segments, ['churn_probability'], batch_size=1000)
     return JsonResponse({'success': True, 'message': 'The selected experiment is now the active dashboard model.'})
+
+
+@admin_required
+@csrf_exempt
+@require_POST
+def delete_churn_experiment(request, experiment_id):
+    """Delete one model version while preserving its reusable window cache."""
+    experiment = get_object_or_404(ChurnExperiment, pk=experiment_id)
+    if experiment.is_active:
+        return JsonResponse({
+            'success': False,
+            'error': 'This is the active dashboard rule. Activate another rule before deleting it.',
+        }, status=400)
+    experiment.delete()
+    return JsonResponse({
+        'success': True,
+        'message': 'Rule deleted. Its reusable RFM/outcome cache was kept for future training.',
+    })
+
+
+@admin_required
+@csrf_exempt
+@require_POST
+def cache_churn_experiment_history(request, experiment_id):
+    """Backfill one old rule's RFM/outcome cache without re-training a model."""
+    experiment = get_object_or_404(ChurnExperiment, pk=experiment_id)
+    if experiment.window_cache_id and experiment.window_cache.customer_windows.exists():
+        return JsonResponse({
+            'success': True, 'already_cached': True, 'window_records': experiment.window_cache.customer_windows.count(),
+            'message': 'This rule already has cached customer history.',
+        })
+
+    try:
+        config = ChurnWindowConfig(
+            WindowMethod(experiment.method),
+            experiment.observation_window_days,
+            experiment.prediction_horizon_days,
+            None if experiment.method == WindowMethod.NON_OVERLAPPING.value else experiment.step_size_days,
+        )
+        window_cache, stats = _get_or_build_window_cache(config)
+
+        # Reuse any historical probability rows saved by older versions. Most
+        # old rules have only RFM/outcome data, which is still useful history.
+        legacy_predictions = pd.DataFrame.from_records(
+            CustomerChurnPrediction.objects.filter(
+                experiment=experiment,
+                prediction_type=CustomerChurnPrediction.HISTORICAL,
+            ).values(
+                'snapshot__household_key', 'snapshot__cutoff_day',
+                'snapshot__observation_window_days', 'churn_probability',
+            )
+        )
+        if not legacy_predictions.empty:
+            legacy_predictions = legacy_predictions.rename(columns={
+                'snapshot__household_key': 'household_key',
+                'snapshot__cutoff_day': 'cutoff_day',
+                'snapshot__observation_window_days': 'observation_window_days',
+            })
+        else:
+            legacy_predictions = pd.DataFrame(columns=[
+                'household_key', 'cutoff_day', 'observation_window_days', 'churn_probability',
+            ])
+        direct_predictions = pd.DataFrame.from_records(
+            CustomerWindowHistory.objects.filter(
+                experiment=experiment,
+                churn_probability__isnull=False,
+            ).values('household_key', 'cutoff_day', 'churn_probability')
+        )
+        if not direct_predictions.empty:
+            direct_predictions['observation_window_days'] = experiment.observation_window_days
+            legacy_predictions = pd.concat([legacy_predictions, direct_predictions], ignore_index=True).drop_duplicates(
+                ['household_key', 'cutoff_day'], keep='first'
+            )
+        with db_transaction.atomic():
+            experiment.window_cache = window_cache
+            experiment.save(update_fields=['window_cache'])
+            stats['scored_records'] = _persist_cache_predictions(experiment, window_cache, legacy_predictions)
+        return JsonResponse({'success': True, 'already_cached': False, **stats})
+    except (TypeError, ValueError) as exc:
+        return JsonResponse({'success': False, 'error': str(exc)}, status=400)
+    except Exception as exc:
+        logger.exception('Churn history cache failed')
+        return JsonResponse({'success': False, 'error': f'Could not build the history cache: {exc}'}, status=500)
 
 
 
