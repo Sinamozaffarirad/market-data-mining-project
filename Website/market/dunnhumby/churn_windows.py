@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import accuracy_score, average_precision_score, f1_score, precision_score, recall_score, roc_auc_score
 from xgboost import XGBClassifier
+from django.db.models import Min, Max
 
 from .models import DunnhumbyProduct, Transaction
 
@@ -164,6 +165,20 @@ def build_training_dataset(transactions: pd.DataFrame, config: ChurnWindowConfig
     return pd.concat(rows, ignore_index=True) if rows else pd.DataFrame()
 
 
+def build_history_dataset(config: ChurnWindowConfig) -> pd.DataFrame:
+    """Rebuild complete RFM/outcome windows without fitting any churn model."""
+    transactions = _load_transactions()
+    dataset = build_training_dataset(transactions, config)
+    if dataset.empty:
+        return dataset
+    history_columns = [
+        "household_key", "observation_start", "observation_end", "cutoff_day", "label_start", "label_end",
+        "observation_window_days", "prediction_horizon_days", "recency_days", "frequency", "monetary",
+        "r_score", "f_score", "m_score", "rfm_segment", "is_churn",
+    ]
+    return dataset[history_columns].copy()
+
+
 def _metrics(y_true, probabilities) -> dict:
     predicted = (probabilities >= 0.5).astype(int)
     result = {
@@ -181,11 +196,23 @@ def _new_model() -> XGBClassifier:
     return XGBClassifier(n_estimators=100, max_depth=6, learning_rate=.05, subsample=.8, colsample_bytree=.8, objective="binary:logistic", eval_metric="logloss", tree_method="hist", n_jobs=-1, random_state=42)
 
 
-def train_and_score(config: ChurnWindowConfig):
+def train_and_score(config: ChurnWindowConfig, cached_training_dataset=None):
     """Train, score current customers, and create leakage-safe walk-forward history."""
     started = perf_counter()
+    if cached_training_dataset is None:
+        bounds = Transaction.objects.aggregate(min_day=Min("day"), max_day=Max("day"))
+        if bounds["min_day"] is None or bounds["max_day"] is None:
+            raise ValueError("No transaction data is available for churn training.")
+        complete_windows = list(generate_time_windows(bounds["min_day"], bounds["max_day"], config))
+        if len(complete_windows) < 3:
+            raise ValueError(
+                f"These settings create only {len(complete_windows)} complete windows. "
+                "Choose Sliding Windows or reduce the observation/prediction days."
+            )
     transactions = _load_transactions()
-    dataset = build_training_dataset(transactions, config)
+    if transactions.empty:
+        raise ValueError("No transaction data is available for churn training.")
+    dataset = cached_training_dataset.copy() if cached_training_dataset is not None else build_training_dataset(transactions, config)
     if dataset.empty or dataset.cutoff_day.nunique() < 3:
         raise ValueError("Not enough complete time windows to create train, validation, and test periods.")
     cutoffs = sorted(dataset.cutoff_day.unique())
@@ -248,6 +275,11 @@ def train_and_score(config: ChurnWindowConfig):
         "total_time_seconds": perf_counter() - started, "current_cutoff_day": current_cutoff,
     })
     snapshot_columns = ["household_key", "cutoff_day", "observation_window_days", "recency_days", "frequency", "monetary", "r_score", "f_score", "m_score", "rfm_segment", "is_churn"]
-    historical_snapshots = dataset[snapshot_columns].copy()
+    history_columns = [
+        "household_key", "observation_start", "observation_end", "cutoff_day", "label_start", "label_end",
+        "observation_window_days", "prediction_horizon_days", "recency_days", "frequency", "monetary",
+        "r_score", "f_score", "m_score", "rfm_segment", "is_churn",
+    ]
+    historical_snapshots = dataset[history_columns].copy()
     current_snapshots = current_features[[column for column in snapshot_columns if column != "is_churn"]].copy()
-    return metrics, current_features[["household_key", "churn_probability"]], historical_snapshots, historical_predictions, current_snapshots
+    return metrics, current_features[["household_key", "churn_probability"]], historical_snapshots, historical_predictions, current_snapshots, dataset

@@ -5,7 +5,10 @@ from django.contrib.auth.decorators import login_required
 from .models import CustomerProfile, Transaction, Product, CustomerRecommendationCache
 from collections import defaultdict
 from django.core.paginator import Paginator
-from dunnhumby.models import AssociationRule, CustomerSegment, BasketAnalysis, ChurnExperiment, CustomerChurnPrediction, CustomerStateSnapshot
+from dunnhumby.models import (
+    AssociationRule, CustomerSegment, BasketAnalysis, ChurnExperiment,
+    CustomerWindowHistory, CachedCustomerWindow, ChurnExperimentWindowPrediction,
+)
 from dunnhumby.collab_filter import get_cf_recommendations
 from django.utils import timezone
 from django.db import models
@@ -276,25 +279,57 @@ def customer_churn(request, pk):
         else:
             segment.churn_risk = "Low Risk"
 
-    history_by_method = []
-    for method, label in [('sliding', 'Sliding Windows'), ('non_overlapping', 'Non-overlapping Windows')]:
-        experiment = ChurnExperiment.objects.filter(method=method).order_by('-created_at').first()
-        if not experiment:
-            continue
-        snapshots = CustomerStateSnapshot.objects.filter(
-            household_key=pk, observation_window_days=experiment.observation_window_days,
-            outcomes__prediction_horizon_days=experiment.prediction_horizon_days,
-        ).distinct().prefetch_related('outcomes').order_by('cutoff_day')
-        prediction_map = {item.snapshot_id: item for item in CustomerChurnPrediction.objects.filter(
-            experiment=experiment, snapshot__household_key=pk, prediction_type=CustomerChurnPrediction.HISTORICAL
-        )}
+    # One selector exposes every saved rule, including rules that are not the
+    # dashboard's active rule.  Only the latest copy of an identical rule is
+    # offered, which also keeps older duplicate runs out of the UI.
+    all_experiments = list(ChurnExperiment.objects.order_by('-created_at'))
+    available_history_experiments = []
+    seen_rules = set()
+    for candidate in all_experiments:
+        rule_key = (
+            candidate.method, candidate.observation_window_days,
+            candidate.prediction_horizon_days, candidate.step_size_days,
+        )
+        if rule_key not in seen_rules:
+            available_history_experiments.append(candidate)
+            seen_rules.add(rule_key)
+
+    selected_experiment_id = request.GET.get('history_experiment')
+    if selected_experiment_id:
+        request.session['selected_history_experiment'] = selected_experiment_id
+    else:
+        selected_experiment_id = request.session.get('selected_history_experiment')
+    selected_experiment = next(
+        (item for item in available_history_experiments if str(item.pk) == str(selected_experiment_id)),
+        None,
+    )
+    if selected_experiment is None:
+        selected_experiment = next(
+            (item for item in available_history_experiments if item.is_active),
+            available_history_experiments[0] if available_history_experiments else None,
+        )
+
+    history = None
+    if selected_experiment:
+        experiment = selected_experiment
         rows = []
         previous_health_score = None
-        for snapshot in snapshots:
-            stored_prediction = prediction_map.get(snapshot.pk)
-            outcome = next((item for item in snapshot.outcomes.all() if item.prediction_horizon_days == experiment.prediction_horizon_days), None)
-            probability = stored_prediction.churn_probability if stored_prediction else None
-            health_score = int(snapshot.r_score + snapshot.f_score + snapshot.m_score)
+        # New experiments read RFM/outcomes from the reusable cache. Older
+        # experiments continue to work through the legacy per-experiment rows.
+        if experiment.window_cache_id:
+            records = CachedCustomerWindow.objects.filter(cache=experiment.window_cache, household_key=pk).order_by('cutoff_day')
+            probability_by_window = dict(
+                ChurnExperimentWindowPrediction.objects.filter(
+                    experiment=experiment,
+                    window__household_key=pk,
+                ).values_list('window_id', 'churn_probability')
+            )
+        else:
+            records = CustomerWindowHistory.objects.filter(experiment=experiment, household_key=pk).order_by('cutoff_day')
+            probability_by_window = None
+        for record in records:
+            probability = probability_by_window.get(record.id) if probability_by_window is not None else record.churn_probability
+            health_score = int(record.r_score + record.f_score + record.m_score)
             if health_score >= 12:
                 health_label, health_class = 'Strong', 'success'
             elif health_score >= 9:
@@ -324,31 +359,38 @@ def customer_churn(request, pk):
             else:
                 health_change = 'Stable'
             previous_health_score = health_score
+            prediction_is_correct = None if probability is None else (probability >= .50) == bool(record.is_churn)
             rows.append(SimpleNamespace(
-                snapshot=snapshot, probability_percent=probability * 100 if probability is not None else None,
-                actual_outcome='Churned' if outcome and outcome.is_churn else 'Returned' if outcome else 'Not known yet',
+                record=record, probability_percent=probability * 100 if probability is not None else None,
+                actual_outcome='No purchase in horizon' if record.is_churn else 'Purchased in horizon',
+                prediction_is_correct=prediction_is_correct,
                 health_score=health_score, health_label=health_label, health_class=health_class,
                 risk_label=risk_label, risk_class=risk_class, health_change=health_change,
             ))
         scored_count = sum(row.probability_percent is not None for row in rows)
-        returned_count = sum(row.actual_outcome == 'Returned' for row in rows)
-        churned_count = sum(row.actual_outcome == 'Churned' for row in rows)
+        purchased_count = sum(row.actual_outcome == 'Purchased in horizon' for row in rows)
+        no_purchase_count = sum(row.actual_outcome == 'No purchase in horizon' for row in rows)
         health_change = rows[-1].health_score - rows[0].health_score if len(rows) > 1 else None
-        history_by_method.append({
-            'method': method, 'label': label, 'experiment': experiment, 'predictions': rows,
+        rows.reverse()
+        paginator = Paginator(rows, 10)
+        history = {
+            'experiment': experiment,
+            'cache_available': bool(experiment.window_cache_id),
+            'page': paginator.get_page(request.GET.get('history_page', 1)),
             'summary': {
                 'snapshot_count': len(rows), 'scored_count': scored_count,
-                'returned_count': returned_count, 'churned_count': churned_count,
-                'latest_health_label': rows[-1].health_label if rows else 'No snapshot',
-                'latest_health_score': rows[-1].health_score if rows else None,
+                'purchased_count': purchased_count, 'no_purchase_count': no_purchase_count,
+                'latest_health_label': rows[0].health_label if rows else 'No snapshot',
+                'latest_health_score': rows[0].health_score if rows else None,
                 'health_change': health_change,
             },
-        })
+        }
 
     context = {
         "household": household,
         "segment": segment,
-        "history_by_method": history_by_method,
+        "history": history,
+        "available_history_experiments": available_history_experiments,
     }
     return render(request, "site/customers/churn.html", context)
 

@@ -225,6 +225,23 @@ class CustomerSegment(models.Model):
         return f"Customer {self.household_key} - {self.rfm_segment}"
 
 
+class ChurnWindowCache(models.Model):
+    """Reusable RFM/outcome dataset for one rule configuration and source-data version."""
+    method = models.CharField(max_length=24)
+    observation_window_days = models.PositiveIntegerField()
+    prediction_horizon_days = models.PositiveIntegerField()
+    step_size_days = models.PositiveIntegerField()
+    dataset_signature = models.CharField(max_length=128)
+    training_dataset_blob = models.BinaryField(null=True, blank=True, editable=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(
+            fields=["method", "observation_window_days", "prediction_horizon_days", "step_size_days", "dataset_signature"],
+            name="unique_churn_window_cache",
+        )]
+
+
 class ChurnExperiment(models.Model):
     """A reproducible time-window churn training run."""
     method = models.CharField(max_length=24)
@@ -244,6 +261,7 @@ class ChurnExperiment(models.Model):
     training_time_seconds = models.FloatField(null=True, blank=True)
     prediction_time_seconds = models.FloatField(null=True, blank=True)
     current_cutoff_day = models.IntegerField(null=True, blank=True)
+    window_cache = models.ForeignKey(ChurnWindowCache, null=True, blank=True, on_delete=models.SET_NULL, related_name="experiments")
     is_active = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -305,3 +323,64 @@ class CustomerChurnPrediction(models.Model):
     class Meta:
         constraints = [models.UniqueConstraint(fields=["experiment", "snapshot", "prediction_type"], name="unique_experiment_snapshot_prediction")]
         indexes = [models.Index(fields=["experiment", "prediction_type"])]
+
+
+class CustomerWindowHistory(models.Model):
+    """One auditable customer state and known horizon outcome for one experiment window."""
+    experiment = models.ForeignKey(ChurnExperiment, on_delete=models.CASCADE, related_name="window_history")
+    household_key = models.BigIntegerField()
+    observation_start = models.IntegerField()
+    observation_end = models.IntegerField()
+    cutoff_day = models.IntegerField()
+    label_start = models.IntegerField()
+    label_end = models.IntegerField()
+    recency_days = models.FloatField()
+    frequency = models.FloatField()
+    monetary = models.FloatField()
+    r_score = models.PositiveSmallIntegerField()
+    f_score = models.PositiveSmallIntegerField()
+    m_score = models.PositiveSmallIntegerField()
+    rfm_segment = models.CharField(max_length=32)
+    is_churn = models.BooleanField(help_text="No purchase occurred during this row's complete prediction horizon.")
+    churn_probability = models.FloatField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["cutoff_day", "household_key"]
+        constraints = [models.UniqueConstraint(fields=["experiment", "household_key", "cutoff_day"], name="unique_window_history_per_experiment")]
+        indexes = [models.Index(fields=["experiment", "household_key", "cutoff_day"], name="dunnhumby_c_exphhcut_idx")]
+
+
+class CachedCustomerWindow(models.Model):
+    """Reusable customer RFM state and known future outcome, independent of experiments."""
+    cache = models.ForeignKey(ChurnWindowCache, on_delete=models.CASCADE, related_name="customer_windows")
+    household_key = models.BigIntegerField()
+    observation_start = models.IntegerField()
+    observation_end = models.IntegerField()
+    cutoff_day = models.IntegerField()
+    label_start = models.IntegerField()
+    label_end = models.IntegerField()
+    recency_days = models.FloatField()
+    frequency = models.FloatField()
+    monetary = models.FloatField()
+    r_score = models.PositiveSmallIntegerField()
+    f_score = models.PositiveSmallIntegerField()
+    m_score = models.PositiveSmallIntegerField()
+    rfm_segment = models.CharField(max_length=32)
+    is_churn = models.BooleanField(help_text="No purchase occurred during this row's complete prediction horizon.")
+
+    class Meta:
+        ordering = ["cutoff_day", "household_key"]
+        constraints = [models.UniqueConstraint(fields=["cache", "household_key", "cutoff_day"], name="unique_cached_customer_window")]
+        indexes = [models.Index(fields=["cache", "household_key", "cutoff_day"], name="dunnhumby_cachehhcut_idx")]
+
+
+class ChurnExperimentWindowPrediction(models.Model):
+    """A model-specific historical probability linked to a reusable window cache row."""
+    experiment = models.ForeignKey(ChurnExperiment, on_delete=models.CASCADE, related_name="cached_history_predictions")
+    window = models.ForeignKey(CachedCustomerWindow, on_delete=models.CASCADE, related_name="experiment_predictions")
+    churn_probability = models.FloatField()
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["experiment", "window"], name="unique_cached_window_prediction")]
+        indexes = [models.Index(fields=["experiment", "window"], name="dunnhumby_expwin_idx")]
