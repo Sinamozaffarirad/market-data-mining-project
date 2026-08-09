@@ -9,6 +9,7 @@ from collections import defaultdict, Counter
 from itertools import combinations
 from django.db import connection
 from .models import Transaction, Household, DunnhumbyProduct, AssociationRule, CustomerSegment, BasketAnalysis
+from .rfm_utils import assign_rfm_segment, score_rfm_series
 
 
 
@@ -194,7 +195,7 @@ class RFMAnalyzer:
         self.segments = None
         
     def calculate_rfm_scores(self, quantiles=5):
-        """Calculate RFM scores for all customers"""
+        """Calculate shared stable 1-5 RFM scores for all customers."""
         query = """
         SELECT 
             household_key,
@@ -219,15 +220,12 @@ class RFMAnalyzer:
         max_day = df['recency'].max()
         df['recency'] = max_day - df['recency']
         
-        # Calculate RFM scores (1-5 scale)
-        df['R'] = pd.qcut(df['recency'], quantiles, labels=[5,4,3,2,1])  # Lower recency = higher score
-        df['F'] = pd.qcut(df['frequency'].rank(method='first'), quantiles, labels=[1,2,3,4,5])  # Higher frequency = higher score
-        df['M'] = pd.qcut(df['monetary'], quantiles, labels=[1,2,3,4,5])  # Higher monetary = higher score
-        
-        # Convert to numeric
-        df['R'] = df['R'].astype(int)
-        df['F'] = df['F'].astype(int)
-        df['M'] = df['M'].astype(int)
+        # ``quantiles`` remains for backwards-compatible callers. The shared
+        # implementation intentionally always uses the project-wide 1-5 scale.
+        del quantiles
+        df['R'] = score_rfm_series(df['recency'], higher_is_better=False)
+        df['F'] = score_rfm_series(df['frequency'], higher_is_better=True)
+        df['M'] = score_rfm_series(df['monetary'], higher_is_better=True)
         
         self.rfm_data = df
         return df
@@ -239,55 +237,9 @@ class RFMAnalyzer:
         
         df = self.rfm_data.copy()
         
-        # Create RFM segments based on scores
-        def assign_segment(row):
-            r, f, m = row['R'], row['F'], row['M']
-            
-            # Champions: High value, high frequency, recent
-            if r >= 4 and f >= 4 and m >= 4:
-                return "Champions"
-            
-            # Loyal Customers: High frequency, good monetary
-            elif f >= 4 and m >= 3:
-                return "Loyal Customers"
-            
-            # Potential Loyalists: Recent customers with good frequency
-            elif r >= 4 and f >= 3:
-                return "Potential Loyalists"
-            
-            # New Customers: Recent but low frequency/monetary
-            elif r >= 4 and f <= 2:
-                return "New Customers"
-            
-            # Big Spenders: High monetary regardless of recency/frequency
-            elif m >= 4:
-                return "Big Spenders"
-            
-            # Regular Customers: Consistent but not exceptional
-            elif f >= 3 and r >= 3:
-                return "Regular Customers"
-            
-            # Need Attention: Good customers who haven't purchased recently
-            elif r <= 2 and f >= 3 and m >= 3:
-                return "Need Attention"
-            
-            # Can't Lose: High value customers who haven't purchased recently
-            elif r <= 2 and f >= 4 and m >= 4:
-                return "Can't Lose Them"
-
-            # At Risk: Were good customers but haven't purchased recently
-            elif r <= 2 and f >= 2 and m >= 2:
-                return "At Risk"
-            
-            # Hibernating: Low recency, were customers before
-            elif r <= 2:
-                return "Hibernating"
-            
-            # Lost: Lowest recency, frequency, and monetary
-            else:
-                return "Lost"
-        
-        df['Segment'] = df.apply(assign_segment, axis=1)
+        df['Segment'] = df.apply(
+            lambda row: assign_rfm_segment(row['R'], row['F'], row['M']), axis=1
+        )
         self.segments = df
         return df
     
@@ -435,7 +387,17 @@ def run_complete_analysis(transaction_limit=None):
     return results
 
 
-def build_churn_feature_set(prediction_point_offset=30):
+def build_churn_feature_set(*args, **kwargs):
+    """Block use of the obsolete single-cutoff churn feature builder."""
+    raise RuntimeError(
+        "Deprecated churn builder. Use the time-window experiment system in "
+        "Customer Segments to train and activate a churn model."
+    )
+
+
+# Kept only as historical reference while this project transitions to the
+# time-window engine. Do not call this function from application code.
+def _legacy_build_churn_feature_set(prediction_point_offset=30):
     """
     یک مجموعه ویژگی جامع برای پیش‌بینی ریزش مشتری بدون نشت داده ایجاد می‌کند.
     ویژگی‌ها بر اساس یک نقطه زمانی در گذشته محاسبه شده و برچسب ریزش بر اساس

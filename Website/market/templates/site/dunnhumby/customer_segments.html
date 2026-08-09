@@ -128,11 +128,11 @@
 #churnExperimentForm ~ .table-responsive thead {
   position: static;
 }
-/* #churnExperimentForm ~ .table-responsive thead th:first-child::after {
+#churnExperimentForm ~ .table-responsive thead th:first-child::after {
   content: " (Iran)";
-} */
+}
 #churnExperimentForm ~ .table-responsive table {
-  min-width: 1050px;
+  min-width: 1120px;
   width: 100%;
   table-layout: fixed;
 }
@@ -141,26 +141,48 @@
   vertical-align: middle;
   white-space: nowrap;
 }
-#churnExperimentForm ~ .table-responsive th:nth-child(1), #churnExperimentForm ~ .table-responsive td:nth-child(1) { width: 15%; }
-#churnExperimentForm ~ .table-responsive th:nth-child(2), #churnExperimentForm ~ .table-responsive td:nth-child(2) { width: 13%; }
+#churnExperimentForm ~ .table-responsive th:nth-child(1), #churnExperimentForm ~ .table-responsive td:nth-child(1) { width: 14%; }
+#churnExperimentForm ~ .table-responsive th:nth-child(2), #churnExperimentForm ~ .table-responsive td:nth-child(2) { width: 14%; }
 #churnExperimentForm ~ .table-responsive th:nth-child(3), #churnExperimentForm ~ .table-responsive td:nth-child(3) {
-  width: 26%;
+  width: 20%;
   white-space: normal;
 }
 #churnExperimentForm ~ .table-responsive th:nth-child(4), #churnExperimentForm ~ .table-responsive td:nth-child(4) { width: 8%; }
 #churnExperimentForm ~ .table-responsive th:nth-child(5), #churnExperimentForm ~ .table-responsive td:nth-child(5) { width: 7%; }
 #churnExperimentForm ~ .table-responsive th:nth-child(6), #churnExperimentForm ~ .table-responsive td:nth-child(6) { width: 6%; }
 #churnExperimentForm ~ .table-responsive th:nth-child(7), #churnExperimentForm ~ .table-responsive td:nth-child(7) { width: 8%; }
-#churnExperimentForm ~ .table-responsive th:nth-child(8), #churnExperimentForm ~ .table-responsive td:nth-child(8) { width: 17%; }
+#churnExperimentForm ~ .table-responsive th:nth-child(8), #churnExperimentForm ~ .table-responsive td:nth-child(8) { width: 7%; }
+#churnExperimentForm ~ .table-responsive th:nth-child(9), #churnExperimentForm ~ .table-responsive td:nth-child(9) { width: 16%; }
 /* The status/activate control and Delete always occupy the same two slots. */
 .experiment-actions {
   display: inline-grid;
   grid-template-columns: 84px 64px;
-  column-gap: 1.5rem;
+  column-gap: 1rem;
   align-items: center;
   white-space: nowrap;
 }
 .experiment-actions > * { justify-self: center; }
+.experiment-settings {
+  display: inline-flex;
+  align-items: center;
+  gap: .3rem;
+  white-space: nowrap;
+}
+.experiment-setting-chip {
+  display: inline-block;
+  padding: .2rem .38rem;
+  border: 1px solid #d9def5;
+  border-radius: .35rem;
+  background: #f6f7ff;
+  color: #394b8f;
+  font-size: .75rem;
+  font-weight: 600;
+}
+.experiment-details {
+  padding: .15rem .25rem;
+  color: #0d6efd;
+  text-decoration: none;
+}
 @media (min-width: 768px) {
   /* Keep the Train button aligned right when Non-overlapping hides the step control. */
   #stepControl.d-none + div {
@@ -240,9 +262,10 @@
 				  <div class="col-md-3"><button class="btn btn-primary w-100" type="submit" id="runExperimentButton"><i class="fa-solid fa-play me-2"></i>Train experiment</button></div>
 				</form>
 				<div class="small text-muted mt-2" id="stepHelp">Sliding windows overlap. Labels always begin after each cutoff day.</div>
+				<div class="small text-muted">Classification cutoff is chosen from validation data for Recall and F1 evaluation; it does not change the prediction horizon or dashboard risk categories.</div>
 				<div id="windowBoundaryStatus" class="alert mt-2 mb-0 py-2 small" data-min-day="{{ dataset_day_bounds.min_day|default:'' }}" data-max-day="{{ dataset_day_bounds.max_day|default:'' }}" role="status"></div>
 				<div class="small text-primary mt-1 d-none" id="trainingProgress"></div>
-					{% if experiments_page %}<div class="table-responsive mt-3"><table class="table table-sm align-middle mb-0"><thead><tr><th>Generated at</th><th>Method</th><th>Settings</th><th>Samples</th><th>Recall</th><th>F1</th><th>ROC-AUC</th><th></th></tr></thead><tbody>{% for experiment in experiments_page %}<tr><td>{{ experiment.created_at|date:"Y-m-d H:i" }}</td><td>{{ experiment.method|title }}</td><td>Obs {{ experiment.observation_window_days }}d · Horizon {{ experiment.prediction_horizon_days }}d · Step {{ experiment.step_size_days }}d{% if experiment.method == 'non_overlapping' %} (auto){% endif %}</td><td>{{ experiment.training_samples }}</td><td>{{ experiment.recall|floatformat:3 }}</td><td>{{ experiment.f1|floatformat:3 }}</td><td>{{ experiment.roc_auc|floatformat:3 }}</td><td>{% if experiment.is_active %}<span class="badge bg-success">Active</span>{% else %}<button class="btn btn-sm btn-outline-primary activate-experiment" data-id="{{ experiment.id }}">Activate</button>{% endif %}</td></tr>{% empty %}<tr><td colspan="8" class="text-center text-muted">No churn experiments have been generated yet.</td></tr>{% endfor %}</tbody></table></div>
+					{% if experiments_page %}<div class="table-responsive mt-3"><table class="table table-sm align-middle mb-0"><thead><tr><th>Generated at</th><th>Method</th><th>Settings</th><th>Samples</th><th>Recall</th><th>F1</th><th>ROC-AUC</th><th title="Probability threshold used only to calculate Recall and F1.">Cutoff</th><th></th></tr></thead><tbody>{% for experiment in experiments_page %}<tr><td>{{ experiment.created_at|date:"Y-m-d H:i" }}</td><td>{{ experiment.method|title }}</td><td><div class="experiment-settings"><span class="experiment-setting-chip" title="Observation window">O {{ experiment.observation_window_days }}d</span><span class="experiment-setting-chip" title="Prediction horizon">H {{ experiment.prediction_horizon_days }}d</span><span class="experiment-setting-chip" title="{% if experiment.method == 'non_overlapping' %}Automatic step size{% else %}Sliding step size{% endif %}">S {{ experiment.step_size_days }}d</span><button type="button" class="btn btn-link btn-sm experiment-details" data-id="{{ experiment.id }}" title="View rule details" aria-label="View rule details"><i class="fa-solid fa-circle-info"></i></button></div></td><td>{{ experiment.training_samples }}</td><td>{{ experiment.recall|floatformat:3 }}</td><td>{{ experiment.f1|floatformat:3 }}</td><td>{{ experiment.roc_auc|floatformat:3 }}</td><td>{{ experiment.classification_threshold|floatformat:2 }}</td><td>{% if experiment.is_active %}<span class="badge bg-success">Active</span>{% else %}<button class="btn btn-sm btn-outline-primary activate-experiment" data-id="{{ experiment.id }}">Activate</button>{% endif %}</td></tr>{% empty %}<tr><td colspan="9" class="text-center text-muted">No churn experiments have been generated yet.</td></tr>{% endfor %}</tbody></table></div>
 					{% if experiments_page.paginator.num_pages > 1 %}<nav class="d-flex justify-content-between align-items-center mt-3" aria-label="Churn experiment pages"><span class="small text-muted">Page {{ experiments_page.number }} of {{ experiments_page.paginator.num_pages }} · {{ experiments_page.paginator.count }} experiments</span><div class="btn-group btn-group-sm">{% if experiments_page.has_previous %}<a class="btn btn-outline-secondary" href="?experiments_page={{ experiments_page.previous_page_number }}">Previous</a>{% else %}<button class="btn btn-outline-secondary" disabled>Previous</button>{% endif %}{% if experiments_page.has_next %}<a class="btn btn-outline-secondary" href="?experiments_page={{ experiments_page.next_page_number }}">Next</a>{% else %}<button class="btn btn-outline-secondary" disabled>Next</button>{% endif %}</div></nav>{% endif %}{% endif %}
 			  </div>
 			</div>
@@ -747,6 +770,66 @@ document.querySelectorAll('.activate-experiment').forEach(button => button.addEv
         window.setTimeout(refreshDashboard, 700);
     }
     else showNotification('Activation failed', payload.error || 'Could not activate experiment.', 'error');
+}));
+
+function escapeExperimentText(value) {
+    return String(value ?? '').replace(/[&<>'"]/g, character => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#039;', '"': '&quot;'
+    })[character]);
+}
+
+function formatExperimentMetric(value, digits = 3) {
+    return value === null || value === undefined ? 'N/A' : Number(value).toFixed(digits);
+}
+
+function showExperimentDetailsModal(body) {
+    const modalElement = document.getElementById('detailModal');
+    const modalTitle = modalElement?.querySelector('.modal-title');
+    const modalBody = modalElement?.querySelector('.modal-body');
+    const modalFooter = modalElement?.querySelector('.modal-footer');
+    if (!modalElement || !modalTitle || !modalBody || !modalFooter) {
+        throw new Error('The details window is not available on this page.');
+    }
+    modalTitle.textContent = 'Churn experiment details';
+    modalBody.innerHTML = body;
+    modalFooter.innerHTML = '<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>';
+    bootstrap.Modal.getOrCreateInstance(modalElement).show();
+}
+
+document.querySelectorAll('.experiment-details').forEach(button => button.addEventListener('click', async function() {
+    try {
+        const response = await fetch(`/analysis/api/churn/experiments/${this.dataset.id}/details/`);
+        const payload = await response.json();
+        if (!payload.success) throw new Error(payload.error || 'Could not load this rule.');
+        const experiment = payload.experiment;
+        const metadata = experiment.metadata || {};
+        const hasMetadata = Object.keys(metadata).length > 0;
+        const metadataHtml = hasMetadata
+            ? `<h6>Saved training definition</h6>
+               <p class="small text-muted mb-1">${escapeExperimentText(metadata.label_definition || '')}</p>
+               <p class="small text-muted mb-1">${escapeExperimentText(metadata.time_split || '')}</p>
+               <ul class="small mb-0">${Object.entries(metadata.model_parameters || {})
+                   .map(([key, value]) => `<li><strong>${escapeExperimentText(key)}:</strong> ${escapeExperimentText(value)}</li>`)
+                   .join('')}</ul>`
+            : '<p class="small text-muted mb-0">Detailed metadata was not saved for this older rule. Train it again to save full details.</p>';
+        const body = `
+            <div class="row g-2 mb-3">
+                <div class="col-sm-6"><strong>Rule</strong><br>${escapeExperimentText(experiment.method)} · ${experiment.observation_window_days}d observation · ${experiment.prediction_horizon_days}d horizon</div>
+                <div class="col-sm-6"><strong>Classification cutoff</strong><br>${formatExperimentMetric(experiment.classification_threshold, 2)}</div>
+                <div class="col-sm-3"><strong>Recall</strong><br>${formatExperimentMetric(experiment.recall)}</div>
+                <div class="col-sm-3"><strong>F1</strong><br>${formatExperimentMetric(experiment.f1)}</div>
+                <div class="col-sm-3"><strong>PR-AUC</strong><br>${formatExperimentMetric(experiment.pr_auc)}</div>
+                <div class="col-sm-3"><strong>ROC-AUC</strong><br>${formatExperimentMetric(experiment.roc_auc)}</div>
+            </div>
+            <h6>Test-period check</h6>
+            <p class="small text-muted">Correct churn detections (TP): ${experiment.true_positive ?? 'Not saved'} · Missed churners (FN): ${experiment.false_negative ?? 'Not saved'} · False alarms (FP): ${experiment.false_positive ?? 'Not saved'} · Correct non-churn (TN): ${experiment.true_negative ?? 'Not saved'}</p>
+            <h6>Sample split</h6>
+            <p class="small text-muted">Training: ${experiment.training_samples} · Validation: ${experiment.validation_samples} · Test: ${experiment.test_samples}</p>
+            ${metadataHtml}`;
+        showExperimentDetailsModal(body);
+    } catch (error) {
+        showNotification('Details unavailable', error.message, 'error');
+    }
 }));
 
 // Helper function to show notifications
