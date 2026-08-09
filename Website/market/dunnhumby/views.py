@@ -27,7 +27,8 @@ import threading
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from django.db import transaction as db_transaction
-from .churn_windows import ChurnWindowConfig, WindowMethod, build_history_dataset, train_and_score
+from .churn_windows import CHURN_FEATURE_VERSION, ChurnWindowConfig, WindowMethod, build_history_dataset, experiment_metadata, train_and_score
+from .rfm_utils import RFM_FEATURE_VERSION
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +36,7 @@ logger = logging.getLogger(__name__)
 def _source_dataset_signature():
     """A lightweight version marker for this project's fixed transaction dataset."""
     source = Transaction.objects.aggregate(total=Count('id'), first_day=Min('day'), last_day=Max('day'))
-    return f"{source['total'] or 0}:{source['first_day'] or 0}:{source['last_day'] or 0}"
+    return f"{RFM_FEATURE_VERSION}:{CHURN_FEATURE_VERSION}:{source['total'] or 0}:{source['first_day'] or 0}:{source['last_day'] or 0}"
 
 
 def _find_window_cache(config):
@@ -3833,6 +3834,10 @@ def run_churn_experiment(request):
                 step_size_days=config.step_size(),
                 accuracy=metrics['accuracy'], precision=metrics['precision'], recall=metrics['recall'],
                 f1=metrics['f1'], roc_auc=metrics['roc_auc'], pr_auc=metrics['pr_auc'],
+                classification_threshold=metrics['classification_threshold'],
+                true_positive=metrics['true_positive'], false_positive=metrics['false_positive'],
+                true_negative=metrics['true_negative'], false_negative=metrics['false_negative'],
+                training_metadata=json.dumps(experiment_metadata(), sort_keys=True),
                 training_samples=metrics['training_samples'], validation_samples=metrics['validation_samples'],
                 test_samples=metrics['test_samples'], churn_rate=metrics['churn_rate'],
                 training_time_seconds=metrics['training_time_seconds'], prediction_time_seconds=metrics['prediction_time_seconds'],
@@ -3854,6 +3859,7 @@ def run_churn_experiment(request):
         return JsonResponse({'success': True, 'experiment': {
             'id': experiment.id, 'method': experiment.method, 'recall': experiment.recall,
             'f1': experiment.f1, 'roc_auc': experiment.roc_auc, 'samples': experiment.training_samples,
+            'classification_threshold': experiment.classification_threshold,
             'elapsed_seconds': metrics['total_time_seconds'],
         }, 'history': history_stats})
     except (TypeError, ValueError) as exc:
@@ -3861,6 +3867,36 @@ def run_churn_experiment(request):
     except Exception as exc:
         logger.exception('Churn experiment failed')
         return JsonResponse({'success': False, 'error': f'Churn training failed: {exc}'}, status=500)
+
+
+@admin_required
+def churn_experiment_details(request, experiment_id):
+    """Return one rule's technical evaluation without adding columns to the main table."""
+    experiment = get_object_or_404(ChurnExperiment, pk=experiment_id)
+    try:
+        metadata = json.loads(experiment.training_metadata or '{}')
+    except (TypeError, ValueError):
+        metadata = {}
+    return JsonResponse({'success': True, 'experiment': {
+        'id': experiment.id,
+        'method': experiment.method,
+        'observation_window_days': experiment.observation_window_days,
+        'prediction_horizon_days': experiment.prediction_horizon_days,
+        'step_size_days': experiment.step_size_days,
+        'classification_threshold': experiment.classification_threshold,
+        'recall': experiment.recall,
+        'f1': experiment.f1,
+        'pr_auc': experiment.pr_auc,
+        'roc_auc': experiment.roc_auc,
+        'true_positive': experiment.true_positive,
+        'false_positive': experiment.false_positive,
+        'true_negative': experiment.true_negative,
+        'false_negative': experiment.false_negative,
+        'training_samples': experiment.training_samples,
+        'validation_samples': experiment.validation_samples,
+        'test_samples': experiment.test_samples,
+        'metadata': metadata,
+    }})
 
 
 @admin_required

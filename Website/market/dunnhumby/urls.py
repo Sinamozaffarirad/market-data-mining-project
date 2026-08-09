@@ -30,6 +30,7 @@ urlpatterns = [
     path("api/segment/", views.api_rfm_details, name="api_rfm_details"),
     path("api/churn/", views.churn_api, name="churn_api"),
     path("api/churn/experiments/run/", views.run_churn_experiment, name="run_churn_experiment"),
+    path("api/churn/experiments/<int:experiment_id>/details/", views.churn_experiment_details, name="churn_experiment_details"),
     path("api/churn/experiments/<int:experiment_id>/activate/", views.activate_churn_experiment, name="activate_churn_experiment"),
     path("api/churn/experiments/<int:experiment_id>/delete/", views.delete_churn_experiment, name="delete_churn_experiment"),
     path("api/churn/experiments/<int:experiment_id>/cache-history/", views.cache_churn_experiment_history, name="cache_churn_experiment_history"),

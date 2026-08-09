@@ -5,11 +5,16 @@ from time import perf_counter
 
 import numpy as np
 import pandas as pd
-from sklearn.metrics import accuracy_score, average_precision_score, f1_score, precision_score, recall_score, roc_auc_score
+from sklearn.metrics import accuracy_score, average_precision_score, confusion_matrix, f1_score, precision_score, recall_score, roc_auc_score
 from xgboost import XGBClassifier
 from django.db.models import Min, Max
 
 from .models import DunnhumbyProduct, Transaction
+from .rfm_utils import RFM_FEATURE_VERSION, assign_rfm_segment, score_rfm_series
+
+
+# Bump this whenever churn-window feature columns or their meaning changes.
+CHURN_FEATURE_VERSION = "churn-features-v3"
 
 
 class WindowMethod(str, Enum):
@@ -50,28 +55,6 @@ def generate_time_windows(minimum_day: int, maximum_day: int, config: ChurnWindo
         start += config.step_size()
 
 
-def _score(series: pd.Series, ascending: bool) -> pd.Series:
-    """Create stable 1-5 scores without qcut failures on tied retail data."""
-    ranks = series.rank(method="average", pct=True, ascending=ascending)
-    return np.clip(np.ceil(ranks * 5), 1, 5).astype(int)
-
-
-def _segment(row: pd.Series) -> str:
-    if row.r_score >= 4 and row.f_score >= 4 and row.m_score >= 4:
-        return "Champions"
-    if row.f_score >= 4 and row.m_score >= 3:
-        return "Loyal Customers"
-    if row.m_score >= 4:
-        return "Big Spenders"
-    if row.r_score >= 4 and row.f_score >= 3:
-        return "Potential Loyalists"
-    if row.r_score >= 4:
-        return "New Customers"
-    if row.r_score <= 2 and row.f_score >= 3:
-        return "At Risk"
-    return "Regular Customers"
-
-
 def _load_transactions() -> pd.DataFrame:
     fields = ["household_key", "day", "basket_id", "product_id", "quantity", "sales_value", "retail_disc", "coupon_disc", "coupon_match_disc"]
     frame = pd.DataFrame.from_records(Transaction.objects.values(*fields))
@@ -89,27 +72,52 @@ def _load_transactions() -> pd.DataFrame:
     return frame
 
 
-def build_customer_features(observation: pd.DataFrame, cutoff_day: int) -> pd.DataFrame:
-    """Build all features strictly from one observation window."""
-    if observation.empty:
+def build_customer_features(
+    observation: pd.DataFrame,
+    cutoff_day: int,
+    lifetime_transactions: pd.DataFrame | None = None,
+    observation_start: int | None = None,
+) -> pd.DataFrame:
+    """Build leakage-safe window and lifetime features for one cutoff day.
+
+    The eligible customer set is every customer with a purchase on or before
+    the cutoff. Recent-window features may therefore be zero for an inactive
+    customer, while lifetime context and recency remain available.
+    """
+    if lifetime_transactions is None:
+        lifetime_transactions = observation
+    lifetime_transactions = lifetime_transactions[lifetime_transactions["day"] <= cutoff_day].copy()
+    if lifetime_transactions.empty:
         return pd.DataFrame()
     observation = observation.copy()
     observation["discount_value"] = observation[["retail_disc", "coupon_disc", "coupon_match_disc"]].abs().sum(axis=1)
-    base = observation.groupby("household_key").agg(
-        last_purchase_day=("day", "max"),
-        frequency=("basket_id", "nunique"),
-        monetary=("sales_value", "sum"),
-        transaction_count=("product_id", "size"),
-        total_quantity=("quantity", "sum"),
-        total_sales_value=("sales_value", "sum"),
-        unique_products=("product_id", "nunique"),
-        unique_departments=("department", "nunique"),
-        unique_commodities=("commodity_desc", "nunique"),
-        total_discount=("discount_value", "sum"),
-    )
+    eligible_customers = pd.Index(lifetime_transactions["household_key"].unique(), name="household_key")
+    window_aggregations = {
+        "frequency": ("basket_id", "nunique"),
+        "monetary": ("sales_value", "sum"),
+        "purchase_line_count": ("product_id", "size"),
+        "total_quantity": ("quantity", "sum"),
+        "total_sales_value": ("sales_value", "sum"),
+        "unique_products": ("product_id", "nunique"),
+        "unique_departments": ("department", "nunique"),
+        "unique_commodities": ("commodity_desc", "nunique"),
+        "total_discount": ("discount_value", "sum"),
+    }
+    base = observation.groupby("household_key").agg(**window_aggregations).reindex(eligible_customers)
     basket_values = observation.groupby(["household_key", "basket_id"])["sales_value"].sum()
     base["average_basket_value"] = basket_values.groupby(level=0).mean()
-    base["recency_days"] = cutoff_day - base.pop("last_purchase_day")
+    lifetime = lifetime_transactions.groupby("household_key").agg(
+        first_purchase_day=("day", "min"),
+        last_purchase_day=("day", "max"),
+        lifetime_frequency=("basket_id", "nunique"),
+        lifetime_monetary=("sales_value", "sum"),
+    ).reindex(eligible_customers)
+    lifetime_basket_values = lifetime_transactions.groupby(["household_key", "basket_id"])["sales_value"].sum()
+    base["customer_tenure_days"] = cutoff_day - lifetime["first_purchase_day"]
+    base["recency_days"] = cutoff_day - lifetime["last_purchase_day"]
+    base["lifetime_frequency"] = lifetime["lifetime_frequency"]
+    base["lifetime_monetary"] = lifetime["lifetime_monetary"]
+    base["lifetime_average_basket_value"] = lifetime_basket_values.groupby(level=0).mean()
     base["discount_ratio"] = base["total_discount"] / base["total_sales_value"].abs().replace(0, np.nan)
     coupon_use = observation.loc[(observation["coupon_disc"] != 0) | (observation["coupon_match_disc"] != 0)].groupby("household_key")["basket_id"].nunique()
     base["coupon_usage_count"] = coupon_use
@@ -117,11 +125,21 @@ def build_customer_features(observation: pd.DataFrame, cutoff_day: int) -> pd.Da
 
     purchase_days = observation[["household_key", "day"]].drop_duplicates().sort_values(["household_key", "day"])
     purchase_days["gap"] = purchase_days.groupby("household_key")["day"].diff()
-    gaps = purchase_days.groupby("household_key")["gap"].agg(["mean", "max", "min"]).rename(columns={"mean": "average_purchase_gap", "max": "maximum_purchase_gap", "min": "minimum_purchase_gap"})
+    gaps = purchase_days.groupby("household_key")["gap"].agg(["mean", "max", "min", "std"]).rename(columns={
+        "mean": "average_purchase_gap",
+        "max": "maximum_purchase_gap",
+        "min": "minimum_purchase_gap",
+        "std": "purchase_gap_std",
+    })
     base = base.join(gaps)
-    base["days_since_previous_purchase"] = base["recency_days"]
+    purchase_day_count = purchase_days.groupby("household_key").size()
+    base["has_multiple_purchase_days"] = (purchase_day_count >= 2).astype(int)
+    latest_purchase_days = purchase_days.groupby("household_key").tail(1).set_index("household_key")
+    base["days_since_previous_purchase"] = latest_purchase_days["gap"]
 
-    midpoint = observation["day"].min() + (cutoff_day - observation["day"].min() + 1) // 2
+    if observation_start is None:
+        observation_start = int(observation["day"].min()) if not observation.empty else cutoff_day
+    midpoint = observation_start + (cutoff_day - observation_start + 1) // 2
     old = observation[observation["day"] < midpoint].groupby("household_key").agg(old_frequency=("basket_id", "nunique"), old_monetary=("sales_value", "sum"), old_basket=("basket_id", "nunique"))
     recent = observation[observation["day"] >= midpoint].groupby("household_key").agg(recent_frequency=("basket_id", "nunique"), recent_monetary=("sales_value", "sum"), recent_basket=("basket_id", "nunique"))
     base = base.join(old).join(recent)
@@ -130,11 +148,14 @@ def build_customer_features(observation: pd.DataFrame, cutoff_day: int) -> pd.Da
     base["frequency_change_ratio"] = base["frequency_change"] / base["old_frequency"].replace(0, np.nan)
     base["monetary_change_ratio"] = base["monetary_change"] / base["old_monetary"].replace(0, np.nan)
     base = base.drop(columns=["old_frequency", "old_monetary", "old_basket", "recent_frequency", "recent_monetary", "recent_basket"])
-    base["r_score"] = _score(base["recency_days"], ascending=False)
-    base["f_score"] = _score(base["frequency"], ascending=True)
-    base["m_score"] = _score(base["monetary"], ascending=True)
-    base["rfm_segment"] = base.apply(_segment, axis=1)
-    return base.reset_index().replace([np.inf, -np.inf], np.nan).fillna(0)
+    base = base.replace([np.inf, -np.inf], np.nan).fillna(0)
+    base["r_score"] = score_rfm_series(base["recency_days"], higher_is_better=False)
+    base["f_score"] = score_rfm_series(base["frequency"], higher_is_better=True)
+    base["m_score"] = score_rfm_series(base["monetary"], higher_is_better=True)
+    base["rfm_segment"] = base.apply(
+        lambda row: assign_rfm_segment(row.r_score, row.f_score, row.m_score), axis=1
+    )
+    return base.reset_index()
 
 
 def build_training_dataset(transactions: pd.DataFrame, config: ChurnWindowConfig) -> pd.DataFrame:
@@ -147,7 +168,14 @@ def build_training_dataset(transactions: pd.DataFrame, config: ChurnWindowConfig
         observation_left = np.searchsorted(transaction_days, window["observation_start"], side="left")
         observation_right = np.searchsorted(transaction_days, window["observation_end"], side="right")
         observed = transactions.iloc[observation_left:observation_right]
-        features = build_customer_features(observed, window["cutoff_day"])
+        lifetime_right = np.searchsorted(transaction_days, window["cutoff_day"], side="right")
+        lifetime = transactions.iloc[:lifetime_right]
+        features = build_customer_features(
+            observed,
+            window["cutoff_day"],
+            lifetime_transactions=lifetime,
+            observation_start=window["observation_start"],
+        )
         if features.empty:
             continue
         label_left = np.searchsorted(transaction_days, window["label_start"], side="left")
@@ -179,21 +207,88 @@ def build_history_dataset(config: ChurnWindowConfig) -> pd.DataFrame:
     return dataset[history_columns].copy()
 
 
-def _metrics(y_true, probabilities) -> dict:
-    predicted = (probabilities >= 0.5).astype(int)
+CLASSIFICATION_THRESHOLD_CANDIDATES = tuple(round(value, 2) for value in np.arange(0.30, 0.71, 0.05))
+
+# Keep these values in one place so every saved experiment can document the
+# exact model configuration that produced its predictions.
+MODEL_NAME = "XGBoostClassifier"
+MODEL_PARAMETERS = {
+    "n_estimators": 100,
+    "max_depth": 6,
+    "learning_rate": 0.05,
+    "subsample": 0.8,
+    "colsample_bytree": 0.8,
+    "objective": "binary:logistic",
+    "eval_metric": "logloss",
+    "tree_method": "hist",
+    "n_jobs": -1,
+    "random_state": 42,
+}
+
+
+def experiment_metadata() -> dict:
+    """Return the reproducibility record saved alongside every new rule."""
+    return {
+        "model_name": MODEL_NAME,
+        "model_parameters": MODEL_PARAMETERS.copy(),
+        "feature_version": CHURN_FEATURE_VERSION,
+        "rfm_version": RFM_FEATURE_VERSION,
+        "label_definition": "No purchase during the configured prediction horizon.",
+        "time_split": "Chronological: oldest 70% train, next 15% validation, newest 15% test.",
+        "threshold_selection": {
+            "validation_candidates": list(CLASSIFICATION_THRESHOLD_CANDIDATES),
+            "primary_metric": "F1",
+            "tie_breaker": "Higher recall",
+        },
+    }
+
+
+def _select_classification_threshold(y_true, probabilities) -> float:
+    """Choose an actionable cutoff using validation data only.
+
+    F1 is the primary objective because churn is imbalanced.  If two cutoffs
+    have the same F1, prefer the one that catches more churners (recall).
+    """
+    y_true = np.asarray(y_true)
+    probabilities = np.asarray(probabilities)
+    if len(y_true) == 0 or len(np.unique(y_true)) < 2:
+        return 0.50
+
+    best_threshold, best_f1, best_recall = 0.50, -1.0, -1.0
+    for threshold in CLASSIFICATION_THRESHOLD_CANDIDATES:
+        predicted = (probabilities >= threshold).astype(int)
+        candidate_f1 = float(f1_score(y_true, predicted, zero_division=0))
+        candidate_recall = float(recall_score(y_true, predicted, zero_division=0))
+        if candidate_f1 > best_f1 or (candidate_f1 == best_f1 and candidate_recall > best_recall):
+            best_threshold, best_f1, best_recall = threshold, candidate_f1, candidate_recall
+    return float(best_threshold)
+
+
+def _metrics(y_true, probabilities, classification_threshold=0.50) -> dict:
+    y_true = np.asarray(y_true)
+    probabilities = np.asarray(probabilities)
+    predicted = (probabilities >= classification_threshold).astype(int)
+    true_negative, false_positive, false_negative, true_positive = confusion_matrix(
+        y_true, predicted, labels=[0, 1],
+    ).ravel()
     result = {
         "accuracy": float(accuracy_score(y_true, predicted)),
         "precision": float(precision_score(y_true, predicted, zero_division=0)),
         "recall": float(recall_score(y_true, predicted, zero_division=0)),
         "f1": float(f1_score(y_true, predicted, zero_division=0)),
         "pr_auc": float(average_precision_score(y_true, probabilities)),
+        "classification_threshold": float(classification_threshold),
+        "true_positive": int(true_positive),
+        "false_positive": int(false_positive),
+        "true_negative": int(true_negative),
+        "false_negative": int(false_negative),
     }
     result["roc_auc"] = float(roc_auc_score(y_true, probabilities)) if len(np.unique(y_true)) > 1 else None
     return result
 
 
 def _new_model() -> XGBClassifier:
-    return XGBClassifier(n_estimators=100, max_depth=6, learning_rate=.05, subsample=.8, colsample_bytree=.8, objective="binary:logistic", eval_metric="logloss", tree_method="hist", n_jobs=-1, random_state=42)
+    return XGBClassifier(**MODEL_PARAMETERS)
 
 
 def train_and_score(config: ChurnWindowConfig, cached_training_dataset=None):
@@ -228,15 +323,22 @@ def train_and_score(config: ChurnWindowConfig, cached_training_dataset=None):
     feature_columns = [column for column in dataset.columns if column not in excluded]
     encoded = pd.get_dummies(dataset[feature_columns], columns=["rfm_segment"], dtype=float)
     train_mask = dataset.cutoff_day.isin(train_cutoffs)
+    validation_mask = dataset.cutoff_day.isin(validation_cutoffs)
     test_mask = dataset.cutoff_day.isin(test_cutoffs)
     model = _new_model()
     fit_started = perf_counter()
     model.fit(encoded.loc[train_mask], dataset.loc[train_mask, "is_churn"])
     training_seconds = perf_counter() - fit_started
     prediction_started = perf_counter()
+    validation_probabilities = model.predict_proba(encoded.loc[validation_mask])[:, 1]
+    classification_threshold = _select_classification_threshold(
+        dataset.loc[validation_mask, "is_churn"].to_numpy(), validation_probabilities,
+    )
     test_probabilities = model.predict_proba(encoded.loc[test_mask])[:, 1]
     prediction_seconds = perf_counter() - prediction_started
-    metrics = _metrics(dataset.loc[test_mask, "is_churn"], test_probabilities)
+    metrics = _metrics(
+        dataset.loc[test_mask, "is_churn"], test_probabilities, classification_threshold,
+    )
 
     # Blocked expanding-window scoring keeps every prediction leakage-safe while
     # limiting historical model fits to five instead of fitting once per cutoff.
@@ -259,8 +361,14 @@ def train_and_score(config: ChurnWindowConfig, cached_training_dataset=None):
     historical_predictions = pd.concat(historical_rows, ignore_index=True) if historical_rows else pd.DataFrame(columns=["household_key", "cutoff_day", "observation_window_days", "churn_probability"])
 
     current_cutoff = int(transactions.day.max())
-    current_observation = transactions[transactions.day >= current_cutoff - config.observation_window_days + 1]
-    current_features = build_customer_features(current_observation, current_cutoff)
+    current_observation_start = current_cutoff - config.observation_window_days + 1
+    current_observation = transactions[transactions.day >= current_observation_start]
+    current_features = build_customer_features(
+        current_observation,
+        current_cutoff,
+        lifetime_transactions=transactions,
+        observation_start=current_observation_start,
+    )
     current_encoded = pd.get_dummies(current_features[feature_columns], columns=["rfm_segment"], dtype=float).reindex(columns=encoded.columns, fill_value=0)
     # Retrain on every labelled historical sample before making the current forecast.
     production_model = _new_model()
