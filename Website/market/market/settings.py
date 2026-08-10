@@ -42,6 +42,8 @@ INSTALLED_APPS = [
 
     # local apps
     'core', 'customers', 'catalog', 'dunnhumby',
+    'customer_retention',
+    'product_recommender',
 ]
 
 MIDDLEWARE = [
