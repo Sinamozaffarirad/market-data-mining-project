@@ -1,12 +1,122 @@
 {% extends 'site/base.html' %}
 
+{% block title %}Customer Retention{% endblock %}
+
+{% block extra_css %}
+<style>
+  /* Same RFM label palette used by Customer Segments and the churn profile. */
+  .bg-champions { background-color: #28a745; color: #fff !important; }
+  .bg-loyal-customers { background-color: #007bff; color: #fff !important; }
+  .bg-potential-loyalists { background-color: #17a2b8; color: #fff !important; }
+  .bg-new-customers { background-color: #340696; color: #fff !important; }
+  .bg-big-spenders { background-color: #6d74bd; color: #fff !important; }
+  .bg-regular-customers { background-color: #de5fc5; color: #212529 !important; }
+  .bg-need-attention { background-color: #fd7e14; color: #212529 !important; }
+  .bg-at-risk { background-color: #ffc107; color: #212529 !important; }
+  .bg-cant-lose-them { background-color: #dc3545; color: #fff !important; }
+  .bg-hibernating { background-color: #adb5bd; color: #212529 !important; }
+  .bg-lost { background-color: #343a40; color: #fff !important; }
+
+  .badge-risk-very-high { background-color: #dc3545; color: #fff !important; }
+  .badge-risk-high { background-color: #ffc107; color: #212529 !important; }
+  .badge-risk-medium { background-color: #0dcaf0; color: #212529 !important; }
+  .retention-filter { border-left: 4px solid #6674df; width: 100%; }
+  .retention-table thead th {
+    background: var(--gradient-primary); color: #fff; border: 0; font-size: .82rem;
+    letter-spacing: .02em; padding: .9rem .65rem; text-align: center !important; text-transform: uppercase; white-space: nowrap;
+  }
+  .retention-table { table-layout: fixed; }
+  .retention-table th:nth-child(1), .retention-table td:nth-child(1) { width: 17%; }
+  .retention-table th:nth-child(2), .retention-table td:nth-child(2) { width: 24%; }
+  .retention-table th:nth-child(3), .retention-table td:nth-child(3) { width: 21%; }
+  .retention-table th:nth-child(4), .retention-table td:nth-child(4) { width: 16%; }
+  .retention-table th:nth-child(5), .retention-table td:nth-child(5) { width: 22%; }
+  .retention-table tbody td { padding: .9rem .65rem; text-align: center; vertical-align: middle; }
+  .retention-table tbody tr { transition: background-color .15s ease; }
+  .retention-table tbody tr:hover { background-color: #f7f8ff; }
+  .customer-id { color: #212529; font-weight: 700; }
+  .customer-id i { color: #6c757d; }
+  .profile-link {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.5rem;
+    transition: background-color 0.2s ease-in-out;
+  }
+  .profile-link:hover { background-color: rgba(0, 0, 0, 0.05); }
+  .risk-badge, .rfm-badge { border-radius: .35rem; font-weight: 700; padding: .42rem .6rem; }
+  .spend-value { color: #182b4d; font-weight: 700; white-space: nowrap; }
+  .recommendation-action { border-radius: .4rem; white-space: nowrap; }
+  @media (max-width: 767.98px) { .retention-table { min-width: 760px; } }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="text-center py-5">
-  <h2 class="fw-bold text-primary mb-4">
-    🧠 Customer Retention & Churn Dashboard
-  </h2>
-  <p class="lead text-muted">
-    اینجا صفحه مربوط به مشتری‌هایی است که احتمال ریزش بالایی دارند و محصولات پیشنهادی مخصوص آن‌ها نمایش داده می‌شود.
-  </p>
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-4">
+  <div>
+    <h2 class="fw-bold text-primary mb-1"><i class="fa-solid fa-heart-circle-check me-2"></i>Customer Retention</h2>
+    <p class="text-muted mb-0">Prioritize at-risk customers, then open their existing personalized product recommender.</p>
+  </div>
+  {% if active_experiment %}
+    <span class="badge bg-success px-3 py-2">Active model: {{ active_experiment.method|title }} &middot; {{ active_experiment.observation_window_days }}d / {{ active_experiment.prediction_horizon_days }}d</span>
+  {% else %}
+    <span class="badge bg-secondary px-3 py-2">Activate a churn experiment first</span>
+  {% endif %}
 </div>
+
+<div class="card shadow-sm border-0 retention-filter mb-4">
+  <div class="card-body p-4">
+    <form class="row g-3 align-items-end" method="get">
+      <div class="col-md-5">
+        <label class="form-label fw-semibold">Minimum churn probability</label>
+        <select class="form-select" name="minimum_probability">
+          <option value="0.25" {% if minimum_probability == 0.25 %}selected{% endif %}>25% - Medium risk and above</option>
+          <option value="0.50" {% if minimum_probability == 0.5 %}selected{% endif %}>50% - High risk and above</option>
+          <option value="0.75" {% if minimum_probability == 0.75 %}selected{% endif %}>75% - Very high risk only</option>
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label fw-semibold" for="customerSearch">Customer number</label>
+        <input class="form-control" id="customerSearch" name="customer" type="search" inputmode="numeric" value="{{ customer_query }}" placeholder="For example: 2164">
+      </div>
+      <div class="col-md-3"><div class="d-flex gap-2"><button class="btn btn-primary flex-grow-1"><i class="fa-solid fa-filter me-2"></i>Filter</button><a class="btn btn-outline-secondary" href="{% url 'customer_retention:dashboard' %}" title="Clear filters"><i class="fa-solid fa-rotate-left"></i></a></div></div>
+    </form>
+  </div>
+</div>
+
+{% if not active_experiment %}
+  <div class="alert alert-info"><i class="fa-solid fa-circle-info me-2"></i>Train and activate a time-window churn experiment from <a href="{% url 'dunnhumby_site:customer_segments' %}">Customer Segments</a> before using retention priorities.</div>
+{% endif %}
+
+<div class="card shadow-sm border-0 overflow-hidden">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table retention-table align-middle mb-0">
+        <thead><tr><th style="text-align: center !important;">Customer</th><th style="text-align: center !important;">Churn probability</th><th style="text-align: center !important;">RFM segment</th><th style="text-align: center !important;">Total spend</th><th style="text-align: center !important;">Retention action</th></tr></thead>
+        <tbody>
+          {% for customer in page_obj %}
+          <tr>
+            <td><a class="customer-id profile-link text-decoration-none" href="{% url 'customers:detail' customer.household_key %}"><i class="fa-solid fa-user me-2"></i>{{ customer.household_key }}</a></td>
+            <td><span class="badge risk-badge {% if customer.churn_probability >= 0.75 %}badge-risk-very-high{% elif customer.churn_probability >= 0.5 %}badge-risk-high{% else %}badge-risk-medium{% endif %}">{{ customer.churn_percentage|floatformat:1 }}% &middot; {% if customer.churn_probability >= 0.75 %}Very High Risk{% elif customer.churn_probability >= 0.5 %}High Risk{% else %}Medium Risk{% endif %}</span></td>
+            <td><span class="badge rfm-badge {% if customer.rfm_segment == 'Champions' %}bg-champions{% elif customer.rfm_segment == 'Loyal Customers' %}bg-loyal-customers{% elif customer.rfm_segment == 'Potential Loyalists' %}bg-potential-loyalists{% elif customer.rfm_segment == 'New Customers' %}bg-new-customers{% elif customer.rfm_segment == 'Big Spenders' %}bg-big-spenders{% elif customer.rfm_segment == 'Regular Customers' %}bg-regular-customers{% elif customer.rfm_segment == 'Need Attention' %}bg-need-attention{% elif customer.rfm_segment == 'At Risk' %}bg-at-risk{% elif customer.rfm_segment == "Can't Lose Them" %}bg-cant-lose-them{% elif customer.rfm_segment == 'Hibernating' %}bg-hibernating{% elif customer.rfm_segment == 'Lost' %}bg-lost{% else %}bg-secondary{% endif %}">{{ customer.rfm_segment }}</span></td>
+            <td><span class="spend-value">${{ customer.total_spend|floatformat:2 }}</span></td>
+            <td><a class="btn btn-sm btn-outline-primary recommendation-action" href="{% url 'customers:recommendations' customer.household_key %}"><i class="fa-solid fa-wand-magic-sparkles me-2"></i>Recommendations</a></td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="5" class="text-center text-muted py-4">No customers meet this risk threshold.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+{% if page_obj.paginator.num_pages > 1 %}
+<nav class="mt-3" aria-label="Retention priority pages">
+  <ul class="pagination justify-content-center">
+    {% if page_obj.has_previous %}<li class="page-item"><a class="page-link" href="?minimum_probability={{ minimum_probability }}&customer={{ customer_query }}&page={{ page_obj.previous_page_number }}">Previous</a></li>{% endif %}
+    <li class="page-item disabled"><span class="page-link">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span></li>
+    {% if page_obj.has_next %}<li class="page-item"><a class="page-link" href="?minimum_probability={{ minimum_probability }}&customer={{ customer_query }}&page={{ page_obj.next_page_number }}">Next</a></li>{% endif %}
+  </ul>
+</nav>
+{% endif %}
 {% endblock %}

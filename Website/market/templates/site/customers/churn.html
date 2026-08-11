@@ -2,6 +2,29 @@
 {% load static %}
 {% block title %}Customer Churn Analysis{% endblock %}
 
+{% block extra_css %}
+<style>
+    /* Same RFM badge classes and colors as Customer Segments. */
+    .bg-champions { background-color: #28a745; }
+    .bg-loyal-customers { background-color: #007bff; }
+    .bg-potential-loyalists { background-color: #17a2b8; color: white !important; }
+    .bg-new-customers { background-color: #340696; color: white !important; }
+    .bg-big-spenders { background-color: #6d74bd; color: white !important; }
+    .bg-regular-customers { background-color: #de5fc5; color: #212529 !important; }
+    .bg-need-attention { background-color: #fd7e14; color: #212529 !important; }
+    .bg-at-risk { background-color: #ffc107; color: #212529 !important; }
+    .bg-cant-lose-them { background-color: #dc3545; }
+    .bg-hibernating { background-color: #adb5bd; color: #212529 !important; }
+    .bg-lost { background-color: #343a40; }
+
+    .badge-churn-very-high { background-color: #dc3545; color: #fff !important; }
+    .badge-churn-high { background-color: #ffc107; color: #212529 !important; }
+    .badge-churn-medium { background-color: #0dcaf0; color: #212529 !important; }
+    .badge-churn-low { background-color: #198754; color: #fff !important; }
+    .badge-churn-na { background-color: #6c757d; color: #fff !important; }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container my-5">
     <div class="text-center mb-4">
@@ -15,22 +38,28 @@
                 <div class="card-body p-4">
                     <div class="d-flex justify-content-center align-items-center gap-2 mb-3">
                         <span class="badge fs-6
-                            {% if segment.rfm_segment == 'Big Spenders' %} bg-success
-                            {% elif segment.rfm_segment == 'At Risk' %} bg-danger
-                            {% elif segment.rfm_segment == 'Regular Customers' %} bg-info text-dark
-                            {% elif segment.rfm_segment == 'New Customers' %} bg-warning text-dark
-                            {% elif segment.rfm_segment == 'Loyal Customers' %} bg-primary
+                            {% if segment.rfm_segment == 'Champions' %} bg-champions
+                            {% elif segment.rfm_segment == 'Loyal Customers' %} bg-loyal-customers
+                            {% elif segment.rfm_segment == 'Potential Loyalists' %} bg-potential-loyalists
+                            {% elif segment.rfm_segment == 'New Customers' %} bg-new-customers
+                            {% elif segment.rfm_segment == 'Big Spenders' %} bg-big-spenders
+                            {% elif segment.rfm_segment == 'Regular Customers' %} bg-regular-customers
+                            {% elif segment.rfm_segment == 'Need Attention' %} bg-need-attention
+                            {% elif segment.rfm_segment == 'At Risk' %} bg-at-risk
+                            {% elif segment.rfm_segment == "Can't Lose Them" %} bg-cant-lose-them
+                            {% elif segment.rfm_segment == 'Hibernating' %} bg-hibernating
+                            {% elif segment.rfm_segment == 'Lost' %} bg-lost
                             {% else %} bg-secondary
                             {% endif %}">
                             {{ segment.rfm_segment }}
                         </span>
 
                         <span class="badge fs-6
-                            {% if segment.churn_risk == 'Very High Risk' %} bg-danger
-                            {% elif segment.churn_risk == 'High Risk' %} bg-warning text-dark
-                            {% elif segment.churn_risk == 'Medium Risk' %} bg-info text-dark
-                            {% elif segment.churn_risk == 'Low Risk' %} bg-success
-                            {% else %} bg-light text-dark
+                            {% if segment.churn_risk == 'Very High Risk' %} badge-churn-very-high
+                            {% elif segment.churn_risk == 'High Risk' %} badge-churn-high
+                            {% elif segment.churn_risk == 'Medium Risk' %} badge-churn-medium
+                            {% elif segment.churn_risk == 'Low Risk' %} badge-churn-low
+                            {% else %} badge-churn-na
                             {% endif %}">
                             {{ segment.churn_risk|default:"Unknown" }}
                         </span>
@@ -43,7 +72,8 @@
                     
                     <hr>
 
-                    <h5 class="text-center text-muted mb-3">RFM Profile</h5>
+                    <h5 class="text-center text-muted mb-1">Current Lifetime RFM Profile</h5>
+                    <p class="text-center text-muted small mb-3">Current dashboard state, using all available purchases. It will remain unchanged while this experimental transaction dataset remains fixed.</p>
                     <div class="d-flex justify-content-around text-center my-3">
                         <div>
                             <div class="text-muted small">RECENCY</div>
@@ -90,8 +120,54 @@
     </div>
     {% endif %}
 
+    {% if history %}
+    <div class="card shadow-sm mt-4">
+        <div class="card-body">
+            <h5 class="mb-1">Customer Journey: RFM and Churn Timeline</h5>
+            <p class="text-muted small mb-3">Each row is an auditable historical window from the fixed dataset. RFM uses only purchases inside the observation window; the outcome says whether the customer purchased in the following complete horizon. It is not a permanent churn decision.</p>
+            <form method="get" class="row g-2 align-items-end border rounded p-2 mb-3 bg-light">
+                <div class="col-12 col-md-8"><label for="historyExperiment" class="form-label fw-semibold mb-1">History rule</label><select id="historyExperiment" name="history_experiment" class="form-select" onchange="this.form.submit()">{% for option in available_history_experiments %}<option value="{{ option.id }}" {% if option.id == history.experiment.id %}selected{% endif %}>{{ option.method|title }} — {{ option.observation_window_days }}d observation / {{ option.prediction_horizon_days }}d horizon / {{ option.step_size_days }}d step{% if option.method == 'non_overlapping' %} (auto step){% endif %}{% if option.is_active %} — ACTIVE DASHBOARD RULE{% endif %}</option>{% endfor %}</select></div>
+                <div class="col-12 col-md-4"><div class="small text-muted">{% if history.experiment.is_active %}<span class="badge bg-success">Active dashboard rule</span>{% else %}<span class="badge bg-secondary">Historical rule</span>{% endif %}<br>Choose any saved rule to inspect its history.</div></div>
+            </form>
+            <div class="pt-0">
+                    <div class="small text-muted mb-2">{{ history.experiment.observation_window_days }}-day observation · {{ history.experiment.prediction_horizon_days }}-day horizon · {{ history.experiment.step_size_days }}-day step</div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-6 col-md-3"><div class="border rounded p-2 h-100"><div class="text-muted small">Checkpoints</div><div class="fw-bold">{{ history.summary.snapshot_count }}</div></div></div>
+                        <div class="col-6 col-md-3"><div class="border rounded p-2 h-100"><div class="text-muted small">Forecast coverage</div><div class="fw-bold">{{ history.summary.scored_count }}/{{ history.summary.snapshot_count }}</div></div></div>
+                        <div class="col-6 col-md-3"><div class="border rounded p-2 h-100"><div class="text-muted small">Horizon outcome</div><div class="fw-bold text-success">{{ history.summary.purchased_count }} purchased</div><div class="small text-danger">{{ history.summary.no_purchase_count }} no purchase</div></div></div>
+                        <div class="col-6 col-md-3"><div class="border rounded p-2 h-100"><div class="text-muted small">Latest RFM health</div><div class="fw-bold">{{ history.summary.latest_health_label }}{% if history.summary.latest_health_score is not None %} ({{ history.summary.latest_health_score }}/15){% endif %}</div></div></div>
+                    </div>
+                    <div class="small text-muted mb-2">RFM health combines Recency, Frequency, and Monetary scores: Strong = 12-15, Healthy = 9-11, Weak = 6-8, Critical = 3-5.</div>
+                    <div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Cutoff</th><th>RFM health</th><th>RFM segment</th><th>Change</th><th>Risk forecast</th><th>Horizon outcome</th><th>Forecast check</th></tr></thead><tbody>
+                        {% for prediction in history.page %}<tr><td>Day {{ prediction.record.cutoff_day }}<div class="small text-muted">Obs {{ prediction.record.observation_start }}-{{ prediction.record.observation_end }}</div></td><td><span class="badge bg-{{ prediction.health_class }}">{{ prediction.health_label }}</span> <span class="small text-muted">{{ prediction.health_score }}/15 ({{ prediction.record.r_score }}-{{ prediction.record.f_score }}-{{ prediction.record.m_score }})</span></td><td>{{ prediction.record.rfm_segment }}</td><td>{{ prediction.health_change }}</td><td>{% if prediction.probability_percent is not None %}<span class="badge bg-{{ prediction.risk_class }}{% if prediction.risk_class == 'warning' or prediction.risk_class == 'info' %} text-dark{% endif %}">{{ prediction.risk_label }}</span> {{ prediction.probability_percent|floatformat:1 }}%{% else %}<span class="text-muted">Not scored</span>{% endif %}</td><td>{% if prediction.record.is_churn %}<span class="text-danger fw-semibold">No purchase</span>{% else %}<span class="text-success fw-semibold">Purchased</span>{% endif %}<div class="small text-muted">Days {{ prediction.record.label_start }}-{{ prediction.record.label_end }}</div></td><td>{% if prediction.prediction_is_correct is None %}<span class="text-muted">Not scored</span>{% elif prediction.prediction_is_correct %}<span class="text-success">Correct</span>{% else %}<span class="text-danger">Incorrect</span>{% endif %}</td></tr>{% empty %}<tr><td colspan="7" class="text-muted text-center py-3">No history exists for this customer in the latest experiment. Train a new experiment after applying the history migration.</td></tr>{% endfor %}
+                    </tbody></table></div>
+                    {% if history.page.paginator.num_pages > 1 %}<nav class="d-flex justify-content-between align-items-center mt-3"><span class="small text-muted">Page {{ history.page.number }} of {{ history.page.paginator.num_pages }} · {{ history.summary.snapshot_count }} windows</span><div class="btn-group btn-group-sm">{% if history.page.has_previous %}<a class="btn btn-outline-secondary" href="?history_method={{ history.method }}&{{ history.page_parameter }}={{ history.page.previous_page_number }}">Previous</a>{% else %}<button class="btn btn-outline-secondary" disabled>Previous</button>{% endif %}{% if history.page.has_next %}<a class="btn btn-outline-secondary" href="?history_method={{ history.method }}&{{ history.page_parameter }}={{ history.page.next_page_number }}">Next</a>{% else %}<button class="btn btn-outline-secondary" disabled>Next</button>{% endif %}</div></nav>{% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <div class="text-center mt-4">
         <a href="{% url 'customers:detail' household.household_key %}" class="btn btn-primary">← Back </a>
     </div>
 </div>
+<script>
+document.addEventListener('click', async function (event) {
+    const button = event.target.closest('.build-history-cache');
+    if (!button) return;
+    button.disabled = true;
+    const originalText = button.textContent;
+    button.textContent = 'Building history…';
+    try {
+        const response = await fetch(`/analysis/api/churn/experiments/${button.dataset.experimentId}/cache-history/`, {method: 'POST'});
+        const payload = await response.json();
+        if (!payload.success) throw new Error(payload.error || 'Could not build the history cache.');
+        window.location.reload();
+    } catch (error) {
+        button.disabled = false;
+        button.textContent = originalText;
+        window.alert(error.message);
+    }
+});
+</script>
 {% endblock %}
