@@ -14,7 +14,8 @@ from dunnhumby.models import (
     CachedCustomerWindow,
     ChurnExperimentWindowPrediction,
 )
-from dunnhumby.collab_filter import get_cf_recommendations
+from .ml.cf_cache import get_cf_candidates
+from dunnhumby.collab_filter import get_cf_recommendations as get_cf_recommendations_live  # fallback
 from django.utils import timezone
 from django.db import models
 from django.db.models import Max
@@ -231,7 +232,12 @@ def generate_hybrid_recommendations(household_key, top_n=20, levels_order=None):
                             "source_level": level,
                         }
 
-        cf_list = get_cf_recommendations(household_key, top_n=(top_n * 2), level=level)
+            # جدید:
+        cf_list = get_cf_candidates(household_key, level=level, top_n=(top_n * 2))
+        if cf_list is None:
+            
+            cf_list = get_cf_recommendations_live(household_key, top_n=(top_n * 2), level=level)
+            
         for rec in cf_list:
             pid = rec["product"].product_id
             if str(pid) not in purchased_product_ids and pid not in all_cf_recs:
