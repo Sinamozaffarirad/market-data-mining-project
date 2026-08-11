@@ -9,8 +9,33 @@ from dunnhumby.models import AssociationRule, CustomerSegment, BasketAnalysis
 from dunnhumby.collab_filter import get_cf_recommendations
 from django.utils import timezone
 from django.db import models
+from django.db.models import Max
 import re
 import logging
+
+from .ml.feature_engineering import (
+    compute_product_popularity,
+    compute_commodity_repurchase_cycles,
+    build_candidate_features,
+)
+from .ml.recommender_model import HybridRecommenderModel
+
+logger = logging.getLogger(__name__)
+
+# How many days of "typical repurchase cycle" makes a commodity a "staple"
+# (bought in bulk / lasts a while) rather than a "consumable" (bought often).
+STAPLE_CYCLE_THRESHOLD_DAYS = 10
+
+# Lazily-loaded singleton so we don't unpickle the model on every request.
+_ML_MODEL_CACHE = {"model": None, "loaded": False}
+
+
+def _get_ml_model():
+    if not _ML_MODEL_CACHE["loaded"]:
+        _ML_MODEL_CACHE["model"] = HybridRecommenderModel.load()
+        _ML_MODEL_CACHE["loaded"] = True
+    return _ML_MODEL_CACHE["model"]
+
 
 def customer_search(request):
     household_key = request.GET.get("household_key")
@@ -32,7 +57,6 @@ def customer_detail(request, pk):
 # ---------------------------
 # تابع تولید Hybrid Recommender
 # ---------------------------
-logger = logging.getLogger(__name__)
 
 def _normalize_label(s):
     """Normalize a label for reliable matching: lower, remove punctuation, collapse spaces."""
@@ -41,12 +65,63 @@ def _normalize_label(s):
     if not isinstance(s, str):
         s = str(s)
     s = s.strip().lower()
-    # replace non-alnum chars with space, collapse multiple spaces
     s = re.sub(r'[^0-9a-z]+', ' ', s)
     s = re.sub(r'\s+', ' ', s).strip()
     return s
 
-def generate_hybrid_recommendations(household_key, alpha=0.6, top_n=20, levels_order=None):
+
+def _inject_brand_exploration_candidates(household_key, purchased_product_ids, existing_pids, max_new=3):
+    """
+    If the household is strongly loyal to one brand within a commodity they
+    buy often, add a couple of candidates for the SAME commodity from a
+    DIFFERENT brand, so the recommender occasionally nudges them to try
+    something new (e.g. always buys Pizza brand A -> also surface brand B).
+    """
+    history = list(
+        Transaction.objects.filter(household_key=household_key)
+        .order_by("-day")
+        .values_list("product_id", flat=True)[:250]
+    )
+    if not history:
+        return []
+
+    products = {p.product_id: p for p in Product.objects.filter(product_id__in=history)}
+    commodity_brand_counts = defaultdict(lambda: defaultdict(int))
+    commodity_counts = defaultdict(int)
+
+    for pid in history:
+        prod = products.get(pid)
+        if not prod or not prod.commodity_desc:
+            continue
+        commodity_counts[prod.commodity_desc] += 1
+        commodity_brand_counts[prod.commodity_desc][prod.brand] += 1
+
+    loyal_commodities = []
+    for commodity, count in commodity_counts.items():
+        if count < 3:
+            continue
+        brand_counts = commodity_brand_counts[commodity]
+        top_brand, top_count = max(brand_counts.items(), key=lambda kv: kv[1])
+        if top_count / count >= 0.8:
+            loyal_commodities.append((commodity, top_brand))
+
+    new_candidates = []
+    for commodity, dominant_brand in loyal_commodities[:max_new]:
+        alt_product = (
+            Product.objects.filter(commodity_desc=commodity)
+            .exclude(brand=dominant_brand)
+            .exclude(product_id__in=purchased_product_ids)
+            .exclude(product_id__in=existing_pids)
+            .order_by("?")
+            .first()
+        )
+        if alt_product:
+            new_candidates.append(alt_product)
+
+    return new_candidates
+
+
+def generate_hybrid_recommendations(household_key, top_n=20, levels_order=None):
     if levels_order is None:
         levels_order = ['product', 'commodity', 'department']
 
@@ -56,19 +131,16 @@ def generate_hybrid_recommendations(household_key, alpha=0.6, top_n=20, levels_o
         .values_list("product_id", flat=True)[:250]
     )
     purchased_product_ids = {str(pid) for pid in recent_pids}
-    
-    # ✅ دیکشنری‌های جداگانه برای جمع‌آوری نتایج هر الگوریتم
+
     all_assoc_recs = {}
     all_cf_recs = {}
 
     latest_rule_timestamp = AssociationRule.objects.aggregate(models.Max("created_at"))["created_at__max"]
 
-    # --- مرحله ۱: جمع‌آوری تمام توصیه‌ها از همه سطوح ---
+    # --- مرحله ۱: جمع‌آوری کاندیدها از قوانین انجمنی + CF در همه سطوح ---
     for level in levels_order:
-        # --- بخش قوانین انجمنی (Association Rules) ---
         rules_qs = AssociationRule.objects.filter(rule_type=level).order_by('-lift')[:500]
-        
-        # ساخت مجموعه آیتم‌های خریداری شده بر اساس سطح فعلی
+
         if level == 'product':
             purchased_items_level = purchased_product_ids
         else:
@@ -77,18 +149,19 @@ def generate_hybrid_recommendations(household_key, alpha=0.6, top_n=20, levels_o
                 for p in Product.objects.filter(product_id__in=purchased_product_ids)
             }
             if level == 'commodity':
-                purchased_items_level = { _normalize_label(v[0]) for v in prod_meta.values() if v[0] }
-            else: # department
-                purchased_items_level = { _normalize_label(v[1]) for v in prod_meta.values() if v[1] }
+                purchased_items_level = {_normalize_label(v[0]) for v in prod_meta.values() if v[0]}
+            else:
+                purchased_items_level = {_normalize_label(v[1]) for v in prod_meta.values() if v[1]}
 
         for rule in rules_qs:
             antecedent_items = rule.antecedent if isinstance(rule.antecedent, list) else [rule.antecedent]
             antecedent_candidates = {_normalize_label(a) for a in (antecedent_items or [])}
-            
+
             if not antecedent_candidates.isdisjoint(purchased_items_level):
                 consequent_items = rule.consequent if isinstance(rule.consequent, list) else [rule.consequent]
                 raw_consequents = [c for c in consequent_items if c]
-                if not raw_consequents: continue
+                if not raw_consequents:
+                    continue
 
                 product_candidates = []
                 if level == "product":
@@ -103,7 +176,7 @@ def generate_hybrid_recommendations(household_key, alpha=0.6, top_n=20, levels_o
                         q_objects |= Q(**{f"{field}__iexact": cons})
                     if q_objects:
                         product_candidates = list(Product.objects.filter(q_objects).order_by('?')[:5])
-                
+
                 for prod_obj in product_candidates:
                     pid = prod_obj.product_id
                     if str(pid) not in purchased_product_ids and pid not in all_assoc_recs:
@@ -115,7 +188,6 @@ def generate_hybrid_recommendations(household_key, alpha=0.6, top_n=20, levels_o
                             "support": round(rule.support or 0, 4), "source_level": level
                         }
 
-        # --- بخش فیلترینگ مشارکتی (Collaborative Filtering) ---
         cf_list = get_cf_recommendations(household_key, top_n=(top_n * 2), level=level)
         for rec in cf_list:
             pid = rec['product'].product_id
@@ -124,13 +196,14 @@ def generate_hybrid_recommendations(household_key, alpha=0.6, top_n=20, levels_o
                     'product': rec['product'], 'cf_score': rec['score'], 'source_level': level
                 }
 
-    # --- مرحله ۲: ترکیب، نرمال‌سازی و مرتب‌سازی نهایی ---
+    # --- مرحله ۲: ادغام کاندیدهای association + CF (بدون بلند کردن با alpha) ---
     final_recs = {}
     all_pids = set(all_assoc_recs.keys()) | set(all_cf_recs.keys())
 
     if not all_pids:
-        return [], [], latest_rule_timestamp
-
+        ml_model = _get_ml_model()
+        return [], [], latest_rule_timestamp, (ml_model.trained_at if ml_model else None)
+    
     max_assoc = max((rec['assoc_score'] for rec in all_assoc_recs.values()), default=1.0)
     max_cf = max((rec['cf_score'] for rec in all_cf_recs.values()), default=1.0)
     max_assoc = max(max_assoc, 1.0)
@@ -139,34 +212,104 @@ def generate_hybrid_recommendations(household_key, alpha=0.6, top_n=20, levels_o
     for pid in all_pids:
         assoc_data = all_assoc_recs.get(pid, {})
         cf_data = all_cf_recs.get(pid, {})
-        
+
+        # فقط برای fallback (وقتی مدل ML موجود نباشه) استفاده می‌شه
         norm_assoc = assoc_data.get('assoc_score', 0) / max_assoc
         norm_cf = cf_data.get('cf_score', 0) / max_cf
-        
-        hybrid_score = (alpha * norm_assoc) + ((1 - alpha) * norm_cf)
-        
-        if hybrid_score > 0:
+        fallback_score = 0.5 * norm_assoc + 0.5 * norm_cf
+
+        if fallback_score > 0:
             origin_parts = []
-            if assoc_data: origin_parts.append('rule')
-            if cf_data: origin_parts.append('cf')
+            if assoc_data:
+                origin_parts.append('rule')
+            if cf_data:
+                origin_parts.append('cf')
 
             final_recs[pid] = {
                 'product': assoc_data.get('product') or cf_data.get('product'),
-                'hybrid_score': hybrid_score,
+                'fallback_score': fallback_score,
                 'assoc_score': assoc_data.get('assoc_score', 0),
                 'cf_score': cf_data.get('cf_score', 0),
                 'confidence': assoc_data.get('confidence'),
                 'lift': assoc_data.get('lift'),
                 'support': assoc_data.get('support'),
                 'source_level': assoc_data.get('source_level') or cf_data.get('source_level'),
-                'origin': '+'.join(origin_parts)
+                'origin': '+'.join(origin_parts),
             }
 
-    # مرتب‌سازی نهایی بر اساس امتیاز ترکیبی
-    sorted_recs = sorted(final_recs.values(), key=lambda x: x['hybrid_score'], reverse=True)
+    # --- مرحله ۳: تزریق کاندیدهای «کشف برند جدید» ---
+    brand_candidates = _inject_brand_exploration_candidates(
+        household_key, purchased_product_ids, set(final_recs.keys())
+    )
+    for prod_obj in brand_candidates:
+        final_recs[prod_obj.product_id] = {
+            'product': prod_obj,
+            'fallback_score': 0.0,
+            'assoc_score': 0,
+            'cf_score': 0,
+            'confidence': None,
+            'lift': None,
+            'support': None,
+            'source_level': 'brand_exploration',
+            'origin': 'brand_exploration',
+        }
+
+    # --- مرحله ۴: امتیازدهی نهایی با مدل ML + قوانین کسب‌وکار ---
+    ml_model = _get_ml_model()
+    max_day = Transaction.objects.aggregate(Max('day'))['day__max'] or 0
+    candidate_ids = list(final_recs.keys())
+
+    if ml_model is not None:
+        popularity_map = ml_model.popularity_map or compute_product_popularity()
+        cycle_map = ml_model.cycle_map or compute_commodity_repurchase_cycles()
+    else:
+        popularity_map = compute_product_popularity()
+        cycle_map = compute_commodity_repurchase_cycles()
+
+    features_df = build_candidate_features(
+        household_key, candidate_ids, max_day, popularity_map, cycle_map,
+        assoc_scores={pid: r['assoc_score'] for pid, r in final_recs.items()},
+        cf_scores={pid: r['cf_score'] for pid, r in final_recs.items()},
+    )
+
+    ml_scores = ml_model.predict_scores(features_df) if ml_model is not None else None
+
+    default_gap = cycle_map.get("__default__", 14.0)
+    surviving_recs = []
+    for pid, rec in final_recs.items():
+        feat = features_df.loc[pid] if pid in features_df.index else None
+        popularity = popularity_map.get(pid, 0.0)
+        gap = cycle_map.get(getattr(rec['product'], 'commodity_desc', None), default_gap)
+        days_since = feat["days_since_last_household_commodity_purchase"] if feat is not None else 9999
+        household_commodity_count = feat["household_commodity_count"] if feat is not None else 0
+
+        # --- قانون ۱: سرکوب کالاهای اساسی (staple) که تازه خریداری شده‌اند ---
+        is_staple = gap > STAPLE_CYCLE_THRESHOLD_DAYS
+        recently_bought = days_since < gap
+        if is_staple and recently_bought and rec['source_level'] != 'brand_exploration':
+            continue
+
+        # --- امتیاز پایه: مدل ML، یا در نبودش fallback_score ---
+        if ml_scores is not None and pid in ml_scores.index:
+            base_score = float(ml_scores.loc[pid])
+        else:
+            base_score = rec['fallback_score']
+
+        # --- قانون ۲: بوست علاقه‌مندی شخصی ---
+        favorite_boost = 1.0 + min(household_commodity_count, 10) * 0.02
+
+        final_score = base_score * favorite_boost
+        if rec['source_level'] == 'brand_exploration':
+            final_score = max(final_score, 0.15 * popularity)
+
+        rec['ml_score'] = round(base_score, 4)
+        rec['popularity_score'] = round(popularity, 4)
+        rec['final_score'] = final_score
+        surviving_recs.append(rec)
+
+    sorted_recs = sorted(surviving_recs, key=lambda x: x['final_score'], reverse=True)
     final_list = sorted_recs[:top_n]
 
-    # آماده‌سازی داده برای ذخیره در کش
     cache_for_store = []
     for rec in final_list:
         prod = rec['product']
@@ -174,13 +317,16 @@ def generate_hybrid_recommendations(household_key, alpha=0.6, top_n=20, levels_o
             'product_id': prod.product_id,
             'brand': prod.brand or "N/A", 'department': prod.department or "N/A",
             'commodity_desc': prod.commodity_desc or "N/A", 'curr_size_of_product': prod.curr_size_of_product or "N/A",
-            'hybrid_score': round(rec.get('hybrid_score', 0), 4), 'assoc_score': round(rec.get('assoc_score', 0), 4),
+            'ml_score': rec.get('ml_score', 0),
+            'popularity_score': rec.get('popularity_score', 0),
+            'assoc_score': round(rec.get('assoc_score', 0), 4),
             'cf_score': round(rec.get('cf_score', 0), 4), 'confidence': rec.get('confidence') or 0,
             'lift': rec.get('lift') or 0, 'support': rec.get('support') or 0,
             'source_level': rec.get('source_level'), 'origin': rec.get('origin'),
         })
-        
-    return final_list, cache_for_store, latest_rule_timestamp
+
+    return final_list, cache_for_store, latest_rule_timestamp, (ml_model.trained_at if ml_model else None)
+
 
 # ---------------------------
 # Main View with Caching
@@ -188,41 +334,31 @@ def generate_hybrid_recommendations(household_key, alpha=0.6, top_n=20, levels_o
 def customer_recommendations(request, pk):
     household = get_object_or_404(CustomerProfile, household_key=pk)
 
-    # Get alpha from the request, falling back to the session or a default value
-    try:
-        alpha = float(request.GET.get("alpha", request.session.get("global_alpha", 0.6)))
-        if not (0.0 <= alpha <= 1.0):
-            alpha = 0.6
-    except (ValueError, TypeError):
-        alpha = 0.6
-
-    # Save the current alpha to the session for persistence
-    request.session["global_alpha"] = alpha
-
-    # Check cache validity
     latest_rule_timestamp = AssociationRule.objects.aggregate(models.Max("created_at"))["created_at__max"]
+    ml_model = _get_ml_model()
+    current_model_trained_at = ml_model.trained_at if ml_model else None
+
     cache = CustomerRecommendationCache.objects.filter(household_key=pk).first()
 
     recalculate = (
-        "alpha" in request.GET
+        request.GET.get("refresh") == "1"
         or not cache
-        or cache.alpha != alpha
         or cache.rules_version != latest_rule_timestamp
+        or cache.model_trained_at != current_model_trained_at
     )
 
     if recalculate:
-        live_recs, cache_recs, latest_rule_timestamp = generate_hybrid_recommendations(pk, alpha=alpha)
+        live_recs, cache_recs, latest_rule_timestamp, model_trained_at = generate_hybrid_recommendations(pk)
         recommendations = live_recs
         CustomerRecommendationCache.objects.update_or_create(
             household_key=pk,
             defaults={
                 "recommendations": cache_recs,
-                "alpha": alpha,
                 "rules_version": latest_rule_timestamp,
+                "model_trained_at": model_trained_at,
             },
         )
     else:
-        # Load valid recommendations from the cache
         cached_recs = cache.recommendations
         product_ids = [rec["product_id"] for rec in cached_recs]
         products = {
@@ -235,13 +371,12 @@ def customer_recommendations(request, pk):
                 rec["product"] = products[rec["product_id"]]
                 recommendations.append(rec)
 
-    # Group recommendations for card layout
     grouped_recs = defaultdict(list)
     if recommendations:
         for rec in recommendations:
             commodity = rec["product"].commodity_desc or "Uncategorized"
             grouped_recs[commodity].append(rec)
-    
+
     grouped_recs = dict(sorted(grouped_recs.items(), key=lambda item: len(item[1]), reverse=True))
 
     return render(
@@ -250,7 +385,6 @@ def customer_recommendations(request, pk):
         {
             "household": household,
             "grouped_recommendations": grouped_recs,
-            "current_alpha": alpha,
         },
     )
 
@@ -260,7 +394,6 @@ def customer_churn(request, pk):
     household = get_object_or_404(CustomerProfile, household_key=pk)
     segment = CustomerSegment.objects.filter(household_key=pk).first()
 
-    # Manually assign the churn_risk label if it doesn't exist on the model
     if segment and hasattr(segment, 'churn_probability'):
         prob = segment.churn_probability
         segment.churn_probability_percent = prob * 100
@@ -291,6 +424,7 @@ FILTER_OPTIONS = {
     "18m": (167, 711),
     "all": (1, 711),
 }
+
 
 def customer_purchases(request, pk):
     household = get_object_or_404(CustomerProfile, household_key=pk)
@@ -331,14 +465,14 @@ def customer_purchases(request, pk):
         reverse=True
     ))
 
-    basket_list = list(grouped_purchases.items())  
-    paginator = Paginator(basket_list, 10)  
+    basket_list = list(grouped_purchases.items())
+    paginator = Paginator(basket_list, 10)
     page_number = request.GET.get("page")
     page_obj = paginator.get_page(page_number)
 
     return render(request, "site/customers/purchases.html", {
         "household": household,
-        "page_obj": page_obj,  
+        "page_obj": page_obj,
         "selected_period": period,
-        "transaction_count": len(grouped_purchases), 
+        "transaction_count": len(grouped_purchases),
     })

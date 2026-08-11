@@ -73,6 +73,7 @@ class CustomerRecommendationCache(models.Model):
     recommendations = models.JSONField(default=list)
     alpha = models.FloatField(default=0.6)  
     rules_version = models.DateTimeField()
+    model_trained_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
