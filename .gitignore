@@ -243,10 +243,14 @@ report.xml
 *.jpg
 *.gif
 kashanu.jpeg
+<<<<<<< HEAD
 <<<<<<< Updated upstream
 cf_matrix_cache.pkl
-=======
+
 
 cf_matrix_cache.pkl
 
->>>>>>> Stashed changes
+
+
+
+
