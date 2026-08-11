@@ -94,24 +94,6 @@
         <h3>Hybrid Recommendations for Customer {{ household.household_key }}</h3>
     </div>
 
-    <!-- Slider Alpha -->
-    <div class="card shadow-sm p-3 mb-4 mx-auto" style="max-width: 500px;">
-        <form method="get" id="alphaForm">
-            <label for="alphaSlider" class="form-label">
-                <b>Adjust Weight (Alpha):</b> 
-                <span id="alphaValue" class="fw-bold text-primary">{{ current_alpha|floatformat:2 }}</span>
-            </label>
-            <div class="d-flex align-items-center">
-                <small class="me-2">CF</small>
-                <input type="range" class="form-range" id="alphaSlider" name="alpha" 
-                       min="0.0" max="1.0" step="0.05" value="{{ current_alpha }}"
-                       oninput="document.getElementById('alphaValue').textContent = parseFloat(this.value).toFixed(2);"
-                       onchange="this.form.submit();">
-                <small class="ms-2">Rules</small>
-            </div>
-        </form>
-    </div>
-
     <!-- کارت‌ها -->
     {% if grouped_recommendations %}
     <div class="cards-wrapper">
@@ -164,7 +146,8 @@
                                 <th>Size</th>
                                 <th>Department</th>
                                 <th>Commodity</th>
-                                <th>Hybrid Score</th>
+                                <th>ML Score</th>        
+                                <th>Popularity</th>
                                 <th>CF Score</th>
                                 <th>Confidence</th>
                                 <th>Lift</th>
@@ -175,19 +158,20 @@
                         <tbody>
                             {% for rec in rec_list %}
                             <tr>
-                                <td>{{ rec.product.brand|default:"N/A" }}</td>
-                                <td>{{ rec.product.product_id }}</td>
-                                <td>{{ rec.product.curr_size_of_product|default:"N/A" }}</td>
-                                <td>{{ rec.product.department|default:"N/A" }}</td>
-                                <td>{{ rec.product.commodity_desc|default:"N/A" }}</td>
-                                <td>{{ rec.hybrid_score }}</td>
-                                <td>{{ rec.cf_score|default:"-" }}</td>
-                                <td>{{ rec.confidence|default:"-" }}</td>
-                                <td>{{ rec.lift|default:"-" }}</td>
-                                <td>{{ rec.support|default:"-" }}</td>
-                                <td>{{ rec.source_level|default:"-" }}{% if rec.origin %} ({{ rec.origin }}) {% endif %}</td>
-                            </tr>
-                            {% endfor %}
+                            <td>{{ rec.product.brand|default:"N/A" }}</td>
+                            <td>{{ rec.product.product_id }}</td>
+                            <td>{{ rec.product.curr_size_of_product|default:"N/A" }}</td>
+                            <td>{{ rec.product.department|default:"N/A" }}</td>
+                            <td>{{ rec.product.commodity_desc|default:"N/A" }}</td>
+                            <td><strong>{{ rec.ml_score|default:"-" }}</strong></td>       
+                            <td>{{ rec.popularity_score|default:"-" }}</td>             
+                            <td>{{ rec.cf_score|default:"-" }}</td>
+                            <td>{{ rec.confidence|default:"-" }}</td>
+                            <td>{{ rec.lift|default:"-" }}</td>
+                            <td>{{ rec.support|default:"-" }}</td>
+                            <td>{{ rec.source_level|default:"-" }}{% if rec.origin %} ({{ rec.origin }}) {% endif %}</td>
+                        </tr>
+                        {% endfor %}
                         </tbody>
                     </table>
                 </div>
@@ -217,15 +201,6 @@
   Please wait while recommendations are being prepared...
 </div>
 
-<script>
-  const alphaForm = document.getElementById('alphaForm');
-  const alphaSlider = document.getElementById('alphaSlider');
 
-  alphaSlider.addEventListener('change', function(){
-      // نمایش overlay قبل از submit فرم
-      document.getElementById('loadingOverlay').style.display = 'block';
-      alphaForm.submit();
-  });
-</script>
 {% endblock %}
 
