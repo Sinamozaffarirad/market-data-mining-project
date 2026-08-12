@@ -1,0 +1,481 @@
+{
+  "artifact_version": 7,
+  "configuration_key": "h3_w12_s1_tr80_auto_hu16_fb050_e10",
+  "saved_at_utc": "2026-08-03T17:31:08.784942+00:00",
+  "training_configuration": {
+    "parameter_mode": "auto",
+    "hidden_units": 16,
+    "feedback_rate": 0.5,
+    "epochs": 10,
+    "recursive_feedback": true,
+    "joint_multi_step_loss": true,
+    "backpropagation_through_time": true
+  },
+  "forecast_method": "autoregressive_encoder_decoder_rnn_with_bptt",
+  "model_architecture": {
+    "time_series_model": "NumPy tanh encoder-decoder RNN",
+    "independent_direct_model": "50/50 equal-product and revenue-weighted HistGradientBoosting ensemble",
+    "recursive_feedback": true,
+    "joint_multi_step_loss": true,
+    "backpropagation_through_time": true,
+    "hidden_units": 16,
+    "feedback_rate": 0.5
+  },
+  "sequence_training": {
+    "loss": "masked multi-step Huber loss on normalized log revenue",
+    "epochs": 10,
+    "loss_history": [
+      0.10296912,
+      0.09549518,
+      0.09480917,
+      0.09473444,
+      0.09471303,
+      0.09424011,
+      0.09465677,
+      0.09434958,
+      0.09426671,
+      0.09448679
+    ],
+    "supervised_forecast_steps": 1223849,
+    "maximum_supervised_rollout": 3,
+    "supervised_steps_by_origin": {
+      "14": 3,
+      "15": 3,
+      "16": 3,
+      "17": 3,
+      "18": 3,
+      "19": 2,
+      "20": 1
+    }
+  },
+  "aggregate_reconciliation": {
+    "power": 0.25,
+    "mode": "partial",
+    "applied_equally_to_compared_models": true
+  },
+  "target": "monthly Product ID revenue for the next 3 complete 30-day period(s)",
+  "horizon_months": 3,
+  "window_size_months": 12,
+  "sliding_step_months": 1,
+  "training_size": 0.8,
+  "validation": "strict final-horizon chronological holdout; every training target ends before the holdout; overlapping windows stay on the training side; no random split or future-revenue features",
+  "temporal_evidence_strength": "moderate",
+  "temporal_fit_origins": 7,
+  "fit_origin_periods": [
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20
+  ],
+  "available_pretest_origins": [
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20
+  ],
+  "test_origin_period": 21,
+  "test_period": {
+    "start_day": 622,
+    "end_day": 711,
+    "periods": [
+      21,
+      22,
+      23
+    ]
+  },
+  "holdout_actual_vs_predicted": [
+    {
+      "period": 21,
+      "start_day": 622,
+      "end_day": 651,
+      "actual_revenue": 397589.99,
+      "time_series_revenue": 357519.11,
+      "independent_revenue": 336452.32,
+      "baseline_revenue": 376194.74
+    },
+    {
+      "period": 22,
+      "start_day": 652,
+      "end_day": 681,
+      "actual_revenue": 385435.16,
+      "time_series_revenue": 392948.8,
+      "independent_revenue": 340964.33,
+      "baseline_revenue": 376194.74
+    },
+    {
+      "period": 23,
+      "start_day": 682,
+      "end_day": 711,
+      "actual_revenue": 401681.79,
+      "time_series_revenue": 417272.01,
+      "independent_revenue": 336049.49,
+      "baseline_revenue": 376194.74
+    }
+  ],
+  "samples": {
+    "independent_train": 476048,
+    "sequence_train": 476048,
+    "independent_train_by_origin": {
+      "14": 67375,
+      "15": 68370,
+      "16": 68050,
+      "17": 68031,
+      "18": 68057,
+      "19": 68035,
+      "20": 68130
+    },
+    "sequence_train_by_origin": {
+      "14": 67375,
+      "15": 68370,
+      "16": 68050,
+      "17": 68031,
+      "18": 68057,
+      "19": 68035,
+      "20": 68130
+    },
+    "products_total": 91933,
+    "evaluation_products": 75192,
+    "lookback_active_products": 67976,
+    "cold_start_products_in_test": 7216
+  },
+  "data_profile": {
+    "source": "transactions joined to product metadata",
+    "grain": "Product ID x complete 30-day period",
+    "transaction_rows": 2595280,
+    "products_with_transactions": 91933,
+    "source_min_day": 1,
+    "as_of_day": 711,
+    "period_days": 30,
+    "complete_periods": 23,
+    "analysis_start_day": 22,
+    "excluded_leading_days": 21,
+    "zero_revenue_cells_rate": 0.750873
+  },
+  "time_series_model": {
+    "evaluation_products": 75192,
+    "actual_revenue": 1184706.94,
+    "predicted_revenue": 1167739.92,
+    "bias_percent": -0.014322,
+    "mae": 7.864243,
+    "rmse": 112.106874,
+    "wmape": 0.499135,
+    "smape": 1.515121,
+    "r2": 0.80484,
+    "top_k": 20,
+    "spearman": 0.524824,
+    "kendall_tau": 0.398687,
+    "ranking_at_k": {
+      "5": {
+        "k_used": 5,
+        "overlap_count": 4,
+        "precision_at_k": 0.8,
+        "recall_at_k": 0.8,
+        "jaccard_at_k": 0.666667,
+        "ndcg_at_k": 0.998213,
+        "rank_biased_overlap": 0.850555
+      },
+      "10": {
+        "k_used": 10,
+        "overlap_count": 10,
+        "precision_at_k": 1.0,
+        "recall_at_k": 1.0,
+        "jaccard_at_k": 1.0,
+        "ndcg_at_k": 0.999229,
+        "rank_biased_overlap": 0.945241
+      },
+      "20": {
+        "k_used": 20,
+        "overlap_count": 17,
+        "precision_at_k": 0.85,
+        "recall_at_k": 0.85,
+        "jaccard_at_k": 0.73913,
+        "ndcg_at_k": 0.993422,
+        "rank_biased_overlap": 0.905857
+      }
+    },
+    "precision_at_k": 0.85,
+    "recall_at_k": 0.85,
+    "jaccard_at_k": 0.73913,
+    "ndcg_at_k": 0.993422,
+    "rank_biased_overlap": 0.905857
+  },
+  "independent_direct_model": {
+    "evaluation_products": 75192,
+    "actual_revenue": 1184706.94,
+    "predicted_revenue": 1013466.14,
+    "bias_percent": -0.144543,
+    "mae": 6.896221,
+    "rmse": 24.208554,
+    "wmape": 0.437695,
+    "smape": 1.455028,
+    "r2": 0.9909,
+    "top_k": 20,
+    "spearman": 0.531695,
+    "kendall_tau": 0.404958,
+    "ranking_at_k": {
+      "5": {
+        "k_used": 5,
+        "overlap_count": 4,
+        "precision_at_k": 0.8,
+        "recall_at_k": 0.8,
+        "jaccard_at_k": 0.666667,
+        "ndcg_at_k": 0.998583,
+        "rank_biased_overlap": 0.86878
+      },
+      "10": {
+        "k_used": 10,
+        "overlap_count": 9,
+        "precision_at_k": 0.9,
+        "recall_at_k": 0.9,
+        "jaccard_at_k": 0.818182,
+        "ndcg_at_k": 0.999009,
+        "rank_biased_overlap": 0.924724
+      },
+      "20": {
+        "k_used": 20,
+        "overlap_count": 16,
+        "precision_at_k": 0.8,
+        "recall_at_k": 0.8,
+        "jaccard_at_k": 0.666667,
+        "ndcg_at_k": 0.991381,
+        "rank_biased_overlap": 0.91154
+      }
+    },
+    "precision_at_k": 0.8,
+    "recall_at_k": 0.8,
+    "jaccard_at_k": 0.666667,
+    "ndcg_at_k": 0.991381,
+    "rank_biased_overlap": 0.91154
+  },
+  "recent_average_baseline": {
+    "evaluation_products": 75192,
+    "actual_revenue": 1184706.94,
+    "predicted_revenue": 1128584.22,
+    "bias_percent": -0.047373,
+    "mae": 7.665446,
+    "rmse": 27.51042,
+    "wmape": 0.486517,
+    "smape": 0.793915,
+    "r2": 0.988248,
+    "top_k": 20,
+    "spearman": 0.603677,
+    "kendall_tau": 0.507811,
+    "ranking_at_k": {
+      "5": {
+        "k_used": 5,
+        "overlap_count": 4,
+        "precision_at_k": 0.8,
+        "recall_at_k": 0.8,
+        "jaccard_at_k": 0.666667,
+        "ndcg_at_k": 0.998583,
+        "rank_biased_overlap": 0.86878
+      },
+      "10": {
+        "k_used": 10,
+        "overlap_count": 9,
+        "precision_at_k": 0.9,
+        "recall_at_k": 0.9,
+        "jaccard_at_k": 0.818182,
+        "ndcg_at_k": 0.999009,
+        "rank_biased_overlap": 0.924724
+      },
+      "20": {
+        "k_used": 20,
+        "overlap_count": 16,
+        "precision_at_k": 0.8,
+        "recall_at_k": 0.8,
+        "jaccard_at_k": 0.666667,
+        "ndcg_at_k": 0.987014,
+        "rank_biased_overlap": 0.909523
+      }
+    },
+    "precision_at_k": 0.8,
+    "recall_at_k": 0.8,
+    "jaccard_at_k": 0.666667,
+    "ndcg_at_k": 0.987014,
+    "rank_biased_overlap": 0.909523
+  },
+  "bias_diagnostics": {
+    "time_series_bias_percent": -0.014322,
+    "independent_bias_percent": -0.144543,
+    "recent_average_bias_percent": -0.047373,
+    "interpretation": "Negative values mean underprediction and positive values mean overprediction. Sparse products, cold starts, and log-target shrinkage can create negative aggregate bias; long recursive rollouts can also accumulate feedback error in either direction."
+  },
+  "holdout_period_total_metrics": {
+    "time_series_model": {
+      "periods": 3,
+      "mae": 21058.248193,
+      "rmse": 25200.432246,
+      "wmape": 0.053325,
+      "bias_percent": -0.014322,
+      "actual_total": 1184706.94,
+      "predicted_total": 1167739.92
+    },
+    "independent_direct_model": {
+      "periods": 3,
+      "mae": 57080.265132,
+      "rmse": 57801.579263,
+      "wmape": 0.144543,
+      "bias_percent": -0.144543,
+      "actual_total": 1184706.94,
+      "predicted_total": 1013466.14
+    },
+    "recent_average_baseline": {
+      "periods": 3,
+      "mae": 18707.573333,
+      "rmse": 19939.339692,
+      "wmape": 0.047373,
+      "bias_percent": -0.047373,
+      "actual_total": 1184706.94,
+      "predicted_total": 1128584.22
+    }
+  },
+  "model_ranking_similarity": {
+    "spearman": 0.988891,
+    "kendall_tau": 0.924777,
+    "top_k_overlap": {
+      "5": {
+        "k_used": 5,
+        "overlap_count": 5,
+        "precision_at_k": 1.0,
+        "recall_at_k": 1.0,
+        "jaccard_at_k": 1.0,
+        "ndcg_at_k": 0.999574,
+        "rank_biased_overlap": 0.981775
+      },
+      "10": {
+        "k_used": 10,
+        "overlap_count": 9,
+        "precision_at_k": 0.9,
+        "recall_at_k": 0.9,
+        "jaccard_at_k": 0.818182,
+        "ndcg_at_k": 0.998322,
+        "rank_biased_overlap": 0.933191
+      },
+      "20": {
+        "k_used": 20,
+        "overlap_count": 18,
+        "precision_at_k": 0.9,
+        "recall_at_k": 0.9,
+        "jaccard_at_k": 0.818182,
+        "ndcg_at_k": 0.994987,
+        "rank_biased_overlap": 0.938035
+      }
+    },
+    "interpretation": "Similarity compares the two model rankings; it is not accuracy against actual revenue."
+  },
+  "top_product_rank_comparison": [
+    {
+      "actual_rank": 1,
+      "product_id": 6534178,
+      "sequence_rank": 1,
+      "independent_rank": 1
+    },
+    {
+      "actual_rank": 2,
+      "product_id": 6533889,
+      "sequence_rank": 2,
+      "independent_rank": 2
+    },
+    {
+      "actual_rank": 3,
+      "product_id": 1029743,
+      "sequence_rank": 3,
+      "independent_rank": 3
+    }
+  ],
+  "selection_guidance": {
+    "best_for_revenue_error": "independent_direct_model",
+    "best_for_revenue_error_basis": "cumulative Product ID WMAPE",
+    "overall_error_assessment": "independent_direct_model",
+    "error_metric_wins": {
+      "time_series_model": 0,
+      "independent_direct_model": 4,
+      "metrics_compared": [
+        "mae",
+        "rmse",
+        "wmape",
+        "smape"
+      ]
+    },
+    "best_for_top_k_ranking": "time_series_model"
+  },
+  "required_caveats": [
+    "The dataset provides 23 complete aligned periods, so the final holdout is one horizon block rather than many independent years.",
+    "For long horizons, the validation-side RNN is supervised only for the future steps available before the holdout; the maximum supervised rollout is reported explicitly.",
+    "Product rows increase cross-sectional samples but do not replace missing calendar history.",
+    "Products with no revenue in the lookback are cold starts; revenue-only models predict zero for them and report their count.",
+    "The legacy repurchase classifier has a different target and its classification Accuracy must not be compared with revenue errors."
+  ],
+  "production_refit": {
+    "fit_after_holdout_evaluation": true,
+    "purpose": "future periods after the dataset as-of day only",
+    "origin_periods": [
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23
+    ],
+    "available_origins": [
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23
+    ],
+    "independent_samples": 611252,
+    "sequence_samples": 611252,
+    "independent_samples_by_origin": {
+      "15": 68370,
+      "16": 68050,
+      "17": 68031,
+      "18": 68057,
+      "19": 68035,
+      "20": 68130,
+      "21": 67976,
+      "22": 67649,
+      "23": 66954
+    },
+    "sequence_samples_by_origin": {
+      "15": 68370,
+      "16": 68050,
+      "17": 68031,
+      "18": 68057,
+      "19": 68035,
+      "20": 68130,
+      "21": 67976,
+      "22": 67649,
+      "23": 66954
+    },
+    "sequence_supervised_steps_by_origin": {
+      "15": 3,
+      "16": 3,
+      "17": 3,
+      "18": 3,
+      "19": 3,
+      "20": 3,
+      "21": 3,
+      "22": 2,
+      "23": 1
+    },
+    "sequence_maximum_supervised_rollout": 3
+  }
+}
