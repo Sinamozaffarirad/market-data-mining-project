@@ -902,10 +902,10 @@ def site_index(request):
         { 'title': 'Shopping Basket Analysis', 'description': 'Analyze baskets, top products, and patterns', 'url': 'basket-analysis/', 'icon': '🧺' },
         { 'title': 'Association Rules', 'description': 'Market basket association rules', 'url': 'association-rules/', 'icon': '🔗' },
         { 'title': 'Customer Segments', 'description': 'RFM segments & behavior', 'url': 'customer-segments/', 'icon': '👥' },
+        { 'title': 'Customer Retention', 'description': 'Identify at-risk customers and predict churn', 'url': 'customer-retention/', 'icon': '🧲' },
         { 'title': 'Data Management', 'description': 'View, edit, import/export data', 'url': 'data-management/', 'icon': '⚙️' },
         { 'title': 'Customer Insights', 'description': 'Explore and manage your customer data in detail', 'url': reverse('customers:search'), 'icon': '👤' },
         { 'title': 'Product Recommender','description': 'Find customers most likely to buy selected product', 'url': 'product-recommender/', 'icon': '📝' },
-        { 'title': 'Customer Retention', 'description': 'Identify at-risk customers and predict churn', 'url': 'customer-retention/', 'icon': '🧲' },
     ]
 
     context = {
