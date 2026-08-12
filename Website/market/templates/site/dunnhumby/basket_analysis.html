@@ -254,50 +254,57 @@
   width: 8px;
 }
 
-/* Extended height with extra bottom space to prevent cut-off */
+/* Collapsed high-value lists use pages instead of nested scrollbars. This
+   keeps complete rows visible and avoids trapping the mouse wheel. */
+.admin .chart-container.high-value-panel {
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+
 #basketsGrid, #topProductsGrid {
-  min-height: 800px !important;
-  max-height: 1500px !important;
-  overflow-y: auto !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow: visible !important;
   padding: 1rem !important;
-  padding-bottom: clamp(12rem, 18vh, 15rem) !important;
   border: 1px solid #e9ecef !important;
   border-radius: 10px !important;
-  scroll-behavior: smooth;
-  scroll-padding-bottom: clamp(12rem, 18vh, 15rem);
 }
 
-/* Custom scrollbar styling */
-#basketsGrid::-webkit-scrollbar,
-#topProductsGrid::-webkit-scrollbar {
-  width: 8px;
+/* Keep Bootstrap gutters inside the compact card panels. */
+#basketsGrid {
+  --bs-gutter-x: 1rem;
+  --bs-gutter-y: 1rem;
+  margin: 0 !important;
 }
 
-#basketsGrid::-webkit-scrollbar-track,
-#topProductsGrid::-webkit-scrollbar-track {
-  background: #f1f1f1;
-  border-radius: 4px;
+#topProductsGrid > .row {
+  --bs-gutter-x: 1rem;
+  --bs-gutter-y: 1rem;
+  margin: 0 !important;
 }
 
-#basketsGrid::-webkit-scrollbar-thumb,
-#topProductsGrid::-webkit-scrollbar-thumb {
-  background: rgba(102, 126, 234, 0.4);
-  border-radius: 4px;
+#basketsGrid > [hidden],
+#topProductsGrid [data-products-view] > [hidden] {
+  display: none !important;
 }
 
-#basketsGrid::-webkit-scrollbar-thumb:hover,
-#topProductsGrid::-webkit-scrollbar-thumb:hover {
-  background: rgba(102, 126, 234, 0.7);
+.high-value-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding-top: 1rem;
 }
 
-#basketsGrid::after,
-#topProductsGrid::after,
-#topProductsGrid > .row::after {
-  content: '';
-  display: block;
-  width: 100%;
-  height: clamp(9rem, 14vh, 12rem);
-  pointer-events: none;
+.high-value-pagination .page-summary {
+  color: #64748b;
+  font-size: 0.875rem;
+  font-weight: 600;
+  min-width: 9rem;
+  text-align: center;
 }
 
 /* Card spacing */
@@ -1054,7 +1061,7 @@ html, body {
       </div>
 
       <!-- Baskets Grid -->
-      <div class="chart-container">
+      <div class="chart-container high-value-panel">
         <div class="d-flex justify-content-between align-items-center mb-3">
           <h5 class="mb-0"><i class="fas fa-shopping-basket"></i> High-Value Baskets Analysis</h5>
           <div>
@@ -1089,10 +1096,11 @@ html, body {
         </div>
         {% endfor %}
         </div>
+        <div id="basketsPagination" class="high-value-pagination" aria-label="High-value basket pages"></div>
       </div>
 
       <!-- High-Value Products Analysis -->
-      <div class="chart-container">
+      <div class="chart-container high-value-panel">
         <div class="d-flex justify-content-between align-items-center mb-3">
           <h5 class="mb-0"><i class="fas fa-star"></i> High-Value Products Analysis</h5>
           <div class="d-flex align-items-center gap-2">
@@ -1189,6 +1197,7 @@ html, body {
           {% endfor %}
           </div>
         </div>
+        <div id="topProductsPagination" class="high-value-pagination" aria-label="High-value product pages"></div>
       </div>
     </div>
 
@@ -3751,6 +3760,67 @@ function generateDifferentialInsightsFromAPI(insights, compareBy, statTest) {
 }
 
 
+const highValuePageState = { baskets: 1, products: 1 };
+
+function getHighValuePageSize() {
+  if (window.innerWidth >= 1200) return 8;
+  if (window.innerWidth >= 992) return 6;
+  if (window.innerWidth >= 576) return 4;
+  return 2;
+}
+
+function getHighValueCards(section) {
+  if (section === 'baskets') {
+    const grid = document.getElementById('basketsGrid');
+    return grid ? Array.from(grid.children).filter(item => item.querySelector('.basket-card')) : [];
+  }
+
+  const grid = document.getElementById('topProductsGrid');
+  const activeView = grid?.querySelector('[data-products-view]:not(.d-none)');
+  return activeView ? Array.from(activeView.children).filter(item => item.querySelector('.product-card')) : [];
+}
+
+function renderHighValuePage(section, requestedPage = highValuePageState[section]) {
+  const cards = getHighValueCards(section);
+  const pageSize = getHighValuePageSize();
+  const totalPages = Math.max(1, Math.ceil(cards.length / pageSize));
+  const page = Math.min(Math.max(1, requestedPage), totalPages);
+  const start = (page - 1) * pageSize;
+  const end = Math.min(start + pageSize, cards.length);
+  const controls = document.getElementById(section === 'baskets' ? 'basketsPagination' : 'topProductsPagination');
+
+  highValuePageState[section] = page;
+  cards.forEach((card, index) => {
+    card.hidden = index < start || index >= end;
+  });
+
+  if (!controls) return;
+  if (cards.length <= pageSize) {
+    controls.replaceChildren();
+    controls.classList.add('d-none');
+    return;
+  }
+
+  controls.classList.remove('d-none');
+  controls.innerHTML = `
+    <button type="button" class="btn btn-outline-primary btn-sm" ${page === 1 ? 'disabled' : ''}>
+      <i class="fas fa-chevron-left"></i> Previous
+    </button>
+    <span class="page-summary">${start + 1}-${end} of ${cards.length}</span>
+    <button type="button" class="btn btn-outline-primary btn-sm" ${page === totalPages ? 'disabled' : ''}>
+      Next <i class="fas fa-chevron-right"></i>
+    </button>`;
+
+  const [previousButton, nextButton] = controls.querySelectorAll('button');
+  previousButton?.addEventListener('click', () => renderHighValuePage(section, page - 1));
+  nextButton?.addEventListener('click', () => renderHighValuePage(section, page + 1));
+}
+
+function initializeHighValuePagination() {
+  renderHighValuePage('baskets', 1);
+  renderHighValuePage('products', 1);
+}
+
 function switchTopProductsView(view) {
   const grid = document.getElementById('topProductsGrid');
   if (!grid) return;
@@ -3767,6 +3837,7 @@ function switchTopProductsView(view) {
   });
 
   initTopProductCards(grid);
+  renderHighValuePage('products', 1);
 }
 
 function initTopProductCards(scope = document) {
@@ -4290,12 +4361,18 @@ function expandSection(sectionType) {
   
   if (container) {
     let content;
+    const allItemsContent = source => {
+      if (!source) return '<div class="text-muted">No items available.</div>';
+      const copy = source.cloneNode(true);
+      copy.querySelectorAll('[hidden]').forEach(item => item.removeAttribute('hidden'));
+      return copy.innerHTML;
+    };
 
     if (sectionType === 'products') {
       const frequencyWrapper = container.querySelector('[data-products-view="frequency"]');
       const salesWrapper = container.querySelector('[data-products-view="sales"]');
-      const frequencyContent = frequencyWrapper ? frequencyWrapper.innerHTML : '<div class="text-muted">No high-value products available.</div>';
-      const salesContent = salesWrapper ? salesWrapper.innerHTML : '<div class="text-muted">No high-value products available.</div>';
+      const frequencyContent = allItemsContent(frequencyWrapper);
+      const salesContent = allItemsContent(salesWrapper);
       content = `
         <div class="mb-4">
           <h6 class="text-primary"><i class="fas fa-sync-alt me-1"></i>Top by Transactions</h6>
@@ -4307,7 +4384,7 @@ function expandSection(sectionType) {
         </div>
       `;
     } else {
-      content = container.innerHTML;
+      content = allItemsContent(container);
       if (sectionType === 'baskets' || sectionType === 'recommendations' || sectionType === 'differential') {
         content = `<div class="row g-3">${content}</div>`;
       }
@@ -5300,6 +5377,8 @@ document.addEventListener('DOMContentLoaded', function() {
   loadDescriptiveAnalysis();
   initTopProductCards();
   switchTopProductsView('frequency');
+  initializeHighValuePagination();
+  window.addEventListener('resize', () => initializeHighValuePagination());
 
   // Basket card clicks
   document.querySelectorAll('.basket-card').forEach(card => {
@@ -7176,6 +7255,10 @@ function refreshHighValueSections() {
       if (newProductsGrid && currentProductsGrid) {
         currentProductsGrid.innerHTML = newProductsGrid.innerHTML;
       }
+
+            renderHighValuePage('baskets', highValuePageState.baskets);
+            renderHighValuePage('products', highValuePageState.products);
+            initTopProductCards(currentProductsGrid);
 
       console.log('High-value sections refreshed at:', new Date().toLocaleTimeString());
     })
