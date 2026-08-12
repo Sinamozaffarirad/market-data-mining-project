@@ -899,13 +899,13 @@ def site_index(request):
     rev_change = ((float(recent_revenue) - float(prev_revenue)) / float(prev_revenue) * 100) if prev_revenue > 0 else 0
 
     tools = [
-        { 'title': 'Shopping Basket Analysis', 'description': 'Analyze baskets, top products, and patterns', 'url': 'basket-analysis/', 'icon': '🧺' },
-        { 'title': 'Association Rules', 'description': 'Market basket association rules', 'url': 'association-rules/', 'icon': '🔗' },
-        { 'title': 'Customer Segments', 'description': 'RFM segments & behavior', 'url': 'customer-segments/', 'icon': '👥' },
-        { 'title': 'Customer Retention', 'description': 'Identify at-risk customers and predict churn', 'url': 'customer-retention/', 'icon': '🧲' },
-        { 'title': 'Data Management', 'description': 'View, edit, import/export data', 'url': 'data-management/', 'icon': '⚙️' },
-        { 'title': 'Customer Insights', 'description': 'Explore and manage your customer data in detail', 'url': reverse('customers:search'), 'icon': '👤' },
-        { 'title': 'Product Recommender','description': 'Find customers most likely to buy selected product', 'url': 'product-recommender/', 'icon': '📝' },
+        { 'title': 'Shopping Basket Analysis', 'description': 'Analyze baskets, top products, and patterns', 'url': 'basket-analysis/', 'icon': '<i class="fas fa-shopping-basket"></i>' },
+        { 'title': 'Association Rules', 'description': 'Market basket association rules', 'url': 'association-rules/', 'icon': '<i class="fas fa-project-diagram"></i>' },
+        { 'title': 'Customer Segments', 'description': 'RFM segments & behavior', 'url': 'customer-segments/', 'icon': '<i class="fas fa-users"></i>' },
+        { 'title': 'Customer Retention', 'description': 'Identify at-risk customers and predict churn', 'url': 'customer-retention/', 'icon': '<i class="fas fa-heart-circle-check"></i>' },
+        { 'title': 'Data Management', 'description': 'View, edit, import/export data', 'url': 'data-management/', 'icon': '<i class="fas fa-database"></i>' },
+        { 'title': 'Customer Insights', 'description': 'Explore and manage your customer data in detail', 'url': reverse('customers:search'), 'icon': '<i class="fas fa-user"></i>' },
+        { 'title': 'Product Recommender', 'description': 'Find customers most likely to buy selected product', 'url': 'product-recommender/', 'icon': '<i class="fas fa-file-pen"></i>' },
     ]
 
     context = {
