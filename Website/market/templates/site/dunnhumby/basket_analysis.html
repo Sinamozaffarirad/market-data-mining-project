@@ -877,6 +877,41 @@ html, body {
   border-color: transparent;
   box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
 }
+
+/* Model Benchmarks modal: distinct dark "lab" styling so admins can tell
+   test/validation evidence apart from the live forecast on the main page. */
+.benchmarks-modal-dialog {
+  width: min(96vw, 1400px);
+  max-width: min(96vw, 1400px);
+}
+
+.benchmarks-modal-header {
+  background: linear-gradient(135deg, #111827 0%, #374151 100%);
+  color: #fff;
+  border: none;
+}
+
+.benchmarks-modal-header .modal-title {
+  font-weight: 700;
+}
+
+#revenueQuickStats.metric-grid {
+  margin: 0.5rem 0 1rem;
+}
+
+/* "Best model" shows a model name, not a number, so it gets its own
+   text style instead of the numeric .metric-value (which the site-wide
+   .admin rule pins to 2.5rem !important and which wraps badly for text). */
+.quick-stat-model-value {
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: #4f46e5;
+  line-height: 1.25;
+  min-height: 2.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 </style>
 {% endblock %}
 
@@ -1395,40 +1430,40 @@ html, body {
               <i class="fas fa-crystal-ball"></i> Forecast future revenue
             </button>
             <span id="timeSeriesSavedModelStatus" class="badge bg-secondary">Checking saved model…</span>
+            <button class="btn btn-dark ms-auto" type="button" data-bs-toggle="modal" data-bs-target="#modelBenchmarksModal" title="Open chronological holdout metrics, ranking benchmarks and error charts for these models">
+              <i class="fas fa-vials"></i> Model Benchmarks
+            </button>
           </div>
         </div>
-        <details class="border rounded bg-white px-3 py-2 mt-2 small">
-          <summary class="fw-semibold" style="cursor:pointer">How this comparison works</summary>
-          <div class="row g-2 mt-1 text-muted">
-            <div class="col-md-3"><strong class="text-dark">1. Sliding windows</strong><br>Each sample contains the selected number of earlier 30-day Product ID revenue periods. Windows overlap when the step is smaller than the lookback.</div>
-            <div class="col-md-3"><strong class="text-dark">2. Recursive RNN</strong><br>Each predicted period is fed into the next. Joint multi-step loss is propagated backward through the forecast sequence.</div>
-            <div class="col-md-3"><strong class="text-dark">3. Independent model</strong><br>The gradient-boosting ensemble predicts each lead from the same observed window without using earlier predictions.</div>
-            <div class="col-md-3"><strong class="text-dark">4. Honest comparison</strong><br>Both models use the same final chronological holdout and are compared on revenue error and Top-5/10/20 ranking quality.</div>
-          </div>
-        </details>
-        <div id="timeSeriesReport" class="mt-3" aria-live="polite"></div>
-        <div class="d-flex flex-wrap gap-2 mt-2">
-          <button class="btn btn-outline-primary btn-sm" id="downloadForecastBtn" type="button" onclick="downloadTimeSeriesForecast()" disabled><i class="fas fa-download"></i> Download forecast CSV</button>
-          <button class="btn btn-outline-secondary btn-sm" id="downloadMetricsBtn" type="button" onclick="downloadTimeSeriesMetrics()" disabled><i class="fas fa-download"></i> Download validation JSON</button>
+        <div class="alert alert-light border small mt-2 mb-0">
+          <i class="fas fa-info-circle text-muted"></i> Chronological holdout metrics, ranking benchmarks and error charts for these models live behind <strong>Model Benchmarks</strong> above. This page shows the department breakdown and product-level results for a quick read.
         </div>
+
+        <div class="metric-grid" id="revenueQuickStats" style="display:none">
+          <div class="metric-item">
+            <div class="quick-stat-model-value" id="qsBestModel">–</div>
+            <div class="metric-label"><i class="fas fa-trophy text-warning"></i> Best model (holdout)<br><small class="text-muted" id="qsBestModelSub" style="font-size:0.65rem"></small></div>
+          </div>
+          <div class="metric-item">
+            <div class="metric-value" id="qsErrorImprovement">–</div>
+            <div class="metric-label"><i class="fas fa-percentage text-info"></i> Revenue error improvement<br><small class="text-muted" style="font-size:0.65rem">vs recent-average benchmark</small></div>
+          </div>
+          <div class="metric-item">
+            <div class="metric-value" id="qsTopPrecision">–</div>
+            <div class="metric-label"><i class="fas fa-bullseye text-danger"></i> <span id="qsTopPrecisionLabelText">Top-20 precision</span><br><small class="text-muted" id="qsTopPrecisionSub" style="font-size:0.65rem"></small></div>
+          </div>
+          <div class="metric-item">
+            <div class="metric-value" id="qsProducts">–</div>
+            <div class="metric-label"><i class="fas fa-boxes text-success"></i> Products evaluated<br><small class="text-muted" style="font-size:0.65rem">chronological holdout</small></div>
+          </div>
+        </div>
+
         <div class="row g-2 mt-1">
-          <div class="col-lg-4">
-            <div class="bg-white border rounded p-2 h-100" id="timeSeriesDepartmentChartContainer">
+          <div class="col-12">
+            <div class="bg-white border rounded p-2" id="timeSeriesDepartmentChartContainer">
               <div class="d-flex justify-content-between align-items-start gap-2"><h6 class="small mb-2">Department forecast comparison <span class="text-muted">(eligible products)</span></h6><button class="btn btn-outline-primary btn-sm" type="button" onclick="expandChart('timeSeriesDepartmentChartContainer')" title="Expand department forecast chart"><i class="fas fa-expand-arrows-alt"></i> Expand</button></div>
-              <div style="height: 320px;"><canvas id="timeSeriesDepartmentChart"></canvas></div>
-            </div>
-          </div>
-          <div class="col-lg-4">
-            <div class="bg-white border rounded p-2 h-100" id="timeSeriesComparisonChartContainer">
-              <div class="d-flex justify-content-between align-items-start gap-2"><h6 class="small mb-2">Holdout error and Top-20 ranking</h6><button class="btn btn-outline-primary btn-sm" type="button" onclick="expandChart('timeSeriesComparisonChartContainer')" title="Expand holdout comparison chart"><i class="fas fa-expand-arrows-alt"></i> Expand</button></div>
-              <div style="height: 320px;"><canvas id="timeSeriesComparisonChart"></canvas></div>
-            </div>
-          </div>
-          <div class="col-lg-4">
-            <div class="bg-white border rounded p-2 h-100" id="timeSeriesActualChartContainer">
-              <div class="d-flex justify-content-between align-items-start gap-2"><h6 class="small mb-2">Holdout total revenue by 30-day period</h6><button class="btn btn-outline-primary btn-sm" type="button" onclick="expandChart('timeSeriesActualChartContainer')" title="Expand holdout revenue chart"><i class="fas fa-expand-arrows-alt"></i> Expand</button></div>
-              <div style="height: 320px;"><canvas id="timeSeriesActualChart"></canvas></div>
-              <small class="text-muted d-block mt-1">All lines are produced from the same forecast origin without seeing holdout revenue. The recent-average benchmark is constant by definition.</small>
+              <div style="height: 340px;"><canvas id="timeSeriesDepartmentChart"></canvas></div>
+              <small class="text-muted d-block mt-1">Live forecast totals by department — this is the current prediction, not a benchmark test.</small>
             </div>
           </div>
         </div>
@@ -1485,6 +1520,7 @@ html, body {
             <button class="btn btn-outline-secondary btn-sm" type="button" onclick="setAllForecastDetails(true)"><i class="fas fa-angle-double-down"></i> Expand all</button>
             <button class="btn btn-outline-secondary btn-sm" type="button" onclick="setAllForecastDetails(false)"><i class="fas fa-angle-double-up"></i> Collapse all</button>
             <button class="btn btn-outline-primary btn-sm" type="button" onclick="expandSection('timeSeriesForecast')"><i class="fas fa-expand-arrows-alt"></i> Expand results</button>
+            <button class="btn btn-outline-success btn-sm" id="downloadForecastBtn" type="button" onclick="downloadTimeSeriesForecast()" disabled><i class="fas fa-download"></i> Download CSV</button>
           </div>
         </div>
         <div class="table-responsive predictive-scroll" id="timeSeriesForecastScroll" tabindex="0" aria-label="Product revenue forecast results">
@@ -1684,6 +1720,60 @@ html, body {
           </div>
         </div>
         </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Model Benchmarks Modal: chronological holdout evidence for the Product Revenue Time Series models.
+     Kept separate from #detailModal so its canvases stay in the DOM and don't need to be re-cloned. -->
+<div class="modal fade" id="modelBenchmarksModal" tabindex="-1" aria-hidden="true" aria-labelledby="modelBenchmarksModalLabel">
+  <div class="modal-dialog modal-dialog-scrollable benchmarks-modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header benchmarks-modal-header">
+        <div>
+          <h5 class="modal-title" id="modelBenchmarksModalLabel"><i class="fas fa-vials me-2"></i>Model Benchmarks &amp; Validation</h5>
+          <small class="d-block text-white-50">Chronological holdout testing for the Product Revenue Time Series models — this is model evidence, not a live forecast.</small>
+        </div>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <details class="border rounded bg-white px-3 py-2 mb-3 small">
+          <summary class="fw-semibold" style="cursor:pointer">How this comparison works</summary>
+          <div class="row g-2 mt-1 text-muted">
+            <div class="col-md-3"><strong class="text-dark">1. Sliding windows</strong><br>Each sample contains the selected number of earlier 30-day Product ID revenue periods. Windows overlap when the step is smaller than the lookback.</div>
+            <div class="col-md-3"><strong class="text-dark">2. Recursive RNN</strong><br>Each predicted period is fed into the next. Joint multi-step loss is propagated backward through the forecast sequence.</div>
+            <div class="col-md-3"><strong class="text-dark">3. Independent model</strong><br>The gradient-boosting ensemble predicts each lead from the same observed window without using earlier predictions.</div>
+            <div class="col-md-3"><strong class="text-dark">4. Honest comparison</strong><br>Both models use the same final chronological holdout and are compared on revenue error and Top-5/10/20 ranking quality.</div>
+          </div>
+        </details>
+
+        <div id="timeSeriesReport" aria-live="polite">
+          <div class="alert alert-secondary mb-0 small"><i class="fas fa-flask"></i> Train &amp; validate the models to see chronological holdout metrics, ranking benchmarks and bias diagnostics here.</div>
+        </div>
+
+        <div class="d-flex justify-content-end mt-2 mb-1">
+          <button class="btn btn-outline-secondary btn-sm" id="downloadMetricsBtn" type="button" onclick="downloadTimeSeriesMetrics()" disabled><i class="fas fa-download"></i> Download validation JSON</button>
+        </div>
+
+        <div class="row g-3 mt-1">
+          <div class="col-lg-6">
+            <div class="bg-white border rounded p-2 h-100" id="timeSeriesComparisonChartContainer">
+              <h6 class="small mb-2">Holdout error and Top-20 ranking</h6>
+              <div style="height: 340px;"><canvas id="timeSeriesComparisonChart"></canvas></div>
+            </div>
+          </div>
+          <div class="col-lg-6">
+            <div class="bg-white border rounded p-2 h-100" id="timeSeriesActualChartContainer">
+              <h6 class="small mb-2">Holdout total revenue by 30-day period</h6>
+              <div style="height: 340px;"><canvas id="timeSeriesActualChart"></canvas></div>
+              <small class="text-muted d-block mt-1">All lines are produced from the same forecast origin without seeing holdout revenue. The recent-average benchmark is constant by definition.</small>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
       </div>
     </div>
   </div>
@@ -7037,8 +7127,9 @@ function renderTimeSeriesReportV5(report) {
           <div class="col-md-3"><span class="text-muted d-block">Full product ranking</span><strong>Spearman ${metricCell(bestFullRank)}</strong><br><span class="text-muted">${rankStrength}</span></div>
           <div class="col-md-3"><span class="text-muted d-block">Aggregate total winner</span><strong>${aggregateWinner[0]}</strong><br><span class="text-muted">period WMAPE ${metricCell(aggregateWinner[1], true)}</span></div>
         </div>
-        <div class="border-top mt-2 pt-2 text-muted"><strong class="text-dark">Defence statement:</strong> report this as a model-versus-benchmark comparison, not as an “accuracy percentage.” R&sup2; is influenced by high-revenue products; sparse zero periods inflate sMAPE, so cumulative WMAPE and ranking metrics are the primary evidence.</div>
+        <div class="border-top mt-2 pt-2 text-muted"><strong class="text-dark">Defence statement:</strong> report this as a model-versus-benchmark comparison, not as an "accuracy percentage." R&sup2; is influenced by high-revenue products; sparse zero periods inflate sMAPE, so cumulative WMAPE and ranking metrics are the primary evidence.</div>
       </div>
+      <div class="d-flex justify-content-end mt-2"><button class="btn btn-outline-dark btn-sm" type="button" data-bs-dismiss="modal"><i class="fas fa-chart-line"></i> Back to quick results</button></div>
       <div class="small fw-semibold mt-3">Cumulative Product ID revenue error and full-ranking correlation</div>
       <div class="table-responsive predictive-scroll mt-1"><table class="table table-sm table-bordered bg-white mb-0"><thead><tr><th>Method</th><th>MAE</th><th>RMSE</th><th>WMAPE</th><th>sMAPE</th><th>Bias</th><th>R&sup2;</th><th>Precision@${Number(sequence.top_k || 20)}</th><th>Spearman</th><th>Kendall &tau;</th></tr></thead><tbody>${metricRows}</tbody></table></div>
       <div class="d-flex flex-wrap gap-2 mt-2 small">
@@ -7051,8 +7142,29 @@ function renderTimeSeriesReportV5(report) {
       <small class="text-muted d-block mt-2">Cold starts: ${Number(samples.cold_start_products_in_test || 0).toLocaleString()}. Ranking and error are evaluated on the same product population. Future values have no Accuracy until actual revenue becomes available. Quantity-based estimates are suppressed when the source unit is too small or ambiguous.</small>
       <span id="timeSeriesAppliedMethod" class="d-block fw-semibold mt-1"></span>
     </div>`;
+  renderRevenueQuickStats({aggregateWinner, productErrorImprovement, bestTop20Precision, bestTop20Ndcg, samples, topK: Number(sequence.top_k || 20)});
   renderTimeSeriesComparisonChart(report);
   renderTimeSeriesActualChartV5(report);
+}
+
+function renderRevenueQuickStats({aggregateWinner, productErrorImprovement, bestTop20Precision, bestTop20Ndcg, samples, topK}) {
+  const container = document.getElementById('revenueQuickStats');
+  if (!container) return;
+  const bestModelEl = document.getElementById('qsBestModel');
+  if (bestModelEl) bestModelEl.textContent = aggregateWinner[0];
+  const bestModelSubEl = document.getElementById('qsBestModelSub');
+  if (bestModelSubEl) bestModelSubEl.textContent = `Period WMAPE ${metricCell(aggregateWinner[1], true)}`;
+  const errorEl = document.getElementById('qsErrorImprovement');
+  if (errorEl) errorEl.textContent = metricCell(productErrorImprovement, true);
+  const precisionEl = document.getElementById('qsTopPrecision');
+  if (precisionEl) precisionEl.textContent = metricCell(bestTop20Precision, true);
+  const precisionLabelEl = document.getElementById('qsTopPrecisionLabelText');
+  if (precisionLabelEl) precisionLabelEl.textContent = `Top-${topK} precision`;
+  const precisionSubEl = document.getElementById('qsTopPrecisionSub');
+  if (precisionSubEl) precisionSubEl.textContent = `NDCG ${metricCell(bestTop20Ndcg, true)}`;
+  const productsEl = document.getElementById('qsProducts');
+  if (productsEl) productsEl.textContent = Number(samples.evaluation_products || 0).toLocaleString();
+  container.style.display = '';
 }
 
 function renderTimeSeriesActualChartV5(report) {
@@ -7232,6 +7344,12 @@ function downloadTimeSeriesMetrics() {
 document.addEventListener('DOMContentLoaded', () => {
   showPredictiveSubtab('revenue');
   setTimeSeriesParameterMode();
+  // Charts created while the benchmarks modal is hidden get a 0-width canvas;
+  // resize once Bootstrap actually shows the modal so Chart.js can measure it.
+  document.getElementById('modelBenchmarksModal')?.addEventListener('shown.bs.modal', () => {
+    charts.timeSeriesComparison?.resize();
+    charts.timeSeriesActual?.resize();
+  });
 });
 
 // Auto-refresh High-Value Baskets and Products every 30 seconds
