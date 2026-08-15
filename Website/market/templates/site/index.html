@@ -135,11 +135,12 @@
 }
 
 .tool-card {
-  background: white;
-  border-radius: var(--border-radius);
-  padding: 2.5rem;
+  background: linear-gradient(145deg, #ffffff 0%, #f8f9ff 100%);
+  border: 1px solid rgba(102, 126, 234, 0.12);
+  border-radius: 18px;
+  padding: 2rem 1.75rem;
   height: 100%;
-  box-shadow: var(--shadow-soft);
+  box-shadow: 0 12px 30px rgba(69, 82, 138, 0.10);
   transition: all var(--animation-speed) ease;
   border: none;
   text-decoration: none;
@@ -160,11 +161,12 @@
   background: var(--gradient-primary);
   opacity: 0;
   transition: opacity var(--animation-speed) ease;
+  z-index: 0;
 }
 
 .tool-card:hover {
-  transform: translateY(-15px) scale(1.02);
-  box-shadow: var(--shadow-hover);
+  transform: translateY(-10px);
+  box-shadow: 0 22px 42px rgba(90, 79, 170, 0.25);
   color: white;
   text-decoration: none;
 }
@@ -174,34 +176,51 @@
 }
 
 .tool-card:hover .tool-content {
-  position: relative;
-  z-index: 1;
+  color: white;
 }
 
 .tool-content {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   flex: 1;
 }
 
 .tool-icon {
-  font-size: 4rem;
-  margin-bottom: 1.5rem;
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 4.75rem;
+  height: 4.75rem;
+  margin: 0 auto 1.25rem;
+  border-radius: 1.35rem;
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.14), rgba(118, 75, 162, 0.14));
+  color: #667eea;
+  font-size: 2.15rem;
+  line-height: 1;
+  transition: all var(--animation-speed) ease;
+}
+
+.tool-icon i {
   background: var(--gradient-primary);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  transition: all var(--animation-speed) ease;
 }
 
 .tool-card:hover .tool-icon {
+  background: rgba(255, 255, 255, 0.18);
+  color: white;
+  transform: scale(1.06);
+}
+
+.tool-card:hover .tool-icon i {
   -webkit-text-fill-color: white;
-  transform: scale(1.1);
 }
 
 .tool-title {
-  font-size: 1.5rem;
+  font-size: 1.35rem;
   font-weight: 700;
   margin-bottom: 1rem;
   color: #2d3748;
@@ -212,7 +231,7 @@
 }
 
 .tool-description {
-  font-size: 1rem;
+  font-size: 0.96rem;
   color: #718096;
   margin-bottom: 2rem;
   line-height: 1.6;
@@ -228,8 +247,9 @@
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  padding: 0.75rem 1.5rem;
-  background: #667eea;
+  padding: 0.7rem 1.25rem;
+  background: var(--gradient-primary);
+  box-shadow: 0 7px 16px rgba(102, 126, 234, 0.24);
   color: white;
   border-radius: 50px;
   font-weight: 600;
@@ -246,7 +266,8 @@
 
 .tool-card:hover .tool-launch {
   background: white;
-  color: #667eea;
+  color: #625fd3;
+  box-shadow: none;
 }
 
 .chart-section {
