@@ -24,6 +24,8 @@ class AutoregressiveRevenueRNN:
         gradient_clip=5.0,
         l2=1e-5,
         feedback_rate=0.5,
+        feedback_headroom=0.5,
+        unsupervised_damping=0.6,
         random_state=42,
     ):
         self.hidden_size = int(hidden_size)
@@ -45,6 +47,14 @@ class AutoregressiveRevenueRNN:
         # applied in ``_forward``.  Defaults to the identity correction.
         self.smearing_edges_ = np.array([-np.inf, np.inf])
         self.smearing_factors_ = np.array([1.0])
+        # Head-room allowed above a product's own observed normalized peak
+        # before its recursive feedback is capped.  Steps deeper than the
+        # supervised rollout receive no gradient during fitting, so without a
+        # per-product bound the decoder drifts upward without limit.
+        self.feedback_headroom = float(feedback_headroom)
+        # Geometric weight applied to recursive steps deeper than the
+        # supervised rollout, shrinking them toward the recent-average level.
+        self.unsupervised_damping = float(unsupervised_damping)
 
     @staticmethod
     def _softplus(value):
@@ -109,6 +119,14 @@ class AutoregressiveRevenueRNN:
         encoder_inputs, feedback_value = self._normalized_inputs(
             lags, scales, start_periods
         )
+        # Each product may only feed back up to its own observed normalized
+        # peak plus a fixed allowance.  Beyond the supervised rollout the
+        # decoder has no gradient signal, so this keeps a long recursive
+        # forecast inside the range that product has actually demonstrated
+        # instead of compounding upward.  Uses lookback data only.
+        feedback_ceiling = np.log1p(
+            np.maximum(lags, 0.0) / scales[:, None]
+        ).max(axis=1) + self.feedback_headroom
         hidden = np.zeros((batch, self.hidden_size), dtype=np.float64)
         encoder_hidden = [hidden]
         for input_values in encoder_inputs:
@@ -144,9 +162,36 @@ class AutoregressiveRevenueRNN:
                 self.feedback_rate * output
                 + (1.0 - self.feedback_rate) * feedback_value
             )
+            feedback_value = np.minimum(feedback_value, feedback_ceiling)
 
         normalized_predictions = np.column_stack(outputs)
         if not retain_cache:
+            # Steps deeper than the supervised rollout get no gradient while
+            # fitting, so the decoder can saturate at a high level and produce
+            # a forecast many times the product's demonstrated revenue.  Cap
+            # the emitted level at the same per-product bound used for the
+            # feedback.  Supervised steps sit well inside it, so this only
+            # constrains genuine extrapolation, and it reads lookback data
+            # only.  Training gradients are untouched (this is the inference
+            # path); the bound is reported as a required caveat.
+            normalized_predictions = np.minimum(
+                normalized_predictions, feedback_ceiling[:, None]
+            )
+            # Steps past the supervised depth carry no evidence at all, so the
+            # recursive path is damped geometrically toward log(2) -- the
+            # normalized level that reproduces the product's own recent
+            # average.  The model therefore reverts to a defensible level
+            # instead of free-running, and the reversion is disclosed rather
+            # than presented as a validated recursive forecast.
+            depth = int(getattr(self, "max_supervised_horizon_", horizon) or horizon)
+            if horizon > depth:
+                anchor = np.log(2.0)
+                for step in range(depth, int(horizon)):
+                    weight = self.unsupervised_damping ** (step - depth + 1)
+                    normalized_predictions[:, step] = (
+                        anchor
+                        + (normalized_predictions[:, step] - anchor) * weight
+                    )
             # exp(mean of logs) is a geometric mean; the size-conditional
             # factor restores the arithmetic mean of skewed revenue.
             level = np.log(scales)[:, None] + normalized_predictions

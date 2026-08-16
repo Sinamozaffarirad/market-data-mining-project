@@ -34,7 +34,7 @@ from .autoregressive_rnn import AutoregressiveRevenueRNN
 
 logger = logging.getLogger(__name__)
 MODEL_DIR = Path(__file__).resolve().parent.parent / "ml_models_cache" / "time_series"
-ARTIFACT_VERSION = 8
+ARTIFACT_VERSION = 9
 PERIOD_DAYS = 30
 VALID_HORIZONS = {1, 3, 6, 12}
 VALID_WINDOWS = {3, 6, 12}
@@ -927,6 +927,31 @@ class ProductRevenueTimeSeriesForecaster:
                     "overprediction. Sparse products, cold starts, and log-target "
                     "shrinkage can create negative aggregate bias; long recursive "
                     "rollouts can also accumulate feedback error in either direction."
+                ),
+            },
+            "recursive_rollout_guard": {
+                "supervised_rollout": int(
+                    getattr(validation_sequence, "max_supervised_horizon_", 0)
+                ),
+                "horizon": int(horizon),
+                "extrapolated_steps": max(
+                    0,
+                    int(horizon)
+                    - int(getattr(validation_sequence, "max_supervised_horizon_", 0)),
+                ),
+                "feedback_headroom": float(
+                    getattr(validation_sequence, "feedback_headroom", 0.0)
+                ),
+                "unsupervised_damping": float(
+                    getattr(validation_sequence, "unsupervised_damping", 1.0)
+                ),
+                "note": (
+                    "Recursive steps deeper than the supervised rollout receive no "
+                    "gradient during fitting. Those steps are capped at the product's "
+                    "own observed peak and damped toward its recent-average level so "
+                    "the rollout cannot diverge. Metrics covering extrapolated steps "
+                    "are not validated recursive forecasts and must not be reported "
+                    "as such."
                 ),
             },
             "retransformation_correction": {

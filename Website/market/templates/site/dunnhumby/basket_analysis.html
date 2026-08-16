@@ -1458,6 +1458,7 @@ html, body {
           </div>
         </div>
         <div class="small text-muted mb-2" id="qsContextLine" style="display:none"></div>
+        <div class="alert alert-danger py-2 px-3 small" id="qsRolloutWarning" style="display:none"></div>
 
         <div class="row g-2 mt-1">
           <div class="col-12">
@@ -7065,8 +7066,11 @@ function renderTimeSeriesReportV5(report) {
       ? {label: 'Independent model wins error comparison', className: 'bg-primary'}
       : {label: 'Mixed error result', className: 'bg-warning text-dark'};
   const evidenceLabel = report.temporal_evidence_strength === 'limited' ? 'Limited history' : 'Moderate history';
-  const rolloutWarning = Number(training.maximum_supervised_rollout || 0) < Number(report.horizon_months || 0)
-    ? `<div class="alert alert-warning py-2 px-3 small mt-2 mb-0"><strong>Long-horizon limitation:</strong> this holdout has ${Number(training.maximum_supervised_rollout || 0)} supervised recursive step(s) available before the test boundary, while the model is evaluated over ${Number(report.horizon_months || 0)}. The remaining steps are genuine recursive extrapolation.</div>`
+  const guard = report.recursive_rollout_guard || {};
+  const supervisedDepth = Number(training.maximum_supervised_rollout || guard.supervised_rollout || 0);
+  const extrapolatedSteps = Math.max(0, Number(report.horizon_months || 0) - supervisedDepth);
+  const rolloutWarning = extrapolatedSteps > 0
+    ? `<div class="alert alert-danger py-2 px-3 small mt-2 mb-0"><strong><i class="fas fa-exclamation-triangle"></i> Recursive model not validated at this horizon.</strong> The dataset supports only <strong>${supervisedDepth} supervised recursive step(s)</strong>, but this horizon needs ${Number(report.horizon_months || 0)}. The remaining <strong>${extrapolatedSteps} step(s) receive no training signal</strong>; they are capped at each product's observed peak and damped toward its recent average so the rollout cannot diverge. Treat the recursive column here as damped extrapolation, <strong>not</strong> a validated forecast — use a horizon of ${supervisedDepth} or less for a defensible recursive comparison. The independent direct model is unaffected.</div>`
     : '';
   const sequenceBias = Number(sequence.bias_percent || 0);
   const independentBias = Number(independent.bias_percent || 0);
@@ -7195,6 +7199,24 @@ function renderRevenueQuickStats(report) {
   setText('qsModelAgreement', `${Number(similarity.overlap_count || 0)} / ${Number(similarity.k_used || topK)}`);
   setText('qsModelAgreementLabel', `Top-${topK} model agreement`);
   setText('qsModelAgreementSub', `Jaccard ${metricCell(similarity.jaccard_at_k, true)} · RBO ${metricCell(similarity.rank_biased_overlap, true)}`);
+
+  // A horizon deeper than the supervised rollout makes the recursive column
+  // damped extrapolation, so say so on the main page rather than only in the
+  // benchmarks modal.
+  const guard = report.recursive_rollout_guard || {};
+  const supervisedDepth = Number(
+    (report.sequence_training || {}).maximum_supervised_rollout || guard.supervised_rollout || 0
+  );
+  const extrapolatedSteps = Math.max(0, Number(report.horizon_months || 0) - supervisedDepth);
+  const rolloutBanner = document.getElementById('qsRolloutWarning');
+  if (rolloutBanner) {
+    if (extrapolatedSteps > 0) {
+      rolloutBanner.innerHTML = `<i class="fas fa-exclamation-triangle"></i> <strong>Recursive model not validated at a ${Number(report.horizon_months || 0)}-period horizon.</strong> Only ${supervisedDepth} recursive step(s) have training signal on this dataset; the other ${extrapolatedSteps} are damped extrapolation. Use a horizon of ${supervisedDepth} or less to compare the recursive model fairly. The independent direct model is unaffected.`;
+      rolloutBanner.style.display = '';
+    } else {
+      rolloutBanner.style.display = 'none';
+    }
+  }
 
   const context = document.getElementById('qsContextLine');
   if (context) {
