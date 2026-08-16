@@ -7071,6 +7071,10 @@ function renderTimeSeriesReportV5(report) {
   const sequenceBias = Number(sequence.bias_percent || 0);
   const independentBias = Number(independent.bias_percent || 0);
   const biasDirection = value => value < 0 ? 'underprediction' : value > 0 ? 'overprediction' : 'no aggregate bias';
+  const calibration = report.retransformation_correction || {};
+  const calibrationNote = calibration.applied
+    ? `<div class="alert alert-success py-2 px-3 small mt-2 mb-0"><strong><i class="fas fa-balance-scale"></i> Retransformation bias corrected:</strong> ${escapeHtml(calibration.method || '')}, ${escapeHtml(calibration.estimated_on || '')}. Both models are fitted on a log target, so exponentiating returns a geometric mean and understates skewed revenue; the correction restores the revenue level without using holdout data.</div>`
+    : '';
   const hasMaterialBias = Math.abs(sequenceBias) >= 0.05 || Math.abs(independentBias) >= 0.05;
   const biasWarning = hasMaterialBias
     ? `<div class="alert alert-warning py-2 px-3 small mt-2 mb-0"><strong>Holdout bias diagnostic:</strong> Recursive RNN ${metricCell(sequenceBias, true)} (${biasDirection(sequenceBias)}); independent direct ${metricCell(independentBias, true)} (${biasDirection(independentBias)}). These values are reported rather than corrected with holdout actuals. Short/medium horizons are affected by sparse Product IDs and log-target shrinkage; long recursive horizons can also accumulate feedback error.</div>`
@@ -7119,6 +7123,7 @@ function renderTimeSeriesReportV5(report) {
         <span class="badge bg-light text-dark border">Max supervised rollout: ${Number(training.maximum_supervised_rollout || 0)}</span>
       </div>
       ${rolloutWarning}
+      ${calibrationNote}
       ${biasWarning}
       <div class="academic-evidence-summary small mt-2">
         <div class="fw-semibold mb-1"><i class="fas fa-graduation-cap text-primary me-1"></i>Evidence summary for presentation</div>

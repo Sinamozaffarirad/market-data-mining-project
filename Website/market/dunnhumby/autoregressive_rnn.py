@@ -40,6 +40,11 @@ class AutoregressiveRevenueRNN:
         self.input_size = 4
         self.parameters_ = None
         self.training_history_ = []
+        # Size-conditional retransformation correction for the log-space
+        # inverse transform; estimated on the training fold in ``fit`` and
+        # applied in ``_forward``.  Defaults to the identity correction.
+        self.smearing_edges_ = np.array([-np.inf, np.inf])
+        self.smearing_factors_ = np.array([1.0])
 
     @staticmethod
     def _softplus(value):
@@ -142,7 +147,11 @@ class AutoregressiveRevenueRNN:
 
         normalized_predictions = np.column_stack(outputs)
         if not retain_cache:
-            return scales[:, None] * np.expm1(normalized_predictions)
+            # exp(mean of logs) is a geometric mean; the size-conditional
+            # factor restores the arithmetic mean of skewed revenue.
+            level = np.log(scales)[:, None] + normalized_predictions
+            factor = self._apply_smearing(level)
+            return np.maximum(np.exp(level) * factor - scales[:, None], 0.0)
         return normalized_predictions, {
             "scales": scales,
             "encoder_inputs": encoder_inputs,
@@ -274,7 +283,81 @@ class AutoregressiveRevenueRNN:
             self.training_history_.append(round(float(np.mean(epoch_losses)), 8))
         self.supervised_steps_ = int(target_mask.sum())
         self.max_supervised_horizon_ = int(target_mask.sum(axis=1).max())
+        self.smearing_edges_, self.smearing_factors_ = self._estimate_smearing(
+            lags, targets, target_mask, start_periods
+        )
         return self
+
+    def _apply_smearing(self, level):
+        factors = np.asarray(getattr(self, "smearing_factors_", [1.0]), dtype=np.float64)
+        if factors.size == 0:
+            return 1.0
+        edges = np.asarray(
+            getattr(self, "smearing_edges_", [-np.inf, np.inf]), dtype=np.float64
+        )
+        index = np.clip(
+            np.searchsorted(edges, level, side="right") - 1, 0, factors.size - 1
+        )
+        return factors[index]
+
+    def _estimate_smearing(self, lags, targets, target_mask, start_periods, n_bins=10):
+        """Solve the log-space retransformation correction on the training fold.
+
+        The decoder is trained on ``log1p(y / scale)`` and inverted with
+        ``expm1``, so exponentiating a conditional mean of logs returns a
+        geometric mean and understates skewed revenue.  Duan's smearing factor
+        assumes a plain ``log`` model with homoscedastic residuals; the
+        ``log1p`` inverse carries a ``-1`` that breaks that decomposition, the
+        Huber loss pulls toward the median, and residual spread varies with
+        product size on this sparse panel.  A single global factor therefore
+        removes the aggregate bias but inflates near-zero products.
+
+        A factor is instead solved per decile of predicted level so that within
+        each bin the retransformed training total matches the observed total:
+
+            sum[exp(level) * f - scale] = sum(target),  level = log(scale) + prediction
+        """
+        levels, actuals, scale_values = [], [], []
+        for start in range(0, len(lags), self.batch_size):
+            stop = start + self.batch_size
+            batch_mask = target_mask[start:stop]
+            if not batch_mask.any():
+                continue
+            predictions, cache = self._forward(
+                lags[start:stop],
+                start_periods[start:stop],
+                targets.shape[1],
+                retain_cache=True,
+            )
+            scales = np.repeat(cache["scales"][:, None], targets.shape[1], axis=1)
+            levels.append((np.log(scales) + predictions)[batch_mask])
+            actuals.append(np.maximum(targets[start:stop], 0.0)[batch_mask])
+            scale_values.append(scales[batch_mask])
+        if not levels:
+            return np.array([-np.inf, np.inf]), np.array([1.0])
+        level = np.concatenate(levels)
+        actual = np.concatenate(actuals)
+        scale = np.concatenate(scale_values)
+        if level.size == 0:
+            return np.array([-np.inf, np.inf]), np.array([1.0])
+        edges = np.unique(np.quantile(level, np.linspace(0.0, 1.0, n_bins + 1)))
+        if edges.size < 2:
+            edges = np.array([float(level.min()), float(level.max()) + 1e-9])
+        factors = np.ones(edges.size - 1, dtype=np.float64)
+        index = np.clip(
+            np.searchsorted(edges, level, side="right") - 1, 0, edges.size - 2
+        )
+        for position in range(edges.size - 1):
+            mask = index == position
+            if not mask.any():
+                continue
+            denominator = float(np.exp(level[mask]).sum())
+            if not np.isfinite(denominator) or denominator <= 0.0:
+                continue
+            factor = (float(actual[mask].sum()) + float(scale[mask].sum())) / denominator
+            if np.isfinite(factor) and factor > 0.0:
+                factors[position] = float(np.clip(factor, 0.25, 6.0))
+        return edges, factors
 
     def predict(self, lags, start_period, horizon, batch_size=8192):
         if self.parameters_ is None:

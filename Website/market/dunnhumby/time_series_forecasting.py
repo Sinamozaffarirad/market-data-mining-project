@@ -34,7 +34,7 @@ from .autoregressive_rnn import AutoregressiveRevenueRNN
 
 logger = logging.getLogger(__name__)
 MODEL_DIR = Path(__file__).resolve().parent.parent / "ml_models_cache" / "time_series"
-ARTIFACT_VERSION = 7
+ARTIFACT_VERSION = 8
 PERIOD_DAYS = 30
 VALID_HORIZONS = {1, 3, 6, 12}
 VALID_WINDOWS = {3, 6, 12}
@@ -401,6 +401,65 @@ class ProductRevenueTimeSeriesForecaster:
             random_state=42,
         )
 
+    @staticmethod
+    def _fit_retransformation_bins(log_level, actual, n_bins=10):
+        """Correct log-space retransformation bias, conditional on forecast size.
+
+        The estimators are fitted on ``log1p(actual) - log1p(baseline)`` and
+        inverted with ``expm1``.  Exponentiating a conditional mean of logs
+        yields a geometric mean, which understates the arithmetic mean of a
+        right-skewed revenue distribution, so revenue is reported too low.
+        Duan's (1983) smearing factor ``E[exp(residual)]`` is the classical
+        remedy but assumes a multiplicative ``log`` model with homoscedastic
+        residuals.  Neither holds here: the ``log1p`` inverse carries a ``-1``
+        that breaks the decomposition, and residual spread varies sharply with
+        product size because 75% of the Product ID x period cells are zero.
+
+        A single global factor therefore fixes the aggregate bias but inflates
+        the many near-zero products and degrades per-product error.  Instead a
+        separate factor is solved per decile of predicted level, so that within
+        each bin the retransformed training total matches the observed total:
+
+            sum[exp(level) * f - 1] = sum(actual)
+
+        Bins and factors are estimated on the training fold only, so the
+        holdout is never used to calibrate the forecast.
+        """
+        log_level = np.asarray(log_level, dtype=float)
+        actual = np.maximum(np.asarray(actual, dtype=float), 0.0)
+        if log_level.size == 0:
+            return np.array([-np.inf, np.inf]), np.array([1.0])
+        edges = np.unique(np.quantile(log_level, np.linspace(0.0, 1.0, n_bins + 1)))
+        if edges.size < 2:
+            edges = np.array([float(log_level.min()), float(log_level.max()) + 1e-9])
+        factors = np.ones(edges.size - 1, dtype=float)
+        index = np.clip(
+            np.searchsorted(edges, log_level, side="right") - 1, 0, edges.size - 2
+        )
+        for position in range(edges.size - 1):
+            mask = index == position
+            if not mask.any():
+                continue
+            denominator = float(np.exp(log_level[mask]).sum())
+            if not np.isfinite(denominator) or denominator <= 0.0:
+                continue
+            factor = (float(actual[mask].sum()) + float(mask.sum())) / denominator
+            if np.isfinite(factor) and factor > 0.0:
+                factors[position] = float(np.clip(factor, 0.25, 6.0))
+        return edges, factors
+
+    @staticmethod
+    def _apply_retransformation_bins(log_level, edges, factors):
+        factors = np.asarray(factors, dtype=float)
+        if factors.size == 0:
+            return np.ones_like(np.asarray(log_level, dtype=float))
+        index = np.clip(
+            np.searchsorted(edges, np.asarray(log_level, dtype=float), side="right") - 1,
+            0,
+            factors.size - 1,
+        )
+        return factors[index]
+
     @classmethod
     def _fit_estimators(cls, features, target, sample_actual):
         """Fit equal-weight and revenue-aware estimators for a stable ensemble."""
@@ -411,6 +470,14 @@ class ProductRevenueTimeSeriesForecaster:
         weights = weights / weights.mean()
         revenue_weighted = cls._new_regressor()
         revenue_weighted.fit(features, target, sample_weight=weights)
+        # target == log1p(actual) - log1p(baseline), so the fitting baseline is
+        # recoverable exactly and no extra state has to be threaded through.
+        log1p_baseline = np.log1p(np.maximum(sample_actual, 0.0)) - target
+        for model in (unweighted, revenue_weighted):
+            level = log1p_baseline + model.predict(features)
+            model.smearing_edges_, model.smearing_factors_ = (
+                cls._fit_retransformation_bins(level, sample_actual)
+            )
         return {
             "equal_product_weight": unweighted,
             "log_revenue_weight": revenue_weighted,
@@ -436,9 +503,15 @@ class ProductRevenueTimeSeriesForecaster:
                 if horizon <= 1 else list(estimators.values())
             )
             for model in selected_estimators:
-                correction = model.predict(features)
+                level = np.log1p(baseline) + model.predict(features)
+                # Size-conditional retransformation correction; identity when
+                # the estimator predates the calibrated artifact version.
+                edges = getattr(model, "smearing_edges_", None)
+                factor = 1.0 if edges is None else cls._apply_retransformation_bins(
+                    level, edges, model.smearing_factors_
+                )
                 component_forecasts.append(np.maximum(
-                    np.expm1(np.log1p(baseline) + correction), 0.0
+                    np.exp(level) * factor - 1.0, 0.0
                 ))
             forecasts[active, step] = np.mean(component_forecasts, axis=0)
         return forecasts
@@ -855,6 +928,38 @@ class ProductRevenueTimeSeriesForecaster:
                     "shrinkage can create negative aggregate bias; long recursive "
                     "rollouts can also accumulate feedback error in either direction."
                 ),
+            },
+            "retransformation_correction": {
+                "applied": True,
+                "method": (
+                    "Size-conditional log-space retransformation correction "
+                    "(Duan-type smearing, solved per decile of predicted level)"
+                ),
+                "estimated_on": "training fold only; the holdout is never used to calibrate",
+                "reason": (
+                    "Both models are fitted on a log target and inverted with expm1, so "
+                    "exponentiating a conditional mean of logs returns a geometric mean "
+                    "and understates right-skewed revenue. Residual spread grows with "
+                    "product size, so one global factor would inflate near-zero products; "
+                    "a factor per predicted-level decile corrects the level without that "
+                    "distortion."
+                ),
+                "sequence_factors": [
+                    round(float(value), 6)
+                    for value in np.asarray(
+                        getattr(validation_sequence, "smearing_factors_", [1.0])
+                    ).ravel()
+                ],
+                "direct_factors": [
+                    round(float(value), 6)
+                    for value in np.asarray(
+                        getattr(
+                            validation_direct["equal_product_weight"],
+                            "smearing_factors_",
+                            [1.0],
+                        )
+                    ).ravel()
+                ],
             },
             "holdout_period_total_metrics": aggregate_period_metrics,
             "model_ranking_similarity": ranking_similarity,
