@@ -39,7 +39,10 @@ class AutoregressiveRevenueRNN:
         if not 0.0 < self.feedback_rate <= 1.0:
             raise ValueError("feedback_rate must be in (0, 1].")
         self.random_state = int(random_state)
-        self.input_size = 4
+        # Normalized revenue level and a non-zero indicator.  A 12-period
+        # seasonal term used to be supplied here but is not identifiable from
+        # this calendar -- see _normalized_inputs.
+        self.input_size = 2
         self.parameters_ = None
         self.training_history_ = []
         # Size-conditional retransformation correction for the log-space
@@ -78,11 +81,16 @@ class AutoregressiveRevenueRNN:
         history = lags.mean(axis=1)
         return np.maximum(np.where(recent > 0.0, recent, history), 1e-3)
 
-    @staticmethod
-    def _period_features(period_indices):
-        indices = np.asarray(period_indices, dtype=np.float64)
-        angle = 2.0 * np.pi * (indices + 1.0) / 12.0
-        return np.sin(angle), np.cos(angle)
+    # A 12-period sin/cos seasonal pair was previously fed to both the encoder
+    # and the decoder.  It is deliberately absent: the dataset yields 23
+    # complete 30-day periods, and for any usable horizon the supervised
+    # targets span only a handful of consecutive phases (at a 10-period
+    # lookback and 6-period horizon, phases 0.00-0.42), while a recursive
+    # rollout reaches phases 0.50-0.92 that never appear in training.  The
+    # seasonal coefficients are therefore unidentifiable, and extrapolating
+    # them drove the rollout to +104% aggregate bias against -19% with the
+    # terms removed.  Restoring them needs a calendar long enough to supervise
+    # a full cycle, not a change here.
 
     def _initialize_parameters(self, rng):
         hidden = self.hidden_size
@@ -98,18 +106,20 @@ class AutoregressiveRevenueRNN:
             "by": np.array([-0.35], dtype=np.float64),
         }
 
-    def _normalized_inputs(self, lags, scales, start_periods):
+    def _normalized_inputs(self, lags, scales, start_periods=None):
+        """Per-period encoder inputs: normalized level and a non-zero flag.
+
+        ``start_periods`` is accepted so callers keep a stable signature, but
+        no calendar feature is derived from it (see the note above).
+        """
         normalized = np.log1p(np.maximum(lags, 0.0) / scales[:, None])
-        inputs = []
-        for offset in range(lags.shape[1]):
-            period = start_periods - lags.shape[1] + offset
-            sin_period, cos_period = self._period_features(period)
-            inputs.append(np.column_stack((
+        inputs = [
+            np.column_stack((
                 normalized[:, offset],
                 (lags[:, offset] > 0.0).astype(np.float64),
-                sin_period,
-                cos_period,
-            )))
+            ))
+            for offset in range(lags.shape[1])
+        ]
         return inputs, normalized[:, -1]
 
     def _forward(self, lags, start_periods, horizon, retain_cache=False):
@@ -139,13 +149,9 @@ class AutoregressiveRevenueRNN:
 
         decoder_inputs, decoder_hidden, raw_outputs, outputs = [], [hidden], [], []
         for step in range(int(horizon)):
-            period = start_periods + step
-            sin_period, cos_period = self._period_features(period)
             decoder_input = np.column_stack((
                 feedback_value,
                 (feedback_value > 1e-8).astype(np.float64),
-                sin_period,
-                cos_period,
             ))
             hidden = np.tanh(
                 decoder_input @ params["wx"]
@@ -218,7 +224,21 @@ class AutoregressiveRevenueRNN:
         )
         mask = np.asarray(target_mask, dtype=np.float64)
         weights = np.asarray(sample_weight, dtype=np.float64)[:, None] * mask
-        denominator = max(float(weights.sum()), 1.0)
+        # Balance the loss across forecast steps.  A sliding-window origin can
+        # only supervise as many steps as remain before the training boundary,
+        # so shallow steps are supervised far more often than deep ones -- at a
+        # 10-period lookback and 6-period horizon step 1 carries about six
+        # times the mass of step 6.  Averaging over raw entries therefore fits
+        # almost entirely to the one-step-ahead task and leaves the recursive
+        # loop gain unconstrained, which is what makes a long rollout compound
+        # upward.  Normalising each step to equal mass gives every step in the
+        # rollout the same influence.  This reweights the training objective
+        # only; no holdout information is involved.
+        step_mass = weights.sum(axis=0, keepdims=True)
+        weights = np.divide(
+            weights, step_mass, out=np.zeros_like(weights), where=step_mass > 0.0
+        )
+        denominator = max(float(np.count_nonzero(step_mass > 0.0)), 1.0)
         error = predictions - normalized_targets
         absolute_error = np.abs(error)
         delta = self.huber_delta

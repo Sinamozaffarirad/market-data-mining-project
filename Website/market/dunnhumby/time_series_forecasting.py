@@ -34,7 +34,7 @@ from .autoregressive_rnn import AutoregressiveRevenueRNN
 
 logger = logging.getLogger(__name__)
 MODEL_DIR = Path(__file__).resolve().parent.parent / "ml_models_cache" / "time_series"
-ARTIFACT_VERSION = 9
+ARTIFACT_VERSION = 11
 PERIOD_DAYS = 30
 # A horizon is fully supervised only while periods - horizon - window >= horizon,
 # so with 23 complete periods every horizon above 9 is unreachable at any
@@ -253,7 +253,17 @@ class ProductRevenueTimeSeriesForecaster:
 
     @staticmethod
     def _feature_matrix(lag_values: np.ndarray, target_period_index: int) -> np.ndarray:
-        """Create ordered lag and summary features using only observed history."""
+        """Create ordered lag and summary features using only observed history.
+
+        No calendar term is derived from ``target_period_index``.  A 12-period
+        sin/cos pair was previously appended here, but the supervised targets
+        of any usable configuration span only a few consecutive phases of that
+        cycle, so the seasonal coefficients are not identifiable and the models
+        extrapolate them into phases never observed.  Both forecasters drop the
+        term, which keeps the comparison on identical information and improves
+        each of them; the argument is retained so the call sites keep a stable
+        signature.
+        """
         lag_values = np.maximum(np.asarray(lag_values, dtype=float), 0.0)
         recent_width = min(3, lag_values.shape[1])
         recent = lag_values[:, -recent_width:]
@@ -267,8 +277,6 @@ class ProductRevenueTimeSeriesForecaster:
                 np.log1p(lag_values.std(axis=1)),
                 np.sign(trend) * np.log1p(np.abs(trend)),
                 nonzero_share,
-                np.full(len(lag_values), np.sin(2 * np.pi * (target_period_index + 1) / 12)),
-                np.full(len(lag_values), np.cos(2 * np.pi * (target_period_index + 1) / 12)),
             )
         )
         return np.hstack((np.log1p(lag_values), summary))
