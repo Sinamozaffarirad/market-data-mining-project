@@ -36,12 +36,14 @@ logger = logging.getLogger(__name__)
 MODEL_DIR = Path(__file__).resolve().parent.parent / "ml_models_cache" / "time_series"
 ARTIFACT_VERSION = 9
 PERIOD_DAYS = 30
-# Finer grid than the original {1,3,6,12}/{3,6,12} so a horizon can be paired
-# with a lookback the calendar can fully supervise.  With 23 complete periods a
-# horizon is fully supervised only while periods - horizon - window >= horizon,
-# so short lookbacks unlock the longer horizons.
-VALID_HORIZONS = {1, 2, 3, 4, 5, 6, 8, 9, 10, 12}
-VALID_WINDOWS = {2, 3, 4, 6, 9, 12}
+# A horizon is fully supervised only while periods - horizon - window >= horizon,
+# so with 23 complete periods every horizon above 9 is unreachable at any
+# lookback and is excluded rather than offered as a configuration that can only
+# ever produce damped extrapolation.  Horizons 1-9 each have at least one
+# lookback that supervises them fully; every lookback from 2 to 12 supports at
+# least one horizon.  Both ranges are contiguous so no usable pair is missing.
+VALID_HORIZONS = {1, 2, 3, 4, 5, 6, 7, 8, 9}
+VALID_WINDOWS = {2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}
 VALID_STEPS = {1, 2, 3}
 RANKING_CUTOFFS = (5, 10, 20)
 AUTO_HIDDEN_UNITS = 16
