@@ -1170,6 +1170,9 @@ def basket_analysis(request):
             'dept_analysis': formatted_dept_analysis,
             'top_products_frequency': top_products_frequency,
             'top_products_sales': top_products_sales,
+            # Lets the time-series controls flag horizon/lookback combinations
+            # the calendar cannot fully supervise, before a model is trained.
+            'time_series_complete_periods': _complete_period_count(),
         }
 
         logger.info("Basket analysis completed successfully")
@@ -1187,6 +1190,27 @@ def basket_analysis(request):
             'top_products_sales': [],
         }
         return render(request, 'site/dunnhumby/basket_analysis.html', context)
+
+
+def _complete_period_count():
+    """Complete 30-day periods available to the product revenue forecaster.
+
+    Mirrors ProductRevenueTimeSeriesForecaster.load_product_panels, which
+    anchors backwards from the last transaction day so trailing partial days
+    are excluded.  Returns 0 when the calendar cannot be read, in which case
+    the UI simply skips the feasibility hints.
+    """
+    try:
+        from .time_series_forecasting import PERIOD_DAYS
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT MIN(day), MAX(day) FROM transactions")
+            min_day, max_day = cursor.fetchone()
+        if min_day is None or max_day is None:
+            return 0
+        return int((int(max_day) - int(min_day) + 1) // PERIOD_DAYS)
+    except Exception:
+        logger.warning("Could not determine complete period count", exc_info=True)
+        return 0
 
 
 @admin_required

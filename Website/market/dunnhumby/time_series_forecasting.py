@@ -36,8 +36,12 @@ logger = logging.getLogger(__name__)
 MODEL_DIR = Path(__file__).resolve().parent.parent / "ml_models_cache" / "time_series"
 ARTIFACT_VERSION = 9
 PERIOD_DAYS = 30
-VALID_HORIZONS = {1, 3, 6, 12}
-VALID_WINDOWS = {3, 6, 12}
+# Finer grid than the original {1,3,6,12}/{3,6,12} so a horizon can be paired
+# with a lookback the calendar can fully supervise.  With 23 complete periods a
+# horizon is fully supervised only while periods - horizon - window >= horizon,
+# so short lookbacks unlock the longer horizons.
+VALID_HORIZONS = {1, 2, 3, 4, 5, 6, 8, 9, 10, 12}
+VALID_WINDOWS = {2, 3, 4, 6, 9, 12}
 VALID_STEPS = {1, 2, 3}
 RANKING_CUTOFFS = (5, 10, 20)
 AUTO_HIDDEN_UNITS = 16
@@ -143,9 +147,17 @@ class ProductRevenueTimeSeriesForecaster:
     @staticmethod
     def _validate_configuration(horizon: int, window_size: int, sliding_step: int, training_size: float):
         if horizon not in VALID_HORIZONS:
-            raise ValueError("horizon must be 1, 3, 6, or 12 months.")
+            raise ValueError(
+                "horizon must be one of "
+                + ", ".join(str(value) for value in sorted(VALID_HORIZONS))
+                + " months."
+            )
         if window_size not in VALID_WINDOWS:
-            raise ValueError("window_size must be 3, 6, or 12 months.")
+            raise ValueError(
+                "window_size must be one of "
+                + ", ".join(str(value) for value in sorted(VALID_WINDOWS))
+                + " months."
+            )
         if sliding_step not in VALID_STEPS:
             raise ValueError("sliding_step must be 1, 2, or 3 months.")
         if not 0.5 <= training_size <= 0.95:

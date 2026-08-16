@@ -1360,16 +1360,25 @@ html, body {
             <label class="form-label control-label" for="timeSeriesHorizon">Forecast Horizon:</label>
             <select class="form-select" id="timeSeriesHorizon" onchange="handleTimeSeriesModelConfigChange()">
               <option value="1">1 month</option>
+              <option value="2">2 months</option>
               <option value="3" selected>3 months</option>
+              <option value="4">4 months</option>
+              <option value="5">5 months</option>
               <option value="6">6 months</option>
+              <option value="8">8 months</option>
+              <option value="9">9 months</option>
+              <option value="10">10 months</option>
               <option value="12">12 months</option>
             </select>
           </div>
           <div class="col-md-2">
             <label class="form-label control-label" for="timeSeriesWindow">Lookback window:</label>
             <select class="form-select" id="timeSeriesWindow" onchange="handleTimeSeriesModelConfigChange()">
+              <option value="2">2 months</option>
               <option value="3">3 months</option>
+              <option value="4">4 months</option>
               <option value="6" selected>6 months</option>
+              <option value="9">9 months</option>
               <option value="12">12 months</option>
             </select>
           </div>
@@ -1430,6 +1439,7 @@ html, body {
               <i class="fas fa-crystal-ball"></i> Forecast future revenue
             </button>
             <span id="timeSeriesSavedModelStatus" class="badge bg-secondary">Checking saved model…</span>
+            <span id="timeSeriesSupervisionHint" class="small"></span>
             <button class="btn btn-dark ms-auto" type="button" data-bs-toggle="modal" data-bs-target="#modelBenchmarksModal" title="Open chronological holdout metrics, ranking benchmarks and error charts for these models">
               <i class="fas fa-vials"></i> Model Benchmarks
             </button>
@@ -5584,10 +5594,71 @@ function setSavedModelStatus(label, className = 'bg-secondary') {
   status.textContent = label;
 }
 
+// Complete 30-day periods the calendar provides (0 when unknown).
+const TIME_SERIES_COMPLETE_PERIODS = Number('{{ time_series_complete_periods|default:0 }}') || 0;
+
+/* Mirrors ProductRevenueTimeSeriesForecaster._training_origins and
+   _build_sequence_samples so the controls can show how many recursive steps a
+   configuration can actually supervise before anything is trained. Returns
+   null when the calendar is unknown or the configuration is invalid. */
+function supervisedRolloutDepth(horizon, windowSize, step, trainingSize = 0.8, periods = TIME_SERIES_COMPLETE_PERIODS) {
+  if (!periods) return null;
+  const testOrigin = periods - horizon;
+  if (testOrigin < windowSize) return {depth: 0, invalid: 'window'};
+  const candidates = [];
+  for (let origin = windowSize; origin < testOrigin; origin += step) candidates.push(origin);
+  if (candidates.length && candidates[candidates.length - 1] !== testOrigin - 1) candidates.push(testOrigin - 1);
+  if (candidates.length < 2) return {depth: 0, invalid: 'origins'};
+  const keep = Math.max(2, Math.ceil(candidates.length * trainingSize));
+  const kept = candidates.slice(candidates.length - keep);
+  return {depth: Math.min(horizon, testOrigin - kept[0]), invalid: null};
+}
+
+/* Largest horizon this lookback can fully supervise, so the hint can name a
+   concrete alternative instead of just reporting failure. */
+function largestSupervisedHorizon(windowSize, step, trainingSize = 0.8) {
+  const options = Array.from(document.getElementById('timeSeriesHorizon')?.options || [])
+    .map(option => Number(option.value))
+    .sort((first, second) => second - first);
+  for (const candidate of options) {
+    const result = supervisedRolloutDepth(candidate, windowSize, step, trainingSize);
+    if (result && !result.invalid && result.depth >= candidate) return candidate;
+  }
+  return null;
+}
+
+function updateSupervisionHint() {
+  const hint = document.getElementById('timeSeriesSupervisionHint');
+  if (!hint) return;
+  const horizon = Number(document.getElementById('timeSeriesHorizon')?.value || 3);
+  const windowSize = Number(document.getElementById('timeSeriesWindow')?.value || 6);
+  const step = Number(document.getElementById('timeSeriesStep')?.value || 1);
+  const result = supervisedRolloutDepth(horizon, windowSize, step);
+  if (!result) { hint.innerHTML = ''; return; }
+  if (result.invalid === 'window') {
+    hint.innerHTML = `<span class="badge bg-danger">Lookback too long — ${windowSize} + ${horizon} exceeds the ${TIME_SERIES_COMPLETE_PERIODS} periods available</span>`;
+    return;
+  }
+  if (result.invalid === 'origins') {
+    hint.innerHTML = '<span class="badge bg-danger">Too few forecast origins for leakage-safe training</span>';
+    return;
+  }
+  if (result.depth >= horizon) {
+    hint.innerHTML = `<span class="badge bg-success"><i class="fas fa-check"></i> Fully supervised — all ${horizon} recursive step(s) have training signal</span>`;
+    return;
+  }
+  const best = largestSupervisedHorizon(windowSize, step);
+  const alternative = best
+    ? ` Use <strong>${best} months</strong> at this lookback, or shorten the lookback.`
+    : ' Shorten the lookback or the horizon.';
+  hint.innerHTML = `<span class="badge bg-warning text-dark"><i class="fas fa-exclamation-triangle"></i> Only ${result.depth} of ${horizon} recursive steps can be supervised —${alternative.replace(/<\/?strong>/g, '')}</span>`;
+}
+
 function handleTimeSeriesModelConfigChange() {
   lastReadyTimeSeriesModelKey = null;
   const forecastButton = document.getElementById('forecastTimeSeriesBtn');
   if (forecastButton) forecastButton.disabled = true;
+  updateSupervisionHint();
   setSavedModelStatus('Checking saved model…', 'bg-secondary');
   refreshSavedTimeSeriesModel();
 }
