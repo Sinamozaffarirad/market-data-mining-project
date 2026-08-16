@@ -5614,8 +5614,11 @@ function supervisedRolloutDepth(horizon, windowSize, step, trainingSize = 0.8, p
   return {depth: Math.min(horizon, testOrigin - kept[0]), invalid: null};
 }
 
-/* Largest horizon this lookback can fully supervise, so the hint can name a
-   concrete alternative instead of just reporting failure. */
+/* Largest Forecast Horizon this Lookback window can fully supervise. This is
+   not the same as the supervised depth of the current pair: at a 6-period
+   lookback a 12-period horizon supervises only 4 steps, yet an 8-period
+   horizon is fully supervised, so the depth alone would understate the
+   options. */
 function largestSupervisedHorizon(windowSize, step, trainingSize = 0.8) {
   const options = Array.from(document.getElementById('timeSeriesHorizon')?.options || [])
     .map(option => Number(option.value))
@@ -5627,6 +5630,35 @@ function largestSupervisedHorizon(windowSize, step, trainingSize = 0.8) {
   return null;
 }
 
+/* Smallest Lookback window that fully supervises this Forecast Horizon, or
+   null when no lookback can. Prevents suggesting a lookback change for a
+   horizon the calendar cannot support at any lookback. */
+function smallestWindowForHorizon(horizon, step, trainingSize = 0.8) {
+  const options = Array.from(document.getElementById('timeSeriesWindow')?.options || [])
+    .map(option => Number(option.value))
+    .sort((first, second) => first - second);
+  for (const candidate of options) {
+    const result = supervisedRolloutDepth(horizon, candidate, step, trainingSize);
+    if (result && !result.invalid && result.depth >= horizon) return candidate;
+  }
+  return null;
+}
+
+/* Names both controls exactly as they are labelled in the form, and only
+   suggests a change that actually resolves the shortfall. */
+function supervisionRemedy(horizon, windowSize, step) {
+  const bestHorizon = largestSupervisedHorizon(windowSize, step);
+  const bestWindow = smallestWindowForHorizon(horizon, step);
+  const fixes = [];
+  if (bestHorizon) fixes.push(`set <strong>Forecast Horizon</strong> to <strong>${bestHorizon} months</strong>`);
+  if (bestWindow && bestWindow !== windowSize) fixes.push(`set <strong>Lookback window</strong> to <strong>${bestWindow} months</strong> to keep ${horizon} months`);
+  if (!fixes.length) return 'No combination on this dataset can fully supervise this horizon.';
+  const unreachable = bestWindow
+    ? ''
+    : ` No <strong>Lookback window</strong> can fully supervise a ${horizon}-month horizon on this dataset.`;
+  return `${fixes.join(', or ')}.${unreachable}`;
+}
+
 function updateSupervisionHint() {
   const hint = document.getElementById('timeSeriesSupervisionHint');
   if (!hint) return;
@@ -5636,22 +5668,21 @@ function updateSupervisionHint() {
   const result = supervisedRolloutDepth(horizon, windowSize, step);
   if (!result) { hint.innerHTML = ''; return; }
   if (result.invalid === 'window') {
-    hint.innerHTML = `<span class="badge bg-danger">Lookback too long — ${windowSize} + ${horizon} exceeds the ${TIME_SERIES_COMPLETE_PERIODS} periods available</span>`;
+    hint.innerHTML = `<span class="badge bg-danger text-wrap text-start"><i class="fas fa-times-circle"></i> <strong>Lookback window</strong> ${windowSize} + <strong>Forecast Horizon</strong> ${horizon} exceeds the ${TIME_SERIES_COMPLETE_PERIODS} periods available — reduce either.</span>`;
     return;
   }
   if (result.invalid === 'origins') {
-    hint.innerHTML = '<span class="badge bg-danger">Too few forecast origins for leakage-safe training</span>';
+    hint.innerHTML = `<span class="badge bg-danger text-wrap text-start"><i class="fas fa-times-circle"></i> Too few leakage-safe forecast origins at <strong>Lookback window</strong> ${windowSize} / <strong>Window step</strong> ${step} — reduce either.</span>`;
     return;
   }
   if (result.depth >= horizon) {
-    hint.innerHTML = `<span class="badge bg-success"><i class="fas fa-check"></i> Fully supervised — all ${horizon} recursive step(s) have training signal</span>`;
+    hint.innerHTML = `<span class="badge bg-success text-wrap text-start"><i class="fas fa-check"></i> Fully supervised — all ${horizon} recursive step(s) have training signal</span>`;
     return;
   }
-  const best = largestSupervisedHorizon(windowSize, step);
-  const alternative = best
-    ? ` Use <strong>${best} months</strong> at this lookback, or shorten the lookback.`
-    : ' Shorten the lookback or the horizon.';
-  hint.innerHTML = `<span class="badge bg-warning text-dark"><i class="fas fa-exclamation-triangle"></i> Only ${result.depth} of ${horizon} recursive steps can be supervised —${alternative.replace(/<\/?strong>/g, '')}</span>`;
+  // supervisionRemedy reads mid-sentence in the post-training banners, so it
+  // starts lower-case; capitalise it where it opens a sentence.
+  const remedy = supervisionRemedy(horizon, windowSize, step);
+  hint.innerHTML = `<span class="badge bg-warning text-dark text-wrap text-start"><i class="fas fa-exclamation-triangle"></i> Only ${result.depth} of ${horizon} recursive steps can be supervised at <strong>Lookback window</strong> ${windowSize} months. ${remedy.charAt(0).toUpperCase()}${remedy.slice(1)}</span>`;
 }
 
 function handleTimeSeriesModelConfigChange() {
@@ -7141,7 +7172,7 @@ function renderTimeSeriesReportV5(report) {
   const supervisedDepth = Number(training.maximum_supervised_rollout || guard.supervised_rollout || 0);
   const extrapolatedSteps = Math.max(0, Number(report.horizon_months || 0) - supervisedDepth);
   const rolloutWarning = extrapolatedSteps > 0
-    ? `<div class="alert alert-danger py-2 px-3 small mt-2 mb-0"><strong><i class="fas fa-exclamation-triangle"></i> Recursive model not validated at this horizon.</strong> The dataset supports only <strong>${supervisedDepth} supervised recursive step(s)</strong>, but this horizon needs ${Number(report.horizon_months || 0)}. The remaining <strong>${extrapolatedSteps} step(s) receive no training signal</strong>; they are capped at each product's observed peak and damped toward its recent average so the rollout cannot diverge. Treat the recursive column here as damped extrapolation, <strong>not</strong> a validated forecast — use a horizon of ${supervisedDepth} or less for a defensible recursive comparison. The independent direct model is unaffected.</div>`
+    ? `<div class="alert alert-danger py-2 px-3 small mt-2 mb-0"><strong><i class="fas fa-exclamation-triangle"></i> Recursive model not validated at this Forecast Horizon.</strong> At <strong>Lookback window</strong> ${Number(report.window_size_months || 0)} months the dataset supports only <strong>${supervisedDepth} supervised recursive step(s)</strong>, but a <strong>Forecast Horizon</strong> of ${Number(report.horizon_months || 0)} months needs ${Number(report.horizon_months || 0)}. The remaining <strong>${extrapolatedSteps} step(s) receive no training signal</strong>; they are capped at each product's observed peak and damped toward its recent average so the rollout cannot diverge. Treat the recursive column here as damped extrapolation, <strong>not</strong> a validated forecast. For a defensible recursive comparison, ${supervisionRemedy(Number(report.horizon_months || 0), Number(report.window_size_months || 0), Number(report.sliding_step_months || 1))} The independent direct model is unaffected.</div>`
     : '';
   const sequenceBias = Number(sequence.bias_percent || 0);
   const independentBias = Number(independent.bias_percent || 0);
@@ -7282,7 +7313,7 @@ function renderRevenueQuickStats(report) {
   const rolloutBanner = document.getElementById('qsRolloutWarning');
   if (rolloutBanner) {
     if (extrapolatedSteps > 0) {
-      rolloutBanner.innerHTML = `<i class="fas fa-exclamation-triangle"></i> <strong>Recursive model not validated at a ${Number(report.horizon_months || 0)}-period horizon.</strong> Only ${supervisedDepth} recursive step(s) have training signal on this dataset; the other ${extrapolatedSteps} are damped extrapolation. Use a horizon of ${supervisedDepth} or less to compare the recursive model fairly. The independent direct model is unaffected.`;
+      rolloutBanner.innerHTML = `<i class="fas fa-exclamation-triangle"></i> <strong>Recursive model not validated at a ${Number(report.horizon_months || 0)}-month Forecast Horizon.</strong> Only ${supervisedDepth} recursive step(s) have training signal at <strong>Lookback window</strong> ${Number(report.window_size_months || 0)}; the other ${extrapolatedSteps} are damped extrapolation. To compare the recursive model fairly, ${supervisionRemedy(Number(report.horizon_months || 0), Number(report.window_size_months || 0), Number(report.sliding_step_months || 1))} The independent direct model is unaffected.`;
       rolloutBanner.style.display = '';
     } else {
       rolloutBanner.style.display = 'none';
