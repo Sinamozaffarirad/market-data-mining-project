@@ -1442,21 +1442,22 @@ html, body {
         <div class="metric-grid" id="revenueQuickStats" style="display:none">
           <div class="metric-item">
             <div class="quick-stat-model-value" id="qsBestModel">–</div>
-            <div class="metric-label"><i class="fas fa-trophy text-warning"></i> Best model (holdout)<br><small class="text-muted" id="qsBestModelSub" style="font-size:0.65rem"></small></div>
+            <div class="metric-label"><i class="fas fa-trophy text-warning"></i> Winning ML model<br><small class="text-muted" id="qsBestModelSub" style="font-size:0.65rem"></small></div>
           </div>
           <div class="metric-item">
             <div class="metric-value" id="qsErrorImprovement">–</div>
-            <div class="metric-label"><i class="fas fa-percentage text-info"></i> Revenue error improvement<br><small class="text-muted" style="font-size:0.65rem">vs recent-average benchmark</small></div>
+            <div class="metric-label"><i class="fas fa-percentage text-info"></i> <span id="qsErrorImprovementLabel">Beats naive benchmark by</span><br><small class="text-muted" id="qsErrorImprovementSub" style="font-size:0.65rem"></small></div>
           </div>
           <div class="metric-item">
             <div class="metric-value" id="qsTopPrecision">–</div>
             <div class="metric-label"><i class="fas fa-bullseye text-danger"></i> <span id="qsTopPrecisionLabelText">Top-20 precision</span><br><small class="text-muted" id="qsTopPrecisionSub" style="font-size:0.65rem"></small></div>
           </div>
           <div class="metric-item">
-            <div class="metric-value" id="qsProducts">–</div>
-            <div class="metric-label"><i class="fas fa-boxes text-success"></i> Products evaluated<br><small class="text-muted" style="font-size:0.65rem">chronological holdout</small></div>
+            <div class="metric-value" id="qsModelAgreement">–</div>
+            <div class="metric-label"><i class="fas fa-code-branch text-success"></i> <span id="qsModelAgreementLabel">Top-20 model agreement</span><br><small class="text-muted" id="qsModelAgreementSub" style="font-size:0.65rem"></small></div>
           </div>
         </div>
+        <div class="small text-muted mb-2" id="qsContextLine" style="display:none"></div>
 
         <div class="row g-2 mt-1">
           <div class="col-12">
@@ -7142,28 +7143,59 @@ function renderTimeSeriesReportV5(report) {
       <small class="text-muted d-block mt-2">Cold starts: ${Number(samples.cold_start_products_in_test || 0).toLocaleString()}. Ranking and error are evaluated on the same product population. Future values have no Accuracy until actual revenue becomes available. Quantity-based estimates are suppressed when the source unit is too small or ambiguous.</small>
       <span id="timeSeriesAppliedMethod" class="d-block fw-semibold mt-1"></span>
     </div>`;
-  renderRevenueQuickStats({aggregateWinner, productErrorImprovement, bestTop20Precision, bestTop20Ndcg, samples, topK: Number(sequence.top_k || 20)});
+  renderRevenueQuickStats(report);
   renderTimeSeriesComparisonChart(report);
   renderTimeSeriesActualChartV5(report);
 }
 
-function renderRevenueQuickStats({aggregateWinner, productErrorImprovement, bestTop20Precision, bestTop20Ndcg, samples, topK}) {
+function shortModelLabel(key) {
+  return key === 'time_series_model' ? 'Recursive RNN' : 'Independent direct';
+}
+
+// The two ML approaches are what this page compares; the recent-average
+// benchmark is a naive reference bar to clear, never a "winning model".
+function renderRevenueQuickStats(report) {
   const container = document.getElementById('revenueQuickStats');
   if (!container) return;
-  const bestModelEl = document.getElementById('qsBestModel');
-  if (bestModelEl) bestModelEl.textContent = aggregateWinner[0];
-  const bestModelSubEl = document.getElementById('qsBestModelSub');
-  if (bestModelSubEl) bestModelSubEl.textContent = `Period WMAPE ${metricCell(aggregateWinner[1], true)}`;
-  const errorEl = document.getElementById('qsErrorImprovement');
-  if (errorEl) errorEl.textContent = metricCell(productErrorImprovement, true);
-  const precisionEl = document.getElementById('qsTopPrecision');
-  if (precisionEl) precisionEl.textContent = metricCell(bestTop20Precision, true);
-  const precisionLabelEl = document.getElementById('qsTopPrecisionLabelText');
-  if (precisionLabelEl) precisionLabelEl.textContent = `Top-${topK} precision`;
-  const precisionSubEl = document.getElementById('qsTopPrecisionSub');
-  if (precisionSubEl) precisionSubEl.textContent = `NDCG ${metricCell(bestTop20Ndcg, true)}`;
-  const productsEl = document.getElementById('qsProducts');
-  if (productsEl) productsEl.textContent = Number(samples.evaluation_products || 0).toLocaleString();
+  const setText = (id, value) => { const el = document.getElementById(id); if (el) el.textContent = value; };
+
+  const sequence = report.time_series_model || {};
+  const independent = report.independent_direct_model || {};
+  const baseline = report.recent_average_baseline || {};
+  const guidance = report.selection_guidance || {};
+  const samples = report.samples || {};
+  const topK = Number(sequence.top_k || independent.top_k || 20);
+  const similarity = ((report.model_ranking_similarity || {}).top_k_overlap || {})[String(topK)] || {};
+
+  const errorWinnerKey = guidance.best_for_revenue_error === 'time_series_model' ? 'time_series_model' : 'independent_direct_model';
+  const errorWinner = errorWinnerKey === 'time_series_model' ? sequence : independent;
+  const rankWinnerKey = guidance.best_for_top_k_ranking === 'time_series_model' ? 'time_series_model' : 'independent_direct_model';
+  const rankWinner = rankWinnerKey === 'time_series_model' ? sequence : independent;
+
+  setText('qsBestModel', shortModelLabel(errorWinnerKey));
+  setText('qsBestModelSub', `Product WMAPE ${metricCell(errorWinner.wmape, true)} · lower is better`);
+
+  const baselineWmape = Number(baseline.wmape || 0);
+  const winnerWmape = Number(errorWinner.wmape || 0);
+  const improvement = baselineWmape > 0 ? (baselineWmape - winnerWmape) / baselineWmape : 0;
+  const beatsBaseline = improvement > 0;
+  setText('qsErrorImprovement', `${beatsBaseline ? '' : '−'}${metricCell(Math.abs(improvement), true)}`);
+  setText('qsErrorImprovementLabel', beatsBaseline ? 'Beats naive benchmark by' : 'Behind naive benchmark by');
+  setText('qsErrorImprovementSub', `${shortModelLabel(errorWinnerKey)} vs recent-average WMAPE ${metricCell(baselineWmape, true)}`);
+
+  setText('qsTopPrecision', metricCell(rankWinner.precision_at_k, true));
+  setText('qsTopPrecisionLabelText', `Top-${topK} precision`);
+  setText('qsTopPrecisionSub', `NDCG ${metricCell(rankWinner.ndcg_at_k, true)} · best ranker: ${shortModelLabel(rankWinnerKey)}`);
+
+  setText('qsModelAgreement', `${Number(similarity.overlap_count || 0)} / ${Number(similarity.k_used || topK)}`);
+  setText('qsModelAgreementLabel', `Top-${topK} model agreement`);
+  setText('qsModelAgreementSub', `Jaccard ${metricCell(similarity.jaccard_at_k, true)} · RBO ${metricCell(similarity.rank_biased_overlap, true)}`);
+
+  const context = document.getElementById('qsContextLine');
+  if (context) {
+    context.innerHTML = `<i class="fas fa-info-circle"></i> ${Number(samples.evaluation_products || 0).toLocaleString()} products evaluated on a ${Number(report.horizon_months || 0)}-period chronological holdout. The recent-average benchmark is a naive reference, not a model. Full evidence is in <strong>Model Benchmarks</strong>.`;
+    context.style.display = '';
+  }
   container.style.display = '';
 }
 
