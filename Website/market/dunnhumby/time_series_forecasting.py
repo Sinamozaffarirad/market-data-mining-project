@@ -34,7 +34,7 @@ from .autoregressive_rnn import AutoregressiveRevenueRNN
 
 logger = logging.getLogger(__name__)
 MODEL_DIR = Path(__file__).resolve().parent.parent / "ml_models_cache" / "time_series"
-ARTIFACT_VERSION = 11
+ARTIFACT_VERSION = 12
 PERIOD_DAYS = 30
 # A horizon is fully supervised only while periods - horizon - window >= horizon,
 # so with 23 complete periods every horizon above 9 is unreachable at any
@@ -318,25 +318,42 @@ class ProductRevenueTimeSeriesForecaster:
         keep = max(2, int(np.ceil(len(candidates) * training_size)))
         return candidates[-keep:], test_origin, candidates
 
-    def _build_training_samples(self, panel: pd.DataFrame, origins: list[int], window_size: int):
+    def _build_training_samples(
+        self, panel: pd.DataFrame, origins: list[int], window_size: int,
+        lead: int = 1, training_end: int | None = None,
+    ):
+        """Samples whose target sits ``lead`` periods after the forecast origin.
+
+        ``lead=1`` reproduces the one-step problem.  Deeper leads give the
+        direct multi-step strategy its own supervised target per horizon step,
+        rather than replaying a one-step model.  Origins whose target would
+        land on or after ``training_end`` are dropped, so no lead can see the
+        holdout.
+        """
         values = panel.to_numpy(dtype=float)
         features, residual_targets, sample_ids, sample_actuals = [], [], [], []
         product_ids = panel.index.to_numpy(dtype=int)
         origin_counts = {}
+        offset = int(lead) - 1
         for origin in origins:
+            target_index = origin + offset
+            if target_index >= values.shape[1]:
+                continue
+            if training_end is not None and target_index >= int(training_end):
+                continue
             lags = values[:, origin - window_size:origin]
             active = lags.sum(axis=1) > 0
             if not np.any(active):
                 continue
             baseline = self._one_step_baseline(lags[active])
-            actual = np.maximum(values[active, origin], 0.0)
+            actual = np.maximum(values[active, target_index], 0.0)
             features.append(self._feature_matrix(lags[active], origin))
             residual_targets.append(np.log1p(actual) - np.log1p(baseline))
             sample_ids.append(product_ids[active])
             sample_actuals.append(actual)
             origin_counts[str(origin + 1)] = int(active.sum())
         if not features:
-            raise ValueError("No active product histories are available for model fitting.")
+            return None
         return (
             np.vstack(features),
             np.concatenate(residual_targets),
@@ -344,6 +361,43 @@ class ProductRevenueTimeSeriesForecaster:
             np.concatenate(sample_actuals),
             origin_counts,
         )
+
+    def _fit_direct_models(
+        self, panel, origins, window_size, horizon, training_end=None,
+    ):
+        """Fit one estimator per forecast lead - the direct multi-step strategy.
+
+        Each lead learns its own mapping from the same observed window, so the
+        forecast varies across the horizon instead of repeating a single
+        one-step prediction.  Deep leads lose origins to the leakage guard, so
+        a lead with no usable samples reuses the deepest lead that has them and
+        the shortfall is reported.
+        """
+        models, counts, trained_leads = {}, {}, []
+        total_samples = 0
+        for lead in range(1, int(horizon) + 1):
+            built = self._build_training_samples(
+                panel, origins, window_size, lead=lead, training_end=training_end
+            )
+            if built is None:
+                continue
+            features, target, _, actual, origin_counts = built
+            models[lead] = self._fit_estimators(features, target, actual)
+            counts[str(lead)] = int(len(features))
+            total_samples += int(len(features))
+            trained_leads.append(lead)
+            if lead == 1:
+                first_lead_origins = origin_counts
+        if not models:
+            raise ValueError("No active product histories are available for model fitting.")
+        return {
+            "models": models,
+            "samples_by_lead": counts,
+            "trained_leads": trained_leads,
+            "deepest_lead": max(trained_leads),
+            "total_samples": total_samples,
+            "first_lead_origins": first_lead_origins,
+        }
 
     @staticmethod
     def _build_sequence_samples(panel, origins, window_size, horizon, training_end):
@@ -509,20 +563,31 @@ class ProductRevenueTimeSeriesForecaster:
     def _direct_predict(
         cls, estimators, observed_history, horizon, window_size, first_target_index
     ):
-        """Predict every lead from observed history, avoiding recursive error compounding."""
+        """Predict every lead from observed history, avoiding recursive error compounding.
+
+        ``estimators`` is the bundle from ``_fit_direct_models``: one estimator
+        set per lead.  Each step is served by the model trained for that lead,
+        which is what makes the direct strategy vary across the horizon; the
+        observed window itself never advances, so no prediction is ever fed
+        back into another.
+        """
         observed = np.maximum(np.asarray(observed_history, dtype=float), 0.0)
         lags = observed[:, -window_size:]
         active = lags.sum(axis=1) > 0
         forecasts = np.zeros((len(lags), horizon), dtype=float)
         if not np.any(active):
             return forecasts
+        models_by_lead = estimators["models"]
+        deepest_lead = estimators["deepest_lead"]
         baseline = cls._one_step_baseline(lags[active])
+        features = cls._feature_matrix(lags[active], first_target_index)
         for step in range(horizon):
-            features = cls._feature_matrix(lags[active], first_target_index + step)
+            lead = step + 1
+            lead_estimators = models_by_lead.get(lead) or models_by_lead[deepest_lead]
             component_forecasts = []
             selected_estimators = (
-                [estimators["equal_product_weight"]]
-                if horizon <= 1 else list(estimators.values())
+                [lead_estimators["equal_product_weight"]]
+                if horizon <= 1 else list(lead_estimators.values())
             )
             for model in selected_estimators:
                 level = np.log1p(baseline) + model.predict(features)
@@ -750,12 +815,10 @@ class ProductRevenueTimeSeriesForecaster:
         origins, test_origin, all_candidates = self._training_origins(
             revenue_panel.shape[1], horizon, window_size, sliding_step, training_size
         )
-        direct_features, direct_target, _, direct_actual, direct_counts = (
-            self._build_training_samples(revenue_panel, origins, window_size)
+        validation_direct = self._fit_direct_models(
+            revenue_panel, origins, window_size, horizon, training_end=test_origin
         )
-        validation_direct = self._fit_estimators(
-            direct_features, direct_target, direct_actual
-        )
+        direct_counts = validation_direct["first_lead_origins"]
         (
             sequence_lags,
             sequence_targets,
@@ -927,7 +990,8 @@ class ProductRevenueTimeSeriesForecaster:
             },
             "holdout_actual_vs_predicted": holdout_actual_vs_predicted,
             "samples": {
-                "independent_train": int(len(direct_features)),
+                "independent_train": int(validation_direct["total_samples"]),
+                "independent_train_by_lead": validation_direct["samples_by_lead"],
                 "sequence_train": int(len(sequence_lags)),
                 "independent_train_by_origin": direct_counts,
                 "sequence_train_by_origin": sequence_counts,
@@ -949,6 +1013,23 @@ class ProductRevenueTimeSeriesForecaster:
                     "overprediction. Sparse products, cold starts, and log-target "
                     "shrinkage can create negative aggregate bias; long recursive "
                     "rollouts can also accumulate feedback error in either direction."
+                ),
+            },
+            "direct_multi_step": {
+                "strategy": "one estimator trained per forecast lead",
+                "leads_trained": list(validation_direct["trained_leads"]),
+                "deepest_lead": int(validation_direct["deepest_lead"]),
+                "samples_by_lead": validation_direct["samples_by_lead"],
+                "reused_deepest_lead_for": [
+                    lead for lead in range(1, int(horizon) + 1)
+                    if lead not in validation_direct["models"]
+                ],
+                "note": (
+                    "Each lead learns its own mapping from the same observed window, "
+                    "so the direct forecast varies across the horizon instead of "
+                    "repeating a single one-step prediction. Leads whose target would "
+                    "fall inside the holdout have no training origins and reuse the "
+                    "deepest lead that does."
                 ),
             },
             "recursive_rollout_guard": {
@@ -997,11 +1078,15 @@ class ProductRevenueTimeSeriesForecaster:
                         getattr(validation_sequence, "smearing_factors_", [1.0])
                     ).ravel()
                 ],
+                # Each lead is calibrated separately, so report the first lead
+                # as the representative set.
                 "direct_factors": [
                     round(float(value), 6)
                     for value in np.asarray(
                         getattr(
-                            validation_direct["equal_product_weight"],
+                            validation_direct["models"][
+                                min(validation_direct["trained_leads"])
+                            ]["equal_product_weight"],
                             "smearing_factors_",
                             [1.0],
                         )
@@ -1034,11 +1119,11 @@ class ProductRevenueTimeSeriesForecaster:
         production_origins, production_candidates = self._production_origins(
             revenue_panel.shape[1], window_size, sliding_step, training_size
         )
-        production_features, production_target, _, production_actual, production_counts = (
-            self._build_training_samples(revenue_panel, production_origins, window_size)
-        )
-        production_direct = self._fit_estimators(
-            production_features, production_target, production_actual
+        # The production refit may use every fully observed target, so the only
+        # bound on a lead is the end of the panel itself.
+        production_direct = self._fit_direct_models(
+            revenue_panel, production_origins, window_size, horizon,
+            training_end=revenue_panel.shape[1],
         )
         (
             production_lags,
@@ -1066,9 +1151,9 @@ class ProductRevenueTimeSeriesForecaster:
             "purpose": "future periods after the dataset as-of day only",
             "origin_periods": [origin + 1 for origin in production_origins],
             "available_origins": [origin + 1 for origin in production_candidates],
-            "independent_samples": int(len(production_features)),
+            "independent_samples": int(production_direct["total_samples"]),
             "sequence_samples": int(len(production_lags)),
-            "independent_samples_by_origin": production_counts,
+            "independent_samples_by_lead": production_direct["samples_by_lead"],
             "sequence_samples_by_origin": production_sequence_counts,
             "sequence_supervised_steps_by_origin": production_supervised_by_origin,
             "sequence_maximum_supervised_rollout": int(
