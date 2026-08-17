@@ -871,6 +871,190 @@ html, body {
   background: #eff6ff;
 }
 
+/* ---- Predictive panels ----------------------------------------------------
+   One card system shared by both predictive tasks and the benchmarks modal, in
+   the site's indigo/violet identity, matching the BI dashboard. Scoped to
+   .pred-panel so it cannot reach the rest of the page. */
+.pred-panel {
+  --rev-1: #667eea;
+  --rev-2: #764ba2;
+  --rev-ink: #1e2338;
+  --rev-muted: #6b7391;
+  --rev-line: #e6e8f2;
+}
+.pred-panel .rev-head {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem;
+}
+.pred-panel .rev-title {
+  margin: 0; font-weight: 700; color: var(--rev-ink);
+  display: flex; align-items: center; gap: .55rem;
+}
+.pred-panel .rev-title i { color: var(--rev-1); }
+.pred-panel .rev-sub { margin: .25rem 0 0; color: var(--rev-muted); font-size: .87rem; }
+.pred-panel .rev-help { border-radius: .6rem; }
+
+.pred-panel .rev-card {
+  background: #fff; border: 1px solid var(--rev-line); border-radius: 16px;
+  padding: 1.1rem 1.2rem; margin-bottom: 1rem;
+  box-shadow: 0 2px 14px rgba(102,126,234,.06);
+}
+
+/* Numbered steps: the panel is a sequence, so the markers carry real order. */
+.pred-panel .rev-step { display: flex; gap: .75rem; align-items: flex-start; margin-bottom: .9rem; }
+.pred-panel .rev-step-num {
+  flex: 0 0 auto; width: 26px; height: 26px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--rev-1), var(--rev-2)); color: #fff;
+  display: grid; place-items: center; font-size: .8rem; font-weight: 700;
+  box-shadow: 0 3px 9px rgba(102,126,234,.32);
+}
+.pred-panel .rev-step-title { margin: 0; font-size: .97rem; font-weight: 700; color: var(--rev-ink); }
+.pred-panel .rev-step-hint { margin: .1rem 0 0; font-size: .8rem; color: var(--rev-muted); }
+.pred-panel .rev-card-title { margin: 0; font-size: .97rem; font-weight: 700; color: var(--rev-ink); }
+.pred-panel .rev-head-sm {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  gap: .8rem; flex-wrap: wrap; margin-bottom: .8rem;
+}
+
+.pred-panel .rev-fields { display: flex; flex-wrap: wrap; gap: .8rem; align-items: flex-end; }
+.pred-panel .rev-fields-inline { gap: .6rem; margin: 0; }
+.pred-panel .rev-field { flex: 1 1 170px; min-width: 150px; }
+.pred-panel .rev-field-wide { flex: 2 1 280px; }
+.pred-panel .rev-field label {
+  display: block; font-size: .68rem; font-weight: 700; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--rev-muted); margin-bottom: .3rem;
+}
+.pred-panel .rev-field .form-select,
+.pred-panel .rev-field .form-control { border-radius: .6rem; }
+.pred-panel .rev-hint-slot { display: inline-block; padding-top: .3rem; }
+
+.pred-panel .rev-actions { display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; }
+.pred-panel .rev-btn-primary {
+  background: linear-gradient(135deg, var(--rev-1), var(--rev-2)); color: #fff;
+  border: 0; border-radius: .65rem; font-weight: 600; padding: .5rem 1.1rem;
+  box-shadow: 0 5px 14px rgba(102,126,234,.3);
+}
+.pred-panel .rev-btn-primary:hover { color: #fff; filter: brightness(1.06); }
+.pred-panel .rev-btn-secondary {
+  background: #fff; color: var(--rev-1); border: 1px solid var(--rev-1);
+  border-radius: .65rem; font-weight: 600; padding: .5rem 1.1rem;
+}
+.pred-panel .rev-btn-secondary:hover:not(:disabled) { background: #f2f3fb; color: var(--rev-1); }
+.pred-panel .rev-btn-secondary:disabled { opacity: .45; }
+.pred-panel .rev-btn-ghost {
+  background: #f2f3fb; color: #4a5170; border: 1px solid var(--rev-line);
+  border-radius: .65rem; font-weight: 600; padding: .5rem 1rem;
+}
+.pred-panel .rev-btn-ghost:hover { background: #e8ebff; color: var(--rev-1); }
+
+.pred-panel .rev-kpis {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: .75rem; margin-bottom: .8rem;
+}
+.pred-panel .rev-kpi {
+  background: #fff; border: 1px solid var(--rev-line); border-radius: 16px;
+  padding: .9rem 1rem; position: relative; overflow: hidden;
+  transition: transform .18s ease, box-shadow .18s ease;
+}
+.pred-panel .rev-kpi:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(102,126,234,.14); }
+.pred-panel .rev-kpi::after {
+  content: ''; position: absolute; inset: auto auto -30px -30px;
+  width: 80px; height: 80px; border-radius: 50%;
+  background: var(--rev-accent, var(--rev-1)); opacity: .08;
+}
+.pred-panel .rev-kpi-top { display: flex; align-items: center; gap: .5rem; margin-bottom: .5rem; }
+.pred-panel .rev-kpi-icon {
+  width: 28px; height: 28px; border-radius: 9px; display: grid; place-items: center;
+  background: var(--rev-accent, var(--rev-1)); color: #fff; font-size: .76rem; flex: 0 0 auto;
+}
+.pred-panel .rev-kpi-label {
+  font-size: .64rem; font-weight: 700; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--rev-muted); line-height: 1.25;
+}
+.pred-panel .rev-kpi-value {
+  font-size: 1.45rem; font-weight: 800; color: var(--rev-ink); line-height: 1.12;
+  font-variant-numeric: tabular-nums; position: relative;
+}
+/* The winning-model card holds a name, not a number, so it needs its own size. */
+.pred-panel .rev-kpi-text { font-size: 1.05rem; line-height: 1.25; color: var(--rev-1); }
+.pred-panel .rev-kpi-hint { font-size: .68rem; color: #9aa1bd; margin-top: .2rem; position: relative; }
+
+.pred-panel .rev-context { font-size: .78rem; color: var(--rev-muted); margin: 0 0 .8rem; }
+.pred-panel .rev-note { font-size: .76rem; color: var(--rev-muted); margin: .6rem 0 0; }
+.pred-panel .rev-rule { margin: 1rem 0; border-color: var(--rev-line); }
+
+.pred-panel .rev-advanced {
+  background: #fff; border: 1px solid var(--rev-line); border-radius: 16px;
+  padding: .85rem 1.1rem; margin-bottom: 1rem;
+}
+.pred-panel .rev-advanced summary {
+  cursor: pointer; font-weight: 600; font-size: .88rem; color: #4a5170;
+  display: flex; align-items: center; gap: .5rem;
+}
+.pred-panel .rev-advanced summary:hover { color: var(--rev-1); }
+.pred-panel .rev-advanced[open] summary { margin-bottom: .9rem; }
+
+.pred-panel .rev-slider-value {
+  float: right; background: linear-gradient(135deg, var(--rev-1), var(--rev-2));
+  color: #fff; border-radius: 999px; padding: 0 .5rem; font-size: .68rem;
+  letter-spacing: 0; text-transform: none;
+}
+.pred-panel .rev-range { margin-top: .35rem; }
+.pred-panel .rev-range::-webkit-slider-thumb { background: var(--rev-1); }
+/* Deliberately not Bootstrap's .d-inline-flex: that rule is !important and
+   overrode the inline display the JS sets, which pinned the spinner open. No
+   display rule here at all, so the inline style the JS writes simply wins. */
+.pred-panel .rev-training { align-items: center; gap: .5rem; vertical-align: middle; }
+.pred-panel .rev-training > * { vertical-align: middle; }
+.pred-panel .rev-training-label { font-weight: 600; font-size: .85rem; color: var(--rev-1); }
+.pred-panel .rev-metrics { border-radius: 14px; border: 1px solid var(--rev-line); }
+.pred-panel .rev-table { table-layout: fixed; width: 100%; }
+.pred-panel .rev-table thead th {
+  font-size: .62rem; letter-spacing: .03em; text-transform: uppercase;
+  color: #fff; font-weight: 700; line-height: 1.25;
+  padding: .5rem .45rem; vertical-align: bottom; white-space: normal;
+  position: sticky; top: 0; z-index: 2; border-bottom: 0;
+  background: linear-gradient(135deg, var(--rev-1), var(--rev-2));
+}
+.pred-panel .rev-table tbody td { padding: .5rem .45rem; font-size: .82rem; }
+.pred-panel .rev-table tbody td:first-child { font-weight: 600; }
+/* The department name needs the room; the four figures are short. */
+.pred-panel .rev-table th:first-child, .pred-panel .rev-table td:first-child { width: 30%; }
+.pred-panel .rev-table th:not(:first-child), .pred-panel .rev-table td:not(:first-child) { width: 17.5%; }
+.pred-panel .rev-defs .rev-field { flex: 1 1 200px; }
+.pred-panel .rev-defs strong { color: var(--rev-ink); font-size: .85rem; }
+.pred-panel .rev-advanced-body { padding-top: .2rem; }
+
+/* Benchmarks modal, sharing the same card system. */
+#modelBenchmarksModal .modal-content { border: 0; border-radius: 18px; overflow: hidden; }
+#modelBenchmarksModal .benchmarks-modal-header {
+  background: linear-gradient(135deg, #1e2338 0%, #3b3f63 55%, #4a4f7a 100%);
+  color: #fff; border: 0; padding: 1.1rem 1.4rem;
+}
+#modelBenchmarksModal .modal-body { background: #f7f8fc; padding: 1.4rem; }
+#modelBenchmarksModal .modal-footer { border: 0; background: #f7f8fc; }
+#modelBenchmarksModal .bench-card {
+  background: #fff; border: 1px solid var(--rev-line, #e6e8f2); border-radius: 16px;
+  padding: 1.1rem 1.2rem; box-shadow: 0 2px 14px rgba(102,126,234,.06); height: 100%;
+}
+#modelBenchmarksModal .bench-card h6 {
+  font-size: .95rem; font-weight: 700; color: #1e2338; margin: 0 0 .2rem;
+}
+#modelBenchmarksModal .bench-card .bench-sub {
+  font-size: .78rem; color: #6b7391; margin: 0 0 .8rem;
+}
+#modelBenchmarksModal table thead th {
+  background: linear-gradient(135deg, #667eea, #764ba2) !important;
+  color: #fff !important; border: 0 !important;
+  font-size: .68rem; letter-spacing: .04em; text-transform: uppercase;
+}
+
+@media (max-width: 768px) {
+  .pred-panel .rev-field { flex-basis: 100%; }
+  .pred-panel .rev-actions .btn { flex: 1 1 auto; }
+  .pred-panel .rev-btn-ghost { margin-left: 0 !important; }
+}
+
 .predictive-subnav .nav-link.active {
   color: #fff !important;
   background: linear-gradient(135deg, #2563eb, #4f46e5);
@@ -1259,269 +1443,396 @@ html, body {
 
       <!-- ML Algorithm Selection -->
       <div class="interactive-controls">
-        <div data-predictive-panel="legacy" style="display:none;">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-          <h5 class="mb-0"><i class="fas fa-robot"></i> Customer Department Repurchase Classifier</h5>
-          <button class="btn btn-outline-info btn-sm" onclick="showPredictiveHelp()" title="Configuration Help">
-            <i class="fas fa-question-circle"></i> Help
-          </button>
-        </div>
-        <div class="row g-2">
-          <div class="col-md-4">
-            <label class="form-label control-label">
-              Algorithm:
-              <i class="fas fa-info-circle text-muted ms-1"
-                 title="Chooses which trained model you see metrics for and score with. Training always fits all four, so switching here needs no retrain."></i>
-            </label>
-            <select class="form-select" id="mlAlgorithm">
-              <option value="neural_network">Neural Network</option>
-              <option value="random_forest">Random Forest</option>
-              <option value="gradient_boost" selected>Gradient Boosting</option>
-              <option value="svm">Support Vector Machine</option>
-            </select>
-          </div>
-          <div class="col-md-4">
-            <label class="form-label control-label">Prediction Horizon:</label>
-            <select class="form-select" id="predictionHorizon" onchange="checkCachedModel()">
-              <option value="1">1 Month</option>
-              <option value="2">2 Months</option>
-              <option value="3" selected>3 Months</option>
-              <option value="4">4 Months</option>
-              <option value="5">5 Months</option>
-              <option value="6">6 Months</option>
-              <option value="7">7 Months</option>
-              <option value="8">8 Months</option>
-              <option value="9">9 Months</option>
-            </select>
-          </div>
-          <div class="col-md-4">
-            <div class="control-group">
-              <label class="control-label">Training Size:</label>
-              <input type="range" class="form-range control-slider" id="trainingSizeSlider" min="0.6" max="0.9" step="0.05" value="0.8">
-              <span class="control-value" id="trainingSizeValue">80%</span>
-            </div>
-          </div>
-        </div>
+        <div data-predictive-panel="legacy" class="pred-panel" style="display:none;">
 
-        <!-- Two separate buttons for train and predict -->
-        <div class="d-flex gap-2 mt-3 align-items-center">
-          <button class="btn btn-success" id="trainModelBtn" onclick="trainModel()">
-            <i class="fas fa-graduation-cap"></i> Train All 4 Algorithms
-          </button>
-          <button class="btn btn-primary" id="predictFutureBtn" onclick="predictFuture()" disabled>
-            <i class="fas fa-percentage"></i> Score Repurchase Probability
-          </button>
-          <div id="trainingProgress" style="display: none;" class="ms-3">
-            <div class="spinner-border spinner-border-sm text-success" role="status"></div>
-            <span class="text-success ms-2 fw-bold">Training all 4 algorithms&hellip;</span>
-          </div>
-        </div>
-
-        <!-- Model Accuracy Display (shows after training) -->
-        <div id="modelAccuracyDisplay" class="alert alert-success mt-3" style="display: none;">
-          <div class="d-flex align-items-center gap-3">
-            <i class="fas fa-check-circle fa-2x"></i>
+          <div class="rev-head">
             <div>
-              <h6 class="mb-1">✓ Model Training Complete</h6>
-              <div class="d-flex gap-3 flex-wrap">
-                <span><strong>Model:</strong> <span id="trainedModel">-</span></span>
-                <span><strong>Balanced Accuracy:</strong> <span id="modelAccuracy" class="text-success fw-bold">-</span></span>
-                <span><strong>Precision:</strong> <span id="modelPrecision">-</span></span>
-                <span><strong>Recall:</strong> <span id="modelRecall">-</span></span>
-                <span><strong>F1 Score:</strong> <span id="modelF1">-</span></span>
+              <h5 class="rev-title"><i class="fas fa-robot"></i> Customer Department Repurchase Classifier</h5>
+              <p class="rev-sub">How likely is each household to buy again from a department it has bought from before?</p>
+            </div>
+            <button class="btn btn-outline-secondary btn-sm rev-help" onclick="showPredictiveHelp()" title="How to use this">
+              <i class="fas fa-question-circle"></i> Help
+            </button>
+          </div>
+
+          <!-- Step 1: settings -->
+          <section class="rev-card">
+            <div class="rev-step">
+              <span class="rev-step-num">1</span>
+              <div>
+                <h6 class="rev-step-title">Choose the settings</h6>
+                <p class="rev-step-hint">How far ahead to look, and how much history to learn from.</p>
               </div>
-              <small class="text-muted">Classification metrics for a chronological holdout; these are not revenue accuracy.</small>
+            </div>
+            <div class="rev-fields">
+              <div class="rev-field">
+                <label for="predictionHorizon">Prediction horizon</label>
+                <select class="form-select" id="predictionHorizon" onchange="checkCachedModel()">
+                  <option value="1">1 Month</option>
+                  <option value="2">2 Months</option>
+                  <option value="3" selected>3 Months</option>
+                  <option value="4">4 Months</option>
+                  <option value="5">5 Months</option>
+                  <option value="6">6 Months</option>
+                  <option value="7">7 Months</option>
+                  <option value="8">8 Months</option>
+                  <option value="9">9 Months</option>
+                </select>
+              </div>
+              <div class="rev-field">
+                <label for="trainingSizeSlider">
+                  Training size
+                  <span class="rev-slider-value" id="trainingSizeValue">80%</span>
+                </label>
+                <input type="range" class="form-range rev-range" id="trainingSizeSlider"
+                       min="0.6" max="0.9" step="0.05" value="0.8">
+              </div>
+              <div class="rev-field">
+                <label for="mlAlgorithm">
+                  Show results for
+                  <i class="fas fa-info-circle text-muted ms-1"
+                     title="Training fits all four algorithms. This only chooses which one you see and score with, so switching needs no retrain."></i>
+                </label>
+                <select class="form-select" id="mlAlgorithm" onchange="checkCachedModel()">
+                  <option value="neural_network">Neural Network</option>
+                  <option value="random_forest">Random Forest</option>
+                  <option value="gradient_boost" selected>Gradient Boosting</option>
+                  <option value="svm">Support Vector Machine</option>
+                </select>
+              </div>
+            </div>
+          </section>
+
+          <!-- Step 2: run it -->
+          <section class="rev-card">
+            <div class="rev-step">
+              <span class="rev-step-num">2</span>
+              <div>
+                <h6 class="rev-step-title">Train, then score</h6>
+                <p class="rev-step-hint">One click fits all four algorithms and scores them against a period they never saw.</p>
+              </div>
+            </div>
+            <div class="rev-actions">
+              <button class="btn rev-btn-primary" id="trainModelBtn" onclick="trainModel()">
+                <i class="fas fa-graduation-cap"></i> Train all 4 algorithms
+              </button>
+              <button class="btn rev-btn-secondary" id="predictFutureBtn" onclick="predictFuture()" disabled>
+                <i class="fas fa-percentage"></i> Score repurchase probability
+              </button>
+              <div id="trainingProgress" class="rev-training" style="display: none;">
+                <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                <span class="rev-training-label">Training all 4 algorithms&hellip;</span>
+              </div>
+            </div>
+          </section>
+
+          <!-- Validation result -->
+          <div id="modelAccuracyDisplay" class="alert alert-success rev-metrics" style="display: none;">
+            <div class="d-flex align-items-center gap-3">
+              <i class="fas fa-check-circle fa-2x"></i>
+              <div>
+                <h6 class="mb-1">Model training complete</h6>
+                <div class="d-flex gap-3 flex-wrap">
+                  <span><strong>Model:</strong> <span id="trainedModel">-</span></span>
+                  <span><strong>Balanced Accuracy:</strong> <span id="modelAccuracy">-</span></span>
+                  <span><strong>Precision:</strong> <span id="modelPrecision">-</span></span>
+                  <span><strong>Recall:</strong> <span id="modelRecall">-</span></span>
+                  <span><strong>F1 Score:</strong> <span id="modelF1">-</span></span>
+                </div>
+              </div>
             </div>
           </div>
+
+          <p class="rev-context">
+            <i class="fas fa-circle-info"></i>
+            The output is a probability that a household returns to a department it already buys
+            from. Every figure stops at the prediction day, and no revenue is forecast here.
+          </p>
+
+          <!-- Results -->
+          <div class="row g-3">
+            <div class="col-lg-5">
+              <section class="rev-card h-100">
+                <div class="rev-head-sm">
+                  <div>
+                    <h6 class="rev-card-title">Expected returning households</h6>
+                    <p class="rev-step-hint">By department, for the current model.</p>
+                  </div>
+                </div>
+                <div style="height:320px"><canvas id="legacyProbabilityChart"></canvas></div>
+              </section>
+            </div>
+            <div class="col-lg-7">
+              <section class="rev-card h-100">
+                <div class="rev-head-sm">
+                  <div>
+                    <h6 class="rev-card-title">Department scores</h6>
+                    <p class="rev-step-hint">Open the guide below if a column is not obvious.</p>
+                  </div>
+                </div>
+                <div class="table-responsive predictive-scroll" tabindex="0"
+                     aria-label="Scrollable department probability scores" style="max-height:320px;overflow:auto">
+                  <table class="table table-sm table-hover align-middle mb-0 rev-table">
+                    <thead><tr>
+                      <th>Department</th>
+                      <th class="text-end" title="Mean predicted repurchase probability across the households scored">Avg<br>probability</th>
+                      <th class="text-end" title="Probabilities added up: how many households the model expects to return">Expected<br>households</th>
+                      <th class="text-end" title="Households scoring 0.50 or above">High<br>likelihood</th>
+                      <th class="text-end" title="Households eligible for this department, having bought from it before">Scored</th>
+                    </tr></thead>
+                    <tbody id="legacyProbabilityRows">
+                      <tr><td colspan="5" class="text-center text-muted py-4">Train a model, then score repurchase probabilities.</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            </div>
+          </div>
+
+          <details class="rev-advanced">
+            <summary><i class="fas fa-book-open"></i> What the four columns mean</summary>
+            <div class="rev-advanced-body">
+              <div class="rev-fields rev-defs">
+                <div class="rev-field">
+                  <strong>Avg probability</strong>
+                  <p class="rev-note">The average household's chance of returning. A department at 62% does
+                  <em>not</em> mean 62% of its shoppers come back.</p>
+                </div>
+                <div class="rev-field">
+                  <strong>Expected households</strong>
+                  <p class="rev-note">The probabilities added together, so the number of households the model
+                  expects back. Unbiased even when many sit near the middle.</p>
+                </div>
+                <div class="rev-field">
+                  <strong>High likelihood</strong>
+                  <p class="rev-note">A headcount of those at 50% or above. A department full of 45%s expects
+                  returners but counts none here, which is why the two differ.</p>
+                </div>
+                <div class="rev-field">
+                  <strong>Scored</strong>
+                  <p class="rev-note">Households eligible for that department, meaning they have bought from it
+                  before. This is the denominator for the other three.</p>
+                </div>
+              </div>
+            </div>
+          </details>
         </div>
 
-        <div class="alert alert-secondary small mt-3 mb-0">
-          <strong>Output:</strong> probability that a household buys again from a department it previously purchased from. All aggregates stop at the prediction day. No dollar forecast is produced here.
-        </div>
+        <div data-predictive-panel="revenue" id="revenuePanel" class="pred-panel">
 
-        <details class="border rounded bg-white px-3 py-2 mt-2 small">
-          <summary class="fw-semibold" style="cursor:pointer">How to read the department scores</summary>
-          <div class="row g-3 mt-1">
-            <div class="col-md-3">
-              <strong class="text-dark">Avg probability</strong><br>
-              The mean predicted repurchase probability across every household scored for that
-              department. A department at 62% does <em>not</em> mean 62% of its shoppers will
-              return; it means the average household's chance is 62%.
+          <div class="rev-head">
+            <div>
+              <h5 class="rev-title"><i class="fas fa-chart-line"></i> Product Revenue Time Series</h5>
+              <p class="rev-sub">Forecast revenue per product, with two models scored against the same held-back history.</p>
             </div>
-            <div class="col-md-3">
-              <strong class="text-dark">Expected households</strong><br>
-              The probabilities added up, which is the number of households the model expects to
-              come back. Summing probabilities rather than counting those above a cut-off keeps
-              the estimate unbiased when many households sit near the middle.
-            </div>
-            <div class="col-md-3">
-              <strong class="text-dark">High likelihood</strong><br>
-              How many households score at or above 0.50. This is a headcount, so it differs from
-              Expected households: a department full of 0.45s expects returners but counts none
-              here.
-            </div>
-            <div class="col-md-3">
-              <strong class="text-dark">Scored</strong><br>
-              Households eligible for that department, meaning they have bought from it before.
-              The model never scores a department a household has never purchased, so this is the
-              denominator for the other three columns.
-            </div>
+            <button class="btn btn-outline-secondary btn-sm rev-help" onclick="showRevenueForecastHelp()" title="How to use this">
+              <i class="fas fa-question-circle"></i> Help
+            </button>
           </div>
-        </details>
 
-        <div class="row g-2 mt-2">
-          <div class="col-lg-5"><div class="bg-white border rounded p-3 h-100">
-            <h6 class="mb-2">Expected repurchase households by department</h6>
-            <div style="height:320px"><canvas id="legacyProbabilityChart"></canvas></div>
-          </div></div>
-          <div class="col-lg-7"><div class="bg-white border rounded p-3 h-100">
-            <h6 class="mb-2">Department probability scores</h6>
-            <div class="table-responsive predictive-scroll" tabindex="0" aria-label="Scrollable department probability scores" style="max-height:320px;overflow:auto">
-              <table class="table table-sm table-hover align-middle mb-0">
-                <thead class="table-light sticky-top"><tr><th>Department</th><th class="text-end">Avg probability</th><th class="text-end">Expected households</th><th class="text-end">High likelihood</th><th class="text-end">Scored</th></tr></thead>
-                <tbody id="legacyProbabilityRows"><tr><td colspan="5" class="text-center text-muted py-4">Train or load a classifier, then score repurchase probabilities.</td></tr></tbody>
-              </table>
+          <!-- Step 1: what to forecast -->
+          <section class="rev-card">
+            <div class="rev-step">
+              <span class="rev-step-num">1</span>
+              <div>
+                <h6 class="rev-step-title">What to forecast</h6>
+                <p class="rev-step-hint">How far ahead to predict, and how much history the model reads to do it.</p>
+              </div>
             </div>
-          </div></div>
-        </div>
-        </div>
+            <div class="rev-fields">
+              <div class="rev-field">
+                <label for="timeSeriesHorizon">Forecast horizon</label>
+                <select class="form-select" id="timeSeriesHorizon" onchange="handleTimeSeriesModelConfigChange()">
+                  <option value="1">1 month</option>
+                  <option value="2">2 months</option>
+                  <option value="3" selected>3 months</option>
+                  <option value="4">4 months</option>
+                  <option value="5">5 months</option>
+                  <option value="6">6 months</option>
+                  <option value="7">7 months</option>
+                  <option value="8">8 months</option>
+                  <option value="9">9 months</option>
+                </select>
+              </div>
+              <div class="rev-field">
+                <label for="timeSeriesWindow">Lookback window</label>
+                <select class="form-select" id="timeSeriesWindow" onchange="handleTimeSeriesModelConfigChange()">
+                  <option value="2">2 months</option>
+                  <option value="3">3 months</option>
+                  <option value="4">4 months</option>
+                  <option value="5">5 months</option>
+                  <option value="6" selected>6 months</option>
+                  <option value="7">7 months</option>
+                  <option value="8">8 months</option>
+                  <option value="9">9 months</option>
+                  <option value="10">10 months</option>
+                  <option value="11">11 months</option>
+                  <option value="12">12 months</option>
+                </select>
+              </div>
+              <div class="rev-field rev-field-wide">
+                <label>Data check</label>
+                <span id="timeSeriesSupervisionHint" class="rev-hint-slot"></span>
+              </div>
+            </div>
+          </section>
 
-        <div data-predictive-panel="revenue">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-          <h5 class="mb-0"><i class="fas fa-chart-line"></i> Product Revenue Time Series</h5>
-          <button class="btn btn-outline-info btn-sm" onclick="showRevenueForecastHelp()" title="Configuration Help">
-            <i class="fas fa-question-circle"></i> Help
-          </button>
-        </div>
-        <p class="text-muted small mb-3">Recursive sequence forecasting compared with an independent direct model on the same chronological holdout.</p>
-        <div class="row g-2">
-          <div class="col-md-2">
-            <label class="form-label control-label" for="timeSeriesHorizon">Forecast Horizon:</label>
-            <select class="form-select" id="timeSeriesHorizon" onchange="handleTimeSeriesModelConfigChange()">
-              <option value="1">1 month</option>
-              <option value="2">2 months</option>
-              <option value="3" selected>3 months</option>
-              <option value="4">4 months</option>
-              <option value="5">5 months</option>
-              <option value="6">6 months</option>
-              <option value="7">7 months</option>
-              <option value="8">8 months</option>
-              <option value="9">9 months</option>
-            </select>
+          <!-- Step 2: run it -->
+          <section class="rev-card">
+            <div class="rev-step">
+              <span class="rev-step-num">2</span>
+              <div>
+                <h6 class="rev-step-title">Train, then forecast</h6>
+                <p class="rev-step-hint">Training scores both models on history they never saw. Forecasting then projects ahead.</p>
+              </div>
+            </div>
+            <div class="rev-actions">
+              <button class="btn rev-btn-primary" id="trainTimeSeriesBtn" type="button" onclick="trainProductTimeSeries()">
+                <i class="fas fa-graduation-cap"></i> Train &amp; validate
+              </button>
+              <button class="btn rev-btn-secondary" id="forecastTimeSeriesBtn" type="button" onclick="forecastProductTimeSeries()" disabled>
+                <i class="fas fa-wand-magic-sparkles"></i> Forecast revenue
+              </button>
+              <span id="timeSeriesSavedModelStatus" class="badge bg-secondary">Checking saved model…</span>
+              <button class="btn rev-btn-ghost ms-auto" type="button" data-bs-toggle="modal" data-bs-target="#modelBenchmarksModal"
+                      title="Holdout metrics, ranking benchmarks and error charts">
+                <i class="fas fa-vials"></i> Model benchmarks
+              </button>
+            </div>
+          </section>
+
+          <!-- Results -->
+          <div class="rev-kpis" id="revenueQuickStats" style="display:none">
+            <div class="rev-kpi" style="--rev-accent:#e0a800">
+              <div class="rev-kpi-top">
+                <span class="rev-kpi-icon"><i class="fas fa-trophy"></i></span>
+                <span class="rev-kpi-label">Winning ML model</span>
+              </div>
+              <div class="rev-kpi-value rev-kpi-text" id="qsBestModel">–</div>
+              <div class="rev-kpi-hint" id="qsBestModelSub"></div>
+            </div>
+            <div class="rev-kpi" style="--rev-accent:#0891b2">
+              <div class="rev-kpi-top">
+                <span class="rev-kpi-icon"><i class="fas fa-percent"></i></span>
+                <span class="rev-kpi-label" id="qsErrorImprovementLabel">Beats naive benchmark by</span>
+              </div>
+              <div class="rev-kpi-value" id="qsErrorImprovement">–</div>
+              <div class="rev-kpi-hint" id="qsErrorImprovementSub"></div>
+            </div>
+            <div class="rev-kpi" style="--rev-accent:#f43f5e">
+              <div class="rev-kpi-top">
+                <span class="rev-kpi-icon"><i class="fas fa-bullseye"></i></span>
+                <span class="rev-kpi-label" id="qsTopPrecisionLabelText">Top-20 precision</span>
+              </div>
+              <div class="rev-kpi-value" id="qsTopPrecision">–</div>
+              <div class="rev-kpi-hint" id="qsTopPrecisionSub"></div>
+            </div>
+            <div class="rev-kpi" style="--rev-accent:#0ea373">
+              <div class="rev-kpi-top">
+                <span class="rev-kpi-icon"><i class="fas fa-code-branch"></i></span>
+                <span class="rev-kpi-label" id="qsModelAgreementLabel">Top-20 model agreement</span>
+              </div>
+              <div class="rev-kpi-value" id="qsModelAgreement">–</div>
+              <div class="rev-kpi-hint" id="qsModelAgreementSub"></div>
+            </div>
           </div>
-          <div class="col-md-2">
-            <label class="form-label control-label" for="timeSeriesWindow">Lookback window:</label>
-            <select class="form-select" id="timeSeriesWindow" onchange="handleTimeSeriesModelConfigChange()">
-              <option value="2">2 months</option>
-              <option value="3">3 months</option>
-              <option value="4">4 months</option>
-              <option value="5">5 months</option>
-              <option value="6" selected>6 months</option>
-              <option value="7">7 months</option>
-              <option value="8">8 months</option>
-              <option value="9">9 months</option>
-              <option value="10">10 months</option>
-              <option value="11">11 months</option>
-              <option value="12">12 months</option>
-            </select>
-          </div>
-          <div class="col-md-2">
-            <label class="form-label control-label" for="timeSeriesStep">Window step:</label>
-            <select class="form-select" id="timeSeriesStep" onchange="handleTimeSeriesModelConfigChange()">
-              <option value="1" selected>1 month</option>
-              <option value="2">2 months</option>
-              <option value="3">3 months</option>
-            </select>
-          </div>
-          <div class="col-md-2">
-            <label class="form-label control-label" for="timeSeriesTopN">Top products:</label>
-            <select class="form-select" id="timeSeriesTopN">
-              <option value="10">Top 10</option>
-              <option value="20" selected>Top 20</option>
-              <option value="50">Top 50</option>
-              <option value="100">Top 100</option>
-            </select>
-          </div>
-          <div class="col-md-2">
-            <label class="form-label control-label" for="timeSeriesThreshold">Revenue threshold:</label>
-            <input class="form-control" id="timeSeriesThreshold" type="number" min="0" step="0.01" placeholder="Optional">
-          </div>
-          <div class="col-md-2">
-            <label class="form-label control-label" for="timeSeriesMethod">Rank results by:</label>
-            <select class="form-select" id="timeSeriesMethod">
-              <option value="recommended" selected>Best holdout WMAPE</option>
-              <option value="time_series_model">Recursive time series</option>
-              <option value="independent_direct_model">Independent direct model</option>
-              <option value="recent_average_baseline">Recent-average benchmark</option>
-            </select>
-          </div>
-          <div class="col-12">
-            <div class="border rounded bg-white p-3 mt-1">
-              <div class="d-flex flex-wrap align-items-end gap-3">
-                <div style="min-width:180px">
-                  <label class="form-label control-label" for="timeSeriesParameterMode">Parameter mode:</label>
-                  <select class="form-select form-select-sm" id="timeSeriesParameterMode" onchange="setTimeSeriesParameterMode()">
+          <p class="rev-context" id="qsContextLine" style="display:none"></p>
+          <div class="alert alert-danger py-2 px-3 small" id="qsRolloutWarning" style="display:none"></div>
+
+          <section class="rev-card" id="timeSeriesDepartmentChartContainer">
+            <div class="rev-head-sm">
+              <div>
+                <h6 class="rev-card-title">Forecast by department</h6>
+                <p class="rev-step-hint">Where the predicted revenue lands. This is the live forecast, not a benchmark test.</p>
+              </div>
+              <button class="btn btn-outline-secondary btn-sm" type="button"
+                      onclick="expandChart('timeSeriesDepartmentChartContainer')" title="Expand chart">
+                <i class="fas fa-expand-arrows-alt"></i> Expand
+              </button>
+            </div>
+            <div style="height: 340px;"><canvas id="timeSeriesDepartmentChart"></canvas></div>
+          </section>
+
+          <!-- Display and advanced settings, folded away: a manager never needs
+               the network internals, and the display filters do not change the
+               model or its score. -->
+          <details class="rev-advanced">
+            <summary><i class="fas fa-sliders-h"></i> Display &amp; advanced settings</summary>
+            <div class="rev-advanced-body">
+              <div class="rev-fields">
+                <div class="rev-field">
+                  <label for="timeSeriesTopN">Products to list</label>
+                  <select class="form-select" id="timeSeriesTopN">
+                    <option value="10">Top 10</option>
+                    <option value="20" selected>Top 20</option>
+                    <option value="50">Top 50</option>
+                    <option value="100">Top 100</option>
+                  </select>
+                </div>
+                <div class="rev-field">
+                  <label for="timeSeriesThreshold">Minimum revenue</label>
+                  <input class="form-control" id="timeSeriesThreshold" type="number" min="0" step="0.01" placeholder="No minimum">
+                </div>
+                <div class="rev-field rev-field-wide">
+                  <label for="timeSeriesMethod">Order the results by</label>
+                  <select class="form-select" id="timeSeriesMethod">
+                    <option value="recommended" selected>Whichever model scored best</option>
+                    <option value="time_series_model">Recursive time series</option>
+                    <option value="independent_direct_model">Independent direct model</option>
+                    <option value="recent_average_baseline">Recent-average benchmark</option>
+                  </select>
+                </div>
+              </div>
+              <p class="rev-note">These three change the results table only. They never alter the model or its score.</p>
+
+              <hr class="rev-rule">
+
+              <div class="rev-fields">
+                <div class="rev-field">
+                  <label for="timeSeriesStep">Window step</label>
+                  <select class="form-select" id="timeSeriesStep" onchange="handleTimeSeriesModelConfigChange()">
+                    <option value="1" selected>1 month</option>
+                    <option value="2">2 months</option>
+                    <option value="3">3 months</option>
+                  </select>
+                </div>
+                <div class="rev-field">
+                  <label for="timeSeriesParameterMode">Parameter mode</label>
+                  <select class="form-select" id="timeSeriesParameterMode" onchange="setTimeSeriesParameterMode()">
                     <option value="auto" selected>Auto (recommended)</option>
                     <option value="custom">Custom</option>
                   </select>
                 </div>
-                <div id="timeSeriesCustomParameters" class="d-flex flex-wrap gap-2" aria-label="Custom recurrent model parameters">
-                  <div style="min-width:140px"><label class="form-label small mb-1" for="timeSeriesHiddenUnits">Hidden units</label><select class="form-select form-select-sm" id="timeSeriesHiddenUnits" disabled onchange="handleTimeSeriesModelConfigChange()"><option value="8">8</option><option value="16" selected>16</option><option value="32">32</option><option value="64">64</option></select></div>
-                  <div style="min-width:150px"><label class="form-label small mb-1" for="timeSeriesFeedbackRate">Feedback weight</label><select class="form-select form-select-sm" id="timeSeriesFeedbackRate" disabled onchange="handleTimeSeriesModelConfigChange()"><option value="0.25">0.25</option><option value="0.5" selected>0.50</option><option value="0.75">0.75</option><option value="1">1.00</option></select></div>
-                  <div style="min-width:130px"><label class="form-label small mb-1" for="timeSeriesEpochs">Epochs</label><select class="form-select form-select-sm" id="timeSeriesEpochs" disabled onchange="handleTimeSeriesModelConfigChange()"><option value="5">5</option><option value="10" selected>10</option><option value="15">15</option><option value="20">20</option><option value="30">30</option></select></div>
+                <div id="timeSeriesCustomParameters" class="rev-fields rev-fields-inline" aria-label="Custom recurrent model parameters">
+                  <div class="rev-field">
+                    <label for="timeSeriesHiddenUnits">Hidden units</label>
+                    <select class="form-select" id="timeSeriesHiddenUnits" disabled onchange="handleTimeSeriesModelConfigChange()">
+                      <option value="8">8</option><option value="16" selected>16</option>
+                      <option value="32">32</option><option value="64">64</option>
+                    </select>
+                  </div>
+                  <div class="rev-field">
+                    <label for="timeSeriesFeedbackRate">Feedback weight</label>
+                    <select class="form-select" id="timeSeriesFeedbackRate" disabled onchange="handleTimeSeriesModelConfigChange()">
+                      <option value="0.25">0.25</option><option value="0.5" selected>0.50</option>
+                      <option value="0.75">0.75</option><option value="1">1.00</option>
+                    </select>
+                  </div>
+                  <div class="rev-field">
+                    <label for="timeSeriesEpochs">Epochs</label>
+                    <select class="form-select" id="timeSeriesEpochs" disabled onchange="handleTimeSeriesModelConfigChange()">
+                      <option value="5">5</option><option value="10" selected>10</option>
+                      <option value="15">15</option><option value="20">20</option><option value="30">30</option>
+                    </select>
+                  </div>
                 </div>
-                <div class="small text-muted flex-grow-1" style="min-width:260px"><strong class="text-dark">Required architecture:</strong> recursive feedback, joint multi-step loss, and BPTT remain enabled in both modes. Max supervised rollout is calculated from available calendar history, not chosen by the user.</div>
               </div>
+              <p class="rev-note">
+                Recursive feedback, joint multi-step loss and backpropagation through time stay on in
+                both modes. The supervised rollout depth comes from the calendar, not from a setting.
+              </p>
             </div>
-          </div>
-          <div class="col-12 d-flex flex-wrap align-items-center justify-content-start gap-2 pt-1">
-            <button class="btn btn-success" id="trainTimeSeriesBtn" type="button" onclick="trainProductTimeSeries()">
-              <i class="fas fa-graduation-cap"></i> Train & validate models
-            </button>
-            <button class="btn btn-primary" id="forecastTimeSeriesBtn" type="button" onclick="forecastProductTimeSeries()" disabled>
-              <i class="fas fa-crystal-ball"></i> Forecast future revenue
-            </button>
-            <span id="timeSeriesSavedModelStatus" class="badge bg-secondary">Checking saved model…</span>
-            <span id="timeSeriesSupervisionHint" class="small"></span>
-            <button class="btn btn-dark ms-auto" type="button" data-bs-toggle="modal" data-bs-target="#modelBenchmarksModal" title="Open chronological holdout metrics, ranking benchmarks and error charts for these models">
-              <i class="fas fa-vials"></i> Model Benchmarks
-            </button>
-          </div>
-        </div>
-        <div class="alert alert-light border small mt-2 mb-0">
-          <i class="fas fa-info-circle text-muted"></i> Chronological holdout metrics, ranking benchmarks and error charts for these models live behind <strong>Model Benchmarks</strong> above. This page shows the department breakdown and product-level results for a quick read.
-        </div>
-
-        <div class="metric-grid" id="revenueQuickStats" style="display:none">
-          <div class="metric-item">
-            <div class="quick-stat-model-value" id="qsBestModel">–</div>
-            <div class="metric-label"><i class="fas fa-trophy text-warning"></i> Winning ML model<br><small class="text-muted" id="qsBestModelSub" style="font-size:0.65rem"></small></div>
-          </div>
-          <div class="metric-item">
-            <div class="metric-value" id="qsErrorImprovement">–</div>
-            <div class="metric-label"><i class="fas fa-percentage text-info"></i> <span id="qsErrorImprovementLabel">Beats naive benchmark by</span><br><small class="text-muted" id="qsErrorImprovementSub" style="font-size:0.65rem"></small></div>
-          </div>
-          <div class="metric-item">
-            <div class="metric-value" id="qsTopPrecision">–</div>
-            <div class="metric-label"><i class="fas fa-bullseye text-danger"></i> <span id="qsTopPrecisionLabelText">Top-20 precision</span><br><small class="text-muted" id="qsTopPrecisionSub" style="font-size:0.65rem"></small></div>
-          </div>
-          <div class="metric-item">
-            <div class="metric-value" id="qsModelAgreement">–</div>
-            <div class="metric-label"><i class="fas fa-code-branch text-success"></i> <span id="qsModelAgreementLabel">Top-20 model agreement</span><br><small class="text-muted" id="qsModelAgreementSub" style="font-size:0.65rem"></small></div>
-          </div>
-        </div>
-        <div class="small text-muted mb-2" id="qsContextLine" style="display:none"></div>
-        <div class="alert alert-danger py-2 px-3 small" id="qsRolloutWarning" style="display:none"></div>
-
-        <div class="row g-2 mt-1">
-          <div class="col-12">
-            <div class="bg-white border rounded p-2" id="timeSeriesDepartmentChartContainer">
-              <div class="d-flex justify-content-between align-items-start gap-2"><h6 class="small mb-2">Department forecast comparison <span class="text-muted">(eligible products)</span></h6><button class="btn btn-outline-primary btn-sm" type="button" onclick="expandChart('timeSeriesDepartmentChartContainer')" title="Expand department forecast chart"><i class="fas fa-expand-arrows-alt"></i> Expand</button></div>
-              <div style="height: 340px;"><canvas id="timeSeriesDepartmentChart"></canvas></div>
-              <small class="text-muted d-block mt-1">Live forecast totals by department — this is the current prediction, not a benchmark test.</small>
-            </div>
-          </div>
-        </div>
+          </details>
         </div>
       </div>
 
@@ -1644,8 +1955,8 @@ html, body {
         </div>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-      <div class="modal-body">
-        <details class="border rounded bg-white px-3 py-2 mb-3 small">
+      <div class="modal-body pred-panel">
+        <details class="rev-advanced mb-3">
           <summary class="fw-semibold" style="cursor:pointer">How this comparison works</summary>
           <div class="row g-2 mt-1 text-muted">
             <div class="col-md-3"><strong class="text-dark">1. Sliding windows</strong><br>Each sample contains the selected number of earlier 30-day Product ID revenue periods. Windows overlap when the step is smaller than the lookback.</div>
@@ -1665,16 +1976,17 @@ html, body {
 
         <div class="row g-3 mt-1">
           <div class="col-lg-6">
-            <div class="bg-white border rounded p-2 h-100" id="timeSeriesComparisonChartContainer">
-              <h6 class="small mb-2">Holdout error and Top-20 ranking</h6>
+            <div class="bench-card" id="timeSeriesComparisonChartContainer">
+              <h6>Error and ranking quality</h6>
+              <p class="bench-sub">Lower is better for WMAPE; higher is better for the two ranking scores.</p>
               <div style="height: 340px;"><canvas id="timeSeriesComparisonChart"></canvas></div>
             </div>
           </div>
           <div class="col-lg-6">
-            <div class="bg-white border rounded p-2 h-100" id="timeSeriesActualChartContainer">
-              <h6 class="small mb-2">Holdout total revenue by 30-day period</h6>
+            <div class="bench-card" id="timeSeriesActualChartContainer">
+              <h6>Predicted against actual revenue</h6>
+              <p class="bench-sub">Every line comes from the same forecast origin, without seeing the holdout. The recent-average benchmark is flat by definition.</p>
               <div style="height: 340px;"><canvas id="timeSeriesActualChart"></canvas></div>
-              <small class="text-muted d-block mt-1">All lines are produced from the same forecast origin without seeing holdout revenue. The recent-average benchmark is constant by definition.</small>
             </div>
           </div>
         </div>
@@ -3078,11 +3390,18 @@ function trainModel() {
   .then(response => response.json())
   .then(data => {
     if (data.success) {
-      showNotification('Model training started. This will take ~5 minutes...', 'success');
-
-      // Poll training status (but don't auto-predict)
+      if (data.used_cache) {
+        // Nothing to wait for: this configuration was already trained.
+        document.getElementById('trainingProgress').style.display = 'none';
+        document.getElementById('trainModelBtn').disabled = false;
+        showNotification('Loaded the models already trained for this configuration.', 'success');
+        loadModelPerformance(algorithm);
+        return;
+      }
+      // Training runs in a background thread, so poll until it reports done.
+      // Four algorithms take roughly half a minute to a minute here.
+      showNotification('Training all 4 algorithms. This usually takes under a minute...', 'info');
       checkTrainingStatus(algorithm);
-
     } else {
       showNotification(`Training failed: ${data.error}`, 'error');
       document.getElementById('trainModelBtn').disabled = false;
@@ -7577,8 +7896,13 @@ document.addEventListener('DOMContentLoaded', () => {
   // Charts created while the benchmarks modal is hidden get a 0-width canvas;
   // resize once Bootstrap actually shows the modal so Chart.js can measure it.
   document.getElementById('modelBenchmarksModal')?.addEventListener('shown.bs.modal', () => {
-    charts.timeSeriesComparison?.resize();
-    charts.timeSeriesActual?.resize();
+    /* These charts are built while the modal is hidden, so Chart.js measures a
+       zero-width canvas and resize() cannot recover it: the instance already
+       believes it matches its container. Re-rendering from the stored report
+       measures the container for real. */
+    if (!lastTimeSeriesReport) return;
+    renderTimeSeriesComparisonChart(lastTimeSeriesReport);
+    renderTimeSeriesActualChartV5(lastTimeSeriesReport);
   });
 });
 
