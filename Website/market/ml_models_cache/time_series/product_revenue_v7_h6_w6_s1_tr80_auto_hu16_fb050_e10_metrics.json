@@ -1,7 +1,7 @@
 {
   "artifact_version": 7,
   "configuration_key": "h6_w6_s1_tr80_auto_hu16_fb050_e10",
-  "saved_at_utc": "2026-08-03T15:00:32.815344+00:00",
+  "saved_at_utc": "2026-08-16T12:12:08.106486+00:00",
   "training_configuration": {
     "parameter_mode": "auto",
     "hidden_units": 16,
@@ -25,18 +25,18 @@
     "loss": "masked multi-step Huber loss on normalized log revenue",
     "epochs": 10,
     "loss_history": [
-      0.11210986,
-      0.1039279,
-      0.10342358,
-      0.10316589,
-      0.10296523,
-      0.10269527,
-      0.10239037,
-      0.10251906,
-      0.10236369,
-      0.1024657
+      0.11179039,
+      0.10393648,
+      0.10340039,
+      0.10281707,
+      0.10277486,
+      0.10272619,
+      0.10256706,
+      0.10243367,
+      0.10253271,
+      0.10243336
     ],
-    "supervised_forecast_steps": 1960456,
+    "supervised_forecast_steps": 1960444,
     "maximum_supervised_rollout": 6,
     "supervised_steps_by_origin": {
       "9": 6,
@@ -106,8 +106,8 @@
       "start_day": 532,
       "end_day": 561,
       "actual_revenue": 358562.53,
-      "time_series_revenue": 288511.92,
-      "independent_revenue": 308060.16,
+      "time_series_revenue": 304357.27,
+      "independent_revenue": 306826.95,
       "baseline_revenue": 377209.29
     },
     {
@@ -115,17 +115,17 @@
       "start_day": 562,
       "end_day": 591,
       "actual_revenue": 372615.26,
-      "time_series_revenue": 298847.12,
-      "independent_revenue": 310802.11,
+      "time_series_revenue": 323330.24,
+      "independent_revenue": 310164.45,
       "baseline_revenue": 377209.29
     },
     {
       "period": 20,
       "start_day": 592,
       "end_day": 621,
-      "actual_revenue": 397406.43,
-      "time_series_revenue": 312953.28,
-      "independent_revenue": 314856.21,
+      "actual_revenue": 397401.93,
+      "time_series_revenue": 346077.77,
+      "independent_revenue": 314954.25,
       "baseline_revenue": 377209.29
     },
     {
@@ -133,8 +133,8 @@
       "start_day": 622,
       "end_day": 651,
       "actual_revenue": 397589.99,
-      "time_series_revenue": 319736.7,
-      "independent_revenue": 320281.65,
+      "time_series_revenue": 363669.2,
+      "independent_revenue": 318043.13,
       "baseline_revenue": 377209.29
     },
     {
@@ -142,8 +142,8 @@
       "start_day": 652,
       "end_day": 681,
       "actual_revenue": 385435.16,
-      "time_series_revenue": 318788.24,
-      "independent_revenue": 315116.51,
+      "time_series_revenue": 377147.1,
+      "independent_revenue": 316330.4,
       "baseline_revenue": 377209.29
     },
     {
@@ -151,17 +151,17 @@
       "start_day": 682,
       "end_day": 711,
       "actual_revenue": 401681.79,
-      "time_series_revenue": 308324.28,
-      "independent_revenue": 311224.0,
+      "time_series_revenue": 380512.96,
+      "independent_revenue": 311779.27,
       "baseline_revenue": 377209.29
     }
   ],
   "samples": {
-    "independent_train": 451609,
-    "sequence_train": 451609,
+    "independent_train": 451607,
+    "sequence_train": 451607,
     "independent_train_by_origin": {
-      "9": 49701,
-      "10": 49866,
+      "9": 49700,
+      "10": 49865,
       "11": 50370,
       "12": 50605,
       "13": 50632,
@@ -171,8 +171,8 @@
       "17": 49149
     },
     "sequence_train_by_origin": {
-      "9": 49701,
-      "10": 49866,
+      "9": 49700,
+      "10": 49865,
       "11": 50370,
       "12": 50605,
       "13": 50632,
@@ -181,7 +181,7 @@
       "16": 49801,
       "17": 49149
     },
-    "products_total": 91933,
+    "products_total": 91932,
     "evaluation_products": 66625,
     "lookback_active_products": 48671,
     "cold_start_products_in_test": 17954
@@ -189,29 +189,29 @@
   "data_profile": {
     "source": "transactions joined to product metadata",
     "grain": "Product ID x complete 30-day period",
-    "transaction_rows": 2595280,
-    "products_with_transactions": 91933,
+    "transaction_rows": 2595277,
+    "products_with_transactions": 91932,
     "source_min_day": 1,
     "as_of_day": 711,
     "period_days": 30,
     "complete_periods": 23,
     "analysis_start_day": 22,
     "excluded_leading_days": 21,
-    "zero_revenue_cells_rate": 0.750873
+    "zero_revenue_cells_rate": 0.750871
   },
   "time_series_model": {
     "evaluation_products": 66625,
-    "actual_revenue": 2313291.16,
-    "predicted_revenue": 1847161.54,
-    "bias_percent": -0.201501,
-    "mae": 17.005039,
-    "rmse": 119.96677,
-    "wmape": 0.489761,
-    "smape": 1.44425,
-    "r2": 0.951391,
+    "actual_revenue": 2313286.66,
+    "predicted_revenue": 2095094.54,
+    "bias_percent": -0.094321,
+    "mae": 17.771951,
+    "rmse": 205.75059,
+    "wmape": 0.51185,
+    "smape": 1.439403,
+    "r2": 0.857019,
     "top_k": 20,
-    "spearman": 0.443072,
-    "kendall_tau": 0.312065,
+    "spearman": 0.444023,
+    "kendall_tau": 0.312895,
     "ranking_at_k": {
       "5": {
         "k_used": 5,
@@ -219,8 +219,8 @@
         "precision_at_k": 1.0,
         "recall_at_k": 1.0,
         "jaccard_at_k": 1.0,
-        "ndcg_at_k": 0.999064,
-        "rank_biased_overlap": 0.973
+        "ndcg_at_k": 0.998224,
+        "rank_biased_overlap": 0.954775
       },
       "10": {
         "k_used": 10,
@@ -228,8 +228,8 @@
         "precision_at_k": 0.9,
         "recall_at_k": 0.9,
         "jaccard_at_k": 0.818182,
-        "ndcg_at_k": 0.998323,
-        "rank_biased_overlap": 0.915904
+        "ndcg_at_k": 0.997544,
+        "rank_biased_overlap": 0.897679
       },
       "20": {
         "k_used": 20,
@@ -237,29 +237,29 @@
         "precision_at_k": 0.8,
         "recall_at_k": 0.8,
         "jaccard_at_k": 0.666667,
-        "ndcg_at_k": 0.993479,
-        "rank_biased_overlap": 0.89403
+        "ndcg_at_k": 0.992744,
+        "rank_biased_overlap": 0.875805
       }
     },
     "precision_at_k": 0.8,
     "recall_at_k": 0.8,
     "jaccard_at_k": 0.666667,
-    "ndcg_at_k": 0.993479,
-    "rank_biased_overlap": 0.89403
+    "ndcg_at_k": 0.992744,
+    "rank_biased_overlap": 0.875805
   },
   "independent_direct_model": {
     "evaluation_products": 66625,
-    "actual_revenue": 2313291.16,
-    "predicted_revenue": 1880340.64,
-    "bias_percent": -0.187158,
-    "mae": 17.127887,
-    "rmse": 125.162331,
-    "wmape": 0.4933,
-    "smape": 1.364358,
-    "r2": 0.947089,
+    "actual_revenue": 2313286.66,
+    "predicted_revenue": 1878098.45,
+    "bias_percent": -0.188125,
+    "mae": 17.019421,
+    "rmse": 115.555343,
+    "wmape": 0.490177,
+    "smape": 1.363581,
+    "r2": 0.9549,
     "top_k": 20,
-    "spearman": 0.448533,
-    "kendall_tau": 0.316564,
+    "spearman": 0.44858,
+    "kendall_tau": 0.316675,
     "ranking_at_k": {
       "5": {
         "k_used": 5,
@@ -297,16 +297,16 @@
   },
   "recent_average_baseline": {
     "evaluation_products": 66625,
-    "actual_revenue": 2313291.16,
+    "actual_revenue": 2313286.66,
     "predicted_revenue": 2263255.76,
-    "bias_percent": -0.02163,
-    "mae": 19.393076,
-    "rmse": 175.957619,
-    "wmape": 0.558539,
-    "smape": 1.170693,
+    "bias_percent": -0.021628,
+    "mae": 19.393008,
+    "rmse": 175.957616,
+    "wmape": 0.558538,
+    "smape": 1.17069,
     "r2": 0.895429,
     "top_k": 20,
-    "spearman": 0.500949,
+    "spearman": 0.500948,
     "kendall_tau": 0.385581,
     "ranking_at_k": {
       "5": {
@@ -344,43 +344,43 @@
     "rank_biased_overlap": 0.863109
   },
   "bias_diagnostics": {
-    "time_series_bias_percent": -0.201501,
-    "independent_bias_percent": -0.187158,
-    "recent_average_bias_percent": -0.02163,
-    "interpretation": "Negative values mean underprediction. Sparse products, cold starts, log-target shrinkage, and an unusually strong holdout period can all create negative aggregate bias."
+    "time_series_bias_percent": -0.094321,
+    "independent_bias_percent": -0.188125,
+    "recent_average_bias_percent": -0.021628,
+    "interpretation": "Negative values mean underprediction and positive values mean overprediction. Sparse products, cold starts, and log-target shrinkage can create negative aggregate bias; long recursive rollouts can also accumulate feedback error in either direction."
   },
   "holdout_period_total_metrics": {
     "time_series_model": {
       "periods": 6,
-      "mae": 77688.27016,
-      "rmse": 78208.83624,
-      "wmape": 0.201501,
-      "bias_percent": -0.201501,
-      "actual_total": 2313291.16,
-      "predicted_total": 1847161.54
+      "mae": 36365.353357,
+      "rmse": 40143.12685,
+      "wmape": 0.094321,
+      "bias_percent": -0.094321,
+      "actual_total": 2313286.66,
+      "predicted_total": 2095094.54
     },
     "independent_direct_model": {
       "periods": 6,
-      "mae": 72158.419964,
-      "rmse": 73359.613316,
-      "wmape": 0.187158,
-      "bias_percent": -0.187158,
-      "actual_total": 2313291.16,
-      "predicted_total": 1880340.64
+      "mae": 72531.367806,
+      "rmse": 73665.830199,
+      "wmape": 0.188125,
+      "bias_percent": -0.188125,
+      "actual_total": 2313286.66,
+      "predicted_total": 1878098.45
     },
     "recent_average_baseline": {
       "periods": 6,
-      "mae": 16086.165556,
-      "rmse": 17600.530422,
-      "wmape": 0.041723,
-      "bias_percent": -0.02163,
-      "actual_total": 2313291.16,
+      "mae": 16085.415556,
+      "rmse": 17599.669849,
+      "wmape": 0.041721,
+      "bias_percent": -0.021628,
+      "actual_total": 2313286.66,
       "predicted_total": 2263255.76
     }
   },
   "model_ranking_similarity": {
-    "spearman": 0.994526,
-    "kendall_tau": 0.952159,
+    "spearman": 0.994257,
+    "kendall_tau": 0.951356,
     "top_k_overlap": {
       "5": {
         "k_used": 5,
@@ -388,8 +388,8 @@
         "precision_at_k": 1.0,
         "recall_at_k": 1.0,
         "jaccard_at_k": 1.0,
-        "ndcg_at_k": 0.99998,
-        "rank_biased_overlap": 0.981775
+        "ndcg_at_k": 1.0,
+        "rank_biased_overlap": 1.0
       },
       "10": {
         "k_used": 10,
@@ -397,8 +397,8 @@
         "precision_at_k": 1.0,
         "recall_at_k": 1.0,
         "jaccard_at_k": 1.0,
-        "ndcg_at_k": 0.999972,
-        "rank_biased_overlap": 0.975796
+        "ndcg_at_k": 0.99998,
+        "rank_biased_overlap": 0.994021
       },
       "20": {
         "k_used": 20,
@@ -406,8 +406,8 @@
         "precision_at_k": 0.9,
         "recall_at_k": 0.9,
         "jaccard_at_k": 0.818182,
-        "ndcg_at_k": 0.999121,
-        "rank_biased_overlap": 0.957609
+        "ndcg_at_k": 0.998943,
+        "rank_biased_overlap": 0.975834
       }
     },
     "interpretation": "Similarity compares the two model rankings; it is not accuracy against actual revenue."
@@ -428,17 +428,17 @@
     {
       "actual_rank": 3,
       "product_id": 1029743,
-      "sequence_rank": 4,
+      "sequence_rank": 5,
       "independent_rank": 5
     }
   ],
   "selection_guidance": {
-    "best_for_revenue_error": "time_series_model",
+    "best_for_revenue_error": "independent_direct_model",
     "best_for_revenue_error_basis": "cumulative Product ID WMAPE",
-    "overall_error_assessment": "time_series_model",
+    "overall_error_assessment": "independent_direct_model",
     "error_metric_wins": {
-      "time_series_model": 3,
-      "independent_direct_model": 1,
+      "time_series_model": 0,
+      "independent_direct_model": 4,
       "metrics_compared": [
         "mae",
         "rmse",
@@ -493,10 +493,10 @@
       22,
       23
     ],
-    "independent_samples": 695037,
-    "sequence_samples": 695037,
+    "independent_samples": 695036,
+    "sequence_samples": 695036,
     "independent_samples_by_origin": {
-      "10": 49866,
+      "10": 49865,
       "11": 50370,
       "12": 50605,
       "13": 50632,
@@ -512,7 +512,7 @@
       "23": 49015
     },
     "sequence_samples_by_origin": {
-      "10": 49866,
+      "10": 49865,
       "11": 50370,
       "12": 50605,
       "13": 50632,

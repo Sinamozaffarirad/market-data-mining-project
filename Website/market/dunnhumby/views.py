@@ -1,5 +1,6 @@
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth import authenticate, login, logout
+from django.conf import settings
 from django.db import models
 from django.http import JsonResponse, HttpResponse
 from django.shortcuts import render, get_object_or_404, redirect
@@ -1214,6 +1215,11 @@ def basket_analysis(request):
             'dept_analysis': formatted_dept_analysis,
             'top_products_frequency': top_products_frequency,
             'top_products_sales': top_products_sales,
+            # Lets the time-series controls flag horizon/lookback combinations
+            # the calendar cannot fully supervise, before a model is trained.
+            'time_series_complete_periods': _complete_period_count(),
+            # Slicer options for the BI dashboard panel embedded in this page.
+            'filter_options': _bi_filter_options(),
         }
 
         logger.info("Basket analysis completed successfully")
@@ -1229,8 +1235,53 @@ def basket_analysis(request):
             'dept_analysis': [],
             'top_products_frequency': [],
             'top_products_sales': [],
+            'filter_options': {'years': [], 'departments': [], 'segments': []},
         }
         return render(request, 'site/dunnhumby/basket_analysis.html', context)
+
+
+def _bi_filter_options():
+    """Slicer choices for the BI dashboard panel.
+
+    Returns empty lists when the reporting views are absent so the page still
+    renders and the panel can explain what to run.
+    """
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT DISTINCT calendar_year FROM vw_dim_date ORDER BY calendar_year")
+            years = [row[0] for row in cursor.fetchall()]
+            cursor.execute("SELECT DISTINCT department FROM vw_dim_product ORDER BY department")
+            departments = [row[0] for row in cursor.fetchall()]
+            cursor.execute(
+                "SELECT rfm_segment, COUNT(*) n FROM vw_dim_household "
+                "GROUP BY rfm_segment ORDER BY n DESC"
+            )
+            segments = [row[0] for row in cursor.fetchall()]
+        return {"years": years, "departments": departments, "segments": segments}
+    except Exception:
+        logger.warning("BI reporting views unavailable", exc_info=True)
+        return {"years": [], "departments": [], "segments": []}
+
+
+def _complete_period_count():
+    """Complete 30-day periods available to the product revenue forecaster.
+
+    Mirrors ProductRevenueTimeSeriesForecaster.load_product_panels, which
+    anchors backwards from the last transaction day so trailing partial days
+    are excluded.  Returns 0 when the calendar cannot be read, in which case
+    the UI simply skips the feasibility hints.
+    """
+    try:
+        from .time_series_forecasting import PERIOD_DAYS
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT MIN(day), MAX(day) FROM transactions")
+            min_day, max_day = cursor.fetchone()
+        if min_day is None or max_day is None:
+            return 0
+        return int((int(max_day) - int(min_day) + 1) // PERIOD_DAYS)
+    except Exception:
+        logger.warning("Could not determine complete period count", exc_info=True)
+        return 0
 
 
 @admin_required
@@ -3359,11 +3410,11 @@ def predictive_analysis_api(request):
         except (TypeError, ValueError):
             time_horizon = None
 
-        valid_horizons = {1, 3, 6, 12}
-        selected_horizon = time_horizon if (time_horizon in valid_horizons) else 3
+        from .repurchase_classifier import VALID_HORIZON_MONTHS, horizon_key as build_horizon_key
+        selected_horizon = time_horizon if (time_horizon in VALID_HORIZON_MONTHS) else 3
 
         department_predictions = ml_analyzer.get_department_predictions(model_type, selected_horizon)
-        horizon_key = {1: '1month', 3: '3months', 6: '6months', 12: '12months'}[selected_horizon]
+        horizon_key = build_horizon_key(selected_horizon)
 
         return JsonResponse({
             'success': True,
@@ -3500,13 +3551,20 @@ def predict_future_api(request):
         except (TypeError, ValueError):
             time_horizon = None
 
-        valid_horizons = {1, 3, 6, 12}
-        selected_horizon = time_horizon if (time_horizon in valid_horizons) else 3
+        from .repurchase_classifier import VALID_HORIZON_MONTHS
+        selected_horizon = time_horizon if (time_horizon in VALID_HORIZON_MONTHS) else 3
+
+        try:
+            training_size = float(request.POST.get('training_size', 0.8))
+        except (TypeError, ValueError):
+            training_size = 0.8
+        training_size = max(0.5, min(training_size, 0.95))
 
         future_predictions = ml_analyzer.predict_future_purchases(
             model_name=model_type,
             time_horizon=selected_horizon,
-            top_n=10
+            top_n=0,
+            training_size=training_size,
         )
 
         return JsonResponse({
@@ -3545,21 +3603,18 @@ def train_ml_models(request):
 
     training_size = max(0.1, min(training_size, 0.95))
 
-    time_horizon_param = request.POST.get('time_horizon')
-    horizon_lookup = {
-        '1': '1month',
-        '3': '3months',
-        '6': '6months',
-        '12': '12months'
-    }
+    from .repurchase_classifier import HORIZON_DAYS, VALID_HORIZON_MONTHS
+    from .repurchase_classifier import horizon_key as build_horizon_key
 
+    time_horizon_param = request.POST.get('time_horizon')
     horizon_key = None
     if time_horizon_param is not None:
         key = str(time_horizon_param).strip()
         try:
-            horizon_key = horizon_lookup[str(int(key))]
-        except (ValueError, KeyError):
-            horizon_key = horizon_lookup.get(key)
+            months = int(key)
+            horizon_key = build_horizon_key(months) if months in VALID_HORIZON_MONTHS else None
+        except ValueError:
+            horizon_key = key if key in HORIZON_DAYS else None
 
     force_value = request.POST.get('force_retrain', request.POST.get('force', 'false'))
     force_retrain = str(force_value).lower() in {'1', 'true', 'yes', 'on'}
@@ -3576,7 +3631,9 @@ def train_ml_models(request):
 
     horizons_to_check = [horizon_key] if horizon_key else None
 
-    if not force_retrain and ml_analyzer.has_cached_models(horizons_to_check, refresh=True):
+    if not force_retrain and ml_analyzer.has_cached_models(
+        horizons_to_check, refresh=True, training_size=training_size
+    ):
         logger.info('Cached models detected for horizon %s; skipping retraining.', horizon_key or 'all')
         ml_analyzer.refresh_cached_models()
         ml_training_status = {
@@ -3675,8 +3732,8 @@ def get_predictions(request):
     except (TypeError, ValueError):
         time_horizon = None
 
-    valid_horizons = {1, 3, 6, 12}
-    selected_horizon = time_horizon if (time_horizon in valid_horizons) else 3
+    from .repurchase_classifier import VALID_HORIZON_MONTHS
+    selected_horizon = time_horizon if (time_horizon in VALID_HORIZON_MONTHS) else 3
 
     try:
         predictions = ml_analyzer.get_department_predictions(model_type, selected_horizon)
@@ -3707,8 +3764,8 @@ def get_recommendations(request):
     except (TypeError, ValueError):
         time_horizon = None
 
-    valid_horizons = {1, 3, 6, 12}
-    selected_horizon = time_horizon if (time_horizon in valid_horizons) else 3
+    from .repurchase_classifier import VALID_HORIZON_MONTHS
+    selected_horizon = time_horizon if (time_horizon in VALID_HORIZON_MONTHS) else 3
 
     try:
         customer_id = request.POST.get('customer_id')
