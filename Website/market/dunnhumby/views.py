@@ -12,6 +12,9 @@ from math import sqrt
 import logging
 import gzip
 import pickle
+import hashlib
+from time import perf_counter
+from django.utils import timezone
 from .models import (
     Transaction, DunnhumbyProduct, Household, Campaign, Coupon,
     CouponRedemption, CampaignMember, CausalData, BasketAnalysis,
@@ -61,6 +64,47 @@ def _write_cached_training_dataset(cache, dataset):
         return
     cache.training_dataset_blob = gzip.compress(pickle.dumps(dataset, protocol=pickle.HIGHEST_PROTOCOL))
     cache.save(update_fields=['training_dataset_blob'])
+
+
+def _model_result_signature():
+    """Fingerprint the model and feature settings, not only the transaction data."""
+    metadata = json.dumps(experiment_metadata(), sort_keys=True, separators=(',', ':'))
+    return hashlib.sha256(metadata.encode('utf-8')).hexdigest()
+
+
+def _read_cached_model_result(cache):
+    """Return a finished result only when it matches this code and fixed dataset."""
+    if not cache or not cache.customer_windows.exists():
+        return None
+    if cache.model_result_signature != _model_result_signature():
+        return None
+    if not (cache.current_scores_blob and cache.historical_predictions_blob):
+        return None
+    try:
+        metrics = json.loads(cache.model_metrics_json or '{}')
+        scores = pickle.loads(gzip.decompress(bytes(cache.current_scores_blob)))
+        historical_predictions = pickle.loads(gzip.decompress(bytes(cache.historical_predictions_blob)))
+    except (OSError, EOFError, TypeError, ValueError, pickle.UnpicklingError, json.JSONDecodeError):
+        logger.warning('Ignoring an unreadable churn model-result cache (id=%s).', cache.pk)
+        return None
+    if not metrics or scores.empty:
+        return None
+    return metrics, scores, historical_predictions
+
+
+def _write_cached_model_result(cache, metrics, scores, historical_predictions):
+    """Keep a restoreable result after its visible experiment is deleted."""
+    cache.model_result_signature = _model_result_signature()
+    cache.model_metrics_json = json.dumps(metrics, sort_keys=True)
+    cache.current_scores_blob = gzip.compress(pickle.dumps(scores, protocol=pickle.HIGHEST_PROTOCOL))
+    cache.historical_predictions_blob = gzip.compress(
+        pickle.dumps(historical_predictions, protocol=pickle.HIGHEST_PROTOCOL)
+    )
+    cache.model_result_cached_at = timezone.now()
+    cache.save(update_fields=[
+        'model_result_signature', 'model_metrics_json', 'current_scores_blob',
+        'historical_predictions_blob', 'model_result_cached_at',
+    ])
 
 
 def _get_or_build_window_cache(config, historical_snapshots=None, training_dataset=None):
@@ -899,14 +943,17 @@ def site_index(request):
     cust_change = ((recent_customers - prev_customers) / prev_customers * 100) if prev_customers > 0 else 0
     rev_change = ((float(recent_revenue) - float(prev_revenue)) / float(prev_revenue) * 100) if prev_revenue > 0 else 0
 
+    # Each card names the thing it actually opens. A single shared "Launch
+    # Analysis" said nothing, and was plainly wrong on the cards that open a
+    # data table or a search rather than an analysis.
     tools = [
-        { 'title': 'Shopping Basket Analysis', 'description': 'Analyze baskets, top products, and patterns', 'url': 'basket-analysis/', 'icon': '<i class="fas fa-shopping-basket"></i>' },
-        { 'title': 'Association Rules', 'description': 'Market basket association rules', 'url': 'association-rules/', 'icon': '<i class="fas fa-project-diagram"></i>' },
-        { 'title': 'Customer Segments', 'description': 'RFM segments & behavior', 'url': 'customer-segments/', 'icon': '<i class="fas fa-users"></i>' },
-        { 'title': 'Customer Retention', 'description': 'Identify at-risk customers and predict churn', 'url': 'customer-retention/', 'icon': '<i class="fas fa-heart-circle-check"></i>' },
-        { 'title': 'Data Management', 'description': 'View, edit, import/export data', 'url': 'data-management/', 'icon': '<i class="fas fa-database"></i>' },
-        { 'title': 'Customer Insights', 'description': 'Explore and manage your customer data in detail', 'url': reverse('customers:search'), 'icon': '<i class="fas fa-user"></i>' },
-        { 'title': 'Product Recommender', 'description': 'Find customers most likely to buy selected product', 'url': 'product-recommender/', 'icon': '<i class="fas fa-file-pen"></i>' },
+        { 'title': 'Shopping Basket Analysis', 'description': 'Analyze baskets, top products, and patterns', 'url': 'basket-analysis/', 'icon': '<i class="fas fa-shopping-basket"></i>', 'action': 'Explore baskets', 'action_icon': '<i class="fas fa-magnifying-glass-chart"></i>' },
+        { 'title': 'Association Rules', 'description': 'Market basket association rules', 'url': 'association-rules/', 'icon': '<i class="fas fa-project-diagram"></i>', 'action': 'Browse rules', 'action_icon': '<i class="fas fa-diagram-project"></i>' },
+        { 'title': 'Customer Segments', 'description': 'RFM segments & behavior', 'url': 'customer-segments/', 'icon': '<i class="fas fa-users"></i>', 'action': 'View segments', 'action_icon': '<i class="fas fa-chart-pie"></i>' },
+        { 'title': 'Customer Retention', 'description': 'Identify at-risk customers and predict churn', 'url': 'customer-retention/', 'icon': '<i class="fas fa-heart-circle-check"></i>', 'action': 'Find at-risk buyers', 'action_icon': '<i class="fas fa-user-clock"></i>' },
+        { 'title': 'Data Management', 'description': 'View, edit, import/export data', 'url': 'data-management/', 'icon': '<i class="fas fa-database"></i>', 'action': 'Manage data', 'action_icon': '<i class="fas fa-table"></i>' },
+        { 'title': 'Customer Insights', 'description': 'Explore and manage your customer data in detail', 'url': reverse('customers:search'), 'icon': '<i class="fas fa-user"></i>', 'action': 'Search customers', 'action_icon': '<i class="fas fa-magnifying-glass"></i>' },
+        { 'title': 'Product Recommender', 'description': 'Find customers most likely to buy selected product', 'url': 'product-recommender/', 'icon': '<i class="fas fa-file-pen"></i>', 'action': 'Find likely buyers', 'action_icon': '<i class="fas fa-bullseye"></i>' },
     ]
 
     context = {
@@ -3519,7 +3566,7 @@ def predict_future_api(request):
         future_predictions = ml_analyzer.predict_future_purchases(
             model_name=model_type,
             time_horizon=selected_horizon,
-            top_n=10,
+            top_n=0,
             training_size=training_size,
         )
 
@@ -3791,20 +3838,30 @@ def customer_segments(request):
     segments_list = list(segments_query)
     segments_list.sort(key=lambda s: segment_order.index(s['rfm_segment']) if s['rfm_segment'] in segment_order else len(segment_order))
 
-    recent_customers = CustomerSegment.objects.order_by('-updated_at')[:20]
-
-    for c in recent_customers:
-        prob = getattr(c, 'churn_probability', None)
-        if prob is None:
-            c.churn_risk = "N/A"
-        elif prob > 0.75:
-            c.churn_risk = "Very High Risk"
-        elif prob > 0.50:
-            c.churn_risk = "High Risk"
-        elif prob > 0.25:
-            c.churn_risk = "Medium Risk"
-        else:
-            c.churn_risk = "Low Risk"
+    # Use the active experiment's scores rather than `updated_at`, which does
+    # not change when a different churn rule is activated.  A balanced sample
+    # avoids duplicating the all-high-risk Customer Retention page.
+    active_experiment = ChurnExperiment.objects.filter(is_active=True).first()
+    customer_risk_groups = []
+    if active_experiment:
+        risk_filters = [
+            ('Very High Risk', Q(churn_probability__gt=0.75)),
+            ('High Risk', Q(churn_probability__gt=0.50, churn_probability__lte=0.75)),
+            ('Medium Risk', Q(churn_probability__gt=0.25, churn_probability__lte=0.50)),
+            ('Low Risk', Q(churn_probability__lte=0.25)),
+        ]
+        for risk_label, risk_filter in risk_filters:
+            customers = list(
+                CustomerSegment.objects.filter(risk_filter)
+                .order_by('-churn_probability', '-total_spend', 'household_key')[:5]
+            )
+            if customers:
+                for customer in customers:
+                    customer.churn_risk = risk_label
+                customer_risk_groups.append({
+                    'risk_label': risk_label,
+                    'customers': customers,
+                })
 
     risk_counts = CustomerSegment.objects.aggregate(
         low=Count('id', filter=Q(churn_probability__lte=0.25)),
@@ -3821,7 +3878,6 @@ def customer_segments(request):
     ]
 
     # ۴. ارسال لیست مرتب‌شده به قالب
-    active_experiment = ChurnExperiment.objects.filter(is_active=True).first()
     # Present one row per rule configuration.  Old duplicate runs are retained
     # only until that configuration is trained again, but never clutter the UI.
     visible_experiments = []
@@ -3834,15 +3890,13 @@ def customer_segments(request):
         if rule_key not in seen_rules:
             visible_experiments.append(experiment)
             seen_rules.add(rule_key)
-    experiment_paginator = Paginator(visible_experiments, 5)
-    experiments_page = experiment_paginator.get_page(request.GET.get('experiments_page', 1))
     return render(request, 'site/dunnhumby/customer_segments.html', {
         'title': 'Customer Segmentation',
         'segments': segments_list, # <-- از لیست مرتب‌شده جدید استفاده می‌کنیم
-        'recent_customers': recent_customers,
+        'customer_risk_groups': customer_risk_groups,
         'churn_overview': churn_data_sorted,
         'active_experiment': active_experiment,
-        'experiments_page': experiments_page,
+        'visible_experiments': visible_experiments,
         'lifetime_rfm_cutoff_day': Transaction.objects.aggregate(max_day=Max('day'))['max_day'],
         'dataset_day_bounds': Transaction.objects.aggregate(min_day=Min('day'), max_day=Max('day')),
     })
@@ -3854,6 +3908,7 @@ def customer_segments(request):
 def run_churn_experiment(request):
     """Train a leakage-safe experiment and persist its current-customer scores."""
     try:
+        request_started = perf_counter()
         method = WindowMethod(request.POST.get('method', WindowMethod.SLIDING.value))
         observation = int(request.POST.get('observation_window_days', 90))
         horizon = int(request.POST.get('prediction_horizon_days', 30))
@@ -3863,13 +3918,24 @@ def run_churn_experiment(request):
             raise ValueError('Observation window and prediction horizon must be positive.')
         config = ChurnWindowConfig(method, observation, horizon, step)
         reusable_cache = _find_window_cache(config)
-        cached_training_dataset = _read_cached_training_dataset(reusable_cache)
-        metrics, scores, historical_snapshots, historical_predictions, current_snapshots, training_dataset = train_and_score(
-            config, cached_training_dataset=cached_training_dataset,
-        )
-        window_cache, history_stats = _get_or_build_window_cache(
-            config, historical_snapshots, training_dataset=training_dataset,
-        )
+        cached_model_result = _read_cached_model_result(reusable_cache)
+        restored_from_model_cache = cached_model_result is not None
+        if restored_from_model_cache:
+            metrics, scores, historical_predictions = cached_model_result
+            window_cache = reusable_cache
+            history_stats = {
+                'window_records': window_cache.customer_windows.count(),
+                'cache_reused': True,
+            }
+        else:
+            cached_training_dataset = _read_cached_training_dataset(reusable_cache)
+            metrics, scores, historical_snapshots, historical_predictions, _current_snapshots, training_dataset = train_and_score(
+                config, cached_training_dataset=cached_training_dataset,
+            )
+            window_cache, history_stats = _get_or_build_window_cache(
+                config, historical_snapshots, training_dataset=training_dataset,
+            )
+            _write_cached_model_result(window_cache, metrics, scores, historical_predictions)
         # Saving the experiment, current scores, and history is one operation. If
         # any history row fails, Django rolls everything back instead of leaving a
         # completed-looking experiment with an empty customer history.
@@ -3917,7 +3983,8 @@ def run_churn_experiment(request):
             'id': experiment.id, 'method': experiment.method, 'recall': experiment.recall,
             'f1': experiment.f1, 'roc_auc': experiment.roc_auc, 'samples': experiment.training_samples,
             'classification_threshold': experiment.classification_threshold,
-            'elapsed_seconds': metrics['total_time_seconds'],
+            'elapsed_seconds': perf_counter() - request_started,
+            'restored_from_model_cache': restored_from_model_cache,
         }, 'history': history_stats})
     except (TypeError, ValueError) as exc:
         return JsonResponse({'success': False, 'error': str(exc)}, status=400)

@@ -124,13 +124,40 @@
   max-height: none;
   overflow-x: auto;
   overflow-y: visible;
+  position: relative;
+}
+#churnExperimentForm ~ .table-responsive table {
+  border-collapse: separate;
+  border-spacing: 0;
 }
 #churnExperimentForm ~ .table-responsive thead {
-  position: static;
+  display: table;
+  width: 100%;
+  table-layout: fixed;
 }
-#churnExperimentForm ~ .table-responsive thead th:first-child::after {
+#churnExperimentForm ~ .table-responsive tbody {
+  display: block;
+  max-height: 500px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: #7650b5 #edf0f4;
+}
+#churnExperimentForm ~ .table-responsive tbody tr {
+  display: table;
+  width: 100%;
+  table-layout: fixed;
+}
+#churnExperimentForm ~ .table-responsive thead th {
+  background: var(--gradient-primary);
+  color: #fff;
+}
+#churnExperimentForm ~ .table-responsive thead th:last-child {
+  border-top-right-radius: .5rem;
+}
+/* #churnExperimentForm ~ .table-responsive thead th:first-child::after {
   content: " (Iran)";
-}
+} */
 #churnExperimentForm ~ .table-responsive table {
   min-width: 1120px;
   width: 100%;
@@ -163,10 +190,18 @@
 }
 .experiment-actions > * { justify-self: center; }
 .experiment-settings {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 28px;
+  align-items: center;
+  width: 100%;
+  box-sizing: border-box;
+  padding-right: 1rem;
+  white-space: nowrap;
+}
+.experiment-setting-chips {
   display: inline-flex;
   align-items: center;
   gap: .3rem;
-  white-space: nowrap;
 }
 .experiment-setting-chip {
   display: inline-block;
@@ -183,6 +218,11 @@
   color: #0d6efd;
   text-decoration: none;
 }
+.segmentation-dashboard-card { overflow: hidden; }
+.segmentation-dashboard-card > .card-header {
+  padding: 1.1rem 1.25rem;
+  font-size: 1.05rem;
+}
 @media (min-width: 768px) {
   /* Keep the Train button aligned right when Non-overlapping hides the step control. */
   #stepControl.d-none + div {
@@ -194,7 +234,7 @@
 
 <div class="row g-4">
   <div class="col-12">
-    <div class="card shadow-sm">
+    <div class="card shadow-sm segmentation-dashboard-card">
       <div class="card-header" style="background:var(--gradient-primary); color:#fff; font-weight:700;">
         <i class="fas fa-users"></i> Customer Segmentation Dashboard
       </div>
@@ -252,7 +292,7 @@
 				<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
 				  <div><h5 class="mb-1"><i class="fa-solid fa-clock-rotate-left me-2 text-primary"></i>Churn Dataset Generation Method</h5>
 				  <small class="text-muted">Historical windows create labels from this fixed dataset. Training creates a model version; it does not add new customer transactions.</small></div>
-				  {% if active_experiment %}<span class="badge bg-success">Active: {{ active_experiment.method|title }} · {{ active_experiment.observation_window_days }}d / {{ active_experiment.prediction_horizon_days }}d</span>{% else %}<span class="badge bg-secondary">No active time-window model</span>{% endif %}
+				  {% if active_experiment %}<span class="badge bg-success">Active Model: {{ active_experiment.method|title }} · {{ active_experiment.observation_window_days }}d / {{ active_experiment.prediction_horizon_days }}d / {{ active_experiment.step_size_days }}d</span>{% else %}<span class="badge bg-secondary">No active time-window model</span>{% endif %}
 				</div>
 				<form id="churnExperimentForm" class="row g-3 align-items-end">
 				  <div class="col-md-3"><label class="form-label">Method</label><select class="form-select" name="method" id="windowMethod"><option value="sliding">Sliding Windows</option><option value="non_overlapping">Non-overlapping Windows</option></select></div>
@@ -265,8 +305,7 @@
 				<div class="small text-muted">Classification cutoff is chosen from validation data for Recall and F1 evaluation; it does not change the prediction horizon or dashboard risk categories.</div>
 				<div id="windowBoundaryStatus" class="alert mt-2 mb-0 py-2 small" data-min-day="{{ dataset_day_bounds.min_day|default:'' }}" data-max-day="{{ dataset_day_bounds.max_day|default:'' }}" role="status"></div>
 				<div class="small text-primary mt-1 d-none" id="trainingProgress"></div>
-					{% if experiments_page %}<div class="table-responsive mt-3"><table class="table table-sm align-middle mb-0"><thead><tr><th>Generated at</th><th>Method</th><th>Settings</th><th>Samples</th><th>Recall</th><th>F1</th><th>ROC-AUC</th><th title="Probability threshold used only to calculate Recall and F1.">Cutoff</th><th></th></tr></thead><tbody>{% for experiment in experiments_page %}<tr><td>{{ experiment.created_at|date:"Y-m-d H:i" }}</td><td>{{ experiment.method|title }}</td><td><div class="experiment-settings"><span class="experiment-setting-chip" title="Observation window">O {{ experiment.observation_window_days }}d</span><span class="experiment-setting-chip" title="Prediction horizon">H {{ experiment.prediction_horizon_days }}d</span><span class="experiment-setting-chip" title="{% if experiment.method == 'non_overlapping' %}Automatic step size{% else %}Sliding step size{% endif %}">S {{ experiment.step_size_days }}d</span><button type="button" class="btn btn-link btn-sm experiment-details" data-id="{{ experiment.id }}" title="View rule details" aria-label="View rule details"><i class="fa-solid fa-circle-info"></i></button></div></td><td>{{ experiment.training_samples }}</td><td>{{ experiment.recall|floatformat:3 }}</td><td>{{ experiment.f1|floatformat:3 }}</td><td>{{ experiment.roc_auc|floatformat:3 }}</td><td>{{ experiment.classification_threshold|floatformat:2 }}</td><td>{% if experiment.is_active %}<span class="badge bg-success">Active</span>{% else %}<button class="btn btn-sm btn-outline-primary activate-experiment" data-id="{{ experiment.id }}">Activate</button>{% endif %}</td></tr>{% empty %}<tr><td colspan="9" class="text-center text-muted">No churn experiments have been generated yet.</td></tr>{% endfor %}</tbody></table></div>
-					{% if experiments_page.paginator.num_pages > 1 %}<nav class="d-flex justify-content-between align-items-center mt-3" aria-label="Churn experiment pages"><span class="small text-muted">Page {{ experiments_page.number }} of {{ experiments_page.paginator.num_pages }} · {{ experiments_page.paginator.count }} experiments</span><div class="btn-group btn-group-sm">{% if experiments_page.has_previous %}<a class="btn btn-outline-secondary" href="?experiments_page={{ experiments_page.previous_page_number }}">Previous</a>{% else %}<button class="btn btn-outline-secondary" disabled>Previous</button>{% endif %}{% if experiments_page.has_next %}<a class="btn btn-outline-secondary" href="?experiments_page={{ experiments_page.next_page_number }}">Next</a>{% else %}<button class="btn btn-outline-secondary" disabled>Next</button>{% endif %}</div></nav>{% endif %}{% endif %}
+					{% if visible_experiments %}<div class="table-responsive mt-3"><table class="table table-sm align-middle mb-0"><thead><tr><th>Generated at</th><th>Method</th><th>Settings</th><th>Samples</th><th>Recall</th><th>F1</th><th>ROC-AUC</th><th title="Probability threshold used only to calculate Recall and F1.">Cutoff</th><th></th></tr></thead><tbody>{% for experiment in visible_experiments %}<tr><td>{{ experiment.created_at|date:"Y-m-d H:i" }}</td><td>{{ experiment.method|title }}</td><td><div class="experiment-settings"><div class="experiment-setting-chips"><span class="experiment-setting-chip" title="Observation window">O {{ experiment.observation_window_days }}d</span><span class="experiment-setting-chip" title="Prediction horizon">H {{ experiment.prediction_horizon_days }}d</span><span class="experiment-setting-chip" title="{% if experiment.method == 'non_overlapping' %}Automatic step size{% else %}Sliding step size{% endif %}">S {{ experiment.step_size_days }}d</span></div><button type="button" class="btn btn-link btn-sm experiment-details" data-id="{{ experiment.id }}" title="View rule details" aria-label="View rule details"><i class="fa-solid fa-circle-info"></i></button></div></td><td>{{ experiment.training_samples }}</td><td>{{ experiment.recall|floatformat:3 }}</td><td>{{ experiment.f1|floatformat:3 }}</td><td>{{ experiment.roc_auc|floatformat:3 }}</td><td>{{ experiment.classification_threshold|floatformat:2 }}</td><td>{% if experiment.is_active %}<span class="badge bg-success">Active</span>{% else %}<button class="btn btn-sm btn-outline-primary activate-experiment" data-id="{{ experiment.id }}">Activate</button>{% endif %}</td></tr>{% empty %}<tr><td colspan="9" class="text-center text-muted">No churn experiments have been generated yet.</td></tr>{% endfor %}</tbody></table></div>{% endif %}
 			  </div>
 			</div>
 		  </div>
@@ -307,12 +346,13 @@
 
           <div class="col-12">
             <div class="d-flex align-items-center justify-content-between mb-2">
-              <h5 class="m-2">Recent Customer Analysis</h5>
-              {% if recent_customers %}<small class="text-muted">Detailed profiles with RFM and spending behavior</small>{% endif %}
+              <h5 class="m-2">Active Model Customer Snapshot</h5>
+              {% if active_experiment %}<small class="text-muted">Up to 5 customers per risk level, ranked by active churn probability and customer total spend</small>{% endif %}
             </div>
-            {% if recent_customers %}
-            <div class="row g-3">
-				{% for c in recent_customers %}
+			{% if customer_risk_groups %}
+			<div class="row g-3">
+			{% for group in customer_risk_groups %}
+				{% for c in group.customers %}
 				<div class="col-12 col-sm-6 col-md-4 col-lg-3">
 				<div class="card h-100 shadow-sm household-card" data-household="{{ c.household_key }}" style="cursor:pointer;">
 					<div class="card-body">
@@ -365,11 +405,14 @@
 					</div>
 				</div>
 				</div>
-				{% endfor %}	
-            </div>
-            {% else %}
-              <div class="info-box">No customer data available.</div>
-            {% endif %}
+				{% endfor %}
+			{% endfor %}
+			</div>
+			{% elif active_experiment %}
+				<div class="info-box">No active-model customer scores are available.</div>
+			{% else %}
+				<div class="info-box">Activate a churn rule to view a balanced customer snapshot.</div>
+			{% endif %}
           </div>
           
           <div class="col-12">
@@ -413,7 +456,7 @@
   </div>
 </div>
 
-<div id="generatedExperimentData" class="d-none" data-experiments='[{% for experiment in experiments_page %}{"id":{{ experiment.id }},"active":{% if experiment.is_active %}true{% else %}false{% endif %}}{% if not forloop.last %},{% endif %}{% endfor %}]'></div>
+<div id="generatedExperimentData" class="d-none" data-experiments='[{% for experiment in visible_experiments %}{"id":{{ experiment.id }},"active":{% if experiment.is_active %}true{% else %}false{% endif %}}{% if not forloop.last %},{% endif %}{% endfor %}]'></div>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const csrftoken = (document.cookie.split('; ').find(r => r.startsWith('csrftoken=')) || '').split('=')[1] || '';
@@ -727,7 +770,6 @@ function refreshDashboard(showNewestExperiment = false) {
     // are rendered from the server rather than an older browser page.
     const nextUrl = new URL(window.location.href);
     nextUrl.searchParams.set('refresh', Date.now().toString());
-    if (showNewestExperiment) nextUrl.searchParams.set('experiments_page', '1');
     window.location.assign(nextUrl.toString());
 }
 
@@ -739,17 +781,20 @@ document.getElementById('churnExperimentForm').addEventListener('submit', async 
     button.disabled = true;
     button.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Training…';
     progress.classList.remove('d-none');
-    progress.textContent = 'Building time windows and training models… 0s elapsed';
+    progress.textContent = 'Checking reusable cache, then training only if needed… 0s elapsed';
     const progressTimer = window.setInterval(() => {
-        progress.textContent = `Building time windows and training models… ${Math.floor((Date.now() - startedAt) / 1000)}s elapsed`;
-    }, 1000);
+        progress.textContent = `Checking reusable cache, then training only if needed… ${Math.floor((Date.now() - startedAt) / 1000)}s elapsed`;    }, 1000);
     try {
         const response = await fetch('/analysis/api/churn/experiments/run/', {method: 'POST', body: new FormData(this)});
         const payload = await response.json();
         if (!payload.success) throw new Error(payload.error || 'Training failed.');
         const history = payload.history || {};
         const elapsed = Number(payload.experiment.elapsed_seconds || 0).toFixed(1);
-        showNotification('Experiment complete', `Finished in ${elapsed}s. Recall ${payload.experiment.recall.toFixed(3)}, F1 ${payload.experiment.f1.toFixed(3)}. Saved ${history.window_records || 0} window-history records, including ${history.scored_records || 0} scored checkpoints. Activate it when you are ready.`, 'success');
+        const restored = Boolean(payload.experiment.restored_from_model_cache);
+        const message = restored
+            ? `Restored the identical saved model result in ${elapsed}s. No model retraining was needed. Recall ${payload.experiment.recall.toFixed(3)}, F1 ${payload.experiment.f1.toFixed(3)}. Activate it when you are ready.`
+            : `Trained in ${elapsed}s. Recall ${payload.experiment.recall.toFixed(3)}, F1 ${payload.experiment.f1.toFixed(3)}. Saved ${history.window_records || 0} window-history records, including ${history.scored_records || 0} scored checkpoints. Future identical rules can restore this result without retraining.`;
+        showNotification(restored ? 'Experiment restored from cache' : 'Experiment complete', message, 'success');
         window.setTimeout(() => refreshDashboard(true), 1200);
     } catch (error) {
         showNotification('Training failed', error.message, 'error');

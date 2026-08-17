@@ -496,7 +496,7 @@ const BI = {
   page: 'overview',
 };
 if (window.Chart) {
-  Chart.defaults.devicePixelRatio = Math.max(2.5, window.devicePixelRatio || 1);
+  Chart.defaults.devicePixelRatio = chartRenderPixelRatio();
   Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
   Chart.defaults.font.size = 12;
   Chart.defaults.color = '#5a6180';
@@ -1011,7 +1011,7 @@ const BI_LOADERS = [
 ];
 
 async function biSettleCharts(attempt = 0) {
-  const ratio = window.devicePixelRatio || 1;
+  const ratio = chartRenderPixelRatio();
   const rebuilds = new Set();
   BI_LOADERS.forEach(([id, get, load]) => {
     const chart = get();

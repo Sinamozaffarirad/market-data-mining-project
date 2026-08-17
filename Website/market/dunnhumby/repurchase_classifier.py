@@ -548,8 +548,10 @@ class PredictiveMarketBasketAnalyzer:
             ["expected_repurchase_households", "department"], ascending=[False, True]
         )
         metrics = self.model_metrics.get(f"{horizon}_{model_name}", {})
+        requested_top_n = int(top_n)
+        selected_departments = grouped if requested_top_n <= 0 else grouped.head(min(requested_top_n, 100))
         result = []
-        for _, row in grouped.head(max(1, min(int(top_n), 100))).iterrows():
+        for _, row in selected_departments.iterrows():
             result.append({
                 "department": str(row.department),
                 "average_repurchase_probability": round(float(row.average_probability), 6),

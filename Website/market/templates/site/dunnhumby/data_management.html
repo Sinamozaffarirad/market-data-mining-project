@@ -3,7 +3,13 @@
 
 {% block extra_css %}
 <style>
-.metric-value { font-size: 1.5rem; font-weight: 700; color: var(--primary); }
+.metric-value {
+    font-size: clamp(1.8rem, 2.6vw, 2.35rem);
+    font-weight: 700;
+    color: var(--primary);
+    white-space: nowrap;
+    line-height: 1.15;
+}
 .metric-label { font-size: 0.8rem; text-transform: uppercase; color: var(--text-secondary); }
 .table-selector, .filter-section {
     background: var(--bg-tertiary, #f8f9fa);
@@ -30,6 +36,24 @@
 .data-table-container {
     overflow-x: auto;
 }
+.page-frame {
+    width: min(calc(100% - 3rem), 1400px);
+    margin: 1.25rem auto 2rem;
+    padding: 1.25rem;
+    background: #fff;
+    border: 1px solid #e1e6ef;
+    border-radius: .85rem;
+    box-shadow: 0 .35rem 1rem rgba(25, 45, 80, .08);
+}
+.page-title-bar {
+    margin: -1.25rem -1.25rem 1.5rem;
+    padding: 1rem 1.25rem;
+    color: #fff;
+    background: var(--gradient-primary);
+    border-radius: .75rem .75rem 0 0;
+}
+.page-title-bar .hero-title, .page-title-bar .hero-subtitle { color: #fff; }
+.page-title-bar .hero-title { margin-bottom: .15rem; }
 .table thead th {
     position: sticky;
     top: 0;
@@ -153,25 +177,28 @@
     background-color: #0d6efd;
     border-color: #0d6efd;
 }
+
+  .page-title-bar .text-primary, .page-title-bar .text-muted { color: #fff !important; }
+  .page-title-bar .text-muted { opacity: .88; }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid fade-in">
+<div class="page-frame fade-in">
     <!-- Header -->
-    <div class="hero-section text-center mb-4">
-        <h1 class="hero-title"><i class="fas fa-database"></i> Advanced Database Management</h1>
-        <p class="hero-subtitle">View, filter, and manage your datasets in real-time.</p>
+    <div class="hero-section page-title-bar">
+        <h1 class="fw-bold text-primary mb-1"><i class="fa-solid fa-database"></i> Advanced Database Management</h1>
+        <p class="text-muted mb-0 hero-subtitle">View, filter, and manage your datasets in real-time.</p>
     </div>
 
     <!-- Stats Row -->
     <div class="row g-3 mb-4 text-center justify-content-center">
-        <div class="col-6 col-md-4 col-lg-2"><div class="card h-100 shadow-sm"><div class="card-body"><div class="metric-value" id="stat-transactions">{{ data_stats.total_transactions|default:0 }}</div><div class="metric-label">Transactions</div></div></div></div>
-        <div class="col-6 col-md-4 col-lg-2"><div class="card h-100 shadow-sm"><div class="card-body"><div class="metric-value">{{ data_stats.total_products|default:0 }}</div><div class="metric-label">Products</div></div></div></div>
-        <div class="col-6 col-md-4 col-lg-2"><div class="card h-100 shadow-sm"><div class="card-body"><div class="metric-value">{{ data_stats.total_households|default:0 }}</div><div class="metric-label">Households</div></div></div></div>
-        <div class="col-6 col-md-4 col-lg-2"><div class="card h-100 shadow-sm"><div class="card-body"><div class="metric-value">{{ data_stats.total_campaigns|default:0 }}</div><div class="metric-label">Campaigns</div></div></div></div>
+        <div class="col-6 col-md-4 col-lg"><div class="card h-100 shadow-sm"><div class="card-body"><div class="metric-value" id="stat-transactions">{{ data_stats.total_transactions|default:0 }}</div><div class="metric-label">Transactions</div></div></div></div>
+        <div class="col-6 col-md-4 col-lg"><div class="card h-100 shadow-sm"><div class="card-body"><div class="metric-value">{{ data_stats.total_products|default:0 }}</div><div class="metric-label">Products</div></div></div></div>
+        <div class="col-6 col-md-4 col-lg"><div class="card h-100 shadow-sm"><div class="card-body"><div class="metric-value">{{ data_stats.total_households|default:0 }}</div><div class="metric-label">Households</div></div></div></div>
+        <div class="col-6 col-md-4 col-lg"><div class="card h-100 shadow-sm"><div class="card-body"><div class="metric-value">{{ data_stats.total_campaigns|default:0 }}</div><div class="metric-label">Campaigns</div></div></div></div>
         {% comment %} <div class="col-6 col-md-4 col-lg-2"><div class="card h-100 shadow-sm"><div class="card-body"><div class="metric-value">{{ data_stats.basket_analyses|default:0 }}</div><div class="metric-label">Analyses</div></div></div></div> {% endcomment %}
-        <div class="col-6 col-md-4 col-lg-2"><div class="card h-100 shadow-sm"><div class="card-body"><div class="metric-value">{{ data_stats.association_rules|default:0 }}</div><div class="metric-label">Rules</div></div></div></div>
+        <div class="col-6 col-md-4 col-lg"><div class="card h-100 shadow-sm"><div class="card-body"><div class="metric-value">{{ data_stats.association_rules|default:0 }}</div><div class="metric-label">Rules</div></div></div></div>
     </div>
 
     <!-- Data Viewer Card -->
