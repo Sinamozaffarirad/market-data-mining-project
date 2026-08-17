@@ -1,221 +1,290 @@
+# product_recommender/views.py
 from django.shortcuts import render, get_object_or_404
 from django.db.models import Q, Count, TextField
 from django.db.models.functions import Cast
 from django.core.paginator import Paginator
-from django.db import connection
-import pandas as pd
-import numpy as np
-from sklearn.metrics.pairwise import cosine_similarity
+import re
 
-# Import models from dunnhumby app
 from dunnhumby.models import Transaction, DunnhumbyProduct, AssociationRule, CustomerSegment
-from customers.models import CustomerProfile
+from customers.models import CustomerProfile, Product
+from customers.ml.cf_cache import get_similar_households
+from customers.ml.feature_engineering import (
+    compute_product_popularity,
+    compute_commodity_repurchase_cycles,
+    build_household_features_for_target,
+)
+from customers.ml.recommender_model import HybridRecommenderModel
 from .forms import ProductSearchForm
 
+# Lazily-loaded singleton, shared logic with customers app (same trained model).
+_ML_MODEL_CACHE = {"model": None, "loaded": False}
+
+
+def _get_ml_model():
+    if not _ML_MODEL_CACHE["loaded"]:
+        _ML_MODEL_CACHE["model"] = HybridRecommenderModel.load()
+        _ML_MODEL_CACHE["loaded"] = True
+    return _ML_MODEL_CACHE["model"]
+
+
+def _normalize_label(s):
+    if not s:
+        return ""
+    if not isinstance(s, str):
+        s = str(s)
+    s = s.strip().lower()
+    s = re.sub(r"[^0-9a-z]+", " ", s)
+    s = re.sub(r"\s+", " ", s).strip()
+    return s
+
+
+# ---------------------------
+# صفحه‌ی جستجو (انتخاب سطح + مقدار هدف)
+# ---------------------------
 def recommend_home(request):
     """
-    صفحه اصلی جستجوی محصول
+    صفحه‌ی جستجو با سه سطح: Product / Commodity / Department.
+    کاربر یه سطح رو انتخاب می‌کنه، بعد یه عبارت جستجو می‌زنه، و لیستی از
+    گزینه‌های مطابق (با یه دکمه‌ی «Get Recommendations» برای هرکدوم) می‌بینه.
     """
+    level = request.GET.get("level", "product")
+    if level not in ("product", "commodity", "department"):
+        level = "product"
+
     form = ProductSearchForm(request.GET or None)
     query = None
     products = None
+    commodities = None
+    departments = None
 
     if form.is_valid():
         query = form.cleaned_data.get("query")
 
         if query:
-            # جستجو در مدل DunnhumbyProduct
-            products = DunnhumbyProduct.objects.filter(
-                Q(brand__icontains=query) |
-                Q(commodity_desc__icontains=query) |
-                Q(sub_commodity_desc__icontains=query)
-            ).order_by('brand', 'commodity_desc')[:50] # محدود کردن نتایج
+            if level == "product":
+                products = DunnhumbyProduct.objects.filter(
+                    Q(brand__icontains=query) |
+                    Q(commodity_desc__icontains=query) |
+                    Q(sub_commodity_desc__icontains=query)
+                ).order_by("brand", "commodity_desc")[:50]
+
+            elif level == "commodity":
+                commodities = (
+                    DunnhumbyProduct.objects
+                    .filter(commodity_desc__icontains=query)
+                    .exclude(commodity_desc__isnull=True)
+                    .values_list("commodity_desc", flat=True)
+                    .distinct()
+                    .order_by("commodity_desc")[:50]
+                )
+
+            else:  # department
+                departments = (
+                    DunnhumbyProduct.objects
+                    .filter(department__icontains=query)
+                    .exclude(department__isnull=True)
+                    .values_list("department", flat=True)
+                    .distinct()
+                    .order_by("department")[:50]
+                )
 
     return render(request, "site/product_recommender/recommend_customers.html", {
         "form": form,
         "query": query,
+        "level": level,
         "products": products,
+        "commodities": commodities,
+        "departments": departments,
     })
 
-def _get_cf_leads(direct_buyers_set, limit_users=2000):
-    """
-    Helper function for Collaborative Filtering (User-Based)
-    Finds customers similar to the direct_buyers group.
-    """
-    # 1. Fetch data for User-Item Matrix
-    query = """
-        SELECT household_key, product_id, COUNT(*) as cnt 
-        FROM transactions 
-        GROUP BY household_key, product_id
-    """
-    with connection.cursor() as cursor:
-        cursor.execute(query)
-        rows = cursor.fetchall()
-    
-    if not rows:
-        return {}
 
-    df = pd.DataFrame(rows, columns=['household_key', 'product_id', 'cnt'])
-    
-    # ساخت ماتریس کاربر-کالا
-    user_item = df.pivot_table(index='household_key', columns='product_id', values='cnt', fill_value=0)
-    
-    # محاسبه شباهت کسینوسی
-    sim_matrix = cosine_similarity(user_item)
-    sim_df = pd.DataFrame(sim_matrix, index=user_item.index, columns=user_item.index)
-    
-    cf_scores = {}
-    
-    # فقط کاربرانی را بررسی می‌کنیم که در user_item هستند
-    valid_direct_buyers = [h for h in direct_buyers_set if h in sim_df.index]
-    
-    if not valid_direct_buyers:
-        return {}
+# ---------------------------
+# تولید کاندید خانوار برای هر سطح
+# ---------------------------
+def _target_product_ids(level, value):
+    if level == "product":
+        return [value]
+    if level == "commodity":
+        return list(Product.objects.filter(commodity_desc=value).values_list("product_id", flat=True))
+    return list(Product.objects.filter(department=value).values_list("product_id", flat=True))
 
-    # جمع زدن ستون‌های مربوط به خریداران مستقیم برای یافتن شبیه‌ترین‌ها
-    raw_scores = sim_df[valid_direct_buyers].sum(axis=1)
-    
-    for hh_key, score in raw_scores.items():
-        if score > 0:
-            cf_scores[hh_key] = float(score)
-            
-    return cf_scores
 
-def recommend_customers(request, product_id):
-    """
-    صفحه اصلی پیشنهاد مشتری برای یک محصول خاص
-    با استفاده از AR و CF (User-Based)
-    """
-    product = get_object_or_404(DunnhumbyProduct, product_id=product_id)
+def _get_direct_buyers(level, value, target_pids):
+    if level == "product":
+        return set(Transaction.objects.filter(product_id=value).values_list("household_key", flat=True))
+    return set(Transaction.objects.filter(product_id__in=target_pids).values_list("household_key", flat=True))
 
-    # -----------------------------
-    # 1) Direct Buyers (Seed Group)
-    # -----------------------------
-    direct_buyers = set(
-        Transaction.objects.filter(product_id=product_id)
+
+def _get_content_candidates(level, value):
+    """فقط در سطح Product معنا داره: مشتریانی که محصولات هم‌دسته خریده‌اند."""
+    if level != "product":
+        return set()
+    product = DunnhumbyProduct.objects.filter(product_id=value).first()
+    if not product:
+        return set()
+    similar_ids = list(
+        DunnhumbyProduct.objects.filter(
+            Q(sub_commodity_desc=product.sub_commodity_desc) | Q(commodity_desc=product.commodity_desc)
+        ).exclude(product_id=value).values_list("product_id", flat=True)[:500]
+    )
+    return set(
+        Transaction.objects.filter(product_id__in=similar_ids)
         .values_list("household_key", flat=True)
     )
 
-    scores = {}
 
-    # وزن‌دهی (قابل تنظیم)
-    W_CONTENT = 1.0
-    W_ASSOC = 2.0  # وزن بالاتر برای قوانین
-    W_CF = 1.5     # وزن فیلترینگ مشارکتی
+def _get_assoc_candidates(level, value, target_pids, max_rules=100):
+    """
+    خانوارهایی که قوانین انجمنی (در همون سطح: product/commodity/department)
+    اونا رو به سمت این محصول/دسته هدایت می‌کنن.
+    """
+    rule_type = level  # 'product' | 'commodity' | 'department'
+    candidates = set()
 
-    # -----------------------------
-    # 2) Content-Based (Similar Products)
-    # مشتریانی که محصولات مشابه خریده‌اند
-    # -----------------------------
-    similar_products_qs = DunnhumbyProduct.objects.filter(
-        Q(sub_commodity_desc=product.sub_commodity_desc) |
-        Q(commodity_desc=product.commodity_desc)
-    ).exclude(product_id=product_id)
-    
-    similar_products_ids = list(similar_products_qs.values_list("product_id", flat=True)[:500])
+    if level == "product":
+        target_pid_str = str(value)
+        rules_qs = AssociationRule.objects.filter(rule_type="product").annotate(
+            consequent_text=Cast("consequent", TextField())
+        ).filter(consequent_text__contains=target_pid_str).order_by("-lift")[:max_rules]
 
-    content_buyers = Transaction.objects.filter(product_id__in=similar_products_ids)\
-        .values('household_key').annotate(cnt=Count('id'))
-    
-    for row in content_buyers:
-        h = row['household_key']
-        # امتیاز بر اساس تعداد خرید کالای مشابه
-        s = np.log1p(row['cnt']) * W_CONTENT
-        scores[h] = scores.get(h, 0) + s
+        for rule in rules_qs:
+            consequents = [str(x) for x in rule.consequent]
+            if target_pid_str not in consequents:
+                continue
+            antecedent_pids = [int(x) for x in rule.antecedent if str(x).isdigit()]
+            if antecedent_pids:
+                candidates |= set(
+                    Transaction.objects.filter(product_id__in=antecedent_pids)
+                    .values_list("household_key", flat=True)
+                )
+    else:
+        target_norm = _normalize_label(value)
+        rules_qs = AssociationRule.objects.filter(rule_type=rule_type).order_by("-lift")[:max_rules]
+        for rule in rules_qs:
+            consequents_norm = {_normalize_label(c) for c in (rule.consequent or [])}
+            if target_norm not in consequents_norm:
+                continue
+            antecedent_labels = {_normalize_label(a) for a in (rule.antecedent or [])}
+            field = "commodity_desc" if level == "commodity" else "department"
+            antecedent_pids = list(
+                Product.objects.filter(**{f"{field}__in": list(antecedent_labels)})
+                .values_list("product_id", flat=True)
+            ) if antecedent_labels else []
+            if antecedent_pids:
+                candidates |= set(
+                    Transaction.objects.filter(product_id__in=antecedent_pids)
+                    .values_list("household_key", flat=True)
+                )
 
-    # -----------------------------
-    # 3) Association Rules (Rules-Based) - اصلاح شده برای MSSQL
-    # -----------------------------
-    
-    # تبدیل فیلد JSON به متن برای جستجو (چون JSON lookup در MSSQL پشتیبانی نمی‌شود)
-    # ابتدا کاندیداهایی که شامل شماره محصول هستند را می‌گیریم (ممکن است شامل موارد مشابه مثل 199401 هم باشد)
-    candidates = AssociationRule.objects.annotate(
-        consequent_text=Cast('consequent', TextField())
-    ).filter(
-        consequent_text__contains=str(product_id)
-    ).order_by('-lift')[:100]  # تعداد بیشتری می‌گیریم تا بعدا فیلتر کنیم
-
-    relevant_rules = []
-    target_pid_str = str(product_id)
-
-    # فیلتر دقیق در پایتون
-    for rule in candidates:
-        # rule.consequent یک لیست است، مثلا ["99401"] یا [99401]
-        consequents_list = [str(x) for x in rule.consequent]
-        if target_pid_str in consequents_list:
-            relevant_rules.append(rule)
-            if len(relevant_rules) >= 20:
-                break
-
-    for rule in relevant_rules:
-        antecedents = rule.antecedent
-        clean_antecedents = [int(x) for x in antecedents if str(x).isdigit()]
-        
-        if not clean_antecedents:
-            continue
-
-        rule_buyers = Transaction.objects.filter(product_id__in=clean_antecedents)\
-            .values('household_key').distinct()
-        
-        rule_score = (rule.confidence * rule.lift) * W_ASSOC
-        
-        for rb in rule_buyers:
-            h = rb['household_key']
-            scores[h] = scores.get(h, 0) + rule_score
+    return candidates
 
 
-    # -----------------------------
-    # 4) Collaborative Filtering (User-Based)
-    # -----------------------------
-    if direct_buyers:
-        try:
-            cf_leads = _get_cf_leads(direct_buyers)
-            max_cf = max(cf_leads.values()) if cf_leads else 1
-            
-            for h, raw_score in cf_leads.items():
-                norm_score = (raw_score / max_cf) * 5.0
-                scores[h] = scores.get(h, 0) + (norm_score * W_CF)
-                
-        except Exception as e:
-            print(f"CF Error: {e}")
+def recommend_customers(request):
+    """
+    خانوارهایی که به احتمال زیاد این محصول/دسته/دپارتمان رو خریداری می‌کنن،
+    رتبه‌بندی‌شده با همون مدل ML آموزش‌دیده‌ی Hybrid Recommender.
+    """
+    level = request.GET.get("level", "product")
+    if level not in ("product", "commodity", "department"):
+        level = "product"
 
-    # -----------------------------
-    # 5) فیلترینگ و آماده‌سازی نهایی
-    # -----------------------------
-    
-    # حذف خریداران مستقیم
-    for h in direct_buyers:
-        if h in scores:
-            del scores[h]
+    raw_value = request.GET.get("value")
+    if not raw_value:
+        return render(request, "site/product_recommender/recommendations_list.html", {
+            "level": level, "target_label": None, "error": "No target selected.",
+        })
 
-    # مرتب‌سازی
-    sorted_customers = sorted(scores.items(), key=lambda x: -x[1])[:100]
-    household_keys = [h for h, score in sorted_customers]
+    if level == "product":
+        product = get_object_or_404(DunnhumbyProduct, product_id=raw_value)
+        value = int(raw_value)
+        target_label = f"{product.brand} — {product.commodity_desc}"
+        target_meta = product
+    else:
+        product = None
+        value = raw_value
+        target_label = raw_value
+        target_meta = None
 
-    max_score = sorted_customers[0][1] if sorted_customers else 1.0
+    target_pids = _target_product_ids(level, value)
+    direct_buyers = _get_direct_buyers(level, value, target_pids)
+    candidate_households = set()
+    candidate_households |= _get_content_candidates(level, value)
+    candidate_households |= _get_assoc_candidates(level, value, target_pids)
 
-    # دریافت اطلاعات پروفایل
-    customers_data_map = {
-        c.household_key: c 
-        for c in CustomerProfile.objects.filter(household_key__in=household_keys)
-    }
+    cf_scores = get_similar_households(direct_buyers, top_n=300) if direct_buyers else {}
+    if cf_scores is None:
+        cf_scores = {}
+    candidate_households |= set(cf_scores.keys())
+
+    # کسانی که مستقیم قبلاً خریده‌اند، لید جدید نیستن
+    candidate_households -= direct_buyers
+
+    if not candidate_households:
+        return render(request, "site/product_recommender/recommendations_list.html", {
+            "level": level,
+            "target_label": target_label,
+            "value": raw_value,
+            "product": product,
+            "direct_buyers_count": len(direct_buyers),
+            "customers_page": None,
+        })
+
+    ml_model = _get_ml_model()
+    if ml_model is not None:
+        popularity_map = ml_model.popularity_map or compute_product_popularity()
+        cycle_map = ml_model.cycle_map or compute_commodity_repurchase_cycles()
+    else:
+        popularity_map = compute_product_popularity()
+        cycle_map = compute_commodity_repurchase_cycles()
+
+    as_of_day = None
+    from django.db.models import Max
+    as_of_day = Transaction.objects.aggregate(Max("day"))["day__max"] or 0
+
+    features_df = build_household_features_for_target(
+        list(candidate_households), level, value, as_of_day,
+        popularity_map, cycle_map,
+        assoc_scores={},  # پیشنهاد association قبلاً در انتخاب کاندید لحاظ شده
+        cf_scores=cf_scores,
+    )
+
+    if ml_model is not None:
+        ml_scores = ml_model.predict_scores(features_df)
+    else:
+        # نبود مدل؟ برگرد به رتبه‌بندی ساده بر اساس شباهت CF خام
+        ml_scores = features_df["cf_score"]
+
+    scored = []
+    for hh in candidate_households:
+        base_score = float(ml_scores.loc[hh]) if hh in ml_scores.index else 0.0
+        target_count = int(features_df.loc[hh, "household_commodity_count"]) if hh in features_df.index else 0
+        favorite_boost = 1.0 + min(target_count, 10) * 0.02
+        scored.append((hh, base_score * favorite_boost))
+
+    scored.sort(key=lambda kv: kv[1], reverse=True)
+    scored = scored[:100]
+    max_score = scored[0][1] if scored else 1.0
+
+    household_keys = [hh for hh, _ in scored]
+    profiles = {c.household_key: c for c in CustomerProfile.objects.filter(household_key__in=household_keys)}
 
     final_customers = []
-    for h_key, score in sorted_customers:
-        c_obj = customers_data_map.get(h_key)
+    for hh, score in scored:
+        c_obj = profiles.get(hh)
         if not c_obj:
-            c_obj = CustomerProfile(household_key=h_key)
+            c_obj = CustomerProfile(household_key=hh)
             c_obj.age_desc = "-"
-        
-        c_obj.recommender_score = score
+        c_obj.recommender_score = round(score, 4)
+        c_obj.score_percent = round((score / max_score) * 100, 1) if max_score else 0  # ← جدید
         final_customers.append(c_obj)
-
-    # صفحه‌بندی
+        
     paginator = Paginator(final_customers, 10)
-    page_number = request.GET.get('page')
-    customers_page = paginator.get_page(page_number)
+    customers_page = paginator.get_page(request.GET.get("page"))
 
     return render(request, "site/product_recommender/recommendations_list.html", {
+        "level": level,
+        "target_label": target_label,
+        "value": raw_value,
         "product": product,
         "customers_page": customers_page,
         "direct_buyers_count": len(direct_buyers),
@@ -223,30 +292,24 @@ def recommend_customers(request, product_id):
         "max_score": max_score,
     })
 
+
 def product_detail(request, product_id):
-    """
-    این View اطلاعات تکمیلی محصول را نشان می‌دهد
-    """
-    # 1) محصول
+    """اطلاعات تکمیلی محصول: مشتریانی که خریده‌اند و قوانین انجمنی مرتبط."""
     product = get_object_or_404(DunnhumbyProduct, product_id=product_id)
 
-    # 2) مشتریانی که این محصول را خریده‌اند
     households = Transaction.objects.filter(product_id=product_id) \
         .values_list("household_key", flat=True).distinct()
 
     segments = CustomerSegment.objects.filter(household_key__in=households)
 
-    # 3) قوانین مرتبط با محصول - اصلاح شده برای MSSQL
-    # استفاده از همان تکنیک Cast و contains
     rules_qs = AssociationRule.objects.annotate(
-        antecedent_text=Cast('antecedent', TextField()),
-        consequent_text=Cast('consequent', TextField())
+        antecedent_text=Cast("antecedent", TextField()),
+        consequent_text=Cast("consequent", TextField())
     ).filter(
         Q(antecedent_text__contains=str(product_id)) |
         Q(consequent_text__contains=str(product_id))
     )
-    
-    # فیلتر دقیق پایتونی برای نمایش
+
     rules = []
     target_pid_str = str(product_id)
     for r in rules_qs:

@@ -128,3 +128,28 @@ def get_cf_candidates(household_key, level="product", top_n=30):
         if len(results) >= top_n:
             break
     return results
+
+def get_similar_households(seed_households, top_n=300):
+    """
+    Given a set of "seed" household keys (e.g. everyone who already bought a
+    product/commodity/department), returns OTHER households ranked by how
+    similar their overall purchase pattern is to the seed group. This is the
+    CF signal for the reverse (product -> customer leads) recommender.
+    """
+    data = _load()
+    if data is None:
+        return None
+
+    similarity_df = data["similarity_df"]
+    seed_set = set(seed_households)
+    valid_seeds = [h for h in seed_set if h in similarity_df.index]
+    if not valid_seeds:
+        return {}
+
+    raw_scores = similarity_df[valid_seeds].sum(axis=1)
+    scores = {
+        hh: float(score) for hh, score in raw_scores.items()
+        if score > 0 and hh not in seed_set
+    }
+    top = sorted(scores.items(), key=lambda kv: kv[1], reverse=True)[:top_n]
+    return dict(top)

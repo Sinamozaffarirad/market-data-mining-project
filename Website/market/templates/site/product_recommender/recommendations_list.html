@@ -1,26 +1,39 @@
 {% extends "site/base.html" %}
 {% load static %}
-{% load custom_filters %}
 
-{% block title %}Recommendations for {{ product.brand }}{% endblock %}
+{% block title %}Customer Leads{% endblock %}
 
 {% block content %}
 <div class="container py-5">
 
-    <h1 class="fw-bold mb-2">Customer Leads for Product:</h1>
-    <h3 class="text-primary">{{ product.brand }} — {{ product.commodity_desc }}</h3>
-    <p class="text-muted">{{ product.sub_commodity_desc }} | {{ product.department }}</p>
+    <h1 class="fw-bold mb-2">Customer Leads for:</h1>
+    {% if level == "product" and product %}
+        <h3 class="text-primary">{{ product.brand }} — {{ product.commodity_desc }}</h3>
+        <p class="text-muted">{{ product.sub_commodity_desc }} | {{ product.department }} <span class="badge bg-secondary">Product level</span></p>
+    {% elif level == "commodity" %}
+        <h3 class="text-primary">{{ target_label }}</h3>
+        <p class="text-muted"><span class="badge bg-secondary">Commodity level</span></p>
+    {% elif level == "department" %}
+        <h3 class="text-primary">{{ target_label }}</h3>
+        <p class="text-muted"><span class="badge bg-secondary">Department level</span></p>
+    {% endif %}
+
     <p class="small text-muted">
-        Generated using <strong>Association Rules</strong>, <strong>User-Based Collaborative Filtering</strong>, and <strong>Content Similarity</strong>.
+        Ranked with the trained Hybrid Recommender ML model, using Association Rules,
+        Collaborative Filtering, and content similarity as candidate signals.
     </p>
 
     <hr class="my-4">
+
+    {% if error %}
+        <div class="alert alert-warning">{{ error }}</div>
+    {% else %}
 
     <div class="row mb-4 text-center">
         <div class="col-md-6">
             <div class="card h-100 bg-light border-0">
                 <div class="card-body">
-                    <h2 class="card-title text-primary fw-bold">{{ total_recommendations }}</h2>
+                    <h2 class="card-title text-primary fw-bold">{{ total_recommendations|default:0 }}</h2>
                     <p class="card-text text-muted">Total New Leads Found</p>
                 </div>
             </div>
@@ -28,8 +41,8 @@
         <div class="col-md-6">
             <div class="card h-100 border-0">
                 <div class="card-body">
-                    <h2 class="card-title fw-bold">{{ direct_buyers_count }}</h2>
-                    <p class="card-text text-muted">Existing Direct Buyers (Seed Group)</p>
+                    <h2 class="card-title fw-bold">{{ direct_buyers_count|default:0 }}</h2>
+                    <p class="card-text text-muted">Existing Direct Buyers (excluded from leads)</p>
                 </div>
             </div>
         </div>
@@ -43,7 +56,7 @@
             <thead class="table-light">
                 <tr>
                     <th scope="col">Household Key</th>
-                    <th scope="col">Recommender Score</th>
+                    <th scope="col">ML Score</th>
                     <th scope="col">Demographics</th>
                     <th scope="col">Income Status</th>
                     <th scope="col">Marital Status</th>
@@ -54,25 +67,22 @@
                 {% for c in customers_page %}
                 <tr>
                     <td><strong>{{ c.household_key }}</strong></td>
-                    
+
                     <td>
                         <div class="d-flex align-items-center">
-                            <span class="fw-bold me-2 text-success">{{ c.recommender_score|floatformat:2 }}</span>
-                            
+                            <span class="fw-bold me-2 text-success">{{ c.recommender_score|floatformat:4 }}</span>
                             <div class="progress" style="height: 6px; width: 80px;">
-                                <div class="progress-bar bg-success" role="progressbar" 
-                                    style="width: calc(({{ c.recommender_score }} / {{ max_score }}) * 100%);" 
-                                    aria-valuenow="{{ c.recommender_score }}" 
-                                    aria-valuemin="0" 
-                                    aria-valuemax="{{ max_score }}">
+                                <div class="progress-bar bg-success score-bar" role="progressbar"
+                                    data-width="{{ c.score_percent }}"
+                                    aria-valuenow="{{ c.score_percent }}"
+                                    aria-valuemin="0"
+                                    aria-valuemax="100">
                                 </div>
                             </div>
                         </div>
                     </td>
 
-                    <td>
-                        <small class="d-block text-muted">Age: {{ c.age_desc|default:"-" }}</small>
-                    </td>
+                    <td><small class="d-block text-muted">Age: {{ c.age_desc|default:"-" }}</small></td>
                     <td>{{ c.income_desc|default:"-" }}</td>
                     <td>{{ c.marital_status_code|default:"-" }}</td>
                     <td>
@@ -90,55 +100,48 @@
         <ul class="pagination justify-content-center">
             {% if customers_page.has_previous %}
                 <li class="page-item">
-                    <a class="page-link" href="?page=1" aria-label="First">
-                        <span aria-hidden="true">&laquo;&laquo;</span>
-                    </a>
+                    <a class="page-link" href="?level={{ level }}&value={{ value|urlencode }}&page=1">&laquo;&laquo;</a>
                 </li>
                 <li class="page-item">
-                    <a class="page-link" href="?page={{ customers_page.previous_page_number }}" aria-label="Previous">
-                        <span aria-hidden="true">&laquo;</span>
-                    </a>
+                    <a class="page-link" href="?level={{ level }}&value={{ value|urlencode }}&page={{ customers_page.previous_page_number }}">&laquo;</a>
                 </li>
             {% else %}
-                <li class="page-item disabled">
-                    <a class="page-link" href="#" tabindex="-1" aria-disabled="true">&laquo;</a>
-                </li>
+                <li class="page-item disabled"><a class="page-link" href="#">&laquo;</a></li>
             {% endif %}
 
             <li class="page-item active" aria-current="page">
-                <a class="page-link" href="#">
-                    Page {{ customers_page.number }} of {{ customers_page.paginator.num_pages }}
-                </a>
+                <a class="page-link" href="#">Page {{ customers_page.number }} of {{ customers_page.paginator.num_pages }}</a>
             </li>
 
             {% if customers_page.has_next %}
                 <li class="page-item">
-                    <a class="page-link" href="?page={{ customers_page.next_page_number }}" aria-label="Next">
-                        <span aria-hidden="true">&raquo;</span>
-                    </a>
+                    <a class="page-link" href="?level={{ level }}&value={{ value|urlencode }}&page={{ customers_page.next_page_number }}">&raquo;</a>
                 </li>
                 <li class="page-item">
-                    <a class="page-link" href="?page={{ customers_page.paginator.num_pages }}" aria-label="Last">
-                        <span aria-hidden="true">&raquo;&raquo;</span>
-                    </a>
+                    <a class="page-link" href="?level={{ level }}&value={{ value|urlencode }}&page={{ customers_page.paginator.num_pages }}">&raquo;&raquo;</a>
                 </li>
             {% else %}
-                <li class="page-item disabled">
-                    <a class="page-link" href="#" tabindex="-1" aria-disabled="true">&raquo;</a>
-                </li>
+                <li class="page-item disabled"><a class="page-link" href="#">&raquo;</a></li>
             {% endif %}
         </ul>
     </nav>
 
     {% else %}
         <div class="alert alert-warning" role="alert">
-            No suitable leads found using the current algorithms (Association Rules & CF).
+            No suitable leads found using the current algorithms (Association Rules, CF, and content similarity).
         </div>
     {% endif %}
 
+    {% endif %}
+
     <div class="text-center mt-4">
-        <a href="{% url 'product_recommender:home' %}" class="btn btn-secondary">← Back to Product Search</a>
+        <a href="{% url 'product_recommender:home' %}?level={{ level }}" class="btn btn-secondary">← Back to Search</a>
     </div>
 
 </div>
+<script>
+document.querySelectorAll('.score-bar').forEach(function (bar) {
+    bar.style.width = bar.dataset.width + '%';
+});
+</script>
 {% endblock %}
