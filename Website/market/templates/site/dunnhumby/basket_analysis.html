@@ -1825,6 +1825,8 @@ html, body {
                     <option value="20" selected>Top 20</option>
                     <option value="50">Top 50</option>
                     <option value="100">Top 100</option>
+                    <option value="500">Top 500</option>
+                    <option value="0">All products</option>
                   </select>
                 </div>
                 <div class="rev-field">
@@ -5068,10 +5070,12 @@ function showRevenueForecastHelp() {
         </div>
 
         <div class="help-option mb-2">
-          <strong>Top products &amp; Revenue threshold</strong>
+          <strong>Products to list &amp; Minimum revenue</strong>
           <small class="d-block text-muted">
             Filters for the results table only. They change what you see, never what the model
-            learned or how it scored.
+            learned or how it scored. <em>All products</em> lists every product the model can
+            forecast &mdash; about 49,000 &mdash; paged ten at a time, and the CSV export then
+            covers all of them.
           </small>
         </div>
 
@@ -7939,27 +7943,45 @@ function forecastUnitRate(value) {
   return forecastMoney(value);
 }
 
+/* The table can now be asked for every eligible product -- roughly 49,000 --
+   so rows are built for the visible page only rather than every row being put
+   in the DOM and hidden. Search and expansion state live in this data instead
+   of in the markup, so they survive paging. */
+let forecastRowData = [];
+let forecastExpandedRanks = new Set();
+
 function renderProductForecastRows(predictions, response) {
   const rows = document.getElementById('timeSeriesForecastRows');
   const summary = document.getElementById('forecastResultSummary');
+  forecastExpandedRanks = new Set();
   if (!predictions.length) {
+    forecastRowData = [];
     rows.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-4">No products satisfy the selected threshold.</td></tr>';
     if (summary) summary.textContent = 'No matching products.';
     return;
   }
   forecastCurrentPage = 1;
   forecastResultContext = `${Number(response.products_after_threshold || 0).toLocaleString()} products passed the threshold; ranked by ${forecastMethodLabel(response.forecast_method_applied)}.`;
-  rows.innerHTML = predictions.map(product => {
-    const rank = Number(product.forecast_rank);
-    const difference = Number(product.revenue_change_time_series_vs_independent || 0);
-    const differenceClass = difference >= 0 ? 'text-success' : 'text-danger';
-    const searchText = [product.product_id, product.department, product.commodity, product.sub_commodity, product.manufacturer, product.brand, product.size].join(' ').toLowerCase();
-    const sequenceMonthly = product.time_series_monthly_predictions || [];
-    const independentMonthly = product.independent_monthly_predictions || [];
-    const baselineMonthly = product.baseline_monthly_predictions || [];
-    const months = Math.max(sequenceMonthly.length, independentMonthly.length, baselineMonthly.length);
-    const monthlyRows = Array.from({length: months}, (_, index) => `<tr><td>Period ${index + 1}</td><td class="text-end">${forecastMoney(sequenceMonthly[index])}</td><td class="text-end">${forecastMoney(independentMonthly[index])}</td><td class="text-end">${forecastMoney(baselineMonthly[index])}</td></tr>`).join('');
-    return `<tr data-forecast-main data-search="${escapeHtml(searchText)}" id="forecast-row-${rank}">
+  forecastRowData = predictions.map(product => ({
+    product,
+    rank: Number(product.forecast_rank),
+    search: [product.product_id, product.department, product.commodity, product.sub_commodity, product.manufacturer, product.brand, product.size].join(' ').toLowerCase(),
+  }));
+  filterForecastRows();
+}
+
+function forecastRowMarkup(entry) {
+  const product = entry.product;
+  const rank = entry.rank;
+  const expanded = forecastExpandedRanks.has(rank);
+  const difference = Number(product.revenue_change_time_series_vs_independent || 0);
+  const differenceClass = difference >= 0 ? 'text-success' : 'text-danger';
+  const sequenceMonthly = product.time_series_monthly_predictions || [];
+  const independentMonthly = product.independent_monthly_predictions || [];
+  const baselineMonthly = product.baseline_monthly_predictions || [];
+  const months = Math.max(sequenceMonthly.length, independentMonthly.length, baselineMonthly.length);
+  const monthlyRows = Array.from({length: months}, (_, index) => `<tr><td>Period ${index + 1}</td><td class="text-end">${forecastMoney(sequenceMonthly[index])}</td><td class="text-end">${forecastMoney(independentMonthly[index])}</td><td class="text-end">${forecastMoney(baselineMonthly[index])}</td></tr>`).join('');
+  return `<tr data-forecast-main data-rank="${rank}" id="forecast-row-${rank}">
       <td><span class="badge bg-light text-dark border">${rank}</span></td>
       <td><strong>${escapeHtml(product.product_id)}</strong><small class="d-block text-muted">${escapeHtml(product.brand || 'Unknown brand')}</small></td>
       <td>${escapeHtml(product.department || 'Unknown')}</td>
@@ -7968,62 +7990,55 @@ function renderProductForecastRows(predictions, response) {
       <td class="text-end fw-semibold" style="color:#6d28d9">${forecastMoney(product.independent_revenue)}</td>
       <td class="text-end ${differenceClass}">${difference >= 0 ? '+' : '−'}${forecastMoney(Math.abs(difference))}</td>
       <td class="text-end">${forecastUnitRate(product.revenue_per_unit)}</td>
-      <td class="text-center"><button class="btn btn-outline-primary btn-sm" type="button" aria-expanded="false" aria-controls="forecast-detail-${rank}" onclick="toggleForecastDetail(${rank}, this)" title="Show product details"><i class="fas fa-chevron-down"></i></button></td>
+      <td class="text-center"><button class="btn btn-outline-primary btn-sm" type="button" aria-expanded="${expanded}" aria-controls="forecast-detail-${rank}" onclick="toggleForecastDetail(${rank}, this)" title="Show product details"><i class="fas fa-chevron-${expanded ? 'up' : 'down'}"></i></button></td>
     </tr>
-    <tr data-forecast-detail data-parent-rank="${rank}" id="forecast-detail-${rank}" style="display:none;background:#f8fafc"><td colspan="9" class="p-3">
+    <tr data-forecast-detail data-parent-rank="${rank}" id="forecast-detail-${rank}" style="display:${expanded ? '' : 'none'};background:#f8fafc"><td colspan="9" class="p-3">
       <div class="row g-3">
         <div class="col-lg-4"><div class="border rounded bg-white p-3 h-100"><h6 class="small fw-bold mb-2">Product information</h6><dl class="row small mb-0"><dt class="col-5">Sub-commodity</dt><dd class="col-7">${escapeHtml(product.sub_commodity || 'Unknown')}</dd><dt class="col-5">Manufacturer</dt><dd class="col-7">${escapeHtml(product.manufacturer ?? 'Unknown')}</dd><dt class="col-5">Brand</dt><dd class="col-7">${escapeHtml(product.brand || 'Unknown')}</dd><dt class="col-5">Size</dt><dd class="col-7">${escapeHtml(product.size || 'N/A')}</dd></dl></div></div>
         <div class="col-lg-3"><div class="border rounded bg-white p-3 h-100"><h6 class="small fw-bold mb-2">Horizon totals</h6><div class="small d-flex justify-content-between"><span>Recursive RNN</span><strong>${forecastMoney(product.time_series_revenue)}</strong></div><div class="small d-flex justify-content-between mt-2"><span>Independent direct</span><strong>${forecastMoney(product.independent_revenue)}</strong></div><div class="small d-flex justify-content-between mt-2"><span>Recent average</span><strong>${forecastMoney(product.baseline_revenue)}</strong></div><div class="small d-flex justify-content-between mt-2"><span>Estimated units</span><strong>${product.predicted_units == null ? 'N/A' : Number(product.predicted_units).toLocaleString(undefined, {maximumFractionDigits: 2})}</strong></div></div></div>
         <div class="col-lg-5"><div class="border rounded bg-white p-2 h-100"><h6 class="small fw-bold px-1 mb-2">Forecast by 30-day period</h6><div class="table-responsive"><table class="table table-sm mb-0"><thead class="bg-white"><tr><th>Period</th><th class="text-end">Recursive</th><th class="text-end">Independent</th><th class="text-end">Recent avg</th></tr></thead><tbody>${monthlyRows}</tbody></table></div></div></div>
       </div>
     </td></tr>`;
-  }).join('');
-  if (summary) summary.textContent = `${predictions.length.toLocaleString()} products shown · ${Number(response.products_after_threshold || 0).toLocaleString()} products passed the threshold · ranked by ${forecastMethodLabel(response.forecast_method_applied)}.`;
-  filterForecastRows();
 }
 
 function toggleForecastDetail(rank, button) {
   const detail = document.getElementById(`forecast-detail-${rank}`);
   if (!detail) return;
   const expanded = button.getAttribute('aria-expanded') === 'true';
+  if (expanded) forecastExpandedRanks.delete(rank); else forecastExpandedRanks.add(rank);
   detail.style.display = expanded ? 'none' : '';
   button.setAttribute('aria-expanded', expanded ? 'false' : 'true');
   button.querySelector('i')?.classList.toggle('fa-chevron-down', expanded);
   button.querySelector('i')?.classList.toggle('fa-chevron-up', !expanded);
 }
 
+/* Expand all covers the whole filtered result rather than only the rows on
+   screen, so paging onward keeps the detail open. */
 function setAllForecastDetails(expanded) {
-  document.querySelectorAll('#timeSeriesForecastRows tr[data-forecast-main]').forEach(mainRow => {
-    if (mainRow.style.display === 'none') return;
-    const button = mainRow.querySelector('button[aria-controls]');
-    const detail = button ? document.getElementById(button.getAttribute('aria-controls')) : null;
-    if (!button || !detail) return;
-    detail.style.display = expanded ? '' : 'none';
-    button.setAttribute('aria-expanded', expanded ? 'true' : 'false');
-    button.querySelector('i')?.classList.toggle('fa-chevron-down', !expanded);
-    button.querySelector('i')?.classList.toggle('fa-chevron-up', expanded);
-  });
+  if (!expanded) {
+    forecastExpandedRanks = new Set();
+  } else {
+    forecastRowData.forEach(entry => forecastExpandedRanks.add(entry.rank));
+  }
+  filterForecastRows();
 }
 
 function filterForecastRows() {
+  const rows = document.getElementById('timeSeriesForecastRows');
+  if (!rows || !forecastRowData.length) return;
   const query = (document.getElementById('forecastProductSearch')?.value || '').trim().toLowerCase();
-  const allRows = Array.from(document.querySelectorAll('#timeSeriesForecastRows tr[data-forecast-main]'));
-  const matchingRows = allRows.filter(mainRow => !query || (mainRow.dataset.search || '').includes(query));
-  const totalPages = Math.max(1, Math.ceil(matchingRows.length / FORECAST_PAGE_SIZE));
+  const matching = query ? forecastRowData.filter(entry => entry.search.includes(query)) : forecastRowData;
+  const totalPages = Math.max(1, Math.ceil(matching.length / FORECAST_PAGE_SIZE));
   forecastCurrentPage = Math.min(Math.max(forecastCurrentPage, 1), totalPages);
   const start = (forecastCurrentPage - 1) * FORECAST_PAGE_SIZE;
-  const visibleRows = new Set(matchingRows.slice(start, start + FORECAST_PAGE_SIZE));
-  allRows.forEach(mainRow => {
-    const visible = visibleRows.has(mainRow);
-    mainRow.style.display = visible ? '' : 'none';
-    const button = mainRow.querySelector('button[aria-controls]');
-    const detail = button ? document.getElementById(button.getAttribute('aria-controls')) : null;
-    if (detail) detail.style.display = visible && button.getAttribute('aria-expanded') === 'true' ? '' : 'none';
-  });
+  const page = matching.slice(start, start + FORECAST_PAGE_SIZE);
+  rows.innerHTML = page.length
+    ? page.map(forecastRowMarkup).join('')
+    : '<tr><td colspan="9" class="text-center text-muted py-4">No products match the search.</td></tr>';
   const summary = document.getElementById('forecastResultSummary');
-  const shownStart = matchingRows.length ? start + 1 : 0;
-  const shownEnd = Math.min(start + FORECAST_PAGE_SIZE, matchingRows.length);
-  if (summary) summary.textContent = `Showing ${shownStart}-${shownEnd} of ${matchingRows.length.toLocaleString()} product${matchingRows.length === 1 ? '' : 's'}${query ? ' matching the search' : ''}; ${forecastResultContext}`;
+  const shownStart = matching.length ? start + 1 : 0;
+  const shownEnd = Math.min(start + FORECAST_PAGE_SIZE, matching.length);
+  if (summary) summary.textContent = `Showing ${shownStart}-${shownEnd} of ${matching.length.toLocaleString()} product${matching.length === 1 ? '' : 's'}${query ? ' matching the search' : ''}; ${forecastResultContext}`;
   const pageStatus = document.getElementById('forecastPageStatus');
   const previous = document.getElementById('forecastPreviousPage');
   const next = document.getElementById('forecastNextPage');

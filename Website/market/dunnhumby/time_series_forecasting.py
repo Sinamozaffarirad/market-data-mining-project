@@ -1344,8 +1344,14 @@ class ProductRevenueTimeSeriesForecaster:
         result = result.sort_values(
             ["predicted_revenue", "product_id"], ascending=[False, True]
         )
-        top_n = max(1, min(int(top_n), 500))
-        top_result = result.head(top_n).copy()
+        # top_n <= 0 means "every product that passed the threshold". A positive
+        # request stays capped, so a stray large number cannot ask for a payload
+        # nobody chose.
+        requested_top_n = int(top_n)
+        if requested_top_n <= 0:
+            top_result = result.copy()
+        else:
+            top_result = result.head(min(requested_top_n, 500)).copy()
         top_result["forecast_rank"] = np.arange(1, len(top_result) + 1)
         top_result["revenue_change_time_series_vs_independent"] = (
             top_result["time_series_revenue"] - top_result["independent_revenue"]
