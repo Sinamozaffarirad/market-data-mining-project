@@ -22,20 +22,31 @@
     .badge-churn-medium { background-color: #0dcaf0; color: #212529 !important; }
     .badge-churn-low { background-color: #198754; color: #fff !important; }
     .badge-churn-na { background-color: #6c757d; color: #fff !important; }
+
+    .churn-profile-card { overflow: hidden; }
+    .churn-profile-card > .card-header {
+        padding: 1.1rem 1.25rem;
+        background: var(--gradient-primary);
+        color: #fff;
+        font-weight: 700;
+    }
+    .churn-probability { font-size: clamp(2.5rem, 5vw, 4rem); line-height: 1; }
+    @media (min-width: 992px) {
+        .churn-rfm-summary { border-left: 1px solid #dee2e6; }
+    }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="container my-5">
-    <div class="text-center mb-4">
-        <h3 class="fw-bold">Churn Analysis for Customer {{ household.household_key }}</h3>
-    </div>
-
     {% if segment %}
     <div class="row justify-content-center">
-        <div class="col-12 col-md-8 col-lg-6">
-            <div class="card shadow-lg">
+        <div class="col-12">
+            <div class="card shadow-sm churn-profile-card">
+                <div class="card-header"><i class="fa-solid fa-chart-line me-2"></i>Churn Analysis for Customer {{ household.household_key }}</div>
                 <div class="card-body p-4">
+                    <div class="row g-4 align-items-center">
+                    <div class="col-12 col-lg-4">
                     <div class="d-flex justify-content-center align-items-center gap-2 mb-3">
                         <span class="badge fs-6
                             {% if segment.rfm_segment == 'Champions' %} bg-champions
@@ -67,10 +78,11 @@
 
                     <div class="text-center mb-3">
                         <h4 class="fw-bold mb-1">Churn Probability</h4>
-                        <p class="display-4 fw-bolder text-primary">{{ segment.churn_probability_percent|floatformat:1 }}%</p>
+                        <p class="churn-probability fw-bolder text-primary mb-0">{{ segment.churn_probability_percent|floatformat:1 }}%</p>
                     </div>
-                    
-                    <hr>
+
+                    </div>
+                    <div class="col-12 col-lg-8 churn-rfm-summary ps-lg-4">
 
                     <h5 class="text-center text-muted mb-1">Current Lifetime RFM Profile</h5>
                     <p class="text-center text-muted small mb-3">Current dashboard state, using all available purchases. It will remain unchanged while this experimental transaction dataset remains fixed.</p>
@@ -109,6 +121,8 @@
                     <div class="text-end small text-muted mt-3">
                         Last Updated: {{ segment.updated_at|date:"M d, Y" }}
                     </div>
+                    </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -141,7 +155,7 @@
                     <div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Cutoff</th><th>RFM health</th><th>RFM segment</th><th>Change</th><th>Risk forecast</th><th>Horizon outcome</th><th>Forecast check</th></tr></thead><tbody>
                         {% for prediction in history.page %}<tr><td>Day {{ prediction.record.cutoff_day }}<div class="small text-muted">Obs {{ prediction.record.observation_start }}-{{ prediction.record.observation_end }}</div></td><td><span class="badge bg-{{ prediction.health_class }}">{{ prediction.health_label }}</span> <span class="small text-muted">{{ prediction.health_score }}/15 ({{ prediction.record.r_score }}-{{ prediction.record.f_score }}-{{ prediction.record.m_score }})</span></td><td>{{ prediction.record.rfm_segment }}</td><td>{{ prediction.health_change }}</td><td>{% if prediction.probability_percent is not None %}<span class="badge bg-{{ prediction.risk_class }}{% if prediction.risk_class == 'warning' or prediction.risk_class == 'info' %} text-dark{% endif %}">{{ prediction.risk_label }}</span> {{ prediction.probability_percent|floatformat:1 }}%{% else %}<span class="text-muted">Not scored</span>{% endif %}</td><td>{% if prediction.record.is_churn %}<span class="text-danger fw-semibold">No purchase</span>{% else %}<span class="text-success fw-semibold">Purchased</span>{% endif %}<div class="small text-muted">Days {{ prediction.record.label_start }}-{{ prediction.record.label_end }}</div></td><td>{% if prediction.prediction_is_correct is None %}<span class="text-muted">Not scored</span>{% elif prediction.prediction_is_correct %}<span class="text-success">Correct</span>{% else %}<span class="text-danger">Incorrect</span>{% endif %}</td></tr>{% empty %}<tr><td colspan="7" class="text-muted text-center py-3">No history exists for this customer in the latest experiment. Train a new experiment after applying the history migration.</td></tr>{% endfor %}
                     </tbody></table></div>
-                    {% if history.page.paginator.num_pages > 1 %}<nav class="d-flex justify-content-between align-items-center mt-3"><span class="small text-muted">Page {{ history.page.number }} of {{ history.page.paginator.num_pages }} · {{ history.summary.snapshot_count }} windows</span><div class="btn-group btn-group-sm">{% if history.page.has_previous %}<a class="btn btn-outline-secondary" href="?history_method={{ history.method }}&{{ history.page_parameter }}={{ history.page.previous_page_number }}">Previous</a>{% else %}<button class="btn btn-outline-secondary" disabled>Previous</button>{% endif %}{% if history.page.has_next %}<a class="btn btn-outline-secondary" href="?history_method={{ history.method }}&{{ history.page_parameter }}={{ history.page.next_page_number }}">Next</a>{% else %}<button class="btn btn-outline-secondary" disabled>Next</button>{% endif %}</div></nav>{% endif %}
+                    {% if history.page.paginator.num_pages > 1 %}<nav class="d-flex justify-content-between align-items-center mt-3"><span class="small text-muted">Page {{ history.page.number }} of {{ history.page.paginator.num_pages }} · {{ history.summary.snapshot_count }} windows</span><div class="btn-group btn-group-sm">{% if history.page.has_previous %}<a class="btn btn-outline-secondary" href="?history_experiment={{ history.experiment.id }}&history_page={{ history.page.previous_page_number }}">Previous</a>{% else %}<button class="btn btn-outline-secondary" disabled>Previous</button>{% endif %}{% if history.page.has_next %}<a class="btn btn-outline-secondary" href="?history_experiment={{ history.experiment.id }}&history_page={{ history.page.next_page_number }}">Next</a>{% else %}<button class="btn btn-outline-secondary" disabled>Next</button>{% endif %}</div></nav>{% endif %}
             </div>
         </div>
     </div>
