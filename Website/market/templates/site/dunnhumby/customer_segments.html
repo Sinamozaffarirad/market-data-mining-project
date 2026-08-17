@@ -223,7 +223,6 @@
   padding: 1.1rem 1.25rem;
   font-size: 1.05rem;
 }
-<<<<<<< HEAD
 .experiment-confirm-dialog {
   width: min(calc(100% - 2rem), 470px);
   padding: 0;
@@ -236,8 +235,33 @@
 .experiment-confirm-header { padding: 1rem 1.25rem; background: var(--gradient-primary); color: #fff; font-weight: 700; }
 .experiment-confirm-body { padding: 1.25rem; color: #26364d; }
 .experiment-confirm-actions { display: flex; justify-content: flex-end; gap: .65rem; padding: 0 1.25rem 1.25rem; }
-=======
->>>>>>> origin/main
+.experiment-detail-rule {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  background: #f5f7ff;
+  border: 1px solid #dce3ff;
+  border-radius: .7rem;
+}
+.experiment-detail-eyebrow { color: #6674df; font-size: .75rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+.experiment-detail-rule h6 { margin: .2rem 0; font-weight: 700; }
+.experiment-detail-cutoff { min-width: 120px; padding-left: 1rem; border-left: 1px solid #d5dcf3; }
+.experiment-detail-cutoff strong { display: block; color: #314fba; font-size: 1.65rem; line-height: 1.1; }
+.experiment-detail-metric { height: 100%; padding: .8rem; border: 1px solid #e3e7ef; border-radius: .65rem; background: #fff; }
+.experiment-detail-metric .label { color: #64748b; font-size: .75rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.experiment-detail-metric .value { margin-top: .2rem; color: #1e293b; font-size: 1.25rem; font-weight: 700; }
+.experiment-detail-section { margin-top: 1rem; padding: 1rem; border: 1px solid #e3e7ef; border-radius: .7rem; }
+.experiment-detail-section-title { margin-bottom: .75rem; color: #27354b; font-size: .95rem; font-weight: 700; }
+.experiment-detail-check { padding: .65rem .75rem; background: #f8fafc; border-radius: .5rem; }
+.experiment-detail-check .value { display: block; color: #26364d; font-size: 1.15rem; font-weight: 700; }
+.experiment-technical details { margin-top: 1rem; border: 1px solid #e3e7ef; border-radius: .7rem; overflow: hidden; }
+.experiment-technical summary { padding: .85rem 1rem; cursor: pointer; color: #314fba; font-weight: 700; background: #f8f9ff; }
+.experiment-technical-content { padding: 1rem; }
+.experiment-parameter-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .5rem; margin-top: .75rem; }
+.experiment-parameter { padding: .55rem .65rem; color: #44546a; font-size: .85rem; background: #f8fafc; border-radius: .45rem; }
+@media (max-width: 575.98px) { .experiment-detail-rule { display: block; } .experiment-detail-cutoff { margin-top: .85rem; padding: .85rem 0 0; border-top: 1px solid #d5dcf3; border-left: 0; } }
 @media (min-width: 768px) {
   /* Keep the Train button aligned right when Non-overlapping hides the step control. */
   #stepControl.d-none + div {
@@ -897,26 +921,18 @@ document.querySelectorAll('.experiment-details').forEach(button => button.addEve
         const metadata = experiment.metadata || {};
         const hasMetadata = Object.keys(metadata).length > 0;
         const metadataHtml = hasMetadata
-            ? `<h6>Saved training definition</h6>
-               <p class="small text-muted mb-1">${escapeExperimentText(metadata.label_definition || '')}</p>
-               <p class="small text-muted mb-1">${escapeExperimentText(metadata.time_split || '')}</p>
-               <ul class="small mb-0">${Object.entries(metadata.model_parameters || {})
-                   .map(([key, value]) => `<li><strong>${escapeExperimentText(key)}:</strong> ${escapeExperimentText(value)}</li>`)
-                   .join('')}</ul>`
-            : '<p class="small text-muted mb-0">Detailed metadata was not saved for this older rule. Train it again to save full details.</p>';
+            ? `<div class="experiment-technical"><details><summary><i class="fa-solid fa-sliders me-2"></i>Training definition and technical settings</summary><div class="experiment-technical-content"><p class="small text-muted mb-2">${escapeExperimentText(metadata.label_definition || '')}</p><p class="small text-muted mb-0">${escapeExperimentText(metadata.time_split || '')}</p><div class="experiment-parameter-grid">${Object.entries(metadata.model_parameters || {})
+                   .map(([key, value]) => `<div class="experiment-parameter"><strong>${escapeExperimentText(key)}</strong><br>${escapeExperimentText(value)}</div>`)
+                   .join('')}</div></div></details></div>`
+            : '<div class="experiment-technical"><details><summary><i class="fa-solid fa-sliders me-2"></i>Training definition and technical settings</summary><div class="experiment-technical-content small text-muted">Detailed metadata was not saved for this older rule. Train it again to save full details.</div></details></div>';
         const body = `
-            <div class="row g-2 mb-3">
-                <div class="col-sm-6"><strong>Rule</strong><br>${escapeExperimentText(experiment.method)} · ${experiment.observation_window_days}d observation · ${experiment.prediction_horizon_days}d horizon</div>
-                <div class="col-sm-6"><strong>Classification cutoff</strong><br>${formatExperimentMetric(experiment.classification_threshold, 2)}</div>
-                <div class="col-sm-3"><strong>Recall</strong><br>${formatExperimentMetric(experiment.recall)}</div>
-                <div class="col-sm-3"><strong>F1</strong><br>${formatExperimentMetric(experiment.f1)}</div>
-                <div class="col-sm-3"><strong>PR-AUC</strong><br>${formatExperimentMetric(experiment.pr_auc)}</div>
-                <div class="col-sm-3"><strong>ROC-AUC</strong><br>${formatExperimentMetric(experiment.roc_auc)}</div>
+            <div class="experiment-detail-rule">
+                <div><div class="experiment-detail-eyebrow">Rule configuration</div><h6>${escapeExperimentText(experiment.method)} windows</h6><div class="small text-muted">${experiment.observation_window_days}d observation · ${experiment.prediction_horizon_days}d horizon · ${experiment.step_size_days}d step</div></div>
+                <div class="experiment-detail-cutoff"><div class="experiment-detail-eyebrow">Classification cutoff</div><strong>${formatExperimentMetric(experiment.classification_threshold, 2)}</strong><span class="small text-muted">Used for Recall and F1</span></div>
             </div>
-            <h6>Test-period check</h6>
-            <p class="small text-muted">Correct churn detections (TP): ${experiment.true_positive ?? 'Not saved'} · Missed churners (FN): ${experiment.false_negative ?? 'Not saved'} · False alarms (FP): ${experiment.false_positive ?? 'Not saved'} · Correct non-churn (TN): ${experiment.true_negative ?? 'Not saved'}</p>
-            <h6>Sample split</h6>
-            <p class="small text-muted">Training: ${experiment.training_samples} · Validation: ${experiment.validation_samples} · Test: ${experiment.test_samples}</p>
+            <div class="row g-2">${[['Recall', formatExperimentMetric(experiment.recall)], ['F1', formatExperimentMetric(experiment.f1)], ['PR-AUC', formatExperimentMetric(experiment.pr_auc)], ['ROC-AUC', formatExperimentMetric(experiment.roc_auc)]].map(([label, value]) => `<div class="col-6 col-md-3"><div class="experiment-detail-metric"><div class="label">${label}</div><div class="value">${value}</div></div></div>`).join('')}</div>
+            <div class="experiment-detail-section"><div class="experiment-detail-section-title"><i class="fa-solid fa-clipboard-check me-2 text-primary"></i>Test-period check</div><div class="row g-2"><div class="col-6 col-md-3"><div class="experiment-detail-check"><span class="small text-muted">Correct churn (TP)</span><span class="value">${experiment.true_positive ?? '—'}</span></div></div><div class="col-6 col-md-3"><div class="experiment-detail-check"><span class="small text-muted">Missed churners (FN)</span><span class="value">${experiment.false_negative ?? '—'}</span></div></div><div class="col-6 col-md-3"><div class="experiment-detail-check"><span class="small text-muted">False alarms (FP)</span><span class="value">${experiment.false_positive ?? '—'}</span></div></div><div class="col-6 col-md-3"><div class="experiment-detail-check"><span class="small text-muted">Correct non-churn (TN)</span><span class="value">${experiment.true_negative ?? '—'}</span></div></div></div></div>
+            <div class="experiment-detail-section"><div class="experiment-detail-section-title"><i class="fa-solid fa-chart-pie me-2 text-primary"></i>Sample split</div><div class="row g-2"><div class="col-4"><div class="experiment-detail-check"><span class="small text-muted">Training</span><span class="value">${experiment.training_samples ?? '—'}</span></div></div><div class="col-4"><div class="experiment-detail-check"><span class="small text-muted">Validation</span><span class="value">${experiment.validation_samples ?? '—'}</span></div></div><div class="col-4"><div class="experiment-detail-check"><span class="small text-muted">Test</span><span class="value">${experiment.test_samples ?? '—'}</span></div></div></div></div>
             ${metadataHtml}`;
         showExperimentDetailsModal(body);
     } catch (error) {
