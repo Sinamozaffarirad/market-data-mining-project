@@ -3366,11 +3366,11 @@ def predictive_analysis_api(request):
         except (TypeError, ValueError):
             time_horizon = None
 
-        valid_horizons = {1, 3, 6, 12}
-        selected_horizon = time_horizon if (time_horizon in valid_horizons) else 3
+        from .repurchase_classifier import VALID_HORIZON_MONTHS, horizon_key as build_horizon_key
+        selected_horizon = time_horizon if (time_horizon in VALID_HORIZON_MONTHS) else 3
 
         department_predictions = ml_analyzer.get_department_predictions(model_type, selected_horizon)
-        horizon_key = {1: '1month', 3: '3months', 6: '6months', 12: '12months'}[selected_horizon]
+        horizon_key = build_horizon_key(selected_horizon)
 
         return JsonResponse({
             'success': True,
@@ -3507,13 +3507,20 @@ def predict_future_api(request):
         except (TypeError, ValueError):
             time_horizon = None
 
-        valid_horizons = {1, 3, 6, 12}
-        selected_horizon = time_horizon if (time_horizon in valid_horizons) else 3
+        from .repurchase_classifier import VALID_HORIZON_MONTHS
+        selected_horizon = time_horizon if (time_horizon in VALID_HORIZON_MONTHS) else 3
+
+        try:
+            training_size = float(request.POST.get('training_size', 0.8))
+        except (TypeError, ValueError):
+            training_size = 0.8
+        training_size = max(0.5, min(training_size, 0.95))
 
         future_predictions = ml_analyzer.predict_future_purchases(
             model_name=model_type,
             time_horizon=selected_horizon,
-            top_n=10
+            top_n=10,
+            training_size=training_size,
         )
 
         return JsonResponse({
@@ -3552,21 +3559,18 @@ def train_ml_models(request):
 
     training_size = max(0.1, min(training_size, 0.95))
 
-    time_horizon_param = request.POST.get('time_horizon')
-    horizon_lookup = {
-        '1': '1month',
-        '3': '3months',
-        '6': '6months',
-        '12': '12months'
-    }
+    from .repurchase_classifier import HORIZON_DAYS, VALID_HORIZON_MONTHS
+    from .repurchase_classifier import horizon_key as build_horizon_key
 
+    time_horizon_param = request.POST.get('time_horizon')
     horizon_key = None
     if time_horizon_param is not None:
         key = str(time_horizon_param).strip()
         try:
-            horizon_key = horizon_lookup[str(int(key))]
-        except (ValueError, KeyError):
-            horizon_key = horizon_lookup.get(key)
+            months = int(key)
+            horizon_key = build_horizon_key(months) if months in VALID_HORIZON_MONTHS else None
+        except ValueError:
+            horizon_key = key if key in HORIZON_DAYS else None
 
     force_value = request.POST.get('force_retrain', request.POST.get('force', 'false'))
     force_retrain = str(force_value).lower() in {'1', 'true', 'yes', 'on'}
@@ -3583,7 +3587,9 @@ def train_ml_models(request):
 
     horizons_to_check = [horizon_key] if horizon_key else None
 
-    if not force_retrain and ml_analyzer.has_cached_models(horizons_to_check, refresh=True):
+    if not force_retrain and ml_analyzer.has_cached_models(
+        horizons_to_check, refresh=True, training_size=training_size
+    ):
         logger.info('Cached models detected for horizon %s; skipping retraining.', horizon_key or 'all')
         ml_analyzer.refresh_cached_models()
         ml_training_status = {
@@ -3682,8 +3688,8 @@ def get_predictions(request):
     except (TypeError, ValueError):
         time_horizon = None
 
-    valid_horizons = {1, 3, 6, 12}
-    selected_horizon = time_horizon if (time_horizon in valid_horizons) else 3
+    from .repurchase_classifier import VALID_HORIZON_MONTHS
+    selected_horizon = time_horizon if (time_horizon in VALID_HORIZON_MONTHS) else 3
 
     try:
         predictions = ml_analyzer.get_department_predictions(model_type, selected_horizon)
@@ -3714,8 +3720,8 @@ def get_recommendations(request):
     except (TypeError, ValueError):
         time_horizon = None
 
-    valid_horizons = {1, 3, 6, 12}
-    selected_horizon = time_horizon if (time_horizon in valid_horizons) else 3
+    from .repurchase_classifier import VALID_HORIZON_MONTHS
+    selected_horizon = time_horizon if (time_horizon in VALID_HORIZON_MONTHS) else 3
 
     try:
         customer_id = request.POST.get('customer_id')

@@ -1250,7 +1250,7 @@ html, body {
 
       <div class="nav nav-pills predictive-subnav gap-2 mb-3" role="tablist" aria-label="Predictive analysis models">
         <button class="nav-link" id="legacyRepurchaseTab" type="button" onclick="showPredictiveSubtab('legacy')">
-          <i class="fas fa-users"></i> Legacy Repurchase Classification
+          <i class="fas fa-users"></i> Department Repurchase Classification
         </button>
         <button class="nav-link active" id="revenueForecastTab" type="button" onclick="showPredictiveSubtab('revenue')">
           <i class="fas fa-chart-line"></i> Product Revenue Forecasting
@@ -1278,11 +1278,16 @@ html, body {
           </div>
           <div class="col-md-4">
             <label class="form-label control-label">Prediction Horizon:</label>
-            <select class="form-select" id="predictionHorizon">
+            <select class="form-select" id="predictionHorizon" onchange="checkCachedModel()">
               <option value="1">1 Month</option>
+              <option value="2">2 Months</option>
               <option value="3" selected>3 Months</option>
+              <option value="4">4 Months</option>
+              <option value="5">5 Months</option>
               <option value="6">6 Months</option>
-              <option value="12">12 Months</option>
+              <option value="7">7 Months</option>
+              <option value="8">8 Months</option>
+              <option value="9">9 Months</option>
             </select>
           </div>
           <div class="col-md-4">
@@ -1329,6 +1334,36 @@ html, body {
         <div class="alert alert-secondary small mt-3 mb-0">
           <strong>Output:</strong> probability that a household buys again from a department it previously purchased from. All aggregates stop at the prediction day. No dollar forecast is produced here.
         </div>
+
+        <details class="border rounded bg-white px-3 py-2 mt-2 small">
+          <summary class="fw-semibold" style="cursor:pointer">How to read the department scores</summary>
+          <div class="row g-3 mt-1">
+            <div class="col-md-3">
+              <strong class="text-dark">Avg probability</strong><br>
+              The mean predicted repurchase probability across every household scored for that
+              department. A department at 62% does <em>not</em> mean 62% of its shoppers will
+              return; it means the average household's chance is 62%.
+            </div>
+            <div class="col-md-3">
+              <strong class="text-dark">Expected households</strong><br>
+              The probabilities added up, which is the number of households the model expects to
+              come back. Summing probabilities rather than counting those above a cut-off keeps
+              the estimate unbiased when many households sit near the middle.
+            </div>
+            <div class="col-md-3">
+              <strong class="text-dark">High likelihood</strong><br>
+              How many households score at or above 0.50. This is a headcount, so it differs from
+              Expected households: a department full of 0.45s expects returners but counts none
+              here.
+            </div>
+            <div class="col-md-3">
+              <strong class="text-dark">Scored</strong><br>
+              Households eligible for that department, meaning they have bought from it before.
+              The model never scores a department a household has never purchased, so this is the
+              denominator for the other three columns.
+            </div>
+          </div>
+        </details>
 
         <div class="row g-2 mt-2">
           <div class="col-lg-5"><div class="bg-white border rounded p-3 h-100">
@@ -2730,6 +2765,9 @@ function updateTrainingSlider() {
     slider.addEventListener('input', (e) => {
       value.textContent = `${Math.round(parseFloat(e.target.value) * 100)}%`;
     });
+    // Each size has its own model and metrics, so reflect the change once the
+    // user settles on a value.
+    slider.addEventListener('change', () => checkCachedModel());
   }
 }
 
@@ -5343,7 +5381,9 @@ function getCsrfToken() {
 function getSelectedHorizon() {
   const select = document.getElementById('predictionHorizon');
   const value = select ? parseInt(select.value, 10) : NaN;
-  if ([1, 3, 6, 12].includes(value)) {
+  // 10 months and beyond leave too few independent windows in the 711-day
+  // calendar to fit and test on, so the grid stops at 9.
+  if (value >= 1 && value <= 9) {
     return value;
   }
   return 3; // Default to 3 months
@@ -5352,6 +5392,7 @@ function getSelectedHorizon() {
 function getHorizonLabel(months) {
   const value = Number(months);
   if (value === 1) return '1 Month';
+  if (value >= 2 && value <= 9) return `${value} Months`;
   if (value === 3) return '3 Months';
   if (value === 6) return '6 Months';
   if (value === 12) return '12 Months';
@@ -6768,8 +6809,24 @@ function renderLegacyModelMetrics(metrics, algorithm) {
     document.getElementById('predictFutureBtn').disabled = true;
     return;
   }
+  /* How many independent snapshots the model was fitted on is the figure that
+     decides whether these metrics mean anything: a longer horizon consumes the
+     calendar, so origins fall away and the estimate rests on fewer, more
+     correlated windows. */
+  const origins = Array.isArray(metrics.fit_origins) ? metrics.fit_origins.length : null;
+  const trainedAt = metrics.training_size != null
+    ? ` Trained at ${Math.round(Number(metrics.training_size) * 100)}% training size` : '';
+  const originNote = origins
+    ? `${origins} training snapshot${origins === 1 ? '' : 's'}${trainedAt}.`
+    : '';
+  const thinWarning = origins && origins < 4
+    ? `<div class="alert alert-warning py-2 px-3 small mt-2 mb-0"><strong>Thin evidence:</strong>
+        only ${origins} independent training snapshot${origins === 1 ? '' : 's'} fit inside the
+        711-day calendar at this horizon. The holdout is still leakage-free, but the metrics rest
+        on very few windows; a shorter horizon gives a far better-supported estimate.</div>`
+    : '';
   const horizonNote = valid
-    ? `Test snapshot: day ${metrics.test_origin}; ${Number(metrics.test_rows || 0).toLocaleString()} household-department pairs.`
+    ? `Test snapshot: day ${metrics.test_origin}; ${Number(metrics.test_rows || 0).toLocaleString()} household-department pairs. ${originNote}`
     : escapeHtml(metrics.validation_note || 'No independent chronological holdout is available.');
   container.innerHTML = `
     <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
@@ -6787,18 +6844,34 @@ function renderLegacyModelMetrics(metrics, algorithm) {
         <small class="d-block text-muted mt-1">${horizonNote} Actual positive rate: ${displayPercent(metrics.positive_rate)}; mean predicted probability: ${displayPercent(metrics.mean_predicted_probability)}; calibration gap: ${metrics.calibration_gap == null ? 'N/A' : (Number(metrics.calibration_gap) * 100).toFixed(2) + ' pp'}. Output is repurchase probability, never forecast dollars.</small>
       </div>
       <span class="badge ${valid ? 'bg-success' : 'bg-warning text-dark'}">${valid ? 'Leakage-safe holdout' : 'No honest holdout metric'}</span>
-    </div>`;
+    </div>${thinWarning}`;
   container.style.display = 'block';
   document.getElementById('predictFutureBtn').disabled = false;
 }
 
+function getSelectedTrainingSize() {
+  const slider = document.getElementById('trainingSizeSlider');
+  const value = slider ? parseFloat(slider.value) : 0.8;
+  return Math.max(0.5, Math.min(Number.isFinite(value) ? value : 0.8, 0.95));
+}
+
+function legacyHorizonKey(months) {
+  return Number(months) === 1 ? '1month' : `${Number(months)}months`;
+}
+
 async function getSelectedLegacyMetrics() {
   const algorithm = document.getElementById('mlAlgorithm')?.value || 'neural_network';
-  const horizon = getSelectedHorizon();
-  const horizonKey = {1: '1month', 3: '3months', 6: '6months', 12: '12months'}[horizon];
+  const horizonKey = legacyHorizonKey(getSelectedHorizon());
+  // Each training size keeps its own model and its own metrics, so the size
+  // belongs in the key: looking it up without one returned whichever size was
+  // trained first and made the slider look inert.
+  const sizeTag = 'tr' + String(Math.round(getSelectedTrainingSize() * 100)).padStart(2, '0');
   const response = await fetch('/analysis/api/ml/performance/');
   const data = await response.json();
-  return {algorithm, metrics: data.performance?.[`${horizonKey}_${algorithm}`] || null};
+  return {
+    algorithm,
+    metrics: data.performance?.[`${horizonKey}_${sizeTag}_${algorithm}`] || null,
+  };
 }
 
 async function checkCachedModel() {
@@ -6845,7 +6918,11 @@ async function scoreLegacyRepurchases() {
   const response = await fetch('/analysis/api/ml/predict-future/', {
     method: 'POST',
     headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': getCsrfToken()},
-    body: new URLSearchParams({model_type: algorithm, time_horizon: timeHorizon}).toString(),
+    body: new URLSearchParams({
+      model_type: algorithm,
+      time_horizon: timeHorizon,
+      training_size: getSelectedTrainingSize(),
+    }).toString(),
   });
   const data = await response.json();
   if (!response.ok || !data.success) throw new Error(data.error || 'Repurchase scoring failed.');
