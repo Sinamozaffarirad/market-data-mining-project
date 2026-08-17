@@ -1748,6 +1748,10 @@ html, body {
                 <i class="fas fa-wand-magic-sparkles"></i> Forecast revenue
               </button>
               <span id="timeSeriesSavedModelStatus" class="badge bg-secondary">Checking saved model…</span>
+              <div id="revenueProgress" class="rev-training" style="display: none;">
+                <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                <span class="rev-training-label" id="revenueProgressLabel">Working&hellip;</span>
+              </div>
               <button class="btn rev-btn-ghost ms-auto" type="button" data-bs-toggle="modal" data-bs-target="#modelBenchmarksModal"
                       title="Holdout metrics, ranking benchmarks and error charts">
                 <i class="fas fa-vials"></i> Model benchmarks
@@ -6171,6 +6175,21 @@ function renderTimeSeriesDepartmentChart(rows) {
   });
 }
 
+/* Shows the inline spinner beside the revenue buttons. Training and
+   forecasting both take long enough to need one, and the report container's
+   own message is off-screen once the panel is scrolled. */
+function setRevenueBusy(label) {
+  const box = document.getElementById('revenueProgress');
+  const text = document.getElementById('revenueProgressLabel');
+  if (!box) return;
+  if (label) {
+    if (text) text.textContent = label;
+    box.style.display = 'inline-flex';
+  } else {
+    box.style.display = 'none';
+  }
+}
+
 async function trainProductTimeSeries() {
   const button = document.getElementById('trainTimeSeriesBtn');
   const forecastButton = document.getElementById('forecastTimeSeriesBtn');
@@ -6178,6 +6197,7 @@ async function trainProductTimeSeries() {
   const config = getTimeSeriesConfig();
   button.disabled = true;
   forecastButton.disabled = true;
+  setRevenueBusy('Training and validating both models…');
   reportContainer.innerHTML = '<div class="alert alert-warning mb-0"><i class="fas fa-spinner fa-spin"></i> Building sliding windows, training the product revenue model, and validating it in chronological order…</div>';
   try {
     const data = await timeSeriesRequest(TIME_SERIES_ENDPOINTS.train, config);
@@ -6193,6 +6213,7 @@ async function trainProductTimeSeries() {
     showNotification(error.message, 'error');
   } finally {
     button.disabled = false;
+    setRevenueBusy(null);
   }
 }
 
@@ -7874,6 +7895,7 @@ async function forecastProductTimeSeries() {
   const button = document.getElementById('forecastTimeSeriesBtn');
   const config = getTimeSeriesConfig();
   button.disabled = true;
+  setRevenueBusy('Forecasting product revenue…');
   rows.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-4"><i class="fas fa-spinner fa-spin"></i> Forecasting product revenue...</td></tr>';
   try {
     const data = await timeSeriesRequest(TIME_SERIES_ENDPOINTS.forecast, config);
@@ -7890,6 +7912,7 @@ async function forecastProductTimeSeries() {
     showNotification(error.message, 'error');
   } finally {
     button.disabled = lastReadyTimeSeriesModelKey !== timeSeriesModelConfigKey();
+    setRevenueBusy(null);
   }
 }
 
