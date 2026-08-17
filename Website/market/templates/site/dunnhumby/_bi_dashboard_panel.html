@@ -169,9 +169,12 @@ one over several lines renders it onto the page as visible text.
 .insight .d { font-size: .8rem; color: #5a6180; margin-top: .12rem; }
 
 .bi-table { font-size: .83rem; }
-.bi-table th {
+.bi-table thead th {
   font-size: .66rem; letter-spacing: .05em; text-transform: uppercase;
-  color: var(--bi-muted); font-weight: 700;
+  color: #fff; font-weight: 700; white-space: nowrap;
+  position: sticky; top: 0; z-index: 2;
+  background: linear-gradient(135deg, var(--bi-1), var(--bi-2));
+  border-bottom: 0;
 }
 .bi-table td.n { text-align: right; font-variant-numeric: tabular-nums; }
 .bi-table tbody tr { cursor: pointer; }
@@ -194,7 +197,20 @@ one over several lines renders it onto the page as visible text.
   border: 1px solid var(--bi-line); border-radius: 13px; padding: .9rem 1rem;
   margin-bottom: .8rem; background: #fbfbff;
 }
-.test-card .name { font-weight: 700; color: var(--bi-ink); font-size: .92rem; }
+.test-card .headline {
+  font-weight: 700; color: var(--bi-ink); font-size: 1.02rem; margin: .5rem 0 .15rem;
+}
+.verdict-row { display: flex; flex-wrap: wrap; gap: .45rem; align-items: center; }
+.verdict-badge {
+  display: inline-flex; align-items: center; gap: .35rem; border-radius: 999px;
+  padding: .16rem .62rem; font-size: .72rem; font-weight: 700;
+}
+.verdict-acted-on { background: #e6f6ef; color: #0a7a56; }
+.verdict-too-small { background: #eef0f6; color: #6b7391; }
+.test-detail { margin-top: .55rem; }
+.test-detail summary {
+  cursor: pointer; font-size: .78rem; font-weight: 600; color: var(--bi-1);
+}
 .test-card .q { font-size: .82rem; color: var(--bi-muted); margin-top: .1rem; }
 .test-metrics { display: flex; flex-wrap: wrap; gap: 1.4rem; margin: .7rem 0 .5rem; }
 .test-metrics .m .mv {
@@ -224,12 +240,12 @@ one over several lines renders it onto the page as visible text.
   <div class="bi-type-card">
     <h4>
       <i class="fas fa-chart-pie"></i>
-      Business Intelligence Dashboard
+      BI &amp; Differential Analysis
     </h4>
     <p>
-      Interactive drill-down reporting over the market-basket star schema. Click any bar,
-      slice, point or row to filter every panel by it; filters stack and appear as chips
-      you can remove.
+      Drill-down reporting over the market-basket star schema, with significance testing
+      between groups. Click any bar, slice, point or row to filter every panel by it;
+      filters stack and appear as chips you can remove.
     </p>
   </div>
 
@@ -343,7 +359,7 @@ one over several lines renders it onto the page as visible text.
         <p class="sub">Highest revenue in the current selection &mdash; click a row to filter to that product</p></div></div>
       <div class="table-responsive" style="max-height:380px;overflow:auto">
         <table class="table table-sm table-hover bi-table mb-0">
-          <thead class="table-light sticky-top"><tr>
+          <thead><tr>
             <th>#</th><th>Product</th><th>Department</th><th>Commodity</th><th>Brand</th>
             <th class="text-end">Revenue</th><th class="text-end">Share</th><th class="text-end">Baskets</th>
           </tr></thead>
@@ -356,7 +372,7 @@ one over several lines renders it onto the page as visible text.
         <p class="sub" id="detailSub">Product hierarchy breakdown</p></div></div>
       <div class="table-responsive" style="max-height:320px;overflow:auto">
         <table class="table table-sm table-hover bi-table mb-0">
-          <thead class="table-light sticky-top"><tr>
+          <thead><tr>
             <th id="detailLevelHead">Level</th><th class="text-end">Revenue</th>
             <th class="text-end">Share</th><th class="text-end">Baskets</th>
           </tr></thead>
@@ -476,6 +492,13 @@ const BI = {
   hour: null, weekday: null, discount: null, brand: null, demo: null,
   page: 'overview',
 };
+if (window.Chart) {
+  Chart.defaults.devicePixelRatio = Math.max(2.5, window.devicePixelRatio || 1);
+  Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
+  Chart.defaults.font.size = 12;
+  Chart.defaults.color = '#5a6180';
+}
+
 const T = {
   indigo: '#667eea', violet: '#8b5cf6', emerald: '#0ea373', amber: '#e08a00',
   rose: '#f43f5e', cyan: '#0891b2',
@@ -617,7 +640,7 @@ function renderCrumbs(containerId, breadcrumb, rootLabel, onJump) {
   breadcrumb.forEach((item, index) => {
     parts.push('<span class="crumb-sep">/</span>');
     parts.push(`<span class="crumb ${index === breadcrumb.length - 1 ? 'active' : ''}"
-      onclick="${onJump}(${index + 1})">${escapeHtml(item.value)}</span>`);
+      onclick="${onJump}(${index + 1})">${escapeHtml(item.display || item.value)}</span>`);
   });
   document.getElementById(containerId).innerHTML = parts.join('');
 }
@@ -628,7 +651,7 @@ function renderDetailTable(rows, levelLabel, levelKey) {
   document.getElementById('detailLevelHead').textContent = levelLabel;
   if (!rows.length) { body.innerHTML = '<tr><td colspan="4" class="bi-loading">No rows.</td></tr>'; return; }
   const max = Math.max(...rows.map(r => r.revenue));
-  body.innerHTML = rows.map(r => `<tr onclick="biSetFilter('${levelKey}', ${JSON.stringify(String(r.label)).replace(/"/g, '&quot;')}, {toggle:true})">
+  body.innerHTML = rows.map(r => `<tr onclick="biSetFilter('${levelKey}', ${JSON.stringify(String(r.value ?? r.label)).replace(/"/g, '&quot;')}, {toggle:true})">
     <td class="bar-cell"><div class="fill" style="width:${max ? (r.revenue / max * 100) : 0}%"></div><span>${escapeHtml(r.label)}</span></td>
     <td class="n">${money(r.revenue)}</td><td class="n">${pct(r.share)}</td><td class="n">${num(r.baskets)}</td>
   </tr>`).join('');
@@ -654,7 +677,7 @@ async function loadProduct() {
       // hierarchy and narrows every other panel.
       onClick: (event, elements) => {
         if (!elements.length) return;
-        biSetFilter(data.level, data.rows[elements[0].index].label, {toggle: true});
+        biSetFilter(data.level, data.rows[elements[0].index].value, {toggle: true});
       },
       plugins: { legend: { display: false },
         tooltip: { callbacks: { label: ctx => `${money(ctx.raw)} · ${pct(data.rows[ctx.dataIndex].share)} of level` } } },
@@ -681,7 +704,7 @@ async function loadTime() {
       responsive: true, maintainAspectRatio: false,
       onClick: (event, elements) => {
         if (!elements.length) return;
-        biSetFilter(data.level, data.rows[elements[0].index].label, {toggle: true});
+        biSetFilter(data.level, data.rows[elements[0].index].value, {toggle: true});
       },
       plugins: { legend: { display: false },
         tooltip: { callbacks: {
@@ -945,16 +968,26 @@ async function loadSignificance(reset) {
 
   results.innerHTML = data.tests.length ? data.tests.map(t => `
     <div class="test-card">
-      <div class="name">${escapeHtml(t.name)}</div>
-      <div class="q">${escapeHtml(t.question)}</div>
-      <div class="test-metrics">
-        <div class="m"><div class="mv">${t.p_value < 0.001 ? '&lt; 0.001' : t.p_value.toFixed(4)}</div><div class="ml">p-value</div></div>
-        <div class="m"><div class="mv">${Number(t.effect).toFixed(4)}</div><div class="ml">${escapeHtml(t.effect_name)}</div></div>
-        <div class="m"><div class="mv"><span class="effect-pill effect-${t.effect_label}">${t.effect_label}</span></div><div class="ml">effect size</div></div>
-        <div class="m"><div class="mv">${Number(t.statistic).toLocaleString(undefined,{maximumFractionDigits:3})}</div><div class="ml">statistic</div></div>
+      <div class="verdict-row">
+        <span class="verdict-badge verdict-${t.verdict}">
+          <i class="fas ${t.verdict === 'acted-on' ? 'fa-circle-check' : 'fa-circle-minus'}"></i>
+          ${t.verdict === 'acted-on' ? 'Worth acting on' : 'Too small to act on'}
+        </span>
+        <span class="effect-pill effect-${t.effect_label}">${t.effect_label} difference</span>
       </div>
-      <div class="q">${escapeHtml(t.detail)}</div>
-      <div class="test-why"><strong>Why this test:</strong> ${escapeHtml(t.why)}</div>
+      <div class="headline">${escapeHtml(t.headline)}</div>
+      <div class="q">${escapeHtml(t.plain)}</div>
+      <div class="q mt-1">${escapeHtml(t.detail)}</div>
+      <details class="test-detail">
+        <summary>Statistical detail</summary>
+        <div class="test-metrics">
+          <div class="m"><div class="mv">${escapeHtml(t.name)}</div><div class="ml">test used</div></div>
+          <div class="m"><div class="mv">${t.p_value < 0.001 ? '&lt; 0.001' : t.p_value.toFixed(4)}</div><div class="ml">p-value</div></div>
+          <div class="m"><div class="mv">${Number(t.effect).toFixed(4)}</div><div class="ml">${escapeHtml(t.effect_name)}</div></div>
+          <div class="m"><div class="mv">${Number(t.statistic).toLocaleString(undefined,{maximumFractionDigits:3})}</div><div class="ml">statistic</div></div>
+        </div>
+        <div class="test-why"><strong>${escapeHtml(t.question)}</strong> ${escapeHtml(t.why)}</div>
+      </details>
     </div>`).join('')
     : '<div class="bi-loading">Not enough baskets in these groups to test.</div>';
 }

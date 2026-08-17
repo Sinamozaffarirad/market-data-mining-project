@@ -71,17 +71,22 @@ PRODUCT_LEVELS = [
 
 TIME_LEVELS = [
     {"key": "year", "select": "CAST(d.calendar_year AS varchar(4))",
+     "value": "CAST(d.calendar_year AS varchar(4))",
      "group": "d.calendar_year", "label": "Year"},
-    {"key": "quarter", "select": "d.quarter_name",
+    {"key": "quarter", "select": "d.quarter_name", "value": "d.quarter_name",
      "group": "d.calendar_quarter", "label": "Quarter"},
-    {"key": "month", "select": "d.month_name",
+    {"key": "month", "select": "d.month_name", "value": "d.month_name",
      "group": "d.calendar_month", "label": "Month"},
     # Week within the month, not the dataset week: a month overlaps five dataset
     # weeks whose ends are clipped by the month boundary, which read as a slump.
+    # It displays as "Week 5" but filters on the bare number, so the two are
+    # carried separately.
     {"key": "week", "select": "'Week ' + CAST(d.week_of_month AS varchar(2))",
-     "group": "d.week_of_month", "label": "Week"},
-    {"key": "day", "select": "CAST(d.day_key AS varchar(4))",
-     "group": "d.day_key", "label": "Day"},
+     "value": "CAST(d.week_of_month AS varchar(2))",
+     "group": "d.week_of_month", "label": "Week", "crumb": "Week {}"},
+    {"key": "day", "select": "'Day ' + CAST(d.day_key AS varchar(4))",
+     "value": "CAST(d.day_key AS varchar(4))",
+     "group": "d.day_key", "label": "Day", "crumb": "Day {}"},
 ]
 
 DEMOGRAPHIC_DIMENSIONS = {
@@ -232,7 +237,12 @@ def _drill(request, levels, is_product):
         value = (request.GET.get(level["key"]) or "").strip()
         if not value or value.lower() == "all":
             break
-        breadcrumb.append({"label": level["label"], "value": value, "key": level["key"]})
+        breadcrumb.append({
+            "label": level["label"],
+            "value": value,
+            "display": level.get("crumb", "{}").format(value),
+            "key": level["key"],
+        })
         depth = index + 1
     # The leaf stays selectable rather than drilling into nothing.
     depth = min(depth, len(levels) - 1)
@@ -240,14 +250,16 @@ def _drill(request, levels, is_product):
 
     clause = _clause(where)
     label_sql = level["column"] if is_product else level["select"]
+    value_sql = level["column"] if is_product else level["value"]
     group_sql = level["column"] if is_product else level["group"]
     select_label = label_sql
-    group_by = group_sql if is_product else f"{group_sql}, {label_sql}"
+    group_by = group_sql if is_product else f"{group_sql}, {label_sql}, {value_sql}"
     order_sql = "revenue DESC" if is_product else f"{group_sql} ASC"
 
     rows = _query(f"""
         SELECT TOP 40
             {select_label} AS label,
+            {value_sql} AS value,
             SUM(f.sales_value)           AS revenue,
             COUNT(DISTINCT f.basket_id)  AS baskets,
             COUNT(DISTINCT f.day_key)    AS days
@@ -809,6 +821,9 @@ def api_bi_significance(request):
         median_a, median_b = float(np.median(values_a)), float(np.median(values_b))
         statistic, p_value = mannwhitneyu(values_a, values_b, alternative="two-sided")
         delta = _cliffs_delta(values_a, values_b)
+        higher, lower = (group_a, group_b) if median_a >= median_b else (group_b, group_a)
+        gap = abs(median_a - median_b)
+        matters = _delta_label(delta) not in ("negligible", "small")
         tests.append({
             "name": "Mann-Whitney U",
             "question": "Do the two groups spend differently per basket?",
@@ -824,6 +839,19 @@ def api_bi_significance(request):
             "why": (
                 "Basket value is right-skewed, so a rank test is used instead of a "
                 "t-test, which assumes a normal distribution this data does not have."
+            ),
+            "headline": (
+                f"{higher} baskets are worth about ${gap:,.2f} more than {lower}"
+                if gap >= 0.005 else
+                f"{group_a} and {group_b} baskets are worth about the same"
+            ),
+            "verdict": "acted-on" if matters else "too-small",
+            "plain": (
+                f"The difference is real, and big enough to plan around: "
+                f"{_delta_label(delta)} on a standard scale."
+                if matters else
+                f"There is a difference, but it is {_delta_label(delta)} - too small on its "
+                "own to justify treating these groups differently."
             ),
         })
 
@@ -843,6 +871,15 @@ def api_bi_significance(request):
             "why": (
                 "A different question from the rank test: two groups can share a "
                 "median while one has a far longer tail of large baskets."
+            ),
+            "headline": (
+                f"The two spending patterns differ in shape by {float(ks_statistic):.0%}"
+            ),
+            "verdict": "acted-on" if _delta_label(float(ks_statistic)) not in ("negligible", "small") else "too-small",
+            "plain": (
+                "D is the widest gap between the two groups' spending curves. "
+                f"At {float(ks_statistic):.0%} the shapes are "
+                + ("clearly different." if float(ks_statistic) >= 0.33 else "broadly similar.")
             ),
         })
 
@@ -884,6 +921,15 @@ def api_bi_significance(request):
                 "why": (
                     "Chi-square suits counts in categories. Cramer's V rescales it to "
                     "0-1 so the strength does not simply grow with the sample size."
+                ),
+                "headline": (
+                    f"{group_a} and {group_b} shop across departments "
+                    + ("quite differently" if cramers_v >= 0.33 else "in much the same way")
+                ),
+                "verdict": "acted-on" if _delta_label(cramers_v) not in ("negligible", "small") else "too-small",
+                "plain": (
+                    "Cramer's V runs 0 to 1: 0 means the two groups spread their baskets "
+                    f"across departments identically, 1 means they never overlap. This is {cramers_v:.2f}."
                 ),
             })
 
