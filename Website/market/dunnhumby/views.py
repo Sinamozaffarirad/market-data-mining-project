@@ -3519,7 +3519,7 @@ def predict_future_api(request):
         future_predictions = ml_analyzer.predict_future_purchases(
             model_name=model_type,
             time_horizon=selected_horizon,
-            top_n=10,
+            top_n=0,
             training_size=training_size,
         )
 

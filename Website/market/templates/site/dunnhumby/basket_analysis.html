@@ -369,6 +369,37 @@
   min-height: 38px;
 }
 
+.forecast-sort-button {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.forecast-sort-button.text-end {
+  justify-content: flex-end;
+}
+
+.forecast-sort-button:hover,
+.forecast-sort-button:focus-visible {
+  color: #fff;
+  background: rgba(255, 255, 255, .13);
+  border-radius: 5px;
+  text-decoration: none;
+}
+
+.forecast-sort-button:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, .9);
+  outline-offset: 2px;
+}
+
 .expanded-chart-stage {
   height: min(68vh, 720px);
   min-height: 420px;
@@ -429,6 +460,10 @@
 
 .forecast-expanded-detail {
   padding: 1rem;
+}
+
+.forecast-expanded-card:not([data-filled]) .forecast-expanded-detail {
+  display: none;
 }
 
 .academic-evidence-summary {
@@ -1606,12 +1641,16 @@ html, body {
           <!-- Results -->
           <div class="row g-3">
             <div class="col-lg-5">
-              <section class="rev-card h-100">
+              <section class="rev-card h-100" id="legacyProbabilityChartContainer">
                 <div class="rev-head-sm">
                   <div>
                     <h6 class="rev-card-title">Expected returning households</h6>
                     <p class="rev-step-hint">By department, for the current model.</p>
                   </div>
+                  <button class="btn btn-outline-secondary btn-sm" type="button"
+                          onclick="expandChart('legacyProbabilityChartContainer')" title="Expand chart">
+                    <i class="fas fa-expand-arrows-alt"></i> Expand
+                  </button>
                 </div>
                 <div style="height:320px"><canvas id="legacyProbabilityChart"></canvas></div>
               </section>
@@ -1801,7 +1840,7 @@ html, body {
             <div class="rev-head-sm">
               <div>
                 <h6 class="rev-card-title">Forecast by department</h6>
-                <p class="rev-step-hint">Where the predicted revenue lands. This is the live forecast, not a benchmark test.</p>
+                <p class="rev-step-hint" id="timeSeriesDepartmentChartContext">Where the predicted revenue lands for the selected products. This is the live forecast, not a benchmark test.</p>
               </div>
               <button class="btn btn-outline-secondary btn-sm" type="button"
                       onclick="expandChart('timeSeriesDepartmentChartContainer')" title="Expand chart">
@@ -1819,14 +1858,15 @@ html, body {
             <div class="rev-advanced-body">
               <div class="rev-fields">
                 <div class="rev-field">
-                  <label for="timeSeriesTopN">Products to list</label>
+                  <label for="timeSeriesTopN">Products to list <i class="fas fa-info-circle text-muted" title="Only products with revenue in the selected recent lookback are eligible for a non-zero revenue forecast."></i></label>
                   <select class="form-select" id="timeSeriesTopN" onchange="handleTimeSeriesDisplayChange()">
                     <option value="10">Top 10</option>
                     <option value="20" selected>Top 20</option>
                     <option value="50">Top 50</option>
                     <option value="100">Top 100</option>
                     <option value="500">Top 500</option>
-                    <option value="0">All products</option>
+                    <option value="1000">Top 1,000</option>
+                    <option value="0">All eligible active products</option>
                   </select>
                 </div>
                 <div class="rev-field">
@@ -1952,7 +1992,15 @@ html, body {
         <div class="table-responsive predictive-scroll" id="timeSeriesForecastScroll" tabindex="0" aria-label="Product revenue forecast results">
           <table class="table table-sm table-hover align-middle mb-0" id="productRevenueForecastTable">
             <thead class="table-light sticky-top"><tr>
-              <th style="width:48px">Rank</th><th>Product</th><th>Department</th><th>Commodity</th><th class="text-end">Recursive time series</th><th class="text-end">Independent model</th><th class="text-end">Difference</th><th class="text-end">Historical revenue / quantity <i class="fas fa-info-circle text-muted" title="Historical sales_value divided by positive recorded quantity. Quantity units vary for gasoline and weighted products."></i></th><th class="text-center" style="width:72px">Details</th>
+              <th style="width:48px" aria-sort="ascending"><button class="forecast-sort-button" type="button" onclick="sortForecastRows('rank')">Rank <i class="fas fa-sort-up" aria-hidden="true"></i></button></th>
+              <th aria-sort="none"><button class="forecast-sort-button" type="button" onclick="sortForecastRows('product_id')">Product <i class="fas fa-sort" aria-hidden="true"></i></button></th>
+              <th aria-sort="none"><button class="forecast-sort-button" type="button" onclick="sortForecastRows('department')">Department <i class="fas fa-sort" aria-hidden="true"></i></button></th>
+              <th aria-sort="none"><button class="forecast-sort-button" type="button" onclick="sortForecastRows('commodity')">Commodity <i class="fas fa-sort" aria-hidden="true"></i></button></th>
+              <th class="text-end" aria-sort="none"><button class="forecast-sort-button text-end" type="button" onclick="sortForecastRows('time_series_revenue')">Recursive time series <i class="fas fa-sort" aria-hidden="true"></i></button></th>
+              <th class="text-end" aria-sort="none"><button class="forecast-sort-button text-end" type="button" onclick="sortForecastRows('independent_revenue')">Independent model <i class="fas fa-sort" aria-hidden="true"></i></button></th>
+              <th class="text-end" aria-sort="none"><button class="forecast-sort-button text-end" type="button" onclick="sortForecastRows('difference')">Difference <i class="fas fa-sort" aria-hidden="true"></i></button></th>
+              <th class="text-end" aria-sort="none"><button class="forecast-sort-button text-end" type="button" onclick="sortForecastRows('revenue_per_unit')">Historical revenue / quantity <i class="fas fa-info-circle text-muted" title="Historical sales_value divided by positive recorded quantity. Quantity units vary for gasoline and weighted products."></i><i class="fas fa-sort" aria-hidden="true"></i></button></th>
+              <th class="text-center" style="width:72px">Details</th>
             </tr></thead>
             <tbody id="timeSeriesForecastRows"><tr><td colspan="9" class="text-center text-muted py-4">Train and validate the models to see product-level forecasts.</td></tr></tbody>
             <tfoot><tr><td colspan="9" style="height:20px;border:0;background:white"></td></tr></tfoot>
@@ -2092,6 +2140,8 @@ const DEPARTMENT_CONFIG = {
 // Global variables for analysis
 let currentAnalysisData = {};
 let charts = {};
+let lastTimeSeriesDepartmentRows = [];
+let lastLegacyProbabilityPredictions = [];
 
 // Tab switching functionality
 function switchTab(tabName) {
@@ -4343,6 +4393,10 @@ function expandChart(chartId) {
       title = 'Department Forecast Comparison';
       container = document.getElementById('timeSeriesDepartmentChartContainer');
       break;
+    case 'legacyProbabilityChartContainer':
+      title = 'Expected Returning Households by Department';
+      container = document.getElementById('legacyProbabilityChartContainer');
+      break;
     case 'timeSeriesComparisonChartContainer':
       title = 'Holdout Error and Top-20 Ranking';
       container = document.getElementById('timeSeriesComparisonChartContainer');
@@ -4461,6 +4515,11 @@ function recreateExpandedChart(chartId) {
     return;
   }
 
+  if (chartKey === 'timeSeriesDepartment' || chartKey === 'legacyProbability') {
+    recreateFullDepartmentExpandedChart(expandedCanvas, chartKey);
+    return;
+  }
+
   // Chart.js options are resolver Proxies. Spreading those Proxies into a new
   // chart throws in Chart.js, so expanded charts use plain copied data and a
   // small, explicit option set instead.
@@ -4482,15 +4541,19 @@ function recreateExpandedChart(chartId) {
   const isDepartment = chartKey === 'timeSeriesDepartment';
   const isActual = chartKey === 'timeSeriesActual';
   const chartType = originalChart.config.type || 'bar';
+  const isBarChart = chartType === 'bar';
+  const valueKind = ['revenue', 'timeSeriesActual'].includes(chartKey) ? 'currency' : 'number';
   const options = {
     responsive: true,
     maintainAspectRatio: false,
-    devicePixelRatio: window.devicePixelRatio || 2,
+    devicePixelRatio: chartRenderPixelRatio(),
     indexAxis: isDepartment ? 'y' : 'x',
-    interaction: {mode: 'index', intersect: false},
+    interaction: {mode: isBarChart ? 'nearest' : 'index', intersect: isBarChart},
     plugins: {
       legend: {position: 'bottom', labels: {font: {size: 14}, padding: 18}},
-      tooltip: {enabled: true},
+      tooltip: isBarChart
+        ? expandedBarTooltipOptions(valueKind, 'y')
+        : {enabled: true, mode: 'index', intersect: false},
     },
     scales: isDepartment
       ? {x: {beginAtZero: true, title: {display: true, text: 'Revenue'}}, y: {ticks: {autoSkip: false}}}
@@ -4506,6 +4569,76 @@ function recreateExpandedChart(chartId) {
     console.error('Unable to create expanded chart', error);
     expandedCanvas.parentElement.innerHTML = `<div class="alert alert-danger mb-0">Unable to display this chart: ${escapeHtml(error.message)}</div>`;
   }
+}
+
+function expandedBarTooltipOptions(valueKind = 'number', valueAxis = 'y') {
+  return {
+    enabled: true,
+    mode: 'nearest',
+    intersect: true,
+    backgroundColor: 'rgba(49, 46, 129, .96)',
+    titleColor: '#fff',
+    bodyColor: '#fff',
+    borderColor: 'rgba(199, 210, 254, .8)',
+    borderWidth: 1,
+    padding: 11,
+    displayColors: true,
+    callbacks: {
+      label(context) {
+        const value = Number(context.parsed?.[valueAxis] ?? context.raw ?? 0);
+        const formatted = valueKind === 'currency'
+          ? '$' + value.toLocaleString(undefined, {maximumFractionDigits: 2})
+          : value.toLocaleString(undefined, {maximumFractionDigits: valueKind === 'households' ? 1 : 2});
+        return `${context.dataset.label || 'Value'}: ${formatted}`;
+      },
+    },
+  };
+}
+
+function recreateFullDepartmentExpandedChart(canvas, chartKey) {
+  const isForecast = chartKey === 'timeSeriesDepartment';
+  const rows = isForecast ? lastTimeSeriesDepartmentRows : lastLegacyProbabilityPredictions;
+  if (!rows.length) {
+    canvas.style.display = 'none';
+    canvas.parentElement.innerHTML = '<div class="alert alert-info mb-0">Generate results first so every department can be displayed.</div>';
+    return;
+  }
+  const stage = canvas.parentElement;
+  stage.style.height = `${Math.min(1400, Math.max(520, rows.length * 42 + 140))}px`;
+  const data = isForecast ? {
+    labels: rows.map(row => row.department || 'Unknown'),
+    datasets: [
+      {label: 'Recursive RNN', data: rows.map(row => Number(row.time_series_revenue || 0)), backgroundColor: '#2563eb'},
+      {label: 'Independent direct', data: rows.map(row => Number(row.independent_revenue || 0)), backgroundColor: '#7c3aed'},
+    ],
+  } : {
+    labels: rows.map(row => row.department || 'Unknown'),
+    datasets: [{
+      label: 'Expected repurchase households',
+      data: rows.map(row => Number(row.expected_repurchase_households || 0)),
+      backgroundColor: '#7c3aed',
+    }],
+  };
+  if (expandedChartInstance) expandedChartInstance.destroy();
+  expandedChartInstance = new Chart(canvas, {
+    type: 'bar',
+    data,
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      devicePixelRatio: chartRenderPixelRatio(),
+      interaction: {mode: 'nearest', intersect: true},
+      plugins: {
+        legend: {display: isForecast, position: 'bottom', labels: {font: {size: 14}, padding: 18}},
+        tooltip: expandedBarTooltipOptions(isForecast ? 'currency' : 'households', 'x'),
+      },
+      scales: {
+        x: {beginAtZero: true, title: {display: true, text: isForecast ? 'Revenue' : 'Expected households'}},
+        y: {ticks: {autoSkip: false}},
+      },
+    },
+  });
 }
 
 function recreateComparisonChartExpanded(canvas) {
@@ -4527,9 +4660,12 @@ function recreateComparisonChartExpanded(canvas) {
   console.log('Original chart options:', originalChart.options);
 
   try {
+    const comparisonType = originalChart.config?.type || 'bar';
+    const comparisonIsBar = comparisonType === 'bar';
+    if (expandedChartInstance) expandedChartInstance.destroy();
     // Create expanded version with enhanced styling
-    const expandedChart = new Chart(canvas, {
-      type: originalChart.config?.type || 'bar',
+    expandedChartInstance = new Chart(canvas, {
+      type: comparisonType,
       data: {
         labels: originalChart.data?.labels || [],
         datasets: originalChart.data?.datasets || []
@@ -4537,7 +4673,7 @@ function recreateComparisonChartExpanded(canvas) {
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        devicePixelRatio: window.devicePixelRatio || 2,
+        devicePixelRatio: chartRenderPixelRatio(),
         plugins: {
           title: {
             display: true,
@@ -4553,7 +4689,9 @@ function recreateComparisonChartExpanded(canvas) {
               padding: 25
             }
           },
-          tooltip: originalChart.options?.plugins?.tooltip || {}
+          tooltip: comparisonIsBar
+            ? expandedBarTooltipOptions('number', 'y')
+            : {enabled: true, mode: 'index', intersect: false}
         },
         scales: {
           y: {
@@ -4578,14 +4716,14 @@ function recreateComparisonChartExpanded(canvas) {
             }
           }
         },
-        interaction: originalChart.options?.interaction || {
-          mode: 'index',
-          intersect: false
+        interaction: {
+          mode: comparisonIsBar ? 'nearest' : 'index',
+          intersect: comparisonIsBar
         }
       }
     });
 
-    console.log('Successfully created expanded comparison chart:', expandedChart);
+    console.log('Successfully created expanded comparison chart:', expandedChartInstance);
   } catch (error) {
     console.error('Error creating expanded comparison chart:', error);
     // Show error message in canvas container
@@ -4609,6 +4747,8 @@ function getChartKey(chartId) {
       return 'comparison';
     case 'timeSeriesDepartmentChartContainer':
       return 'timeSeriesDepartment';
+    case 'legacyProbabilityChartContainer':
+      return 'legacyProbability';
     case 'timeSeriesComparisonChartContainer':
       return 'timeSeriesComparison';
     case 'timeSeriesActualChartContainer':
@@ -4618,19 +4758,16 @@ function getChartKey(chartId) {
   }
 }
 
-function expandedForecastCard(product) {
+/* A closed card carries its summary only. The detail block is built the first
+   time the card is opened, because holding one for every rendered card cost
+   about seventy DOM nodes each and made both scrolling and clicking crawl once
+   a few thousand were on the page. */
+function expandedForecastCard(product, index) {
   const rank = Number(product.forecast_rank || 0);
   const difference = Number(product.revenue_change_time_series_vs_independent || 0);
   const searchText = [product.product_id, product.department, product.commodity, product.sub_commodity, product.manufacturer, product.brand, product.size].join(' ').toLowerCase();
-  const sequenceMonthly = product.time_series_monthly_predictions || [];
-  const independentMonthly = product.independent_monthly_predictions || [];
-  const baselineMonthly = product.baseline_monthly_predictions || [];
-  const months = Math.max(sequenceMonthly.length, independentMonthly.length, baselineMonthly.length);
-  const monthlyRows = Array.from({length: months}, (_, index) => `
-    <tr><td>Period ${index + 1}</td><td class="text-end">${forecastMoney(sequenceMonthly[index])}</td><td class="text-end">${forecastMoney(independentMonthly[index])}</td><td class="text-end">${forecastMoney(baselineMonthly[index])}</td></tr>
-  `).join('');
   return `
-    <details class="forecast-expanded-card" data-expanded-forecast-card data-search="${escapeHtml(searchText)}">
+    <details class="forecast-expanded-card" data-expanded-forecast-card data-index="${index}" data-rank="${rank}" data-search="${escapeHtml(searchText)}" ontoggle="expandedForecastFillDetail(this)">
       <summary>
         <span class="badge bg-light text-dark border">#${rank}</span>
         <span><strong>${escapeHtml(product.product_id)}</strong><small class="d-block text-muted">${escapeHtml(product.brand || 'Unknown brand')}</small></span>
@@ -4639,7 +4776,19 @@ function expandedForecastCard(product) {
         <span class="text-end expanded-summary-secondary"><small class="d-block text-muted">Independent</small><strong style="color:#6d28d9">${forecastMoney(product.independent_revenue)}</strong></span>
         <span class="text-end expanded-summary-secondary"><small class="d-block text-muted">Difference</small><strong>${difference >= 0 ? '+' : '&minus;'}${forecastMoney(Math.abs(difference))}</strong></span>
       </summary>
-      <div class="forecast-expanded-detail">
+      <div class="forecast-expanded-detail"></div>
+    </details>`;
+}
+
+function expandedForecastDetailHtml(product) {
+  const sequenceMonthly = product.time_series_monthly_predictions || [];
+  const independentMonthly = product.independent_monthly_predictions || [];
+  const baselineMonthly = product.baseline_monthly_predictions || [];
+  const months = Math.max(sequenceMonthly.length, independentMonthly.length, baselineMonthly.length);
+  const monthlyRows = Array.from({length: months}, (_, index) => `
+    <tr><td>Period ${index + 1}</td><td class="text-end">${forecastMoney(sequenceMonthly[index])}</td><td class="text-end">${forecastMoney(independentMonthly[index])}</td><td class="text-end">${forecastMoney(baselineMonthly[index])}</td></tr>
+  `).join('');
+  return `
         <div class="row g-3">
           <div class="col-lg-4">
             <h6 class="small fw-bold">Product information</h6>
@@ -4656,10 +4805,102 @@ function expandedForecastCard(product) {
             <h6 class="small fw-bold">Forecast by 30-day period</h6>
             <div class="table-responsive"><table class="table table-sm table-bordered mb-0"><thead class="table-light"><tr><th>Period</th><th class="text-end">Recursive</th><th class="text-end">Independent</th><th class="text-end">Recent avg</th></tr></thead><tbody>${monthlyRows}</tbody></table></div>
           </div>
-        </div>
-      </div>
-    </details>`;
+        </div>`;
 }
+
+/* Remember open state separately from the DOM because off-screen cards are
+   recycled. Detail markup is also discarded on close to release its table
+   nodes immediately. */
+function expandedForecastCardIsNearViewport(card) {
+  const root = expandedForecastScroller();
+  if (!root) return true;
+  const cardRect = card.getBoundingClientRect();
+  const rootRect = root.getBoundingClientRect();
+  return cardRect.bottom >= rootRect.top - 600 && cardRect.top <= rootRect.bottom + 600;
+}
+
+function expandedForecastReleaseDetail(card) {
+  if (!card || card.dataset.filled !== '1') return;
+  const holder = card.querySelector('.forecast-expanded-detail');
+  if (!holder) return;
+  /* Preserve the row's measured height while its heavy table DOM is released,
+     preventing scroll jumps when an open row moves outside the lazy margin. */
+  card.style.minHeight = `${card.getBoundingClientRect().height}px`;
+  card.dataset.detailPlaceholder = '1';
+  holder.innerHTML = '';
+  delete card.dataset.filled;
+}
+
+function expandedForecastShouldOpen(card) {
+  const rank = Number(card.dataset.rank);
+  return expandedForecastOpenAll
+    ? !expandedForecastOpenExceptions.has(rank)
+    : expandedForecastOpenExceptions.has(rank);
+}
+
+function syncExpandedForecastCard(card) {
+  const shouldOpen = expandedForecastShouldOpen(card);
+  if (card.open !== shouldOpen) card.open = shouldOpen;
+  expandedForecastFillDetail(card, true);
+}
+
+function expandedForecastFillDetail(card, force = false) {
+  if (!card) return;
+  const rank = Number(card.dataset.rank);
+  if (expandedForecastOpenAll) {
+    if (card.open) expandedForecastOpenExceptions.delete(rank);
+    else expandedForecastOpenExceptions.add(rank);
+  } else if (card.open) {
+    expandedForecastOpenExceptions.add(rank);
+  } else {
+    expandedForecastOpenExceptions.delete(rank);
+  }
+  const holder = card.querySelector('.forecast-expanded-detail');
+  if (!holder) return;
+  if (!card.open) {
+    holder.innerHTML = '';
+    delete card.dataset.filled;
+    delete card.dataset.detailPlaceholder;
+    card.style.minHeight = '';
+    return;
+  }
+  if (card.dataset.filled === '1') return;
+  /* Open all changes the lightweight <details> state for the whole virtual
+     window, but heavy metadata/monthly tables are created only as a card
+     approaches the viewport. A directly clicked card is already nearby. */
+  if (!force && !expandedForecastCardIsNearViewport(card)) return;
+  const product = expandedForecastByRank.get(rank);
+  if (!product) return;
+  delete card.dataset.detailPlaceholder;
+  card.style.minHeight = '';
+  holder.innerHTML = expandedForecastDetailHtml(product);
+  card.dataset.filled = '1';
+}
+
+/* The modal keeps its original continuous-scroll experience, but uses a
+   rolling DOM window. Cards far above or below the viewport are recycled and
+   represented by a measured spacer, preventing thousands of interactive rows
+   from accumulating in the browser. */
+const EXPANDED_FORECAST_CHUNK = 40;
+const EXPANDED_FORECAST_MAX_CARDS = 200;
+const EXPANDED_FORECAST_MAX_OPEN_CARDS = 80;
+let expandedForecastEntries = [];
+let expandedForecastMatches = [];
+let expandedForecastByRank = new Map();
+let expandedForecastStart = 0;
+let expandedForecastEnd = 0;
+let expandedForecastTopHeight = 0;
+let expandedForecastMeasuredHeights = [];
+let expandedForecastOpenAll = false;
+let expandedForecastOpenExceptions = new Set();
+let expandedForecastBottomObserver = null;
+let expandedForecastTopObserver = null;
+let expandedForecastDetailObserver = null;
+let expandedForecastRendering = false;
+let expandedForecastSearchTimer = null;
+let expandedForecastToggleSerial = 0;
+let expandedForecastUseLazyLoading = false;
+let expandedForecastVisibleCards = new Set();
 
 function showExpandedForecastResults() {
   const predictions = lastTimeSeriesForecast?.predictions || [];
@@ -4667,36 +4908,295 @@ function showExpandedForecastResults() {
     showNotification('Forecast products first, then open the expanded results.', 'info');
     return;
   }
+  expandedForecastEntries = predictions.map(product => ({
+    product,
+    search: [product.product_id, product.department, product.commodity, product.sub_commodity, product.manufacturer, product.brand, product.size].join(' ').toLowerCase(),
+  }));
+  expandedForecastByRank = new Map(predictions.map(product => [Number(product.forecast_rank), product]));
+  expandedForecastMatches = expandedForecastEntries;
+  expandedForecastUseLazyLoading = Number(document.getElementById('timeSeriesTopN')?.value || 20) <= 0;
+  expandedForecastOpenAll = false;
+  expandedForecastOpenExceptions = new Set();
+  resetExpandedForecastWindow();
+
   const content = `
     <div class="forecast-expanded-toolbar d-flex flex-wrap justify-content-between align-items-center gap-2">
-      <div><strong>${predictions.length.toLocaleString()} ranked products</strong><small class="d-block text-muted">Select one product to inspect its metadata and period-by-period forecast.</small></div>
+      <div><strong>${predictions.length.toLocaleString()} ranked products</strong><small class="d-block text-muted">${expandedForecastUseLazyLoading ? 'All eligible active products load continuously as you scroll.' : 'The complete selected product list is loaded.'} Select a product to inspect its forecast.</small></div>
       <div class="d-flex flex-wrap gap-2">
         <div class="input-group input-group-sm" style="width:260px"><span class="input-group-text"><i class="fas fa-search"></i></span><input id="expandedForecastSearch" class="form-control" type="search" placeholder="Find product or category" oninput="filterExpandedForecastCards()"></div>
         <button class="btn btn-outline-secondary btn-sm" type="button" onclick="toggleExpandedForecastCards(true)">Open all</button>
         <button class="btn btn-outline-secondary btn-sm" type="button" onclick="toggleExpandedForecastCards(false)">Close all</button>
       </div>
     </div>
-    <div id="expandedForecastSummary" class="small text-muted mb-2">${predictions.length.toLocaleString()} products shown.</div>
-    <div id="expandedForecastCards">${predictions.map(expandedForecastCard).join('')}</div>`;
+    <div id="expandedForecastSummary" class="small text-muted mb-2"></div>
+    <div id="expandedForecastTopSpacer" aria-hidden="true" style="height:0"></div>
+    <div id="expandedForecastTopSentinel" aria-hidden="true" style="height:1px"></div>
+    <div id="expandedForecastCards"></div>
+    <div id="expandedForecastBottomSentinel" class="text-center text-muted small py-3"></div>`;
   showDetailModal('Product Revenue Forecast Results', content);
   setPredictiveModalMode('predictive-results-modal');
+  renderInitialExpandedForecastResults();
+  observeExpandedForecastWindow();
+}
+
+function expandedForecastScroller() {
+  let el = document.getElementById('expandedForecastCards')?.parentElement;
+  while (el) {
+    const style = getComputedStyle(el);
+    if (style.overflowY === 'auto' || style.overflowY === 'scroll') return el;
+    el = el.parentElement;
+  }
+  return null;
+}
+
+function resetExpandedForecastWindow() {
+  expandedForecastToggleSerial += 1;
+  expandedForecastStart = 0;
+  expandedForecastEnd = 0;
+  expandedForecastTopHeight = 0;
+  expandedForecastMeasuredHeights = [];
+  expandedForecastVisibleCards = new Set();
+  expandedForecastRendering = false;
+  if (expandedForecastBottomObserver) expandedForecastBottomObserver.disconnect();
+  if (expandedForecastTopObserver) expandedForecastTopObserver.disconnect();
+  if (expandedForecastDetailObserver) expandedForecastDetailObserver.disconnect();
+  expandedForecastBottomObserver = null;
+  expandedForecastTopObserver = null;
+  expandedForecastDetailObserver = null;
+}
+
+function expandedForecastOuterHeight(card) {
+  const style = getComputedStyle(card);
+  return card.getBoundingClientRect().height
+    + Number.parseFloat(style.marginTop || 0)
+    + Number.parseFloat(style.marginBottom || 0);
+}
+
+function expandedForecastWindowLimit() {
+  if (!expandedForecastUseLazyLoading) return Number.POSITIVE_INFINITY;
+  return expandedForecastOpenAll ? EXPANDED_FORECAST_MAX_OPEN_CARDS : EXPANDED_FORECAST_MAX_CARDS;
+}
+
+function setExpandedForecastTopHeight(value) {
+  expandedForecastTopHeight = Math.max(0, value);
+  const spacer = document.getElementById('expandedForecastTopSpacer');
+  if (spacer) spacer.style.height = `${expandedForecastTopHeight}px`;
+}
+
+function pruneExpandedForecastTop() {
+  const container = document.getElementById('expandedForecastCards');
+  if (!container) return;
+  const removeCount = Math.min(
+    EXPANDED_FORECAST_CHUNK,
+    Math.max(0, expandedForecastEnd - expandedForecastStart - expandedForecastWindowLimit())
+  );
+  let removedHeight = 0;
+  for (let offset = 0; offset < removeCount; offset += 1) {
+    const card = container.firstElementChild;
+    if (!card) break;
+    const index = expandedForecastStart + offset;
+    const height = expandedForecastOuterHeight(card);
+    expandedForecastMeasuredHeights[index] = height;
+    removedHeight += height;
+    expandedForecastVisibleCards.delete(card);
+    expandedForecastDetailObserver?.unobserve(card);
+    card.remove();
+  }
+  expandedForecastStart += removeCount;
+  setExpandedForecastTopHeight(expandedForecastTopHeight + removedHeight);
+}
+
+function pruneExpandedForecastBottom() {
+  const container = document.getElementById('expandedForecastCards');
+  if (!container) return;
+  const removeCount = Math.min(
+    EXPANDED_FORECAST_CHUNK,
+    Math.max(0, expandedForecastEnd - expandedForecastStart - expandedForecastWindowLimit())
+  );
+  for (let offset = 0; offset < removeCount; offset += 1) {
+    const card = container.lastElementChild;
+    if (!card) break;
+    const index = expandedForecastEnd - offset - 1;
+    expandedForecastMeasuredHeights[index] = expandedForecastOuterHeight(card);
+    expandedForecastVisibleCards.delete(card);
+    expandedForecastDetailObserver?.unobserve(card);
+    card.remove();
+  }
+  expandedForecastEnd -= removeCount;
+}
+
+function fillOpenExpandedForecastCards(cards) {
+  Array.from(cards).filter(card => card.open).forEach(expandedForecastFillDetail);
+}
+
+function observeExpandedForecastCards(cards) {
+  if (!expandedForecastDetailObserver) return;
+  Array.from(cards).forEach(card => expandedForecastDetailObserver.observe(card));
+}
+
+function renderAllExpandedForecastCards() {
+  const container = document.getElementById('expandedForecastCards');
+  if (!container) return;
+  expandedForecastStart = 0;
+  expandedForecastEnd = expandedForecastMatches.length;
+  container.innerHTML = expandedForecastMatches
+    .map((entry, index) => expandedForecastCard(entry.product, index))
+    .join('');
+  updateExpandedForecastStatus();
+}
+
+function renderInitialExpandedForecastResults() {
+  if (expandedForecastUseLazyLoading) appendExpandedForecastChunk();
+  else renderAllExpandedForecastCards();
+}
+
+function appendExpandedForecastChunk() {
+  if (expandedForecastRendering || expandedForecastEnd >= expandedForecastMatches.length) {
+    updateExpandedForecastStatus();
+    return;
+  }
+  const container = document.getElementById('expandedForecastCards');
+  if (!container) return;
+  expandedForecastRendering = true;
+  const start = expandedForecastEnd;
+  const end = Math.min(expandedForecastEnd + EXPANDED_FORECAST_CHUNK, expandedForecastMatches.length);
+  const entries = expandedForecastMatches.slice(start, end);
+  container.insertAdjacentHTML('beforeend', entries.map((entry, offset) => expandedForecastCard(entry.product, start + offset)).join(''));
+  expandedForecastEnd = end;
+  const newCards = Array.from(container.children).slice(-entries.length);
+  observeExpandedForecastCards(newCards);
+  fillOpenExpandedForecastCards(newCards);
+  while (expandedForecastEnd - expandedForecastStart > expandedForecastWindowLimit()) pruneExpandedForecastTop();
+  expandedForecastRendering = false;
+  updateExpandedForecastStatus();
+}
+
+function prependExpandedForecastChunk() {
+  if (expandedForecastRendering || expandedForecastStart <= 0) return;
+  const container = document.getElementById('expandedForecastCards');
+  if (!container) return;
+  expandedForecastRendering = true;
+  const start = Math.max(0, expandedForecastStart - EXPANDED_FORECAST_CHUNK);
+  const entries = expandedForecastMatches.slice(start, expandedForecastStart);
+  const restoredHeight = Array.from(
+    {length: expandedForecastStart - start},
+    (_, offset) => expandedForecastMeasuredHeights[start + offset] || 0
+  ).reduce((sum, height) => sum + height, 0);
+  container.insertAdjacentHTML('afterbegin', entries.map((entry, offset) => expandedForecastCard(entry.product, start + offset)).join(''));
+  expandedForecastStart = start;
+  setExpandedForecastTopHeight(expandedForecastTopHeight - restoredHeight);
+  const newCards = Array.from(container.children).slice(0, entries.length);
+  observeExpandedForecastCards(newCards);
+  fillOpenExpandedForecastCards(newCards);
+  while (expandedForecastEnd - expandedForecastStart > expandedForecastWindowLimit()) pruneExpandedForecastBottom();
+  expandedForecastRendering = false;
+  updateExpandedForecastStatus();
+}
+
+function updateExpandedForecastStatus() {
+  const total = expandedForecastMatches.length;
+  const summary = document.getElementById('expandedForecastSummary');
+  const sentinel = document.getElementById('expandedForecastBottomSentinel');
+  const query = (document.getElementById('expandedForecastSearch')?.value || '').trim();
+  if (summary) {
+    summary.textContent = total
+      ? (expandedForecastUseLazyLoading
+        ? `Showing ${Math.min(expandedForecastStart + 1, total).toLocaleString()}-${expandedForecastEnd.toLocaleString()} of ${total.toLocaleString()} product${total === 1 ? '' : 's'}${query ? ' matching the search' : ''}. Scroll to continue.`
+        : `Showing all ${total.toLocaleString()} product${total === 1 ? '' : 's'}${query ? ' matching the search' : ''}.`)
+      : 'No products match the search.';
+  }
+  if (sentinel) sentinel.innerHTML = expandedForecastUseLazyLoading
+    ? (expandedForecastEnd < total
+      ? '<div class="spinner-border spinner-border-sm text-primary" role="status"></div> <span class="ms-2">Loading more products&hellip;</span>'
+      : (total ? 'End of list.' : ''))
+    : '';
 }
 
 function filterExpandedForecastCards() {
+  clearTimeout(expandedForecastSearchTimer);
+  expandedForecastSearchTimer = setTimeout(applyExpandedForecastFilter, 140);
+}
+
+function applyExpandedForecastFilter() {
   const query = (document.getElementById('expandedForecastSearch')?.value || '').trim().toLowerCase();
-  let visible = 0;
-  document.querySelectorAll('[data-expanded-forecast-card]').forEach(card => {
-    const matches = !query || (card.dataset.search || '').includes(query);
-    card.style.display = matches ? '' : 'none';
-    if (matches) visible += 1;
+  const container = document.getElementById('expandedForecastCards');
+  if (!container) return;
+  expandedForecastMatches = query
+    ? expandedForecastEntries.filter(entry => entry.search.includes(query))
+    : expandedForecastEntries;
+  resetExpandedForecastWindow();
+  container.innerHTML = '';
+  setExpandedForecastTopHeight(0);
+  expandedForecastScroller()?.scrollTo({top: 0});
+  renderInitialExpandedForecastResults();
+  observeExpandedForecastWindow();
+}
+
+function observeExpandedForecastWindow() {
+  const root = expandedForecastScroller();
+  const topSentinel = document.getElementById('expandedForecastTopSentinel');
+  const bottomSentinel = document.getElementById('expandedForecastBottomSentinel');
+  if (!root || !topSentinel || !bottomSentinel || !('IntersectionObserver' in window)) return;
+  expandedForecastDetailObserver = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        expandedForecastVisibleCards.add(entry.target);
+        syncExpandedForecastCard(entry.target);
+      } else {
+        expandedForecastVisibleCards.delete(entry.target);
+        if (entry.target.open) expandedForecastReleaseDetail(entry.target);
+      }
+    });
+  }, {root, rootMargin: '600px 0px'});
+  observeExpandedForecastCards(document.querySelectorAll('#expandedForecastCards [data-expanded-forecast-card]'));
+  if (!expandedForecastUseLazyLoading) return;
+  expandedForecastBottomObserver = new IntersectionObserver(entries => {
+    if (entries.some(entry => entry.isIntersecting)) appendExpandedForecastChunk();
+  }, {root, rootMargin: '700px 0px'});
+  expandedForecastTopObserver = new IntersectionObserver(entries => {
+    if (entries.some(entry => entry.isIntersecting)) prependExpandedForecastChunk();
+  }, {root, rootMargin: '700px 0px'});
+  expandedForecastBottomObserver.observe(bottomSentinel);
+  expandedForecastTopObserver.observe(topSentinel);
+}
+
+function trimExpandedForecastWindow() {
+  if (!expandedForecastUseLazyLoading) return;
+  const container = document.getElementById('expandedForecastCards');
+  const root = expandedForecastScroller();
+  if (!container || !root) return;
+  const rootRect = root.getBoundingClientRect();
+  const visible = Array.from(container.children).filter(card => {
+    const rect = card.getBoundingClientRect();
+    return rect.bottom >= rootRect.top && rect.top <= rootRect.bottom;
   });
-  const summary = document.getElementById('expandedForecastSummary');
-  if (summary) summary.textContent = `${visible.toLocaleString()} matching product${visible === 1 ? '' : 's'} shown.`;
+  const firstVisible = Number(visible[0]?.dataset.index ?? expandedForecastStart);
+  const lastVisible = Number(visible[visible.length - 1]?.dataset.index ?? firstVisible);
+  while (expandedForecastEnd - expandedForecastStart > expandedForecastWindowLimit()) {
+    const roomAbove = firstVisible - expandedForecastStart;
+    const roomBelow = expandedForecastEnd - lastVisible - 1;
+    if (roomBelow >= roomAbove) pruneExpandedForecastBottom();
+    else pruneExpandedForecastTop();
+  }
 }
 
 function toggleExpandedForecastCards(open) {
-  document.querySelectorAll('[data-expanded-forecast-card]').forEach(card => {
-    if (card.style.display !== 'none') card.open = open;
+  const serial = ++expandedForecastToggleSerial;
+  expandedForecastOpenAll = !!open;
+  expandedForecastOpenExceptions = new Set();
+  expandedForecastRendering = true;
+  /* Reduce the virtual window before opening. This does not limit Open all:
+     recycled and future cards inherit the global open state, while the browser
+     never has to lay out hundreds of detailed tables in the same frame. */
+  trimExpandedForecastWindow();
+  requestAnimationFrame(() => {
+    if (serial !== expandedForecastToggleSerial) return;
+    Array.from(expandedForecastVisibleCards)
+      .filter(card => card.isConnected)
+      .forEach(syncExpandedForecastCard);
+    trimExpandedForecastWindow();
+    expandedForecastRendering = false;
+    updateExpandedForecastStatus();
   });
 }
 
@@ -5073,9 +5573,9 @@ function showRevenueForecastHelp() {
           <strong>Products to list &amp; Minimum revenue</strong>
           <small class="d-block text-muted">
             Filters for the results table only. They change what you see, never what the model
-            learned or how it scored. <em>All products</em> lists every product the model can
-            forecast &mdash; about 49,000 &mdash; paged ten at a time, and the CSV export then
-            covers all of them.
+            learned or how it scored. <em>All eligible active products</em> lists every product
+            with revenue in the selected recent lookback &mdash; about 49,000 for a 6-period
+            window &mdash; paged ten at a time, and the CSV export then covers all of them.
           </small>
         </div>
 
@@ -6161,9 +6661,17 @@ function renderTimeSeriesComparisonChart(report) {
   });
 }
 
-function renderTimeSeriesDepartmentChart(rows) {
+function renderTimeSeriesDepartmentChart(rows, productCount = 0) {
   const canvas = document.getElementById('timeSeriesDepartmentChart');
   if (!canvas || typeof Chart === 'undefined') return;
+  lastTimeSeriesDepartmentRows = Array.from(rows || []);
+  const context = document.getElementById('timeSeriesDepartmentChartContext');
+  const selectedTopN = Number(document.getElementById('timeSeriesTopN')?.value || 20);
+  if (context) {
+    context.textContent = selectedTopN <= 0
+      ? `Department totals across all ${Number(productCount || 0).toLocaleString()} listed products.`
+      : `Department totals for the selected Top ${selectedTopN.toLocaleString()} products.`;
+  }
   const departments = (rows || []).slice(0, 12);
   if (charts.timeSeriesDepartment) charts.timeSeriesDepartment.destroy();
   charts.timeSeriesDepartment = new Chart(canvas, {
@@ -6317,7 +6825,7 @@ function updatePredictiveCharts(predictions, algorithm) {
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        devicePixelRatio: window.devicePixelRatio || 2,
+        devicePixelRatio: chartRenderPixelRatio(),
         plugins: {
           legend: {
             display: false
@@ -6487,7 +6995,7 @@ function updatePredictiveCharts(predictions, algorithm) {
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        devicePixelRatio: window.devicePixelRatio || 2,
+        devicePixelRatio: chartRenderPixelRatio(),
         plugins: {
           legend: {
             position: 'top',
@@ -7486,6 +7994,7 @@ async function loadModelPerformance() {
 }
 
 function renderLegacyProbabilityResults(predictions) {
+  lastLegacyProbabilityPredictions = Array.from(predictions || []);
   const rows = document.getElementById('legacyProbabilityRows');
   if (rows) {
     rows.innerHTML = predictions.length ? predictions.map(item => `<tr>
@@ -7498,12 +8007,13 @@ function renderLegacyProbabilityResults(predictions) {
   }
   const canvas = document.getElementById('legacyProbabilityChart');
   if (!canvas || typeof Chart === 'undefined') return;
+  const compactPredictions = lastLegacyProbabilityPredictions.slice(0, 12);
   if (charts.legacyProbability) charts.legacyProbability.destroy();
   charts.legacyProbability = new Chart(canvas, {
     type: 'bar',
     data: {
-      labels: predictions.map(item => item.department || 'Unknown'),
-      datasets: [{label: 'Expected repurchase households', data: predictions.map(item => Number(item.expected_repurchase_households || 0)), backgroundColor: '#7c3aed'}],
+      labels: compactPredictions.map(item => item.department || 'Unknown'),
+      datasets: [{label: 'Expected repurchase households', data: compactPredictions.map(item => Number(item.expected_repurchase_households || 0)), backgroundColor: '#7c3aed'}],
     },
     options: {indexAxis: 'y', responsive: true, maintainAspectRatio: false, scales: {x: {beginAtZero: true}}, plugins: {legend: {display: false}}},
   });
@@ -7642,11 +8152,17 @@ function renderTimeSeriesReportV5(report) {
   const independentPeriod = periodMetrics.independent_direct_model || {};
   const baselinePeriod = periodMetrics.recent_average_baseline || {};
   const similarity = report.model_ranking_similarity || {};
-  const status = guidance.overall_error_assessment === 'time_series_model'
-    ? {label: 'Recursive model wins error comparison', className: 'bg-success'}
-    : guidance.overall_error_assessment === 'independent_direct_model'
-      ? {label: 'Independent model wins error comparison', className: 'bg-primary'}
-      : {label: 'Mixed error result', className: 'bg-warning text-dark'};
+  const sequenceWmape = Number(sequence.wmape || 0);
+  const independentWmape = Number(independent.wmape || 0);
+  const mlErrorWinnerKey = sequenceWmape <= independentWmape ? 'time_series_model' : 'independent_direct_model';
+  const mlErrorWinner = mlErrorWinnerKey === 'time_series_model' ? sequence : independent;
+  const mlErrorRunnerUp = mlErrorWinnerKey === 'time_series_model' ? independent : sequence;
+  const mlErrorMargin = Number(mlErrorRunnerUp.wmape || 0) > 0
+    ? (Number(mlErrorRunnerUp.wmape) - Number(mlErrorWinner.wmape || 0)) / Number(mlErrorRunnerUp.wmape)
+    : 0;
+  const status = mlErrorWinnerKey === 'time_series_model'
+    ? {label: 'Recursive RNN has lower product WMAPE', className: 'bg-success'}
+    : {label: 'Independent direct has lower product WMAPE', className: 'bg-primary'};
   const evidenceLabel = report.temporal_evidence_strength === 'limited' ? 'Limited history' : 'Moderate history';
   const guard = report.recursive_rollout_guard || {};
   const supervisedDepth = Number(training.maximum_supervised_rollout || guard.supervised_rollout || 0);
@@ -7675,22 +8191,17 @@ function renderTimeSeriesReportV5(report) {
   const bestModelWmape = Math.min(Number(sequence.wmape || 0), Number(independent.wmape || 0));
   const baselineWmape = Number(baseline.wmape || 0);
   const productErrorImprovement = baselineWmape > 0 ? (baselineWmape - bestModelWmape) / baselineWmape : 0;
+  const bestMlBeatsBaseline = productErrorImprovement >= 0;
   const bestTop20Precision = Math.max(Number(sequence.precision_at_k || 0), Number(independent.precision_at_k || 0));
   const bestTop20Ndcg = Math.max(Number(sequence.ndcg_at_k || 0), Number(independent.ndcg_at_k || 0));
   const bestFullRank = Math.max(Number(sequence.spearman || 0), Number(independent.spearman || 0));
   const rankStrength = bestFullRank >= 0.5 ? 'strong rank agreement' : bestFullRank >= 0.3 ? 'moderate rank agreement' : 'weak rank agreement';
-  const aggregateMethods = [
-    ['Recursive RNN', Number(sequencePeriod.wmape || Infinity)],
-    ['Independent direct', Number(independentPeriod.wmape || Infinity)],
-    ['Recent-average benchmark', Number(baselinePeriod.wmape || Infinity)],
-  ].sort((a, b) => a[1] - b[1]);
-  const aggregateWinner = aggregateMethods[0];
   const methods = [
-    ['Recursive RNN', sequence, 'table-primary'],
+    ['Recursive RNN', sequence, ''],
     ['Independent direct model', independent, ''],
     ['Recent-average benchmark', baseline, ''],
   ];
-  const metricRows = methods.map(([label, metrics, rowClass]) => `<tr class="${rowClass}"><td><strong>${label}</strong></td><td>${metricCell(metrics.mae)}</td><td>${metricCell(metrics.rmse)}</td><td>${metricCell(metrics.wmape, true)}</td><td>${metricCell(metrics.smape, true)}</td><td>${metricCell(metrics.bias_percent, true)}</td><td>${metricCell(metrics.r2)}</td><td>${metricCell(metrics.precision_at_k, true)}</td><td>${metricCell(metrics.spearman)}</td><td>${metricCell(metrics.kendall_tau)}</td></tr>`).join('');
+  const metricRows = methods.map(([label, metrics, rowClass]) => `<tr class="${rowClass}"><td><strong>${label}</strong></td><td>${metricCell(metrics.wmape, true)}</td><td>${metricCell(metrics.mae)}</td><td>${metricCell(metrics.rmse)}</td><td>${metricCell(metrics.bias_percent, true)}</td><td>${metricCell(metrics.precision_at_k, true)}</td><td>${metricCell(metrics.ndcg_at_k, true)}</td><td>${metricCell(metrics.spearman)}</td></tr>`).join('');
   const rankingRows = [5, 10, 20].flatMap(k => methods.map(([label, metrics]) => {
     const item = (metrics.ranking_at_k || {})[String(k)] || {};
     return `<tr><td>${k}</td><td>${label}</td><td>${Number(item.overlap_count || 0)} / ${Number(item.k_used || k)}</td><td>${metricCell(item.precision_at_k, true)}</td><td>${metricCell(item.recall_at_k, true)}</td><td>${metricCell(item.jaccard_at_k, true)}</td><td>${metricCell(item.ndcg_at_k, true)}</td><td>${metricCell(item.rank_biased_overlap, true)}</td></tr>`;
@@ -7707,12 +8218,13 @@ function renderTimeSeriesReportV5(report) {
           <p class="bench-sub">Days ${test.start_day ?? 'N/A'}&ndash;${test.end_day ?? 'N/A'} &middot; ${report.window_size_months}-period lookback &middot; ${report.sliding_step_months}-period step &middot; ${report.horizon_months}-period horizon</p>
         </div>
         <div class="bench-chips">
-          <span class="bench-chip ${status.className}">${status.label}</span>
-          <span class="bench-chip bench-chip-dark">${Number(samples.evaluation_products || 0).toLocaleString()} products</span>
-          <span class="bench-chip bench-chip-warn">${evidenceLabel}: ${Number(report.temporal_fit_origins || 0)} origins</span>
+          <span class="bench-chip ${status.className}" title="The ML model with lower cumulative Product ID holdout WMAPE. This does not use the aggregate-total benchmark to select a model.">${status.label}</span>
+          <span class="bench-chip bench-chip-dark" title="Products evaluated on the same chronological holdout after eligibility filtering; this is cross-sectional coverage, not additional time history.">${Number(samples.evaluation_products || 0).toLocaleString()} evaluated products</span>
+          <span class="bench-chip bench-chip-warn" title="Distinct chronological training origins available before the holdout. Product count cannot substitute for more calendar origins.">${evidenceLabel}: ${Number(report.temporal_fit_origins || 0)} origins</span>
           ${calibrationChip}
         </div>
       </div>
+      <p class="bench-note mt-2 mb-0"><strong>Tag guide:</strong> the green/blue tag selects between the two ML models using cumulative product WMAPE; evaluated products measures holdout breadth; origins measures independent calendar history; bias-corrected means the log-to-revenue adjustment was estimated only from training data.</p>
       ${rolloutWarning}
       ${calibrationNote}
       ${biasWarning}
@@ -7720,12 +8232,12 @@ function renderTimeSeriesReportV5(report) {
 
     <section class="bench-card mb-3">
       <h6>Evidence summary</h6>
-      <p class="bench-sub">The four figures to quote when presenting this comparison.</p>
+      <p class="bench-sub">Decision-useful holdout evidence for choosing between the two ML models.</p>
       <div class="bench-stats">
-        <div class="bench-stat" style="--bench-accent:#0ea373">
-          <div class="bench-stat-value">${metricCell(productErrorImprovement, true)}</div>
-          <div class="bench-stat-label">Product revenue error</div>
-          <div class="bench-stat-hint">improvement over the recent-average benchmark</div>
+        <div class="bench-stat" style="--bench-accent:${bestMlBeatsBaseline ? '#0ea373' : '#e0a800'}">
+          <div class="bench-stat-value">${metricCell(Math.abs(productErrorImprovement), true)}</div>
+          <div class="bench-stat-label">Best ML vs naive</div>
+          <div class="bench-stat-hint">${bestMlBeatsBaseline ? 'lower' : 'higher'} product WMAPE than recent average</div>
         </div>
         <div class="bench-stat" style="--bench-accent:#667eea">
           <div class="bench-stat-value">${metricCell(bestTop20Precision, true)}</div>
@@ -7737,16 +8249,16 @@ function renderTimeSeriesReportV5(report) {
           <div class="bench-stat-label">Full product ranking</div>
           <div class="bench-stat-hint">Spearman &middot; ${rankStrength}</div>
         </div>
-        <div class="bench-stat" style="--bench-accent:#e0a800">
-          <div class="bench-stat-value bench-stat-text">${aggregateWinner[0]}</div>
-          <div class="bench-stat-label">Aggregate total winner</div>
-          <div class="bench-stat-hint">period WMAPE ${metricCell(aggregateWinner[1], true)}</div>
+        <div class="bench-stat" style="--bench-accent:${mlErrorWinnerKey === 'time_series_model' ? '#0ea373' : '#667eea'}">
+          <div class="bench-stat-value bench-stat-text">${shortModelLabel(mlErrorWinnerKey)}</div>
+          <div class="bench-stat-label">Lower ML product error</div>
+          <div class="bench-stat-hint">WMAPE ${metricCell(mlErrorWinner.wmape, true)} vs ${metricCell(mlErrorRunnerUp.wmape, true)} &middot; ${metricCell(mlErrorMargin, true)} lower</div>
         </div>
       </div>
       <p class="bench-note">
-        Quote this as a comparison against the benchmark, not as an accuracy percentage.
-        WMAPE and the ranking metrics are the figures that hold up; R&sup2; and sMAPE are
-        distorted by high-revenue products and sparse zero periods.
+        The recent average remains a naive reference, not a candidate ML model or a winner card.
+        Quote WMAPE as error reduction rather than accuracy; ranking metrics answer a separate
+        question about recovering the highest-revenue products.
       </p>
     </section>
 
@@ -7756,16 +8268,16 @@ function renderTimeSeriesReportV5(report) {
       <div class="table-responsive">
         <table class="table table-sm align-middle mb-0 bench-table">
           <thead><tr>
-            <th>Method</th><th>MAE</th><th>RMSE</th><th>WMAPE</th><th>sMAPE</th><th>Bias</th>
-            <th>R&sup2;</th><th>P@${Number(sequence.top_k || 20)}</th><th>Spearman</th><th>Kendall &tau;</th>
+            <th>Method</th><th>WMAPE</th><th>MAE</th><th>RMSE</th><th>Bias</th>
+            <th>P@${Number(sequence.top_k || 20)}</th><th>NDCG@${Number(sequence.top_k || 20)}</th><th>Spearman</th>
           </tr></thead>
           <tbody>${metricRows}</tbody>
         </table>
       </div>
       <div class="bench-chips mt-3">
-        <span class="bench-chip bench-chip-soft">Period-total WMAPE &middot; RNN ${metricCell(sequencePeriod.wmape, true)} &middot; direct ${metricCell(independentPeriod.wmape, true)} &middot; recent average ${metricCell(baselinePeriod.wmape, true)}</span>
-        <span class="bench-chip bench-chip-soft">Best product WMAPE: ${forecastMethodLabel(guidance.best_for_revenue_error)}</span>
-        <span class="bench-chip bench-chip-soft">Best Top-${Number(sequence.top_k || 20)} NDCG: ${forecastMethodLabel(guidance.best_for_top_k_ranking)}</span>
+        <span class="bench-chip bench-chip-soft" title="Aggregate calibration diagnostic only; it is not used to choose between the two ML models.">Aggregate calibration only &middot; period-total WMAPE &middot; RNN ${metricCell(sequencePeriod.wmape, true)} &middot; direct ${metricCell(independentPeriod.wmape, true)} &middot; recent average ${metricCell(baselinePeriod.wmape, true)}</span>
+        <span class="bench-chip bench-chip-soft">Lower ML product WMAPE: ${forecastMethodLabel(guidance.best_for_revenue_error)}</span>
+        <span class="bench-chip bench-chip-soft">Best ML Top-${Number(sequence.top_k || 20)} NDCG: ${forecastMethodLabel(guidance.best_for_top_k_ranking)}</span>
       </div>
     </section>
 
@@ -7918,7 +8430,7 @@ async function forecastProductTimeSeries() {
     const data = await timeSeriesRequest(TIME_SERIES_ENDPOINTS.forecast, config);
     lastTimeSeriesForecast = data;
     renderTimeSeriesReportV5(data.model_report);
-    renderTimeSeriesDepartmentChart(data.department_forecast || []);
+    renderTimeSeriesDepartmentChart(data.department_forecast || [], (data.predictions || []).length);
     document.getElementById('downloadForecastBtn').disabled = false;
     const notice = document.getElementById('timeSeriesAppliedMethod');
     if (notice) notice.textContent = `Future ranking method: ${forecastMethodLabel(data.forecast_method_applied)}${data.forecast_method_requested === 'recommended' ? ' (lowest cumulative Product ID holdout WMAPE)' : ''}.`;
@@ -7949,6 +8461,8 @@ function forecastUnitRate(value) {
    of in the markup, so they survive paging. */
 let forecastRowData = [];
 let forecastExpandedRanks = new Set();
+let forecastSortKey = 'rank';
+let forecastSortDirection = 'asc';
 
 function renderProductForecastRows(predictions, response) {
   const rows = document.getElementById('timeSeriesForecastRows');
@@ -7961,7 +8475,16 @@ function renderProductForecastRows(predictions, response) {
     return;
   }
   forecastCurrentPage = 1;
-  forecastResultContext = `${Number(response.products_after_threshold || 0).toLocaleString()} products passed the threshold; ranked by ${forecastMethodLabel(response.forecast_method_applied)}.`;
+  forecastSortKey = 'rank';
+  forecastSortDirection = 'asc';
+  const eligibleProducts = Number(response.eligible_products || 0);
+  const forecastPanelProducts = Number(response.forecast_panel_products || 0);
+  const sourceUniqueProducts = Number(response.source_unique_products || 0);
+  const evaluatedProducts = Number((response.model_report?.samples || {}).evaluation_products || 0);
+  const inactiveProducts = Math.max(0, forecastPanelProducts - eligibleProducts);
+  const outsideAlignedHistory = Math.max(0, sourceUniqueProducts - forecastPanelProducts);
+  const lookbackPeriods = Number(response.window_size_months || 0);
+  forecastResultContext = `${Number(response.products_after_threshold || 0).toLocaleString()} eligible active products passed the threshold; ranked by ${forecastMethodLabel(response.forecast_method_applied)}. ${inactiveProducts.toLocaleString()} of ${forecastPanelProducts.toLocaleString()} products in the aligned history had no revenue in the latest ${lookbackPeriods}-period lookback; ${outsideAlignedHistory.toLocaleString()} additional Product IDs occur outside that aligned history. Model Benchmarks evaluated ${evaluatedProducts.toLocaleString()} products on an earlier historical holdout (active before or during that holdout), so it is a different population.`;
   forecastRowData = predictions.map(product => ({
     product,
     rank: Number(product.forecast_rank),
@@ -8023,11 +8546,53 @@ function setAllForecastDetails(expanded) {
   filterForecastRows();
 }
 
+function forecastSortValue(entry, key) {
+  const product = entry.product;
+  if (key === 'rank') return entry.rank;
+  if (key === 'difference') return Number(product.revenue_change_time_series_vs_independent || 0);
+  if (['time_series_revenue', 'independent_revenue', 'revenue_per_unit'].includes(key)) return Number(product[key] || 0);
+  return String(product[key] || '').toLocaleLowerCase();
+}
+
+function updateForecastSortHeaders() {
+  document.querySelectorAll('#productRevenueForecastTable thead th[aria-sort]').forEach(th => {
+    const button = th.querySelector('[onclick^="sortForecastRows"]');
+    if (!button) return;
+    const key = button.getAttribute('onclick').match(/'([^']+)'/)?.[1];
+    const active = key === forecastSortKey;
+    th.setAttribute('aria-sort', active ? (forecastSortDirection === 'asc' ? 'ascending' : 'descending') : 'none');
+    const icon = button.querySelector('i:last-child');
+    if (!icon) return;
+    icon.className = active
+      ? `fas fa-sort-${forecastSortDirection === 'asc' ? 'up' : 'down'}`
+      : 'fas fa-sort';
+  });
+}
+
+function sortForecastRows(key) {
+  if (forecastSortKey === key) {
+    forecastSortDirection = forecastSortDirection === 'asc' ? 'desc' : 'asc';
+  } else {
+    forecastSortKey = key;
+    forecastSortDirection = 'asc';
+  }
+  forecastCurrentPage = 1;
+  filterForecastRows();
+}
+
 function filterForecastRows() {
   const rows = document.getElementById('timeSeriesForecastRows');
   if (!rows || !forecastRowData.length) return;
   const query = (document.getElementById('forecastProductSearch')?.value || '').trim().toLowerCase();
-  const matching = query ? forecastRowData.filter(entry => entry.search.includes(query)) : forecastRowData;
+  const matching = (query ? forecastRowData.filter(entry => entry.search.includes(query)) : forecastRowData).slice();
+  matching.sort((left, right) => {
+    const a = forecastSortValue(left, forecastSortKey);
+    const b = forecastSortValue(right, forecastSortKey);
+    const order = typeof a === 'string'
+      ? a.localeCompare(b, undefined, {numeric: true, sensitivity: 'base'})
+      : a - b;
+    return forecastSortDirection === 'asc' ? order : -order;
+  });
   const totalPages = Math.max(1, Math.ceil(matching.length / FORECAST_PAGE_SIZE));
   forecastCurrentPage = Math.min(Math.max(forecastCurrentPage, 1), totalPages);
   const start = (forecastCurrentPage - 1) * FORECAST_PAGE_SIZE;
@@ -8045,6 +8610,7 @@ function filterForecastRows() {
   if (pageStatus) pageStatus.textContent = `Page ${forecastCurrentPage} of ${totalPages}`;
   if (previous) previous.disabled = forecastCurrentPage <= 1;
   if (next) next.disabled = forecastCurrentPage >= totalPages;
+  updateForecastSortHeaders();
 }
 
 function changeForecastPage(delta) {

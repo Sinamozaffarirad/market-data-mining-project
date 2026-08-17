@@ -173,8 +173,11 @@ class ProductRevenueTimeSeriesForecaster:
         directly comparable 30-day periods; days 1-21 are disclosed as excluded.
         """
         with connection.cursor() as cursor:
-            cursor.execute("SELECT MIN(day), MAX(day), COUNT(*) FROM transactions")
-            min_day, max_day, transaction_rows = cursor.fetchone()
+            cursor.execute(
+                "SELECT MIN(day), MAX(day), COUNT(*), COUNT(DISTINCT product_id) "
+                "FROM transactions"
+            )
+            min_day, max_day, transaction_rows, source_unique_products = cursor.fetchone()
         if min_day is None or max_day is None:
             raise ValueError("No transaction data is available for time-series forecasting.")
 
@@ -240,6 +243,7 @@ class ProductRevenueTimeSeriesForecaster:
             "source": "transactions joined to product metadata",
             "grain": "Product ID x complete 30-day period",
             "transaction_rows": int(transaction_rows),
+            "source_unique_products": int(source_unique_products or 0),
             "products_with_transactions": int(len(revenue_panel)),
             "source_min_day": int(min_day),
             "as_of_day": int(max_day),
@@ -1337,21 +1341,23 @@ class ProductRevenueTimeSeriesForecaster:
             result = result[result["predicted_revenue"] >= threshold]
 
         result["department"] = result["department"].fillna("Unknown")
-        department_forecast = result.groupby("department", dropna=False)[[
-            "predicted_revenue", "time_series_revenue", "independent_revenue",
-            "baseline_revenue",
-        ]].sum().sort_values("predicted_revenue", ascending=False).reset_index()
         result = result.sort_values(
             ["predicted_revenue", "product_id"], ascending=[False, True]
         )
         # top_n <= 0 means "every product that passed the threshold". A positive
-        # request stays capped, so a stray large number cannot ask for a payload
-        # nobody chose.
+        # request stays capped at the largest explicit display option, so a
+        # stray larger value cannot request an accidental oversized payload.
         requested_top_n = int(top_n)
         if requested_top_n <= 0:
             top_result = result.copy()
         else:
-            top_result = result.head(min(requested_top_n, 500)).copy()
+            top_result = result.head(min(requested_top_n, 1000)).copy()
+        # The department chart is a summary of the displayed product selection,
+        # so Top 10/20/.../1,000 and All products each produce matching totals.
+        department_forecast = top_result.groupby("department", dropna=False)[[
+            "predicted_revenue", "time_series_revenue", "independent_revenue",
+            "baseline_revenue",
+        ]].sum().sort_values("predicted_revenue", ascending=False).reset_index()
         top_result["forecast_rank"] = np.arange(1, len(top_result) + 1)
         top_result["revenue_change_time_series_vs_independent"] = (
             top_result["time_series_revenue"] - top_result["independent_revenue"]
@@ -1438,6 +1444,8 @@ class ProductRevenueTimeSeriesForecaster:
             },
             "eligible_products": int(eligible.sum()),
             "products_after_threshold": int(len(result)),
+            "forecast_panel_products": int(len(revenue_panel)),
+            "source_unique_products": int(data_profile.get("source_unique_products", 0)),
             "model_report": artifact["report"],
             "department_forecast": [
                 {
