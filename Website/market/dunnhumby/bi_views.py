@@ -445,7 +445,7 @@ def api_bi_demographics(request):
     dimension = (request.GET.get("dimension") or "age").strip()
     column, label = DEMOGRAPHIC_DIMENSIONS.get(dimension, DEMOGRAPHIC_DIMENSIONS["age"])
     where, params, needs = _filters(request, ["h"])
-    known = where + [f"{column} <> 'Unknown'", f"{column} IS NOT NULL"]
+    known = where + [f"{column} <> 'Unknown'", f"{column} <> ''", f"{column} IS NOT NULL"]
     rows = _query(f"""
         SELECT {column} AS label,
                SUM(f.sales_value)              AS revenue,
@@ -460,9 +460,11 @@ def api_bi_demographics(request):
         row["revenue_per_household"] = (
             row["revenue"] / row["households"] if row["households"] else 0
         )
+    rows = _apply_natural_order(dimension, rows, "label")
 
     coverage = _scalar_row(f"""
-        SELECT SUM(CASE WHEN {column} <> 'Unknown' AND {column} IS NOT NULL
+        SELECT SUM(CASE WHEN {column} <> 'Unknown' AND {column} <> ''
+                         AND {column} IS NOT NULL
                         THEN f.sales_value ELSE 0 END) AS covered,
                SUM(f.sales_value) AS total
         {_from(needs)}{_clause(where)}
@@ -698,6 +700,49 @@ def api_bi_insights(request):
     return JsonResponse({"success": True, "insights": insights})
 
 
+# Dimensions whose categories have a natural order.  Ranking them by revenue,
+# which is the sensible default for an unordered dimension like department, put
+# the income bands in the order 50-74K, 35-49K, 75-99K, 25-34K and so on, which
+# reads as scrambled rather than ranked.
+WEEKDAY_ORDER = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday",
+                 "Friday", "Saturday"]
+HOMEOWNER_ORDER = ["Homeowner", "Probable Owner", "Probable Renter", "Renter"]
+NATURAL_ORDER_DIMENSIONS = {
+    "income", "age", "household_size", "kids", "weekday", "quarter", "homeowner",
+}
+
+
+def _band_sort_key(value):
+    """Sort key for a banded label such as 15-24K, Under 15K, 65+ or 5+.
+
+    Bands are ordered by the first number they contain.  "Under 15K" shares its
+    number with "15-24K", so it is nudged ahead of it, and labels standing for
+    missing data are pushed to the end rather than sorted among real bands.
+    """
+    import re
+    text = str(value or "").strip()
+    if not text or text.lower() in {"unknown", "unsegmented", "none", "n/a"}:
+        return (2, 0.0, text)
+    if text in WEEKDAY_ORDER:
+        return (0, float(WEEKDAY_ORDER.index(text)), text)
+    if text in HOMEOWNER_ORDER:
+        return (0, float(HOMEOWNER_ORDER.index(text)), text)
+    match = re.search(r"\d+", text)
+    if not match:
+        return (1, 0.0, text)
+    number = float(match.group())
+    if text.lower().startswith("under"):
+        number -= 0.5
+    return (0, number, text)
+
+
+def _apply_natural_order(dimension, rows, key):
+    """Order rows by their category's natural sequence where one exists."""
+    if dimension not in NATURAL_ORDER_DIMENSIONS:
+        return rows
+    return sorted(rows, key=lambda row: _band_sort_key(row[key]))
+
+
 # Groups that can be compared head to head.  Each maps to the column holding the
 # group label and the dimension alias that column needs.
 COMPARISON_DIMENSIONS = {
@@ -708,6 +753,9 @@ COMPARISON_DIMENSIONS = {
     "department": ("p.department", "p", "Department"),
     "income": ("h.income_band", "h", "Income band"),
     "age": ("h.age_group", "h", "Age band"),
+    "household_size": ("h.household_size", "h", "Household size"),
+    "kids": ("h.kids", "h", "Children"),
+    "homeowner": ("h.homeowner", "h", "Home ownership"),
 }
 
 
@@ -768,14 +816,15 @@ def api_bi_significance(request):
     group_b = (request.GET.get("group_b") or "").strip()
 
     where, params, needs = _filters(request, [alias])
-    base = _clause(where + [column + " IS NOT NULL"])
+    base = _clause(where + [column + " IS NOT NULL", column + " <> ''"])
 
-    options = [r["label"] for r in _query(f"""
+    option_rows = [r for r in _query(f"""
         SELECT {column} AS label, SUM(f.sales_value) AS revenue
         {_from(needs)}{base}
         GROUP BY {column}
         ORDER BY revenue DESC
     """, params) if r["label"]]
+    options = [r["label"] for r in _apply_natural_order(dimension, option_rows, "label")]
 
     if group_a not in options:
         group_a = options[0] if options else ""
