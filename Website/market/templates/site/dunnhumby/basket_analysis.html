@@ -7618,14 +7618,21 @@ function renderTimeSeriesReportV5(report) {
     : '';
   const sequenceBias = Number(sequence.bias_percent || 0);
   const independentBias = Number(independent.bias_percent || 0);
-  const biasDirection = value => value < 0 ? 'underprediction' : value > 0 ? 'overprediction' : 'no aggregate bias';
   const calibration = report.retransformation_correction || {};
-  const calibrationNote = calibration.applied
-    ? `<div class="alert alert-success py-2 px-3 small mt-2 mb-0"><strong><i class="fas fa-balance-scale"></i> Retransformation bias corrected:</strong> ${escapeHtml(calibration.method || '')}, ${escapeHtml(calibration.estimated_on || '')}. Both models are fitted on a log target, so exponentiating returns a geometric mean and understates skewed revenue; the correction restores the revenue level without using holdout data.</div>`
+  const calibrationChip = calibration.applied
+    ? `<span class="bench-chip bench-chip-soft" title="Both models are fitted on a log target, so exponentiating would understate skewed revenue. A size-conditional correction restores the level, estimated on the training fold only.">Bias-corrected</span>`
     : '';
+  const calibrationNote = '';
   const hasMaterialBias = Math.abs(sequenceBias) >= 0.05 || Math.abs(independentBias) >= 0.05;
+  const bothUnder = sequenceBias < 0 && independentBias < 0;
+  const bothOver = sequenceBias > 0 && independentBias > 0;
+  const biasAdvice = bothUnder ? 'Read the forecast totals as a floor.'
+    : bothOver ? 'Read the forecast totals as a ceiling.'
+    : 'The two models miss in opposite directions here.';
   const biasWarning = hasMaterialBias
-    ? `<div class="alert alert-warning py-2 px-3 small mt-2 mb-0"><strong>Holdout bias diagnostic:</strong> Recursive RNN ${metricCell(sequenceBias, true)} (${biasDirection(sequenceBias)}); independent direct ${metricCell(independentBias, true)} (${biasDirection(independentBias)}). These values are reported rather than corrected with holdout actuals. Short/medium horizons are affected by sparse Product IDs and log-target shrinkage; long recursive horizons can also accumulate feedback error.</div>`
+    ? `<div class="alert alert-warning py-2 px-3 small mt-2 mb-0"><strong>Totals are off by more than 5%:</strong>
+        recursive ${metricCell(sequenceBias, true)}, independent direct ${metricCell(independentBias, true)}
+        against the holdout. ${biasAdvice}</div>`
     : '';
   const bestModelWmape = Math.min(Number(sequence.wmape || 0), Number(independent.wmape || 0));
   const baselineWmape = Number(baseline.wmape || 0);
@@ -7665,6 +7672,7 @@ function renderTimeSeriesReportV5(report) {
           <span class="bench-chip ${status.className}">${status.label}</span>
           <span class="bench-chip bench-chip-dark">${Number(samples.evaluation_products || 0).toLocaleString()} products</span>
           <span class="bench-chip bench-chip-warn">${evidenceLabel}: ${Number(report.temporal_fit_origins || 0)} origins</span>
+          ${calibrationChip}
         </div>
       </div>
       ${rolloutWarning}
@@ -7698,10 +7706,9 @@ function renderTimeSeriesReportV5(report) {
         </div>
       </div>
       <p class="bench-note">
-        <strong>How to state this:</strong> a model-versus-benchmark comparison, not an
-        "accuracy percentage". R&sup2; is pulled about by high-revenue products and sparse zero
-        periods inflate sMAPE, so cumulative WMAPE and the ranking metrics are the evidence
-        that carries.
+        Quote this as a comparison against the benchmark, not as an accuracy percentage.
+        WMAPE and the ranking metrics are the figures that hold up; R&sup2; and sMAPE are
+        distorted by high-revenue products and sparse zero periods.
       </p>
     </section>
 
@@ -7757,6 +7764,7 @@ function renderTimeSeriesReportV5(report) {
         <span class="bench-chip bench-chip-soft">Mode: ${escapeHtml((report.training_configuration || {}).parameter_mode || 'auto')}</span>
         <span class="bench-chip bench-chip-soft">Max supervised rollout: ${Number(training.maximum_supervised_rollout || 0)}</span>
       </div>
+      ${calibration.applied ? `<p class="bench-note">Revenue is corrected for log-space retransformation bias: ${escapeHtml(calibration.method || '')}, ${escapeHtml(calibration.estimated_on || '')}.</p>` : ''}
     </details>
 
     <p class="bench-note mb-0">
