@@ -226,13 +226,18 @@ class CustomerSegment(models.Model):
 
 
 class ChurnWindowCache(models.Model):
-    """Reusable RFM/outcome dataset for one rule configuration and source-data version."""
+    """Reusable data and finished-model result for one fixed-data rule configuration."""
     method = models.CharField(max_length=24)
     observation_window_days = models.PositiveIntegerField()
     prediction_horizon_days = models.PositiveIntegerField()
     step_size_days = models.PositiveIntegerField()
     dataset_signature = models.CharField(max_length=128)
     training_dataset_blob = models.BinaryField(null=True, blank=True, editable=False)
+    model_result_signature = models.CharField(max_length=64, blank=True, default="", editable=False)
+    model_metrics_json = models.TextField(default="{}", editable=False)
+    current_scores_blob = models.BinaryField(null=True, blank=True, editable=False)
+    historical_predictions_blob = models.BinaryField(null=True, blank=True, editable=False)
+    model_result_cached_at = models.DateTimeField(null=True, blank=True, editable=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
