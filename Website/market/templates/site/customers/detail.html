@@ -121,28 +121,39 @@
   </div>
 </div>
 
-<!-- Overlay لودینگ -->
-<div id="loadingOverlay" style="
-    display:none;
-    position:fixed;
-    top:0;
-    left:0;
-    width:100%;
-    height:100%;
-    background: rgba(0,0,0,0.5);
-    z-index:9999;
-    text-align:center;
-    color:#8fa2f7 !important;
-    font-size:2rem;
-    padding-top:20%;
-">
-  Please wait while recommendations are being prepared...
+<style>
+  .recommender-loading-overlay {
+    display: none; position: fixed; inset: 0; z-index: 2000;
+    align-items: center; justify-content: center; padding: 1.5rem;
+    background: rgba(20, 31, 52, .58); backdrop-filter: blur(3px);
+  }
+  .recommender-loading-overlay.is-visible { display: flex; }
+  .recommender-loading-card {
+    width: min(100%, 430px); padding: 2rem; border-radius: 1rem;
+    background: #fff; box-shadow: 0 1.2rem 3.5rem rgba(0, 0, 0, .25);
+    text-align: center;
+  }
+  .recommender-loading-spinner {
+    width: 3.25rem; height: 3.25rem; margin: 0 auto 1rem;
+    border: .35rem solid #e4e7ff; border-top-color: #6674df;
+    border-radius: 50%; animation: recommender-spin .8s linear infinite;
+  }
+  @keyframes recommender-spin { to { transform: rotate(360deg); } }
+</style>
+
+<div id="recommenderLoadingOverlay" class="recommender-loading-overlay" role="status" aria-live="polite" aria-label="Preparing recommendations">
+  <div class="recommender-loading-card">
+    <div class="recommender-loading-spinner" aria-hidden="true"></div>
+    <h3 class="h5 fw-bold mb-2">Preparing recommendations</h3>
+    <p class="text-muted mb-0">This can take a moment the first time while the recommender is prepared.</p>
+  </div>
 </div>
 
 <script>
-  const recBtn = document.querySelector("a[href*='recommendations']");
-  recBtn.addEventListener("click", function(e){
-      document.getElementById('loadingOverlay').style.display = 'block';
+  document.querySelectorAll("a[href*='recommendations']").forEach((recBtn) => {
+    recBtn.addEventListener("click", function(){
+      document.getElementById('recommenderLoadingOverlay').classList.add('is-visible');
+    });
   });
 </script>
 

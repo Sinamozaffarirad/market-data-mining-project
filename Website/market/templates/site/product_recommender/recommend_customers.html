@@ -3,10 +3,35 @@
 
 {% block title %}Recommend Customers{% endblock %}
 
-{% block content %}
-<div class="container py-5">
+{% block extra_css %}
+<style>
+  .page-frame {
+    width: min(calc(100% - 3rem), 1400px);
+    margin: 1.25rem auto 2rem;
+    padding: 1.5rem;
+    background: #fff;
+    border: 1px solid #e1e6ef;
+    border-radius: .85rem;
+    box-shadow: 0 .35rem 1rem rgba(25, 45, 80, .08);
+  }
+  .page-title-bar {
+    display: flex; align-items: center;
+    min-height: 64px;
+    margin: -1.5rem -1.5rem 1.5rem; padding: 1.1rem 1.25rem;
+    color: #fff; background: var(--gradient-primary);
+    border-radius: .75rem .75rem 0 0;
+  }
+  .page-title-bar h1 { margin: 0; font-size: 1.05rem; }
 
-    <h1 class="fw-bold mb-4">Recommend Customers for Product</h1>
+  .page-title-bar .text-primary, .page-title-bar .text-muted { color: #fff !important; }
+  .page-title-bar .text-muted { opacity: .88; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-frame">
+
+    <div class="page-title-bar"><h1 class="fw-bold text-primary mb-1"><i class="fa-solid fa-file-pen"></i> Recommend Customers for Product</h1></div>
     <p class="text-muted">Search for a product to find the best customer leads who have not purchased this item yet.</p>
 
     <form method="GET" class="mb-4">
