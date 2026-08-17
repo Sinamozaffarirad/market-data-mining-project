@@ -30,7 +30,15 @@ SELECT
     DATEPART(MONTH,   DATEADD(DAY, d.day_key - 1, '2017-01-01')) AS calendar_month,
     DATENAME(MONTH,   DATEADD(DAY, d.day_key - 1, '2017-01-01')) AS month_name,
     FORMAT(DATEADD(DAY, d.day_key - 1, '2017-01-01'), 'yyyy-MM')  AS year_month,
+    /* Dataset week, 1-102, matching transactions.week_no. */
     ((d.day_key - 1) / 7) + 1                                     AS week_no,
+    /* Week within the calendar month, 1-5.  The month drill-down groups on
+       this rather than week_no: a month overlaps five *dataset* weeks whose
+       first and last are clipped by the month boundary, which made the ends of
+       every month look like a slump.  Week 5 here is still a 1-3 day remnant,
+       so the drill-down reports the days each bucket covers. */
+    ((DATEPART(DAY, DATEADD(DAY, d.day_key - 1, '2017-01-01')) - 1) / 7) + 1
+                                                                  AS week_of_month,
     DATENAME(WEEKDAY, DATEADD(DAY, d.day_key - 1, '2017-01-01'))  AS day_name,
     /* Sort keys so Power BI orders text columns chronologically. */
     DATEPART(MONTH,   DATEADD(DAY, d.day_key - 1, '2017-01-01')) AS month_sort,

@@ -1,5 +1,6 @@
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth import authenticate, login, logout
+from django.conf import settings
 from django.db import models
 from django.http import JsonResponse, HttpResponse
 from django.shortcuts import render, get_object_or_404, redirect
@@ -1173,6 +1174,8 @@ def basket_analysis(request):
             # Lets the time-series controls flag horizon/lookback combinations
             # the calendar cannot fully supervise, before a model is trained.
             'time_series_complete_periods': _complete_period_count(),
+            # Slicer options for the BI dashboard panel embedded in this page.
+            'filter_options': _bi_filter_options(),
         }
 
         logger.info("Basket analysis completed successfully")
@@ -1188,8 +1191,32 @@ def basket_analysis(request):
             'dept_analysis': [],
             'top_products_frequency': [],
             'top_products_sales': [],
+            'filter_options': {'years': [], 'departments': [], 'segments': []},
         }
         return render(request, 'site/dunnhumby/basket_analysis.html', context)
+
+
+def _bi_filter_options():
+    """Slicer choices for the BI dashboard panel.
+
+    Returns empty lists when the reporting views are absent so the page still
+    renders and the panel can explain what to run.
+    """
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT DISTINCT calendar_year FROM vw_dim_date ORDER BY calendar_year")
+            years = [row[0] for row in cursor.fetchall()]
+            cursor.execute("SELECT DISTINCT department FROM vw_dim_product ORDER BY department")
+            departments = [row[0] for row in cursor.fetchall()]
+            cursor.execute(
+                "SELECT rfm_segment, COUNT(*) n FROM vw_dim_household "
+                "GROUP BY rfm_segment ORDER BY n DESC"
+            )
+            segments = [row[0] for row in cursor.fetchall()]
+        return {"years": years, "departments": departments, "segments": segments}
+    except Exception:
+        logger.warning("BI reporting views unavailable", exc_info=True)
+        return {"years": [], "departments": [], "segments": []}
 
 
 def _complete_period_count():

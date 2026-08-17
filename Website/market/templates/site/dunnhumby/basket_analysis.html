@@ -944,9 +944,9 @@ html, body {
         <span class="algorithm-badge">ML Algorithms</span>
       </button>
       <button class="tab-btn" onclick="switchTab('differential')">
-        <i class="fas fa-balance-scale"></i>
-        Differential Analysis
-        <span class="algorithm-badge">Statistical Tests</span>
+        <i class="fas fa-chart-pie"></i>
+        BI Dashboard
+        <span class="algorithm-badge">Drill-down Reports</span>
       </button>
     </div>
 
@@ -1582,18 +1582,22 @@ html, body {
       </div>
     </div>
 
-    <!-- Differential Analysis Tab -->
+    <!-- Business Intelligence Tab -->
     <div id="differential" class="tab-content">
-      <div class="analysis-type-card differential-card">
-        <h4 style="color: #dc3545; margin-bottom: 1rem;">
+      {% include "site/dunnhumby/_bi_dashboard_panel.html" %}
+
+      <!-- The statistical comparison stays available beneath the dashboard: the
+           significance tests are a required part of the analysis, so the BI
+           layer is added alongside them rather than in place of them. -->
+      <details class="chart-container mt-3">
+        <summary style="cursor:pointer;font-weight:700;color:#dc3545;font-size:1.05rem">
           <i class="fas fa-exchange-alt"></i>
-          Differential Market Basket Analysis
-        </h4>
-        <p style="color: #6c757d; line-height: 1.6; margin: 0;">
-          Compares basket patterns between different customer segments, time periods, or store locations 
-          using statistical significance tests and cohort analysis.
+          Differential analysis &mdash; statistical significance tests
+        </summary>
+        <p class="text-muted small mt-2 mb-3">
+          Compares basket patterns between customer segments, time periods, or store
+          locations using significance tests and cohort analysis.
         </p>
-      </div>
 
       <!-- Comparison Controls -->
       <div class="interactive-controls">
@@ -1736,7 +1740,7 @@ html, body {
           </div>
         </div>
         </div>
-      </div>
+      </details>
     </div>
   </div>
 </div>

@@ -1,0 +1,597 @@
+{% comment %}
+Business-intelligence dashboard panel. Included by the BI tab of
+basket_analysis.html and by the standalone bi_dashboard.html page, so both stay
+in step. The including view must supply `filter_options`, and optionally
+`setup_error`.
+
+Note the block form: the short {# ... #} form is single-line only, so spreading
+one over several lines renders it onto the page as visible text.
+{% endcomment %}
+<style>
+.bi-module { padding: 1rem; max-width: 100%; }
+
+/* Matches the .analysis-type-card header used by the other analysis tabs, so
+   the BI tab reads as part of the same set.  Defined here rather than reused
+   because the standalone page does not load basket_analysis.html's CSS. */
+.bi-type-card {
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border-radius: 15px; padding: 1.2rem; margin-bottom: 1rem;
+  border-left: 5px solid #0f766e; max-width: 100%;
+}
+.bi-type-card h4 {
+  color: #0f766e; margin: 0 0 .6rem; font-size: 1.25rem; font-weight: 700;
+  display: flex; align-items: center; gap: .55rem;
+}
+.bi-type-card p { color: #6c757d; line-height: 1.6; margin: 0; }
+
+.bi-slicers {
+  background: #fff; border: 1px solid #e2e8f0; border-radius: 14px;
+  padding: 1rem 1.15rem; margin-bottom: 1.25rem;
+  display: flex; flex-wrap: wrap; gap: .9rem; align-items: flex-end;
+}
+.bi-slicers .field { min-width: 165px; flex: 1 1 165px; }
+.bi-slicers label {
+  display: block; font-size: .68rem; font-weight: 700; letter-spacing: .07em;
+  text-transform: uppercase; color: #64748b; margin-bottom: .3rem;
+}
+
+.kpi-strip {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(158px, 1fr));
+  gap: .85rem; margin-bottom: 1.25rem;
+}
+.kpi {
+  background: #fff; border: 1px solid #e2e8f0; border-radius: 14px;
+  padding: .95rem 1rem; position: relative; overflow: hidden;
+}
+.kpi::before {
+  content: ''; position: absolute; inset: 0 0 auto 0; height: 3px;
+  background: linear-gradient(90deg, #0f766e, #14b8a6);
+}
+.kpi .v { font-size: 1.5rem; font-weight: 800; color: #0f172a; line-height: 1.15;
+          font-variant-numeric: tabular-nums; }
+.kpi .l { font-size: .7rem; font-weight: 700; letter-spacing: .05em;
+          text-transform: uppercase; color: #64748b; margin-top: .3rem; }
+.kpi .h { font-size: .68rem; color: #94a3b8; margin-top: .15rem; }
+
+.bi-card {
+  background: #fff; border: 1px solid #e2e8f0; border-radius: 16px;
+  padding: 1.15rem 1.25rem; margin-bottom: 1.25rem;
+}
+.bi-card h5 { font-size: 1rem; font-weight: 700; margin: 0; color: #0f172a; }
+.bi-card .sub { font-size: .8rem; color: #64748b; margin: .15rem 0 0; }
+.bi-head { display: flex; justify-content: space-between; align-items: flex-start;
+           gap: 1rem; flex-wrap: wrap; margin-bottom: .9rem; }
+
+.crumbs { display: flex; flex-wrap: wrap; gap: .35rem; align-items: center; font-size: .82rem; }
+.crumb {
+  background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 999px;
+  padding: .18rem .7rem; cursor: pointer; color: #0f766e; font-weight: 600;
+}
+.crumb:hover { background: #ccfbf1; }
+.crumb.active { background: #0f766e; color: #fff; border-color: #0f766e; cursor: default; }
+.crumb-sep { color: #cbd5e1; }
+
+.drill-hint {
+  font-size: .74rem; color: #0f766e; background: #f0fdfa;
+  border: 1px dashed #99f6e4; border-radius: 8px; padding: .3rem .6rem;
+}
+
+.insight {
+  border-left: 3px solid #0f766e; background: #f8fafc; border-radius: 0 10px 10px 0;
+  padding: .7rem .9rem; margin-bottom: .7rem;
+}
+.insight .t { font-weight: 700; color: #0f172a; font-size: .92rem; }
+.insight .d { font-size: .84rem; color: #475569; margin-top: .15rem; }
+
+.bi-table { font-size: .85rem; }
+.bi-table th { font-size: .68rem; letter-spacing: .05em; text-transform: uppercase;
+               color: #64748b; font-weight: 700; }
+.bi-table td.n { text-align: right; font-variant-numeric: tabular-nums; }
+.bar-cell { position: relative; }
+.bar-cell .fill {
+  position: absolute; left: 0; top: 0; bottom: 0; background: rgba(15,118,110,.12);
+  border-radius: 3px;
+}
+.bar-cell span { position: relative; }
+
+.chart-box { position: relative; height: 340px; }
+.chart-box.tall { height: 420px; }
+.bi-loading { color: #94a3b8; font-size: .85rem; padding: 2rem; text-align: center; }
+</style>
+
+<div class="bi-module">
+
+  <div class="bi-type-card">
+    <h4>
+      <i class="fas fa-chart-pie"></i>
+      Business Intelligence Dashboard
+    </h4>
+    <p>
+      Interactive drill-down reporting over the market-basket star schema: Department &rarr; Commodity
+      &rarr; Sub-commodity &rarr; Product on one axis, Year &rarr; Quarter &rarr; Month &rarr; Week &rarr; Day on the other,
+      sliced by store, customer segment and calendar year.
+    </p>
+  </div>
+
+  {% if setup_error %}
+    <div class="alert alert-danger"><strong>Setup needed.</strong> {{ setup_error }}</div>
+  {% endif %}
+
+  <div class="bi-slicers">
+    <div class="field">
+      <label for="fYear">Year</label>
+      <select id="fYear" class="form-select form-select-sm" onchange="biRefresh()">
+        <option value="all">All years</option>
+        {% for y in filter_options.years %}<option value="{{ y }}">{{ y }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="fDept">Department</label>
+      <select id="fDept" class="form-select form-select-sm" onchange="biRefresh()">
+        <option value="all">All departments</option>
+        {% for d in filter_options.departments %}<option value="{{ d }}">{{ d }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="fSegment">Customer segment</label>
+      <select id="fSegment" class="form-select form-select-sm" onchange="biRefresh()">
+        <option value="all">All segments</option>
+        {% for s in filter_options.segments %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="fStore">Store ID</label>
+      <input id="fStore" type="number" class="form-control form-control-sm" placeholder="All stores" onchange="biRefresh()">
+    </div>
+    <div>
+      <button class="btn btn-sm btn-outline-secondary" type="button" onclick="biReset()">
+        <i class="fas fa-rotate-left"></i> Reset
+      </button>
+    </div>
+  </div>
+
+  <div class="kpi-strip" id="kpiStrip"></div>
+
+  <div class="row g-3">
+    <div class="col-lg-7">
+      <div class="bi-card">
+        <div class="bi-head">
+          <div>
+            <h5><i class="fas fa-sitemap text-success"></i> Product hierarchy</h5>
+            <p class="sub">Department &rarr; Commodity &rarr; Sub-commodity &rarr; Product</p>
+          </div>
+          <span class="drill-hint" id="productHint">Click a bar to drill in</span>
+        </div>
+        <div class="crumbs mb-2" id="productCrumbs"></div>
+        <div class="chart-box tall"><canvas id="productChart"></canvas></div>
+      </div>
+    </div>
+    <div class="col-lg-5">
+      <div class="bi-card">
+        <div class="bi-head">
+          <div>
+            <h5><i class="fas fa-lightbulb text-warning"></i> What the selection shows</h5>
+            <p class="sub">Recomputed from the same filtered queries as the charts</p>
+          </div>
+        </div>
+        <div id="insightList"><div class="bi-loading">Loading&hellip;</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="bi-card">
+    <div class="bi-head">
+      <div>
+        <h5><i class="fas fa-calendar-days text-primary"></i> Calendar hierarchy</h5>
+        <p class="sub">Year &rarr; Quarter &rarr; Month &rarr; Week &rarr; Day</p>
+      </div>
+      <span class="drill-hint" id="timeHint">Click a column to drill in</span>
+    </div>
+    <div class="crumbs mb-2" id="timeCrumbs"></div>
+    <div class="chart-box"><canvas id="timeChart"></canvas></div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-lg-6">
+      <div class="bi-card">
+        <div class="bi-head"><div>
+          <h5><i class="fas fa-users text-purple" style="color:#7c3aed"></i> Customer segments</h5>
+          <p class="sub">RFM segment by revenue and household count</p>
+        </div></div>
+        <div class="chart-box"><canvas id="segmentChart"></canvas></div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="bi-card">
+        <div class="bi-head"><div>
+          <h5><i class="fas fa-store text-danger"></i> Store performance</h5>
+          <p class="sub">Baskets against average basket value; bubble size is revenue</p>
+        </div></div>
+        <div class="chart-box"><canvas id="storeChart"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-lg-6">
+      <div class="bi-card">
+        <div class="bi-head"><div>
+          <h5><i class="fas fa-basket-shopping text-info"></i> Basket size distribution</h5>
+          <p class="sub">Baskets by number of distinct products</p>
+        </div></div>
+        <div class="chart-box"><canvas id="basketChart"></canvas></div>
+        <p class="sub mt-2 mb-0" id="basketCaption"></p>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="bi-card">
+        <div class="bi-head"><div>
+          <h5><i class="fas fa-table-list text-secondary"></i> Current level detail</h5>
+          <p class="sub" id="detailSub">Product hierarchy breakdown</p>
+        </div></div>
+        <div class="table-responsive" style="max-height:340px;overflow:auto">
+          <table class="table table-sm table-hover bi-table mb-0">
+            <thead class="table-light sticky-top"><tr>
+              <th id="detailLevelHead">Level</th>
+              <th class="text-end">Revenue</th>
+              <th class="text-end">Share</th>
+              <th class="text-end">Baskets</th>
+            </tr></thead>
+            <tbody id="detailRows"><tr><td colspan="4" class="bi-loading">Loading&hellip;</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p class="text-muted small mt-2 mb-4">
+    <i class="fas fa-circle-info"></i>
+    Calendar levels use a synthetic date dimension: the source records
+    <code>day</code> as an integer 1&ndash;711 with no real dates, so day 1 is anchored to
+    2017-01-01 to make Year/Quarter/Month/Week drill-down possible. Basket size counts
+    distinct products, because weighted goods such as fuel are recorded in source units.
+  </p>
+</div>
+
+<script>
+const BI = {
+  product: { path: [], chart: null, rows: [], levelLabel: 'Department' },
+  time:    { path: [], chart: null },
+  segment: null, store: null, basket: null,
+};
+const TEAL = '#0f766e', TEAL_SOFT = 'rgba(15,118,110,.75)';
+
+function biFilters() {
+  const params = new URLSearchParams();
+  const year = document.getElementById('fYear').value;
+  const dept = document.getElementById('fDept').value;
+  const seg  = document.getElementById('fSegment').value;
+  const store = document.getElementById('fStore').value;
+  if (year && year !== 'all') params.set('year', year);
+  if (dept && dept !== 'all') params.set('department', dept);
+  if (seg && seg !== 'all') params.set('segment', seg);
+  if (store) params.set('store', store);
+  return params;
+}
+
+async function biGet(url, extra) {
+  const params = biFilters();
+  (extra || []).forEach(([k, v]) => params.append(k, v));
+  const response = await fetch(`${url}?${params.toString()}`);
+  const payload = await response.json();
+  if (!payload.success) throw new Error(payload.error || 'Request failed');
+  return payload;
+}
+
+const money = v => '$' + Number(v || 0).toLocaleString(undefined, {maximumFractionDigits: 0});
+const money2 = v => '$' + Number(v || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+const pct = v => (Number(v || 0) * 100).toFixed(1) + '%';
+const num = v => Number(v || 0).toLocaleString();
+
+function renderKpis(k) {
+  document.getElementById('kpiStrip').innerHTML = `
+    <div class="kpi"><div class="v">${money(k.revenue)}</div><div class="l">Revenue</div></div>
+    <div class="kpi"><div class="v">${num(k.baskets)}</div><div class="l">Baskets</div></div>
+    <div class="kpi"><div class="v">${money2(k.avg_basket_value)}</div><div class="l">Avg basket value</div></div>
+    <div class="kpi"><div class="v">${Number(k.avg_basket_size).toFixed(2)}</div><div class="l">Avg basket size</div><div class="h">distinct products</div></div>
+    <div class="kpi"><div class="v">${num(k.households)}</div><div class="l">Households</div><div class="h">${money2(k.revenue_per_household)} each</div></div>
+    <div class="kpi"><div class="v">${pct(k.discount_rate)}</div><div class="l">Discount rate</div><div class="h">of list value</div></div>
+    <div class="kpi"><div class="v">${pct(k.top20_concentration)}</div><div class="l">Top-20 share</div><div class="h">of ${num(k.products)} products</div></div>
+    <div class="kpi"><div class="v">${num(k.stores)}</div><div class="l">Stores</div></div>`;
+}
+
+function renderCrumbs(containerId, breadcrumb, rootLabel, onJump) {
+  const container = document.getElementById(containerId);
+  const parts = [`<span class="crumb ${breadcrumb.length ? '' : 'active'}" onclick="${onJump}(0)">${rootLabel}</span>`];
+  breadcrumb.forEach((item, index) => {
+    const isLast = index === breadcrumb.length - 1;
+    parts.push('<span class="crumb-sep">/</span>');
+    parts.push(`<span class="crumb ${isLast ? 'active' : ''}" onclick="${onJump}(${index + 1})">${item.value}</span>`);
+  });
+  container.innerHTML = parts.join('');
+}
+
+function renderDetailTable(rows, levelLabel) {
+  const head = document.getElementById('detailLevelHead');
+  const body = document.getElementById('detailRows');
+  document.getElementById('detailSub').textContent = `${levelLabel} breakdown, ranked by revenue`;
+  head.textContent = levelLabel;
+  if (!rows.length) { body.innerHTML = '<tr><td colspan="4" class="bi-loading">No rows for this selection.</td></tr>'; return; }
+  const max = Math.max(...rows.map(r => r.revenue));
+  body.innerHTML = rows.map(r => `<tr>
+    <td class="bar-cell"><div class="fill" style="width:${max ? (r.revenue / max * 100) : 0}%"></div><span>${r.label}</span></td>
+    <td class="n">${money(r.revenue)}</td>
+    <td class="n">${pct(r.share)}</td>
+    <td class="n">${num(r.baskets)}</td>
+  </tr>`).join('');
+}
+
+async function loadProduct() {
+  const data = await biGet('/analysis/api/bi/product-drill/', BI.product.path.map(v => ['path', v]));
+  BI.product.rows = data.rows;
+  BI.product.levelLabel = data.level_label;
+  renderCrumbs('productCrumbs', data.breadcrumb, 'All departments', 'jumpProduct');
+  document.getElementById('productHint').textContent = data.can_drill
+    ? `Click a bar to open ${data.next_label}` : 'Deepest level reached';
+  renderDetailTable(data.rows, data.level_label);
+
+  const canvas = document.getElementById('productChart');
+  if (BI.product.chart) BI.product.chart.destroy();
+  BI.product.chart = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels: data.rows.map(r => r.label),
+      datasets: [{ label: 'Revenue', data: data.rows.map(r => r.revenue), backgroundColor: TEAL_SOFT }],
+    },
+    options: {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      onClick: (event, elements) => {
+        if (!elements.length || !data.can_drill) return;
+        BI.product.path.push(data.rows[elements[0].index].label);
+        loadProduct();
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => `${money(ctx.raw)} · ${pct(data.rows[ctx.dataIndex].share)} of level` } },
+      },
+      scales: { x: { beginAtZero: true, ticks: { callback: v => money(v) } } },
+    },
+  });
+}
+
+async function loadTime() {
+  const data = await biGet('/analysis/api/bi/time-drill/', BI.time.path.map(v => ['path', v]));
+  renderCrumbs('timeCrumbs', data.breadcrumb, 'All years', 'jumpTime');
+  document.getElementById('timeHint').textContent = data.can_drill
+    ? `Click a column to open ${data.next_label}` : 'Deepest level reached';
+
+  const canvas = document.getElementById('timeChart');
+  if (BI.time.chart) BI.time.chart.destroy();
+  BI.time.chart = new Chart(canvas, {
+    type: data.level === 'day' || data.level === 'week' ? 'line' : 'bar',
+    data: {
+      labels: data.rows.map(r => r.label),
+      datasets: [{
+        label: 'Revenue', data: data.rows.map(r => r.revenue),
+        backgroundColor: TEAL_SOFT, borderColor: TEAL, tension: .25, fill: false,
+      }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      onClick: (event, elements) => {
+        if (!elements.length || !data.can_drill) return;
+        BI.time.path.push(data.rows[elements[0].index].label);
+        loadTime();
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: {
+          label: ctx => `${money(ctx.raw)} · ${num(data.rows[ctx.dataIndex].baskets)} baskets`,
+          // Calendar buckets differ in length: the window clips the first and
+          // last quarter and a month's fifth week is a 1-3 day remnant. Show
+          // the days covered so a short bucket is not read as a downturn.
+          afterLabel: ctx => {
+            const row = data.rows[ctx.dataIndex];
+            const base = `${row.days} day${row.days === 1 ? '' : 's'} · ${money(row.revenue_per_day)}/day`;
+            return row.partial ? `${base}\n⚠ shorter period than its neighbours` : base;
+          },
+        } },
+      },
+      scales: { y: { beginAtZero: true, ticks: { callback: v => money(v) } } },
+    },
+  });
+}
+
+function jumpProduct(depth) { BI.product.path = BI.product.path.slice(0, depth); loadProduct(); }
+function jumpTime(depth) { BI.time.path = BI.time.path.slice(0, depth); loadTime(); }
+
+async function loadSegments() {
+  const data = await biGet('/analysis/api/bi/segments/');
+  const canvas = document.getElementById('segmentChart');
+  if (BI.segment) BI.segment.destroy();
+  BI.segment = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels: data.rows.map(r => r.segment),
+      datasets: [
+        { label: 'Revenue', data: data.rows.map(r => r.revenue), backgroundColor: '#7c3aed', yAxisID: 'y' },
+        { label: 'Households', data: data.rows.map(r => r.households), backgroundColor: '#c4b5fd', yAxisID: 'y1', type: 'line', borderColor: '#6d28d9' },
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom' } },
+      scales: {
+        y: { beginAtZero: true, position: 'left', ticks: { callback: v => money(v) } },
+        y1: { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: 'Households' } },
+      },
+    },
+  });
+}
+
+async function loadStores() {
+  const data = await biGet('/analysis/api/bi/stores/');
+  const maxRevenue = Math.max(...data.rows.map(r => r.revenue), 1);
+  const canvas = document.getElementById('storeChart');
+  if (BI.store) BI.store.destroy();
+  BI.store = new Chart(canvas, {
+    type: 'bubble',
+    data: {
+      datasets: [{
+        label: 'Store',
+        data: data.rows.map(r => ({ x: r.baskets, y: r.avg_basket, r: 4 + 16 * (r.revenue / maxRevenue), store: r.store_id, revenue: r.revenue })),
+        backgroundColor: 'rgba(220,38,38,.45)', borderColor: '#dc2626',
+      }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => {
+          const p = ctx.raw;
+          return `Store ${p.store} · ${num(p.x)} baskets · ${money2(p.y)} avg · ${money(p.revenue)}`;
+        } } },
+      },
+      scales: {
+        x: { title: { display: true, text: 'Baskets' }, beginAtZero: true },
+        y: { title: { display: true, text: 'Average basket value' }, ticks: { callback: v => money2(v) } },
+      },
+    },
+  });
+}
+
+async function loadBaskets() {
+  const data = await biGet('/analysis/api/bi/basket-distribution/');
+  // One bar per basket size, so bar heights stay comparable. Sizes past the
+  // cutoff are stated in words rather than stacked into one tall bar, which
+  // would invent a second mode at the cutoff.
+  const shown = data.rows.filter(r => r.bucket <= data.cutoff);
+  const caption = document.getElementById('basketCaption');
+  if (caption) {
+    caption.innerHTML = data.tail.baskets
+      ? `Median basket holds <strong>${data.median_size}</strong> products; largest is
+         <strong>${data.max_size}</strong>. Sizes above ${data.cutoff} are omitted from the bars
+         &mdash; <strong>${num(data.tail.baskets)}</strong> baskets (${pct(data.tail.share)}),
+         ${money(data.tail.revenue)}.`
+      : `Median basket holds <strong>${data.median_size}</strong> products; largest is <strong>${data.max_size}</strong>.`;
+  }
+  const canvas = document.getElementById('basketChart');
+  if (BI.basket) BI.basket.destroy();
+  BI.basket = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels: shown.map(r => r.bucket),
+      datasets: [{ label: 'Baskets', data: shown.map(r => r.baskets), backgroundColor: '#0891b2' }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: {
+          title: items => `${items[0].label} distinct products`,
+          label: ctx => `${num(ctx.raw)} baskets · ${money(shown[ctx.dataIndex].revenue)}`,
+        } },
+      },
+      scales: {
+        x: { title: { display: true, text: 'Distinct products in basket' } },
+        y: { beginAtZero: true, title: { display: true, text: 'Baskets' } },
+      },
+    },
+  });
+}
+
+async function loadInsights() {
+  const data = await biGet('/analysis/api/bi/insights/');
+  const container = document.getElementById('insightList');
+  container.innerHTML = data.insights.length
+    ? data.insights.map(i => `<div class="insight"><div class="t">${i.title}</div><div class="d">${i.detail}</div></div>`).join('')
+    : '<div class="bi-loading">No findings for this selection.</div>';
+}
+
+/* Re-measure every chart once the layout has settled, and keep a ResizeObserver
+   on each container for later shifts. The resize is unconditional: a chart can
+   end up with the right CSS size but a stale 300x150 backing store, which still
+   renders, only blurred, so testing the displayed width would miss it. */
+/* Chart.js leaves a canvas at its untouched 300x150 default when the container
+   could not be measured at build time, and no later resize() recovers it, so
+   such a chart is rebuilt rather than resized. Charts that did measure are just
+   resized, and each container keeps a ResizeObserver for later layout shifts. */
+const BI_LOADERS = [
+  ['productChart', () => BI.product.chart, loadProduct],
+  ['timeChart',    () => BI.time.chart,    loadTime],
+  ['segmentChart', () => BI.segment,       loadSegments],
+  ['storeChart',   () => BI.store,         loadStores],
+  ['basketChart',  () => BI.basket,        loadBaskets],
+];
+
+async function biSettleCharts(attempt = 0) {
+  const ratio = window.devicePixelRatio || 1;
+  const rebuilds = [];
+  BI_LOADERS.forEach(([id, get, load]) => {
+    const chart = get();
+    const canvas = document.getElementById(id);
+    if (!chart || !canvas) return;
+    const box = canvas.parentElement;
+    if (!box || box.clientWidth < 1) return;
+    const wanted = Math.floor(box.clientWidth * ratio);
+    if (canvas.width < wanted - 4) {
+      /* The bitmap is smaller than the box. resize() cannot fix this: Chart.js
+         compares against its own record of the size, which already matches the
+         box, so the call is a no-op while the backing store stays small and the
+         chart renders stretched. Rebuilding measures the box afresh. */
+      rebuilds.push(load());
+    }
+    if (box.dataset.biObserved) return;
+    box.dataset.biObserved = '1';
+    new ResizeObserver(() => get()?.resize()).observe(box);
+  });
+  if (rebuilds.length) await Promise.all(rebuilds);
+  // Cards lower on the page keep settling for a beat after the data lands, so
+  // check a few more times rather than guessing which pass is the last one.
+  if (attempt < 6) setTimeout(() => biSettleCharts(attempt + 1), 300);
+}
+
+async function biRefresh() {
+  // A slicer change invalidates the drill paths, so both hierarchies restart.
+  BI.product.path = [];
+  BI.time.path = [];
+  try {
+    const kpis = await biGet('/analysis/api/bi/kpis/');
+    renderKpis(kpis.kpis);
+    await Promise.all([loadProduct(), loadTime(), loadSegments(), loadStores(), loadBaskets(), loadInsights()]);
+    // The KPI strip and cards finish laying out while these are being built, so
+    // a chart can latch onto a stale container width and stay there. Settle any
+    // that measured early once the layout has actually finished; a frame is too
+    // soon, so this waits a beat and then keeps watching each container.
+    setTimeout(biSettleCharts, 250);
+  } catch (error) {
+    console.error(error);
+    showNotification('Dashboard could not load: ' + error.message, 'danger');
+  }
+}
+
+function biReset() {
+  document.getElementById('fYear').value = 'all';
+  document.getElementById('fDept').value = 'all';
+  document.getElementById('fSegment').value = 'all';
+  document.getElementById('fStore').value = '';
+  biRefresh();
+}
+
+/* A chart built inside a hidden tab measures a zero-width canvas, and Chart.js
+   does not recover from that even when resized after the tab opens. So when
+   this panel sits in a tab, hold the first load until the tab is actually
+   shown; that both sizes the canvases correctly and avoids querying for a
+   panel nobody has opened. The standalone page has no tab and loads at once. */
+document.addEventListener('DOMContentLoaded', () => {
+  const tab = document.getElementById('kpiStrip')?.closest('.tab-content');
+  if (!tab || tab.classList.contains('active')) { biRefresh(); return; }
+
+  const observer = new MutationObserver(() => {
+    if (!tab.classList.contains('active')) return;
+    observer.disconnect();
+    biRefresh();
+  });
+  observer.observe(tab, {attributes: true, attributeFilter: ['class']});
+}, {once: true});
+</script>
