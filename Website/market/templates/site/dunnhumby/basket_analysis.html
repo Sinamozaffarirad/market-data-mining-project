@@ -1820,7 +1820,7 @@ html, body {
               <div class="rev-fields">
                 <div class="rev-field">
                   <label for="timeSeriesTopN">Products to list</label>
-                  <select class="form-select" id="timeSeriesTopN">
+                  <select class="form-select" id="timeSeriesTopN" onchange="handleTimeSeriesDisplayChange()">
                     <option value="10">Top 10</option>
                     <option value="20" selected>Top 20</option>
                     <option value="50">Top 50</option>
@@ -1829,11 +1829,11 @@ html, body {
                 </div>
                 <div class="rev-field">
                   <label for="timeSeriesThreshold">Minimum revenue</label>
-                  <input class="form-control" id="timeSeriesThreshold" type="number" min="0" step="0.01" placeholder="No minimum">
+                  <input class="form-control" id="timeSeriesThreshold" type="number" min="0" step="0.01" placeholder="No minimum" onchange="handleTimeSeriesDisplayChange()">
                 </div>
                 <div class="rev-field rev-field-wide">
                   <label for="timeSeriesMethod">Order the results by</label>
-                  <select class="form-select" id="timeSeriesMethod">
+                  <select class="form-select" id="timeSeriesMethod" onchange="handleTimeSeriesDisplayChange()">
                     <option value="recommended" selected>Whichever model scored best</option>
                     <option value="time_series_model">Recursive time series</option>
                     <option value="independent_direct_model">Independent direct model</option>
@@ -6173,6 +6173,19 @@ function renderTimeSeriesDepartmentChart(rows) {
     },
     options: {indexAxis: 'y', responsive: true, maintainAspectRatio: false, scales: {x: {beginAtZero: true, title: {display: true, text: 'Revenue'}}}, plugins: {legend: {position: 'bottom'}}},
   });
+}
+
+/* The three display controls only reshape the results table, so a change can
+   be applied straight away by re-running the forecast against the model that
+   is already trained. They deliberately do not touch the model itself: the
+   settings above them do, and those still require a retrain.
+
+   Nothing is re-run before a model exists, since there would be no forecast to
+   reshape; the values are simply picked up by the first Forecast click. */
+function handleTimeSeriesDisplayChange() {
+  const ready = lastReadyTimeSeriesModelKey === timeSeriesModelConfigKey();
+  if (!ready) return;
+  forecastProductTimeSeries();
 }
 
 /* Shows the inline spinner beside the revenue buttons. Training and
