@@ -4369,54 +4369,8 @@ function attachPopupEventListeners(sectionType) {
   if (!expandedContent) return;
   
   if (sectionType === 'baskets') {
-    // Attach basket card click handlers
-    const basketCards = expandedContent.querySelectorAll('.basket-card');
-    basketCards.forEach(card => {
-      card.style.cursor = 'pointer';
-      card.addEventListener('click', async function() {
-        const basketId = this.dataset.basketId;
-        if (!basketId) return;
-        
-        showNotification('Loading basket details...', 'info');
-        
-        try {
-          const csrftoken = (document.cookie.split('; ').find(r=>r.startsWith('csrftoken='))||'').split('=')[1]||'';
-          const formData = new FormData();
-          formData.append('csrfmiddlewaretoken', csrftoken);
-          formData.append('basket_id', basketId);
-          
-          const response = await fetch('/analysis/api/basket/', {
-            method: 'POST',
-            body: formData
-          });
-          
-          const data = await response.json();
-          
-          if (data.error) {
-            showDetailModal(`Basket ${basketId}`, `<div class="alert alert-danger">${data.error}</div>`);
-            return;
-          }
-          
-          let content = '<div class="table-responsive"><table class="table table-hover"><thead class="table-light"><tr><th>Product</th><th>Quantity</th><th>Sales Value</th><th>Department</th></tr></thead><tbody>';
-          
-          (data.items || []).forEach(item => {
-            const dept = item.department || 'MISC. TRANS.';
-            content += `<tr>
-              <td><strong>${item.product_id}</strong><br><small class="text-muted">${item.commodity_desc || ''}</small></td>
-              <td>${item.quantity}</td>
-              <td>$${Number(item.sales_value || 0).toFixed(2)}</td>
-              <td>${createDepartmentBadge(dept)}</td>
-            </tr>`;
-          });
-          
-          content += '</tbody></table></div>';
-          showDetailModal(`🛒 Basket #${basketId} Details`, content);
-          
-        } catch (error) {
-          showNotification('Failed to load basket details', 'error');
-        }
-      });
-    });
+    // Basket cards are handled by a delegated listener on the document, which
+    // covers the cards in this modal as well as the ones in the page grid.
   } else if (sectionType === 'recommendations') {
     // Force re-initialization of recommendation cards in modal
     setTimeout(() => {
@@ -5338,50 +5292,46 @@ document.addEventListener('DOMContentLoaded', function() {
   initializeHighValuePagination();
   window.addEventListener('resize', () => initializeHighValuePagination());
 
-  // Basket card clicks
-  document.querySelectorAll('.basket-card').forEach(card => {
-    card.addEventListener('click', async function() {
-      const basketId = this.dataset.basketId;
-      showNotification('Loading basket details...', 'info');
-      
-      try {
-        const formData = new FormData();
-        formData.append('csrfmiddlewaretoken', csrftoken);
-        formData.append('basket_id', basketId);
-        
-        const response = await fetch('/analysis/api/basket/', {
-          method: 'POST',
-          body: formData
-        });
-        
-        const data = await response.json();
-        
-        if (data.error) {
-          showDetailModal(`Basket ${basketId}`, `<div class="alert alert-danger">${data.error}</div>`);
-          return;
-        }
-        
-        let content = '<div class="table-responsive"><table class="table table-hover"><thead class="table-light"><tr><th>Product</th><th>Quantity</th><th>Sales Value</th><th>Department</th></tr></thead><tbody>';
-        
-        (data.items || []).forEach(item => {
-          const dept = item.department || 'MISC. TRANS.';
-          content += `<tr>
-            <td><strong>${item.product_id}</strong><br><small class="text-muted">${item.commodity_desc || ''}</small></td>
-            <td>${item.quantity}</td>
-            <td>$${Number(item.sales_value || 0).toFixed(2)}</td>
-            <td>${createDepartmentBadge(dept)}</td>
-          </tr>`;
-        });
-        
-        content += '</tbody></table></div>';
-        showDetailModal(`🛒 Basket #${basketId} Details`, content);
-        
-      } catch (error) {
-        showNotification('Failed to load basket details', 'error');
-      }
-    });
+  /* Basket cards are bound by delegation rather than per element. The
+     high-value grid is refreshed every 30 seconds by replacing its innerHTML,
+     which discards the cards and any listener attached to them; products were
+     re-bound afterwards but baskets were not, so they stopped responding after
+     the first refresh. A listener on the document survives the replacement and
+     also covers the copies rendered inside the expand modal. */
+  document.addEventListener('click', event => {
+    const card = event.target.closest('.basket-card');
+    if (card && card.dataset.basketId) openBasketDetails(card.dataset.basketId);
   });
 });
+
+async function openBasketDetails(basketId) {
+  showNotification('Loading basket details...', 'info');
+  try {
+    const formData = new FormData();
+    formData.append('csrfmiddlewaretoken', getCsrfToken());
+    formData.append('basket_id', basketId);
+    const response = await fetch('/analysis/api/basket/', {method: 'POST', body: formData});
+    const data = await response.json();
+    if (data.error) {
+      showDetailModal(`Basket ${basketId}`, `<div class="alert alert-danger">${data.error}</div>`);
+      return;
+    }
+    let content = '<div class="table-responsive"><table class="table table-hover"><thead class="table-light"><tr><th>Product</th><th>Quantity</th><th>Sales Value</th><th>Department</th></tr></thead><tbody>';
+    (data.items || []).forEach(item => {
+      const dept = item.department || 'MISC. TRANS.';
+      content += `<tr>
+        <td><strong>${item.product_id}</strong><br><small class="text-muted">${item.commodity_desc || ''}</small></td>
+        <td>${item.quantity}</td>
+        <td>$${Number(item.sales_value || 0).toFixed(2)}</td>
+        <td>${createDepartmentBadge(dept)}</td>
+      </tr>`;
+    });
+    content += '</tbody></table></div>';
+    showDetailModal(`🛒 Basket #${basketId} Details`, content);
+  } catch (error) {
+    showNotification('Failed to load basket details', 'error');
+  }
+}
 
 // Helper functions for ML integration
 function getCsrfToken() {
