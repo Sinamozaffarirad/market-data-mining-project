@@ -943,14 +943,17 @@ def site_index(request):
     cust_change = ((recent_customers - prev_customers) / prev_customers * 100) if prev_customers > 0 else 0
     rev_change = ((float(recent_revenue) - float(prev_revenue)) / float(prev_revenue) * 100) if prev_revenue > 0 else 0
 
+    # Each card names the thing it actually opens. A single shared "Launch
+    # Analysis" said nothing, and was plainly wrong on the cards that open a
+    # data table or a search rather than an analysis.
     tools = [
-        { 'title': 'Shopping Basket Analysis', 'description': 'Analyze baskets, top products, and patterns', 'url': 'basket-analysis/', 'icon': '<i class="fas fa-shopping-basket"></i>' },
-        { 'title': 'Association Rules', 'description': 'Market basket association rules', 'url': 'association-rules/', 'icon': '<i class="fas fa-project-diagram"></i>' },
-        { 'title': 'Customer Segments', 'description': 'RFM segments & behavior', 'url': 'customer-segments/', 'icon': '<i class="fas fa-users"></i>' },
-        { 'title': 'Customer Retention', 'description': 'Identify at-risk customers and predict churn', 'url': 'customer-retention/', 'icon': '<i class="fas fa-heart-circle-check"></i>' },
-        { 'title': 'Data Management', 'description': 'View, edit, import/export data', 'url': 'data-management/', 'icon': '<i class="fas fa-database"></i>' },
-        { 'title': 'Customer Insights', 'description': 'Explore and manage your customer data in detail', 'url': reverse('customers:search'), 'icon': '<i class="fas fa-user"></i>' },
-        { 'title': 'Product Recommender', 'description': 'Find customers most likely to buy selected product', 'url': 'product-recommender/', 'icon': '<i class="fas fa-file-pen"></i>' },
+        { 'title': 'Shopping Basket Analysis', 'description': 'Analyze baskets, top products, and patterns', 'url': 'basket-analysis/', 'icon': '<i class="fas fa-shopping-basket"></i>', 'action': 'Explore baskets', 'action_icon': '<i class="fas fa-magnifying-glass-chart"></i>' },
+        { 'title': 'Association Rules', 'description': 'Market basket association rules', 'url': 'association-rules/', 'icon': '<i class="fas fa-project-diagram"></i>', 'action': 'Browse rules', 'action_icon': '<i class="fas fa-diagram-project"></i>' },
+        { 'title': 'Customer Segments', 'description': 'RFM segments & behavior', 'url': 'customer-segments/', 'icon': '<i class="fas fa-users"></i>', 'action': 'View segments', 'action_icon': '<i class="fas fa-chart-pie"></i>' },
+        { 'title': 'Customer Retention', 'description': 'Identify at-risk customers and predict churn', 'url': 'customer-retention/', 'icon': '<i class="fas fa-heart-circle-check"></i>', 'action': 'Find at-risk buyers', 'action_icon': '<i class="fas fa-user-clock"></i>' },
+        { 'title': 'Data Management', 'description': 'View, edit, import/export data', 'url': 'data-management/', 'icon': '<i class="fas fa-database"></i>', 'action': 'Manage data', 'action_icon': '<i class="fas fa-table"></i>' },
+        { 'title': 'Customer Insights', 'description': 'Explore and manage your customer data in detail', 'url': reverse('customers:search'), 'icon': '<i class="fas fa-user"></i>', 'action': 'Search customers', 'action_icon': '<i class="fas fa-magnifying-glass"></i>' },
+        { 'title': 'Product Recommender', 'description': 'Find customers most likely to buy selected product', 'url': 'product-recommender/', 'icon': '<i class="fas fa-file-pen"></i>', 'action': 'Find likely buyers', 'action_icon': '<i class="fas fa-bullseye"></i>' },
     ]
 
     context = {
