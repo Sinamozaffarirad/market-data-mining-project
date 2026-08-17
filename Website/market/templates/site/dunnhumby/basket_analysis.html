@@ -1268,7 +1268,11 @@ html, body {
         </div>
         <div class="row g-2">
           <div class="col-md-4">
-            <label class="form-label control-label">Algorithm:</label>
+            <label class="form-label control-label">
+              Algorithm:
+              <i class="fas fa-info-circle text-muted ms-1"
+                 title="Chooses which trained model you see metrics for and score with. Training always fits all four, so switching here needs no retrain."></i>
+            </label>
             <select class="form-select" id="mlAlgorithm">
               <option value="neural_network">Neural Network</option>
               <option value="random_forest">Random Forest</option>
@@ -1302,14 +1306,14 @@ html, body {
         <!-- Two separate buttons for train and predict -->
         <div class="d-flex gap-2 mt-3 align-items-center">
           <button class="btn btn-success" id="trainModelBtn" onclick="trainModel()">
-            <i class="fas fa-graduation-cap"></i> Train Model
+            <i class="fas fa-graduation-cap"></i> Train All 4 Algorithms
           </button>
           <button class="btn btn-primary" id="predictFutureBtn" onclick="predictFuture()" disabled>
             <i class="fas fa-percentage"></i> Score Repurchase Probability
           </button>
           <div id="trainingProgress" style="display: none;" class="ms-3">
             <div class="spinner-border spinner-border-sm text-success" role="status"></div>
-            <span class="text-success ms-2 fw-bold">Training model...</span>
+            <span class="text-success ms-2 fw-bold">Training all 4 algorithms&hellip;</span>
           </div>
         </div>
 
@@ -2974,10 +2978,7 @@ function checkCachedModel() {
   .then(data => {
     if (data.success && data.performance && Object.keys(data.performance).length > 0) {
       // Model is cached - check if it matches current selection
-      const timeHorizon = getSelectedHorizon();
-      const horizonMap = {1: '1month', 3: '3months', 6: '6months', 12: '12months'};
-      const horizonKey = horizonMap[timeHorizon] || '3months';
-      const metricsKey = `${horizonKey}_${algorithm}`;
+      const metricsKey = legacyMetricsKey(algorithm);
       const metrics = data.performance[metricsKey];
 
       if (metrics) {
@@ -2999,7 +3000,7 @@ function checkCachedModel() {
                 <span><strong>Recall:</strong> <span id="modelRecall">${(metrics.recall * 100).toFixed(2)}%</span></span>
                 <span><strong>F1 Score:</strong> <span id="modelF1">${(metrics.f1 * 100).toFixed(2)}%</span></span>
               </div>
-              <small class="text-muted">Loading predictions... (Click "Train Model" to train a new model)</small>
+              <small class="text-muted">Loading predictions... (Click "Train All 4 Algorithms" first)</small>
             </div>
           </div>
         `;
@@ -3037,7 +3038,7 @@ function showNeedTrainingMessage() {
       <i class="fas fa-info-circle fa-2x text-primary"></i>
       <div>
         <h6 class="mb-1">No Trained Model Available</h6>
-        <p class="mb-0">Click "Train Model" to train a new model before making predictions.</p>
+        <p class="mb-0">Click "Train All 4 Algorithms" before making predictions.</p>
       </div>
     </div>
   `;
@@ -3060,7 +3061,10 @@ function trainModel() {
   document.getElementById('modelAccuracyDisplay').style.display = 'none';
   document.getElementById('trainingProgress').style.display = 'inline-block';
 
-  showNotification(`Training ${algorithm.replace('_', ' ')} model on historical data (${horizonLabel})...`, 'info');
+  // One click fits neural network, random forest, gradient boosting and SVM
+  // for this horizon and training size; the dropdown only chooses which of them
+  // you then read.
+  showNotification(`Training all 4 algorithms for ${horizonLabel} at ${Math.round(getSelectedTrainingSize() * 100)}% training size...`, 'info');
 
   // Train the ML models
   fetch('/analysis/api/ml/train/', {
@@ -3250,10 +3254,6 @@ function showChartError(message) {
 }
 
 function loadModelPerformance(algorithm) {
-  const timeHorizon = getSelectedHorizon();
-  const horizonMap = {1: '1month', 3: '3months', 6: '6months', 12: '12months'};
-  const horizonKey = horizonMap[timeHorizon] || '3months';
-
   fetch('/analysis/api/ml/performance/', {
     method: 'GET',
     headers: {
@@ -3263,8 +3263,8 @@ function loadModelPerformance(algorithm) {
   .then(response => response.json())
   .then(data => {
     if (data.success && data.performance) {
-      // Find metrics for the current model and horizon
-      const metricsKey = `${horizonKey}_${algorithm}`;
+      // Find metrics for the current model, horizon and training size
+      const metricsKey = legacyMetricsKey(algorithm);
       const metrics = data.performance[metricsKey];
 
       if (metrics) {
@@ -6815,9 +6815,9 @@ function renderLegacyModelMetrics(metrics, algorithm) {
      correlated windows. */
   const origins = Array.isArray(metrics.fit_origins) ? metrics.fit_origins.length : null;
   const trainedAt = metrics.training_size != null
-    ? ` Trained at ${Math.round(Number(metrics.training_size) * 100)}% training size` : '';
+    ? ` at ${Math.round(Number(metrics.training_size) * 100)}% training size` : '';
   const originNote = origins
-    ? `${origins} training snapshot${origins === 1 ? '' : 's'}${trainedAt}.`
+    ? `${origins} training snapshot${origins === 1 ? '' : 's'}${trainedAt}`
     : '';
   const thinWarning = origins && origins < 4
     ? `<div class="alert alert-warning py-2 px-3 small mt-2 mb-0"><strong>Thin evidence:</strong>
@@ -6825,9 +6825,29 @@ function renderLegacyModelMetrics(metrics, algorithm) {
         711-day calendar at this horizon. The holdout is still leakage-free, but the metrics rest
         on very few windows; a shorter horizon gives a far better-supported estimate.</div>`
     : '';
-  const horizonNote = valid
-    ? `Test snapshot: day ${metrics.test_origin}; ${Number(metrics.test_rows || 0).toLocaleString()} household-department pairs. ${originNote}`
-    : escapeHtml(metrics.validation_note || 'No independent chronological holdout is available.');
+  /* These facts were one run-on sentence strung together with semicolons.
+     Splitting them into labelled parts makes each one findable, and saying
+     which way the calibration gap runs is more use than the bare number. */
+  const holdoutParts = valid
+    ? [
+        `Tested on day ${metrics.test_origin}`,
+        `${Number(metrics.test_rows || 0).toLocaleString()} household-department pairs`,
+        originNote,
+      ].filter(Boolean)
+    : [];
+  const gap = metrics.calibration_gap;
+  const gapNote = gap == null
+    ? 'calibration gap unavailable'
+    : Math.abs(Number(gap) * 100) < 0.005
+      ? 'predictions are well calibrated'
+      : `predictions run ${Math.abs(Number(gap) * 100).toFixed(2)} pp too ${Number(gap) > 0 ? 'high' : 'low'}`;
+  const calibrationParts = valid
+    ? [
+        `Actual repurchase rate ${displayPercent(metrics.positive_rate)}`,
+        `average predicted probability ${displayPercent(metrics.mean_predicted_probability)}`,
+        gapNote,
+      ]
+    : [];
   container.innerHTML = `
     <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
       <div><h6 class="mb-1">${valid ? 'Chronological validation available' : 'Training complete; validation unavailable'}</h6>
@@ -6841,7 +6861,11 @@ function renderLegacyModelMetrics(metrics, algorithm) {
           <span><strong>F1:</strong> ${displayPercent(metrics.f1)}</span>
           <span><strong>Brier:</strong> ${metrics.brier_score == null ? 'N/A' : Number(metrics.brier_score).toFixed(3)}</span>
         </div>
-        <small class="d-block text-muted mt-1">${horizonNote} Actual positive rate: ${displayPercent(metrics.positive_rate)}; mean predicted probability: ${displayPercent(metrics.mean_predicted_probability)}; calibration gap: ${metrics.calibration_gap == null ? 'N/A' : (Number(metrics.calibration_gap) * 100).toFixed(2) + ' pp'}. Output is repurchase probability, never forecast dollars.</small>
+        ${valid ? `
+        <small class="d-block text-muted mt-2">${holdoutParts.join(' &middot; ')}</small>
+        <small class="d-block text-muted">${calibrationParts.join(' &middot; ')}</small>` : `
+        <small class="d-block text-muted mt-2">${escapeHtml(metrics.validation_note || 'No independent chronological holdout is available.')}</small>`}
+        <small class="d-block text-muted fst-italic mt-1">Output is a repurchase probability, never a dollar forecast.</small>
       </div>
       <span class="badge ${valid ? 'bg-success' : 'bg-warning text-dark'}">${valid ? 'Leakage-safe holdout' : 'No honest holdout metric'}</span>
     </div>${thinWarning}`;
@@ -6859,19 +6883,23 @@ function legacyHorizonKey(months) {
   return Number(months) === 1 ? '1month' : `${Number(months)}months`;
 }
 
+/* Metrics are stored per horizon, per training size, per algorithm. Building
+   this key in more than one place is how two call sites ended up still asking
+   for the old size-less key and finding nothing. */
+function legacyMetricsKey(algorithm) {
+  const sizeTag = 'tr' + String(Math.round(getSelectedTrainingSize() * 100)).padStart(2, '0');
+  return `${legacyHorizonKey(getSelectedHorizon())}_${sizeTag}_${algorithm}`;
+}
+
 async function getSelectedLegacyMetrics() {
   const algorithm = document.getElementById('mlAlgorithm')?.value || 'neural_network';
   const horizonKey = legacyHorizonKey(getSelectedHorizon());
   // Each training size keeps its own model and its own metrics, so the size
   // belongs in the key: looking it up without one returned whichever size was
   // trained first and made the slider look inert.
-  const sizeTag = 'tr' + String(Math.round(getSelectedTrainingSize() * 100)).padStart(2, '0');
   const response = await fetch('/analysis/api/ml/performance/');
   const data = await response.json();
-  return {
-    algorithm,
-    metrics: data.performance?.[`${horizonKey}_${sizeTag}_${algorithm}`] || null,
-  };
+  return {algorithm, metrics: data.performance?.[legacyMetricsKey(algorithm)] || null};
 }
 
 async function checkCachedModel() {
