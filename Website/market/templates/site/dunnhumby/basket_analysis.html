@@ -1043,6 +1043,60 @@ html, body {
 #modelBenchmarksModal .bench-card .bench-sub {
   font-size: .78rem; color: #6b7391; margin: 0 0 .8rem;
 }
+/* Benchmarks modal report: the same card system, replacing a single pale
+   alert box that held every figure at once. */
+#modelBenchmarksModal .bench-head {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  gap: 1rem; flex-wrap: wrap;
+}
+#modelBenchmarksModal .bench-chips { display: flex; flex-wrap: wrap; gap: .35rem; }
+#modelBenchmarksModal .bench-chip {
+  display: inline-block; border-radius: 999px; padding: .2rem .65rem;
+  font-size: .72rem; font-weight: 600; color: #fff; background: #667eea;
+}
+#modelBenchmarksModal .bench-chip-dark { background: #1e2338; }
+#modelBenchmarksModal .bench-chip-warn { background: #e0a800; color: #1e2338; }
+#modelBenchmarksModal .bench-chip-soft {
+  background: #f2f3fb; color: #4a5170; border: 1px solid #e6e8f2; font-weight: 500;
+}
+#modelBenchmarksModal .bench-stats {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: .7rem; margin-top: .3rem;
+}
+#modelBenchmarksModal .bench-stat {
+  border: 1px solid #e6e8f2; border-radius: 13px; padding: .8rem .9rem;
+  background: #fbfbff; position: relative; overflow: hidden;
+}
+#modelBenchmarksModal .bench-stat::before {
+  content: ''; position: absolute; inset: 0 auto 0 0; width: 3px;
+  background: var(--bench-accent, #667eea);
+}
+#modelBenchmarksModal .bench-stat-value {
+  font-size: 1.35rem; font-weight: 800; color: #1e2338; line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+#modelBenchmarksModal .bench-stat-text { font-size: .98rem; color: var(--bench-accent, #667eea); }
+#modelBenchmarksModal .bench-stat-label {
+  font-size: .64rem; font-weight: 700; letter-spacing: .06em;
+  text-transform: uppercase; color: #6b7391; margin-top: .3rem;
+}
+#modelBenchmarksModal .bench-stat-hint { font-size: .68rem; color: #9aa1bd; margin-top: .1rem; }
+#modelBenchmarksModal .bench-table { font-size: .8rem; }
+#modelBenchmarksModal .bench-table td { padding: .45rem .5rem; font-variant-numeric: tabular-nums; }
+#modelBenchmarksModal .bench-table th { padding: .5rem; }
+#modelBenchmarksModal .bench-table tbody tr:hover { background: #f4f5fd; }
+#modelBenchmarksModal .bench-table .table-primary { background: #eef0ff; }
+#modelBenchmarksModal .bench-fold {
+  background: #fff; border: 1px solid #e6e8f2; border-radius: 14px; padding: .8rem 1.1rem;
+}
+#modelBenchmarksModal .bench-fold summary {
+  cursor: pointer; font-weight: 600; font-size: .87rem; color: #4a5170;
+  display: flex; align-items: center; gap: .5rem;
+}
+#modelBenchmarksModal .bench-fold summary:hover { color: #667eea; }
+#modelBenchmarksModal .bench-note { font-size: .78rem; color: #6b7391; margin: .8rem 0 0; }
+#modelBenchmarksModal .alert { border-radius: 12px; }
+
 #modelBenchmarksModal table thead th {
   background: linear-gradient(135deg, #667eea, #764ba2) !important;
   color: #fff !important; border: 0 !important;
@@ -7601,47 +7655,117 @@ function renderTimeSeriesReportV5(report) {
   lastTimeSeriesReport = report;
   document.getElementById('downloadMetricsBtn').disabled = false;
   container.innerHTML = `
-    <div class="alert alert-info mb-0">
-      <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
-        <div><strong>Chronological holdout</strong><small class="d-block text-muted">Days ${test.start_day ?? 'N/A'}–${test.end_day ?? 'N/A'} · ${report.window_size_months}-period lookback · ${report.sliding_step_months}-period step · ${report.horizon_months}-period horizon</small></div>
-        <div class="d-flex flex-wrap gap-1"><span class="badge ${status.className}">${status.label}</span><span class="badge bg-dark">${Number(samples.evaluation_products || 0).toLocaleString()} products</span><span class="badge bg-warning text-dark">${evidenceLabel}: ${Number(report.temporal_fit_origins || 0)} origins</span></div>
-      </div>
-      <div class="d-flex flex-wrap gap-2 mt-2 small">
-        <span class="badge bg-light text-dark border">Recursive feedback: ${architecture.recursive_feedback ? 'yes' : 'no'}</span>
-        <span class="badge bg-light text-dark border">Joint multi-step loss: ${architecture.joint_multi_step_loss ? 'yes' : 'no'}</span>
-        <span class="badge bg-light text-dark border">BPTT: ${architecture.backpropagation_through_time ? 'yes' : 'no'}</span>
-        <span class="badge bg-light text-dark border">Hidden units: ${Number(architecture.hidden_units || 0)}</span>
-        <span class="badge bg-light text-dark border">Feedback weight: ${metricCell(architecture.feedback_rate)}</span>
-        <span class="badge bg-light text-dark border">Epochs: ${Number(training.epochs || 0)}</span>
-        <span class="badge bg-light text-dark border">Mode: ${escapeHtml((report.training_configuration || {}).parameter_mode || 'auto')}</span>
-        <span class="badge bg-light text-dark border">Max supervised rollout: ${Number(training.maximum_supervised_rollout || 0)}</span>
+    <section class="bench-card mb-3">
+      <div class="bench-head">
+        <div>
+          <h6>Chronological holdout</h6>
+          <p class="bench-sub">Days ${test.start_day ?? 'N/A'}&ndash;${test.end_day ?? 'N/A'} &middot; ${report.window_size_months}-period lookback &middot; ${report.sliding_step_months}-period step &middot; ${report.horizon_months}-period horizon</p>
+        </div>
+        <div class="bench-chips">
+          <span class="bench-chip ${status.className}">${status.label}</span>
+          <span class="bench-chip bench-chip-dark">${Number(samples.evaluation_products || 0).toLocaleString()} products</span>
+          <span class="bench-chip bench-chip-warn">${evidenceLabel}: ${Number(report.temporal_fit_origins || 0)} origins</span>
+        </div>
       </div>
       ${rolloutWarning}
       ${calibrationNote}
       ${biasWarning}
-      <div class="academic-evidence-summary small mt-2">
-        <div class="fw-semibold mb-1"><i class="fas fa-graduation-cap text-primary me-1"></i>Evidence summary for presentation</div>
-        <div class="row g-2">
-          <div class="col-md-3"><span class="text-muted d-block">Product revenue error</span><strong>${metricCell(productErrorImprovement, true)} improvement</strong><br><span class="text-muted">best model vs recent average WMAPE</span></div>
-          <div class="col-md-3"><span class="text-muted d-block">Top-${Number(sequence.top_k || 20)} recovery</span><strong>${metricCell(bestTop20Precision, true)} precision</strong><br><span class="text-muted">NDCG ${metricCell(bestTop20Ndcg, true)}</span></div>
-          <div class="col-md-3"><span class="text-muted d-block">Full product ranking</span><strong>Spearman ${metricCell(bestFullRank)}</strong><br><span class="text-muted">${rankStrength}</span></div>
-          <div class="col-md-3"><span class="text-muted d-block">Aggregate total winner</span><strong>${aggregateWinner[0]}</strong><br><span class="text-muted">period WMAPE ${metricCell(aggregateWinner[1], true)}</span></div>
+    </section>
+
+    <section class="bench-card mb-3">
+      <h6>Evidence summary</h6>
+      <p class="bench-sub">The four figures to quote when presenting this comparison.</p>
+      <div class="bench-stats">
+        <div class="bench-stat" style="--bench-accent:#0ea373">
+          <div class="bench-stat-value">${metricCell(productErrorImprovement, true)}</div>
+          <div class="bench-stat-label">Product revenue error</div>
+          <div class="bench-stat-hint">improvement over the recent-average benchmark</div>
         </div>
-        <div class="border-top mt-2 pt-2 text-muted"><strong class="text-dark">Defence statement:</strong> report this as a model-versus-benchmark comparison, not as an "accuracy percentage." R&sup2; is influenced by high-revenue products; sparse zero periods inflate sMAPE, so cumulative WMAPE and ranking metrics are the primary evidence.</div>
+        <div class="bench-stat" style="--bench-accent:#667eea">
+          <div class="bench-stat-value">${metricCell(bestTop20Precision, true)}</div>
+          <div class="bench-stat-label">Top-${Number(sequence.top_k || 20)} recovery</div>
+          <div class="bench-stat-hint">NDCG ${metricCell(bestTop20Ndcg, true)}</div>
+        </div>
+        <div class="bench-stat" style="--bench-accent:#8b5cf6">
+          <div class="bench-stat-value">${metricCell(bestFullRank)}</div>
+          <div class="bench-stat-label">Full product ranking</div>
+          <div class="bench-stat-hint">Spearman &middot; ${rankStrength}</div>
+        </div>
+        <div class="bench-stat" style="--bench-accent:#e0a800">
+          <div class="bench-stat-value bench-stat-text">${aggregateWinner[0]}</div>
+          <div class="bench-stat-label">Aggregate total winner</div>
+          <div class="bench-stat-hint">period WMAPE ${metricCell(aggregateWinner[1], true)}</div>
+        </div>
       </div>
-      <div class="d-flex justify-content-end mt-2"><button class="btn btn-outline-dark btn-sm" type="button" data-bs-dismiss="modal"><i class="fas fa-chart-line"></i> Back to quick results</button></div>
-      <div class="small fw-semibold mt-3">Cumulative Product ID revenue error and full-ranking correlation</div>
-      <div class="table-responsive predictive-scroll mt-1"><table class="table table-sm table-bordered bg-white mb-0"><thead><tr><th>Method</th><th>MAE</th><th>RMSE</th><th>WMAPE</th><th>sMAPE</th><th>Bias</th><th>R&sup2;</th><th>Precision@${Number(sequence.top_k || 20)}</th><th>Spearman</th><th>Kendall &tau;</th></tr></thead><tbody>${metricRows}</tbody></table></div>
-      <div class="d-flex flex-wrap gap-2 mt-2 small">
-        <span class="badge bg-light text-dark border">Period-total WMAPE · RNN ${metricCell(sequencePeriod.wmape, true)} · direct ${metricCell(independentPeriod.wmape, true)} · recent average ${metricCell(baselinePeriod.wmape, true)}</span>
-        <span class="badge bg-light text-dark border">Best product WMAPE: ${forecastMethodLabel(guidance.best_for_revenue_error)}</span>
-        <span class="badge bg-light text-dark border">Best Top-${Number(sequence.top_k || 20)} NDCG: ${forecastMethodLabel(guidance.best_for_top_k_ranking)}</span>
+      <p class="bench-note">
+        <strong>How to state this:</strong> a model-versus-benchmark comparison, not an
+        "accuracy percentage". R&sup2; is pulled about by high-revenue products and sparse zero
+        periods inflate sMAPE, so cumulative WMAPE and the ranking metrics are the evidence
+        that carries.
+      </p>
+    </section>
+
+    <section class="bench-card mb-3">
+      <h6>Error and ranking by method</h6>
+      <p class="bench-sub">Cumulative Product ID revenue error and full-ranking correlation across the whole horizon.</p>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0 bench-table">
+          <thead><tr>
+            <th>Method</th><th>MAE</th><th>RMSE</th><th>WMAPE</th><th>sMAPE</th><th>Bias</th>
+            <th>R&sup2;</th><th>P@${Number(sequence.top_k || 20)}</th><th>Spearman</th><th>Kendall &tau;</th>
+          </tr></thead>
+          <tbody>${metricRows}</tbody>
+        </table>
       </div>
-      <details class="bg-white border rounded px-3 py-2 mt-2"><summary class="fw-semibold" style="cursor:pointer">Top-5, Top-10 and Top-20 ranking detail</summary><div class="table-responsive mt-2"><table class="table table-sm table-bordered mb-0"><thead><tr><th>K</th><th>Method vs actual</th><th>Overlap</th><th>Precision</th><th>Recall</th><th>Jaccard</th><th>NDCG</th><th>RBO</th></tr></thead><tbody>${rankingRows}</tbody></table></div><small class="text-muted d-block mt-2">Recursive vs independent Top-20: ${Number(similarity20.overlap_count || 0)} shared products; Jaccard ${metricCell(similarity20.jaccard_at_k, true)}; RBO ${metricCell(similarity20.rank_biased_overlap, true)}.</small></details>
-      <details class="bg-white border rounded px-3 py-2 mt-2"><summary class="fw-semibold" style="cursor:pointer">Where the actual Top-3 products appear</summary><div class="table-responsive mt-2"><table class="table table-sm table-bordered mb-0"><thead><tr><th>Actual rank</th><th>Product ID</th><th>Recursive rank</th><th>Independent rank</th></tr></thead><tbody>${topRankRows}</tbody></table></div></details>
-      <small class="text-muted d-block mt-2">Cold starts: ${Number(samples.cold_start_products_in_test || 0).toLocaleString()}. Ranking and error are evaluated on the same product population. Future values have no Accuracy until actual revenue becomes available. Quantity-based estimates are suppressed when the source unit is too small or ambiguous.</small>
+      <div class="bench-chips mt-3">
+        <span class="bench-chip bench-chip-soft">Period-total WMAPE &middot; RNN ${metricCell(sequencePeriod.wmape, true)} &middot; direct ${metricCell(independentPeriod.wmape, true)} &middot; recent average ${metricCell(baselinePeriod.wmape, true)}</span>
+        <span class="bench-chip bench-chip-soft">Best product WMAPE: ${forecastMethodLabel(guidance.best_for_revenue_error)}</span>
+        <span class="bench-chip bench-chip-soft">Best Top-${Number(sequence.top_k || 20)} NDCG: ${forecastMethodLabel(guidance.best_for_top_k_ranking)}</span>
+      </div>
+    </section>
+
+    <details class="bench-fold mb-2">
+      <summary><i class="fas fa-list-ol"></i> Top-5, Top-10 and Top-20 ranking detail</summary>
+      <div class="table-responsive mt-2">
+        <table class="table table-sm align-middle mb-0 bench-table">
+          <thead><tr><th>K</th><th>Method vs actual</th><th>Overlap</th><th>Precision</th><th>Recall</th><th>Jaccard</th><th>NDCG</th><th>RBO</th></tr></thead>
+          <tbody>${rankingRows}</tbody>
+        </table>
+      </div>
+      <p class="bench-note">Recursive against independent at Top-20: ${Number(similarity20.overlap_count || 0)} shared products, Jaccard ${metricCell(similarity20.jaccard_at_k, true)}, RBO ${metricCell(similarity20.rank_biased_overlap, true)}.</p>
+    </details>
+
+    <details class="bench-fold mb-2">
+      <summary><i class="fas fa-crosshairs"></i> Where the actual top 3 products appear</summary>
+      <div class="table-responsive mt-2">
+        <table class="table table-sm align-middle mb-0 bench-table">
+          <thead><tr><th>Actual rank</th><th>Product ID</th><th>Recursive rank</th><th>Independent rank</th></tr></thead>
+          <tbody>${topRankRows}</tbody>
+        </table>
+      </div>
+    </details>
+
+    <details class="bench-fold mb-3">
+      <summary><i class="fas fa-microchip"></i> Model configuration</summary>
+      <div class="bench-chips mt-2">
+        <span class="bench-chip bench-chip-soft">Recursive feedback: ${architecture.recursive_feedback ? 'yes' : 'no'}</span>
+        <span class="bench-chip bench-chip-soft">Joint multi-step loss: ${architecture.joint_multi_step_loss ? 'yes' : 'no'}</span>
+        <span class="bench-chip bench-chip-soft">BPTT: ${architecture.backpropagation_through_time ? 'yes' : 'no'}</span>
+        <span class="bench-chip bench-chip-soft">Hidden units: ${Number(architecture.hidden_units || 0)}</span>
+        <span class="bench-chip bench-chip-soft">Feedback weight: ${metricCell(architecture.feedback_rate)}</span>
+        <span class="bench-chip bench-chip-soft">Epochs: ${Number(training.epochs || 0)}</span>
+        <span class="bench-chip bench-chip-soft">Mode: ${escapeHtml((report.training_configuration || {}).parameter_mode || 'auto')}</span>
+        <span class="bench-chip bench-chip-soft">Max supervised rollout: ${Number(training.maximum_supervised_rollout || 0)}</span>
+      </div>
+    </details>
+
+    <p class="bench-note mb-0">
+      Cold starts: ${Number(samples.cold_start_products_in_test || 0).toLocaleString()}. Ranking
+      and error are measured on the same product population. Future periods carry no accuracy
+      until their actual revenue exists. Quantity-based estimates are suppressed where the source
+      unit is too small or ambiguous.
       <span id="timeSeriesAppliedMethod" class="d-block fw-semibold mt-1"></span>
-    </div>`;
+    </p>`;
   renderRevenueQuickStats(report);
   renderTimeSeriesComparisonChart(report);
   renderTimeSeriesActualChartV5(report);
