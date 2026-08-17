@@ -223,6 +223,18 @@
   padding: 1.1rem 1.25rem;
   font-size: 1.05rem;
 }
+.experiment-confirm-dialog {
+  width: min(calc(100% - 2rem), 470px);
+  padding: 0;
+  border: 0;
+  border-radius: .85rem;
+  box-shadow: 0 1.2rem 3rem rgba(16, 24, 40, .3);
+  overflow: hidden;
+}
+.experiment-confirm-dialog::backdrop { background: rgba(19, 26, 45, .58); backdrop-filter: blur(2px); }
+.experiment-confirm-header { padding: 1rem 1.25rem; background: var(--gradient-primary); color: #fff; font-weight: 700; }
+.experiment-confirm-body { padding: 1.25rem; color: #26364d; }
+.experiment-confirm-actions { display: flex; justify-content: flex-end; gap: .65rem; padding: 0 1.25rem 1.25rem; }
 @media (min-width: 768px) {
   /* Keep the Train button aligned right when Non-overlapping hides the step control. */
   #stepControl.d-none + div {
@@ -457,6 +469,14 @@
 </div>
 
 <div id="generatedExperimentData" class="d-none" data-experiments='[{% for experiment in visible_experiments %}{"id":{{ experiment.id }},"active":{% if experiment.is_active %}true{% else %}false{% endif %}}{% if not forloop.last %},{% endif %}{% endfor %}]'></div>
+<dialog id="experimentConfirmDialog" class="experiment-confirm-dialog" aria-labelledby="experimentConfirmTitle">
+  <div class="experiment-confirm-header" id="experimentConfirmTitle">Confirm action</div>
+  <div class="experiment-confirm-body"><p class="mb-0" id="experimentConfirmMessage"></p></div>
+  <div class="experiment-confirm-actions">
+    <button type="button" class="btn btn-outline-secondary" id="experimentConfirmCancel">Cancel</button>
+    <button type="button" class="btn btn-primary" id="experimentConfirmAccept">Confirm</button>
+  </div>
+</dialog>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const csrftoken = (document.cookie.split('; ').find(r => r.startsWith('csrftoken=')) || '').split('=')[1] || '';
@@ -806,8 +826,32 @@ document.getElementById('churnExperimentForm').addEventListener('submit', async 
     }
 });
 
+function confirmExperimentAction({title, message, confirmLabel, confirmClass = 'btn-primary'}) {
+    const dialog = document.getElementById('experimentConfirmDialog');
+    if (!dialog || !dialog.showModal) return Promise.resolve(window.confirm(message));
+    return new Promise(resolve => {
+        const titleElement = document.getElementById('experimentConfirmTitle');
+        const messageElement = document.getElementById('experimentConfirmMessage');
+        const cancelButton = document.getElementById('experimentConfirmCancel');
+        const acceptButton = document.getElementById('experimentConfirmAccept');
+        const finish = accepted => { dialog.close(); resolve(accepted); };
+        titleElement.textContent = title;
+        messageElement.textContent = message;
+        acceptButton.textContent = confirmLabel;
+        acceptButton.className = `btn ${confirmClass}`;
+        cancelButton.onclick = () => finish(false);
+        acceptButton.onclick = () => finish(true);
+        dialog.oncancel = event => { event.preventDefault(); finish(false); };
+        dialog.showModal();
+    });
+}
+
 document.querySelectorAll('.activate-experiment').forEach(button => button.addEventListener('click', async function() {
-    if (!window.confirm('Use this experiment to update the dashboard churn-risk scores?')) return;
+    if (!await confirmExperimentAction({
+        title: 'Activate churn rule',
+        message: 'Use this experiment to update the dashboard churn-risk scores?',
+        confirmLabel: 'Activate rule'
+    })) return;
     const response = await fetch(`/analysis/api/churn/experiments/${this.dataset.id}/activate/`, {method: 'POST'});
     const payload = await response.json();
     if (payload.success) {
@@ -926,7 +970,12 @@ document.querySelectorAll('#churnExperimentForm ~ .table-responsive tbody tr').f
         const warning = experiment.active
             ? 'This is the active rule. Activate another rule first, then delete it. Continue?'
             : 'Delete this rule? The reusable RFM/history cache will be kept.';
-        if (!window.confirm(warning)) return;
+        if (!await confirmExperimentAction({
+            title: 'Delete churn rule',
+            message: warning,
+            confirmLabel: 'Delete rule',
+            confirmClass: 'btn-danger'
+        })) return;
         const response = await fetch(`/analysis/api/churn/experiments/${experiment.id}/delete/`, {method: 'POST'});
         const payload = await response.json();
         if (!payload.success) {
