@@ -1000,3 +1000,314 @@ def api_bi_significance(request):
             "it is large enough to matter."
         ),
     })
+
+
+# ---------------------------------------------------------------------------
+# Decision panels
+#
+# Each of the following answers a question the earlier panels could not: they
+# report levels, these report concentration, direction and mix.  All of them
+# read the same filter context, so a department or segment chosen anywhere
+# narrows them too.
+# ---------------------------------------------------------------------------
+
+# The calendar divides into 23 complete 30-day periods.  Growth compares the
+# last two of them, so both sides of the comparison cover the same number of
+# trading days; comparing against a partial period would read as a collapse.
+COMPLETE_PERIODS = 23
+
+
+@admin_required
+def api_bi_growth(request):
+    """Revenue change by department between the last two complete 30-day periods.
+
+    This is a like-for-like comparison of two equal windows, not a trend line
+    or a forecast.  A department can move because demand moved or because the
+    assortment did; the panel says which departments changed, not why.
+    """
+    dimension = (request.GET.get("dimension") or "department").strip()
+    column = {
+        "department": "p.department",
+        "commodity": "p.commodity",
+        "store": "CAST(f.store_id AS varchar(20))",
+        "segment": "COALESCE(h.rfm_segment, 'Unsegmented')",
+    }.get(dimension, "p.department")
+    alias = column.split(".")[0]
+    where, params, needs = _filters(request, ["d", alias])
+    current, previous = COMPLETE_PERIODS, COMPLETE_PERIODS - 1
+    rows = _query(f"""
+        SELECT TOP 40
+            {column} AS label,
+            SUM(CASE WHEN d.forecast_period = %s THEN f.sales_value ELSE 0 END) AS current_revenue,
+            SUM(CASE WHEN d.forecast_period = %s THEN f.sales_value ELSE 0 END) AS previous_revenue,
+            COUNT(DISTINCT CASE WHEN d.forecast_period = %s THEN f.basket_id END) AS current_baskets,
+            COUNT(DISTINCT CASE WHEN d.forecast_period = %s THEN f.basket_id END) AS previous_baskets
+        {_from(needs)}
+        {_clause(where + ["d.forecast_period IN (%s, %s)"])}
+        GROUP BY {column}
+        ORDER BY SUM(CASE WHEN d.forecast_period = %s THEN f.sales_value ELSE 0 END) DESC
+    """, [current, previous, current, previous] + params + [current, previous, current])
+    for row in rows:
+        prior = float(row["previous_revenue"] or 0)
+        now = float(row["current_revenue"] or 0)
+        row["change"] = now - prior
+        row["change_pct"] = ((now - prior) / prior * 100) if prior > 0 else None
+    rows = [r for r in rows if (r["current_revenue"] or r["previous_revenue"])]
+    rows.sort(key=lambda r: r["change"], reverse=True)
+    return JsonResponse({
+        "success": True,
+        "rows": rows,
+        "current_period": current,
+        "previous_period": previous,
+        "note": (
+            f"Period {current} against period {previous}, each a complete 30-day window."
+        ),
+    })
+
+
+@admin_required
+def api_bi_pareto(request):
+    """How much of revenue the best-selling products account for.
+
+    Products are ranked by revenue and the running share is reported at each
+    rank, so the curve shows what share of the range earns what share of the
+    money.  It is a description of concentration, not an argument for delisting
+    anything: a product can be small and still be why a basket was opened.
+    """
+    where, params, needs = _filters(request, ["p"])
+    revenues = [
+        float(r["revenue"] or 0)
+        for r in _query(f"""
+            SELECT SUM(f.sales_value) AS revenue
+            {_from(needs)}{_clause(where)}
+            GROUP BY f.product_id
+            ORDER BY revenue DESC
+        """, params)
+        if (r["revenue"] or 0) > 0
+    ]
+    products = len(revenues)
+    total = sum(revenues)
+    # One point per product would be a payload nobody can read; the curve is
+    # sampled to about 200 points and always keeps the first and last.
+    stride = max(1, products // 200)
+    points, running, milestones = [], 0.0, {}
+    pending = {50: None, 80: None, 90: None}
+    for index, value in enumerate(revenues, start=1):
+        running += value
+        share = running / total * 100 if total else 0
+        for level in pending:
+            if pending[level] is None and share >= level:
+                pending[level] = (index, index / products * 100)
+        if index == 1 or index == products or index % stride == 0:
+            points.append({
+                "rank_no": index,
+                "product_share": index / products * 100 if products else 0,
+                "revenue_share": share,
+            })
+    for level, hit in pending.items():
+        if hit:
+            milestones[f"count_for_{level}pct"] = hit[0]
+            milestones[f"products_for_{level}pct"] = round(hit[1], 2)
+    return JsonResponse({
+        "success": True,
+        "points": points,
+        "products": products,
+        "total_revenue": total,
+        "milestones": milestones,
+    })
+
+
+@admin_required
+def api_bi_household_value(request):
+    """Revenue share by household spend decile.
+
+    Households are split into ten equal groups by what they spent in the current
+    selection, so each band holds the same number of households and the bars
+    compare their contribution.  Decile 1 is the heaviest.
+    """
+    where, params, needs = _filters(request, ["h"])
+    rows = _query(f"""
+        ;WITH spend AS (
+            SELECT f.household_key, SUM(f.sales_value) AS revenue,
+                   COUNT(DISTINCT f.basket_id) AS baskets
+            {_from(needs)}
+            {_clause(where + ["f.household_key IS NOT NULL"])}
+            GROUP BY f.household_key
+        ), banded AS (
+            SELECT revenue, baskets,
+                   NTILE(10) OVER (ORDER BY revenue DESC) AS decile
+            FROM spend
+        )
+        SELECT decile,
+               COUNT(*)      AS households,
+               SUM(revenue)  AS revenue,
+               SUM(baskets)  AS baskets,
+               AVG(revenue)  AS avg_revenue
+        FROM banded
+        GROUP BY decile
+        ORDER BY decile
+    """, params)
+    total = sum(float(r["revenue"] or 0) for r in rows) or 1.0
+    running = 0.0
+    for row in rows:
+        value = float(row["revenue"] or 0)
+        running += value
+        row["revenue_share"] = value / total * 100
+        row["cumulative_share"] = running / total * 100
+        row["avg_baskets"] = (row["baskets"] / row["households"]) if row["households"] else 0
+    return JsonResponse({"success": True, "rows": rows, "total_revenue": total})
+
+
+@admin_required
+def api_bi_heatmap(request):
+    """Revenue by weekday and hour.
+
+    The separate weekday and hour panels each average over the other, which
+    hides the combinations that actually drive staffing: a busy Saturday
+    afternoon and a quiet Tuesday one land in the same weekday bar.
+    """
+    where, params, needs = _filters(request, ["d"])
+    rows = _query(f"""
+        SELECT d.day_name, d.day_sort, f.trans_hour AS hour,
+               SUM(f.sales_value)          AS revenue,
+               COUNT(DISTINCT f.basket_id) AS baskets
+        {_from(needs)}
+        {_clause(where + ["f.trans_hour IS NOT NULL"])}
+        GROUP BY d.day_name, d.day_sort, f.trans_hour
+        ORDER BY d.day_sort, f.trans_hour
+    """, params)
+    peak = max(rows, key=lambda r: float(r["revenue"] or 0), default=None)
+    return JsonResponse({
+        "success": True,
+        "rows": rows,
+        "peak": ({"day": peak["day_name"], "hour": int(peak["hour"]),
+                  "revenue": float(peak["revenue"])} if peak else None),
+    })
+
+
+@admin_required
+def api_bi_repeat(request):
+    """New against returning households, period by period.
+
+    "New" means the first 30-day period in which a household appears *inside the
+    current selection*, so filtering to a department reports households new to
+    that department.  The data begins at period 1 with no history before it, so
+    every household there counts as new and that period is marked as such rather
+    than being read as a recruitment spike.
+    """
+    where, params, needs = _filters(request, ["d"])
+    rows = _query(f"""
+        ;WITH activity AS (
+            SELECT f.household_key, d.forecast_period AS period,
+                   SUM(f.sales_value) AS revenue,
+                   COUNT(DISTINCT f.basket_id) AS baskets
+            {_from(needs)}
+            {_clause(where + ["f.household_key IS NOT NULL", "d.forecast_period IS NOT NULL"])}
+            GROUP BY f.household_key, d.forecast_period
+        ), first_seen AS (
+            SELECT household_key, MIN(period) AS first_period
+            FROM activity GROUP BY household_key
+        )
+        SELECT a.period,
+               SUM(CASE WHEN a.period = s.first_period THEN 1 ELSE 0 END)             AS new_households,
+               SUM(CASE WHEN a.period > s.first_period THEN 1 ELSE 0 END)             AS returning_households,
+               SUM(CASE WHEN a.period = s.first_period THEN a.revenue ELSE 0 END)     AS new_revenue,
+               SUM(CASE WHEN a.period > s.first_period THEN a.revenue ELSE 0 END)     AS returning_revenue
+        FROM activity a
+        JOIN first_seen s ON s.household_key = a.household_key
+        GROUP BY a.period
+        ORDER BY a.period
+    """, params)
+    for row in rows:
+        total = float(row["new_revenue"] or 0) + float(row["returning_revenue"] or 0)
+        row["revenue"] = total
+        row["returning_share"] = (
+            float(row["returning_revenue"] or 0) / total * 100 if total else 0
+        )
+        row["is_first_period"] = int(row["period"]) == 1
+    return JsonResponse({
+        "success": True,
+        "rows": rows,
+        "note": "Period 1 has no earlier history, so every household in it counts as new.",
+    })
+
+
+@admin_required
+def api_bi_discount_mix(request):
+    """Revenue by discount depth, and how the discount was given.
+
+    Lines are banded by how much of the pre-discount price was taken off.  This
+    describes where the money sits, not what discounting causes: deep-discount
+    lines are not proof that discounting created the demand, because the lines
+    that get discounted are chosen, not drawn at random.
+    """
+    where, params, needs = _filters(request)
+    rows = _query(f"""
+        ;WITH lines AS (
+            SELECT f.sales_value, f.quantity, f.used_coupon,
+                   f.retail_discount, f.coupon_discount,
+                   CASE
+                     WHEN f.gross_before_discount <= 0 THEN -1
+                     ELSE f.total_discount / f.gross_before_discount
+                   END AS depth
+            {_from(needs)}{_clause(where)}
+        )
+        SELECT band, SUM(sales_value) AS revenue, COUNT(*) AS lines,
+               SUM(quantity) AS units,
+               SUM(CASE WHEN used_coupon = 1 THEN 1 ELSE 0 END) AS coupon_lines,
+               SUM(retail_discount) AS retail_discount,
+               SUM(coupon_discount) AS coupon_discount
+        FROM (
+            SELECT sales_value, quantity, used_coupon, retail_discount, coupon_discount,
+                   -- Keyed rather than labelled: a literal per-cent sign in
+                   -- the SQL collides with the parameter placeholders.
+                   CASE
+                     WHEN depth <= 0        THEN 'none'
+                     WHEN depth < 0.10      THEN 'lt10'
+                     WHEN depth < 0.25      THEN 'mid'
+                     WHEN depth < 0.50      THEN 'deep'
+                     ELSE 'deepest'
+                   END AS band
+            FROM lines
+        ) banded
+        GROUP BY band
+    """, params)
+    labels = {
+        "none": "No discount", "lt10": "Under 10%", "mid": "10-25%",
+        "deep": "25-50%", "deepest": "50% or more",
+    }
+    order = list(labels)
+    rows.sort(key=lambda r: order.index(r["band"]) if r["band"] in order else 99)
+    for row in rows:
+        row["band"] = labels.get(row["band"], row["band"])
+    total = sum(float(r["revenue"] or 0) for r in rows) or 1.0
+    for row in rows:
+        row["revenue_share"] = float(row["revenue"] or 0) / total * 100
+    return JsonResponse({"success": True, "rows": rows, "total_revenue": total})
+
+
+@admin_required
+def api_bi_brand_mix(request):
+    """Private-label against national-brand share, department by department.
+
+    The overall brand split hides where own-label actually competes: a chain can
+    sit at a third private label overall while running near zero in one aisle and
+    over half in another.
+    """
+    where, params, needs = _filters(request, ["p"])
+    rows = _query(f"""
+        SELECT TOP 30
+            p.department,
+            SUM(CASE WHEN p.brand = 'Private' THEN f.sales_value ELSE 0 END)  AS private_revenue,
+            SUM(CASE WHEN p.brand = 'National' THEN f.sales_value ELSE 0 END) AS national_revenue,
+            SUM(f.sales_value) AS revenue
+        {_from(needs)}{_clause(where)}
+        GROUP BY p.department
+        ORDER BY SUM(f.sales_value) DESC
+    """, params)
+    for row in rows:
+        total = float(row["revenue"] or 0)
+        row["private_share"] = float(row["private_revenue"] or 0) / total * 100 if total else 0
+        row["national_share"] = float(row["national_revenue"] or 0) / total * 100 if total else 0
+    rows.sort(key=lambda r: r["private_share"], reverse=True)
+    return JsonResponse({"success": True, "rows": rows})
