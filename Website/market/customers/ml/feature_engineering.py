@@ -129,3 +129,75 @@ def build_candidate_features(household_key, candidate_product_ids, as_of_day,
             ),
         })
     return pd.DataFrame(rows).set_index("product_id")
+
+def build_household_features_for_target(household_keys, level, value, as_of_day,
+                                          popularity_map, cycle_map,
+                                          assoc_scores=None, cf_scores=None):
+    """
+    Reverse-direction version of build_candidate_features: ONE target
+    (a product_id, a commodity_desc, or a department) and MANY candidate
+    households. Returns a DataFrame indexed by household_key with the same
+    FEATURE_COLUMNS schema, so the SAME trained model can score it.
+    """
+    from customers.models import Transaction, Product
+
+    assoc_scores = assoc_scores or {}
+    cf_scores = cf_scores or {}
+
+    if level == "product":
+        target_pids = [int(value)]
+        target_product = Product.objects.filter(product_id=value).first()
+        target_commodity = getattr(target_product, "commodity_desc", None)
+    elif level == "commodity":
+        target_pids = list(Product.objects.filter(commodity_desc=value).values_list("product_id", flat=True))
+        target_commodity = value
+    else:  # department
+        target_pids = list(Product.objects.filter(department=value).values_list("product_id", flat=True))
+        target_commodity = None  # spans many commodities; no single repurchase cycle applies
+
+    target_pop = float(np.mean([popularity_map.get(pid, 0.0) for pid in target_pids])) if target_pids else 0.0
+    default_gap = cycle_map.get("__default__", 14.0)
+    gap = cycle_map.get(target_commodity, default_gap) if target_commodity else default_gap
+
+    history = list(Transaction.objects.filter(
+        household_key__in=household_keys, day__lte=as_of_day
+    ).values("household_key", "product_id", "day"))
+    history_df = pd.DataFrame(history) if history else pd.DataFrame(columns=["household_key", "product_id", "day"])
+
+    product_meta = {
+        p.product_id: p for p in Product.objects.filter(
+            product_id__in=set(target_pids) | set(history_df["product_id"])
+        )
+    }
+    history_df["commodity"] = history_df["product_id"].map(
+        lambda pid: getattr(product_meta.get(pid), "commodity_desc", None)
+    )
+
+    rows = []
+    for hh in household_keys:
+        hh_hist = history_df[history_df["household_key"] == hh]
+        product_count = int(hh_hist["product_id"].isin(target_pids).sum())
+
+        if target_commodity:
+            commodity_hist = hh_hist[hh_hist["commodity"] == target_commodity]
+        else:
+            commodity_hist = hh_hist[hh_hist["product_id"].isin(target_pids)]
+
+        commodity_count = len(commodity_hist)
+        last_day = commodity_hist["day"].max() if not commodity_hist.empty else None
+        days_since = (as_of_day - last_day) if last_day is not None else 9999
+
+        rows.append({
+            "household_key": hh,
+            "assoc_score": assoc_scores.get(hh, 0.0),
+            "cf_score": cf_scores.get(hh, 0.0),
+            "content_score": 1.0 if commodity_count > 0 else 0.0,
+            "product_popularity": target_pop,
+            "household_product_count": product_count,
+            "household_commodity_count": commodity_count,
+            "days_since_last_household_commodity_purchase": min(days_since, 9999),
+            "commodity_median_gap_days": gap,
+            "is_new_brand_for_household": 0,  # not meaningful in reverse direction; kept for schema compatibility
+        })
+
+    return pd.DataFrame(rows).set_index("household_key")

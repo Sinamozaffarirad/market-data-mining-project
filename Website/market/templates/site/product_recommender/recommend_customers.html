@@ -1,69 +1,92 @@
 {% extends "site/base.html" %}
 {% load static %}
 
-{% block title %}Recommend Customers{% endblock %}
-
-{% block extra_css %}
-<style>
-  .page-frame {
-    width: min(calc(100% - 3rem), 1400px);
-    margin: 1.25rem auto 2rem;
-    padding: 1.5rem;
-    background: #fff;
-    border: 1px solid #e1e6ef;
-    border-radius: .85rem;
-    box-shadow: 0 .35rem 1rem rgba(25, 45, 80, .08);
-  }
-  .page-title-bar {
-    display: flex; align-items: center;
-    min-height: 64px;
-    margin: -1.5rem -1.5rem 1.5rem; padding: 1.1rem 1.25rem;
-    color: #fff; background: var(--gradient-primary);
-    border-radius: .75rem .75rem 0 0;
-  }
-  .page-title-bar h1 { margin: 0; font-size: 1.05rem; }
-
-  .page-title-bar .text-primary, .page-title-bar .text-muted { color: #fff !important; }
-  .page-title-bar .text-muted { opacity: .88; }
-</style>
-{% endblock %}
+{% block title %}Find Customer Leads{% endblock %}
 
 {% block content %}
-<div class="page-frame">
+<div class="container py-5">
 
-    <div class="page-title-bar"><h1 class="fw-bold text-primary mb-1"><i class="fa-solid fa-file-pen"></i> Recommend Customers for Product</h1></div>
-    <p class="text-muted">Search for a product to find the best customer leads who have not purchased this item yet.</p>
+    <h1 class="fw-bold mb-2">Find Customer Leads</h1>
+    <p class="text-muted mb-4">
+        Pick a level, search, then get an ML-ranked list of households most
+        likely to buy it — customers who haven't bought it yet.
+    </p>
 
-    <form method="GET" class="mb-4">
+    <!-- سطح -->
+    <ul class="nav nav-pills mb-4">
+        <li class="nav-item">
+            <a class="nav-link {% if level == 'product' %}active{% endif %}"
+               href="?level=product">🛒 Product</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link {% if level == 'commodity' %}active{% endif %}"
+               href="?level=commodity">📦 Commodity</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link {% if level == 'department' %}active{% endif %}"
+               href="?level=department">🏬 Department</a>
+        </li>
+    </ul>
+
+    <form method="GET" class="mb-4 d-flex gap-2">
+        <input type="hidden" name="level" value="{{ level }}">
         {{ form.query }}
-        <button class="btn btn-primary mt-2" type="submit">Search</button>
+        <button class="btn btn-primary" type="submit">Search</button>
     </form>
 
     {% if query %}
-        <h5 class="text-muted mb-3">Results for "{{ query }}"</h5>
+        <h5 class="text-muted mb-3">Results for "{{ query }}" ({{ level }})</h5>
     {% endif %}
 
-    {% if products %}
-        <ul class="list-group">
-            {% for p in products %}
-            <li class="list-group-item d-flex justify-content-between align-items-center">
-                <div>
-                    <strong>{{ p.brand }}</strong> — {{ p.commodity_desc }}
-                    <br>
-                    <small class="text-muted">{{ p.sub_commodity_desc }} | {{ p.department }} (ID: {{ p.product_id }})</small>
-                </div>
-
-                <a href="{% url 'product_recommender:recommend_customers' p.product_id %}"
-                   class="btn btn-sm btn-success">
-                   Get Recommendations
-                </a>
-            </li>
-            {% endfor %}
-        </ul>
-    {% else %}
-        {% if query %}
+    {% if level == "product" %}
+        {% if products %}
+            <ul class="list-group">
+                {% for p in products %}
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong>{{ p.brand }}</strong> — {{ p.commodity_desc }}
+                        <br>
+                        <small class="text-muted">{{ p.sub_commodity_desc }} | {{ p.department }} (ID: {{ p.product_id }})</small>
+                    </div>
+                    <a href="{% url 'product_recommender:recommend_customers' %}?level=product&value={{ p.product_id }}"
+                       class="btn btn-sm btn-success">Get Recommendations</a>
+                </li>
+                {% endfor %}
+            </ul>
+        {% elif query %}
             <p class="text-danger">No products found.</p>
         {% endif %}
+
+    {% elif level == "commodity" %}
+        {% if commodities %}
+            <ul class="list-group">
+                {% for c in commodities %}
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <div><strong>{{ c }}</strong></div>
+                    <a href="{% url 'product_recommender:recommend_customers' %}?level=commodity&value={{ c|urlencode }}"
+                       class="btn btn-sm btn-success">Get Recommendations</a>
+                </li>
+                {% endfor %}
+            </ul>
+        {% elif query %}
+            <p class="text-danger">No commodities found.</p>
+        {% endif %}
+
+    {% else %}
+        {% if departments %}
+            <ul class="list-group">
+                {% for d in departments %}
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <div><strong>{{ d }}</strong></div>
+                    <a href="{% url 'product_recommender:recommend_customers' %}?level=department&value={{ d|urlencode }}"
+                       class="btn btn-sm btn-success">Get Recommendations</a>
+                </li>
+                {% endfor %}
+            </ul>
+        {% elif query %}
+            <p class="text-danger">No departments found.</p>
+        {% endif %}
     {% endif %}
+
 </div>
 {% endblock %}
