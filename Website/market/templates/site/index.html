@@ -246,8 +246,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.5rem;
-  padding: 0.7rem 1.25rem;
+  gap: 0.4rem;
+  padding: 0.65rem 1.05rem;
   background: var(--gradient-primary);
   box-shadow: 0 7px 16px rgba(102, 126, 234, 0.24);
   color: white;
@@ -258,7 +258,9 @@
   border: none;
   white-space: nowrap;
   flex-shrink: 0;
-  font-size: clamp(0.75rem, 1vw, 1rem);
+  /* The longest label sets the size: the pills sit in a five-across grid, so
+     the type has to stay small enough that the widest one is not clipped. */
+  font-size: clamp(0.68rem, 0.8vw, 0.82rem);
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -478,8 +480,8 @@
           <h5 class="tool-title">{{ tool.title }}</h5>
           <p class="tool-description">{{ tool.description }}</p>
           <span class="tool-launch">
-            <i class="fas fa-rocket"></i>
-            Launch Analysis
+            {{ tool.action_icon|default:'<i class="fas fa-rocket"></i>'|safe }}
+            {{ tool.action|default:"Open" }}
           </span>
         </div>
       </a>
