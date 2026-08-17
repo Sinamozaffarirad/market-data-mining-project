@@ -105,13 +105,18 @@ def _filters(request, needs=()):
         raw = (request.GET.get(key) or "").strip()
         if not raw or raw.lower() == "all":
             continue
+        # A slicer may hold several values. They arrive pipe-separated because a
+        # comma appears inside real department and commodity names.
+        values = [v.strip() for v in raw.split("|") if v.strip()]
         if cast is int:
-            if not raw.lstrip("-").isdigit():
-                continue
-            params.append(int(raw))
+            values = [int(v) for v in values if v.lstrip("-").isdigit()]
+        if not values:
+            continue
+        if len(values) == 1:
+            where.append(f"{column} = %s")
         else:
-            params.append(raw)
-        where.append(f"{column} = %s")
+            where.append(f"{column} IN ({', '.join(['%s'] * len(values))})")
+        params.extend(values)
         required.add(column.split(".")[0])
     return where, params, required
 

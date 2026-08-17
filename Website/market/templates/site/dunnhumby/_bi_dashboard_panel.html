@@ -65,6 +65,28 @@ one over several lines renders it onto the page as visible text.
   border-color: transparent; box-shadow: 0 6px 16px rgba(102,126,234,.32);
 }
 .bi-page { display: none; }
+.bi-card { position: relative; }
+.bi-vis-tools { position: absolute; top: 10px; right: 12px; display: flex; gap: 4px; opacity: 0; transition: opacity .15s ease; z-index: 3; }
+.bi-card:hover .bi-vis-tools, .bi-card.bi-focused .bi-vis-tools { opacity: 1; }
+.bi-vis-tools button { border: 1px solid var(--bi-border, #e4e7f2); background: #fff; color: #6b7280;
+  width: 26px; height: 26px; border-radius: 6px; font-size: .72rem; line-height: 1; cursor: pointer; }
+.bi-vis-tools button:hover { color: var(--bi-1, #667eea); border-color: var(--bi-1, #667eea); }
+.bi-vis-tools button.on { background: var(--bi-1, #667eea); border-color: var(--bi-1, #667eea); color: #fff; }
+.bi-card.bi-focused { position: fixed; inset: 3vh 3vw; z-index: 1080; overflow: auto; box-shadow: 0 30px 80px rgba(15,23,42,.35); }
+.bi-card.bi-focused .chart-box, .bi-card.bi-focused .chart-box.tall { height: calc(94vh - 190px); }
+.bi-focus-backdrop { position: fixed; inset: 0; background: rgba(15,23,42,.45); z-index: 1070; }
+.bi-datatable { max-height: 320px; overflow: auto; margin-top: .5rem; }
+.bi-datatable table { width: 100%; font-size: .8rem; }
+.bi-datatable th, .bi-datatable td { padding: .3rem .5rem; border-bottom: 1px solid var(--bi-border, #eef0f7); }
+.bi-datatable th { position: sticky; top: 0; background: #fff; text-align: left; }
+.bi-datatable td.n, .bi-datatable th.n { text-align: right; font-variant-numeric: tabular-nums; }
+.bi-bookmarks { display: flex; flex-wrap: wrap; gap: .35rem; align-items: center; margin-top: .5rem; }
+.bi-bookmark { border: 1px solid var(--bi-border, #e4e7f2); background: #fff; border-radius: 999px;
+  padding: .18rem .6rem; font-size: .75rem; cursor: pointer; display: inline-flex; gap: .35rem; align-items: center; }
+.bi-bookmark:hover { border-color: var(--bi-1, #667eea); color: var(--bi-1, #667eea); }
+.bi-bookmark b { font-weight: 600; }
+.bi-bookmark span.x { color: #9aa1b4; }
+.bi-stamp { font-size: .74rem; color: var(--bi-muted, #6b7280); }
 .bi-note-inline { font-size: .78rem; color: var(--bi-muted, #6b7280); text-align: right; max-width: 320px; }
 .bi-foot { font-size: .78rem; color: var(--bi-muted, #6b7280); margin: .75rem 0 0; }
 .bi-heatmap { overflow-x: auto; padding-top: .25rem; }
@@ -289,13 +311,21 @@ one over several lines renders it onto the page as visible text.
         <input id="fStore" type="number" class="form-control form-control-sm" placeholder="All stores"
                onchange="biSetFilter('store', this.value)">
       </div>
-      <div>
+      <div class="d-flex align-items-end gap-2">
         <button class="btn btn-sm btn-outline-secondary" type="button" onclick="biClearAll()">
           <i class="fas fa-rotate-left"></i> Clear all
+        </button>
+        <button class="btn btn-sm btn-outline-secondary" type="button" onclick="biRefresh()" title="Re-read the database">
+          <i class="fas fa-arrows-rotate"></i> Refresh
+        </button>
+        <button class="btn btn-sm btn-outline-secondary" type="button" onclick="biSaveBookmark()" title="Save the current filters">
+          <i class="fas fa-bookmark"></i> Save view
         </button>
       </div>
     </div>
     <div class="bi-chips empty" id="biChips"></div>
+    <div class="bi-bookmarks" id="biBookmarks"></div>
+    <div class="bi-stamp" id="biStamp"></div>
   </div>
 
   <div class="bi-pages" role="tablist">
@@ -619,11 +649,30 @@ async function biGet(url, extra) {
   return payload;
 }
 
+/* Holding ctrl, cmd or shift while clicking a mark adds it to the selection
+   instead of replacing it, the way a slicer multi-selects. The modifier is read
+   from the last mousedown so every existing chart handler gets it without
+   having to thread the event through. */
+document.addEventListener('mousedown', event => {
+  BI.additive = !!(event.ctrlKey || event.metaKey || event.shiftKey);
+}, true);
+
 function biSetFilter(key, value, options) {
   const clean = (value === null || value === undefined) ? '' : String(value).trim();
-  if (!clean || clean.toLowerCase() === 'all') delete BI.filters[key];
-  else if (BI.filters[key] === clean && (options || {}).toggle) delete BI.filters[key];
-  else BI.filters[key] = clean;
+  const current = BI.filters[key] ? String(BI.filters[key]).split('|') : [];
+  if (!clean || clean.toLowerCase() === 'all') {
+    delete BI.filters[key];
+  } else if (BI.additive && current.length) {
+    const next = current.includes(clean)
+      ? current.filter(v => v !== clean)     // ctrl-click an active mark to drop it
+      : current.concat(clean);
+    if (next.length) BI.filters[key] = next.join('|');
+    else delete BI.filters[key];
+  } else if (current.length === 1 && current[0] === clean && (options || {}).toggle) {
+    delete BI.filters[key];
+  } else {
+    BI.filters[key] = clean;
+  }
   biSyncSlicers();
   biRefresh();
 }
@@ -668,7 +717,7 @@ function renderChips() {
   if (!keys.length) { box.innerHTML = ''; return; }
   box.innerHTML = '<span class="label">Filters</span>' + keys.map(key => `
     <span class="bi-chip"><span class="k">${FILTER_LABELS[key] || key}:</span>
-      ${escapeHtml(String(BI.filters[key]))}
+      ${escapeHtml(String(BI.filters[key]).split('|').join(', '))}
       <button type="button" title="Remove" onclick="biRemoveFilter('${key}')">&times;</button>
     </span>`).join('') +
     `<button class="btn btn-sm btn-link text-decoration-none p-0 ms-1" type="button"
@@ -1429,6 +1478,193 @@ async function biSettleCharts(attempt = 0) {
   if (attempt < 4) setTimeout(() => biSettleCharts(attempt + 1), 300);
 }
 
+/* ---------- per-visual controls ------------------------------------------
+   The three things a reader reaches for on any tile: make it bigger, see the
+   numbers behind it, take it away. Attached to every card from the chart
+   registry, so a new panel gets them by being registered rather than by
+   repeating markup. */
+
+const BI_CHART_BY_ID = () => Object.fromEntries(BI_LOADERS.map(([id, get]) => [id, get]));
+
+function biCardTitle(card) {
+  return (card.querySelector('.bi-head h5')?.textContent || 'panel').trim();
+}
+
+function biDecorateCards() {
+  document.querySelectorAll('.bi-card').forEach(card => {
+    if (card.dataset.biTools) return;
+    const canvas = card.querySelector('canvas');
+    const grid = card.querySelector('.bi-heatmap');
+    if (!canvas && !grid) return;             // tables already read as data
+    card.dataset.biTools = '1';
+    const tools = document.createElement('div');
+    tools.className = 'bi-vis-tools';
+    tools.innerHTML = `
+      <button type="button" title="Show the numbers behind this" data-act="table"><i class="fas fa-table-list"></i></button>
+      <button type="button" title="Download as CSV" data-act="csv"><i class="fas fa-download"></i></button>
+      <button type="button" title="Focus this panel" data-act="focus"><i class="fas fa-expand"></i></button>`;
+    tools.addEventListener('click', event => {
+      const button = event.target.closest('button');
+      if (!button) return;
+      const act = button.dataset.act;
+      if (act === 'table') biToggleDataView(card, button);
+      if (act === 'csv') biExportCard(card);
+      if (act === 'focus') biToggleFocus(card, button);
+    });
+    card.appendChild(tools);
+  });
+}
+
+/* Rows behind a card, taken from the chart that is already on screen so the
+   table can never disagree with the picture. */
+function biCardRows(card) {
+  const canvas = card.querySelector('canvas');
+  if (canvas) {
+    const chart = (BI_CHART_BY_ID()[canvas.id] || (() => null))();
+    if (!chart) return null;
+    const labels = chart.data.labels;
+    const sets = chart.data.datasets;
+    const header = ['Category', ...sets.map(d => d.label || 'Value')];
+    const length = labels ? labels.length : Math.max(...sets.map(d => d.data.length));
+    const body = [];
+    for (let i = 0; i < length; i++) {
+      const first = labels ? labels[i] : i + 1;
+      body.push([first, ...sets.map(d => {
+        const point = d.data[i];
+        if (point && typeof point === 'object') return point.y ?? point.x ?? '';
+        return point ?? '';
+      })]);
+    }
+    return {header, body};
+  }
+  const table = card.querySelector('.bi-heatmap table');
+  if (!table) return null;
+  const hours = [...table.querySelectorAll('thead th')].slice(1).map(th => th.textContent.trim());
+  const body = [...table.querySelectorAll('tbody tr')].map(tr => [
+    tr.querySelector('th').textContent.trim(),
+    ...[...tr.querySelectorAll('td')].map(td => {
+      const match = (td.getAttribute('title') || '').match(/\u2014\s*\$([\d,]+)/);
+      return match ? match[1].replace(/,/g, '') : '';
+    }),
+  ]);
+  return {header: ['Day', ...hours], body};
+}
+
+function biToggleDataView(card, button) {
+  const open = card.querySelector('.bi-datatable');
+  if (open) { open.remove(); button.classList.remove('on'); return; }
+  const rows = biCardRows(card);
+  if (!rows) return;
+  const isNumber = v => v !== '' && v !== null && !isNaN(Number(v));
+  const box = document.createElement('div');
+  box.className = 'bi-datatable';
+  box.innerHTML = `<table><thead><tr>${
+    rows.header.map((h, i) => `<th class="${i ? 'n' : ''}">${escapeHtml(h)}</th>`).join('')
+  }</tr></thead><tbody>${
+    rows.body.map(row => `<tr>${row.map((cell, i) => {
+      const value = isNumber(cell) ? Number(cell).toLocaleString(undefined, {maximumFractionDigits: 2}) : cell;
+      return `<td class="${i ? 'n' : ''}">${escapeHtml(value)}</td>`;
+    }).join('')}</tr>`).join('')
+  }</tbody></table>`;
+  card.appendChild(box);
+  button.classList.add('on');
+}
+
+function biExportCard(card) {
+  const rows = biCardRows(card);
+  if (!rows) return;
+  const quote = v => {
+    const text = String(v ?? '');
+    return /[",\n]/.test(text) ? '"' + text.replace(/"/g, '""') + '"' : text;
+  };
+  const csv = [rows.header, ...rows.body].map(row => row.map(quote).join(',')).join('\n');
+  const name = biCardTitle(card).toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+  const url = URL.createObjectURL(new Blob([csv], {type: 'text/csv;charset=utf-8'}));
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = `${name || 'panel'}.csv`;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
+
+/* Focus lifts one card over a backdrop. The chart is rebuilt afterwards rather
+   than resized, for the same reason the tab switch rebuilds: a canvas measured
+   at one size will not stretch cleanly to another. */
+function biToggleFocus(card, button) {
+  const active = card.classList.contains('bi-focused');
+  document.querySelector('.bi-focus-backdrop')?.remove();
+  document.querySelectorAll('.bi-card.bi-focused').forEach(el => {
+    el.classList.remove('bi-focused');
+    el.querySelector('.bi-vis-tools button[data-act="focus"]')?.classList.remove('on');
+  });
+  if (!active) {
+    const backdrop = document.createElement('div');
+    backdrop.className = 'bi-focus-backdrop';
+    backdrop.addEventListener('click', () => biToggleFocus(card, button));
+    document.body.appendChild(backdrop);
+    card.classList.add('bi-focused');
+    button?.classList.add('on');
+  }
+  setTimeout(() => biSettleCharts(), 80);
+}
+
+document.addEventListener('keydown', event => {
+  if (event.key !== 'Escape') return;
+  const focused = document.querySelector('.bi-card.bi-focused');
+  if (focused) biToggleFocus(focused, focused.querySelector('.bi-vis-tools button[data-act="focus"]'));
+});
+
+/* ---------- saved views --------------------------------------------------- */
+
+const BI_BOOKMARK_KEY = 'bi.bookmarks.v1';
+
+function biBookmarks() {
+  try { return JSON.parse(localStorage.getItem(BI_BOOKMARK_KEY) || '[]'); }
+  catch (error) { return []; }
+}
+
+function biSaveBookmark() {
+  const keys = Object.keys(BI.filters);
+  if (!keys.length) { showNotification('Set some filters first, then save the view.', 'info'); return; }
+  const suggested = keys.map(k => String(BI.filters[k]).split('|').join(', ')).join(' · ');
+  const name = window.prompt('Name this view', suggested.slice(0, 60));
+  if (!name) return;
+  const all = biBookmarks().filter(b => b.name !== name);
+  all.push({name, filters: {...BI.filters}, page: BI.page});
+  localStorage.setItem(BI_BOOKMARK_KEY, JSON.stringify(all.slice(-12)));
+  renderBookmarks();
+}
+
+function biApplyBookmark(name) {
+  const found = biBookmarks().find(b => b.name === name);
+  if (!found) return;
+  BI.filters = {...found.filters};
+  biSyncSlicers();
+  biRefresh();
+}
+
+function biDeleteBookmark(name, event) {
+  event.stopPropagation();
+  localStorage.setItem(BI_BOOKMARK_KEY, JSON.stringify(biBookmarks().filter(b => b.name !== name)));
+  renderBookmarks();
+}
+
+function renderBookmarks() {
+  const box = document.getElementById('biBookmarks');
+  if (!box) return;
+  const all = biBookmarks();
+  box.innerHTML = all.length
+    ? '<span class="bi-stamp me-1">Saved views</span>' + all.map(b => `
+        <button class="bi-bookmark" type="button" onclick="biApplyBookmark('${escapeHtml(b.name).replace(/'/g, "\\'")}')">
+          <i class="fas fa-bookmark"></i><b>${escapeHtml(b.name)}</b>
+          <span class="x" title="Delete"
+                onclick="biDeleteBookmark('${escapeHtml(b.name).replace(/'/g, "\\'")}', event)">&times;</span>
+        </button>`).join('')
+    : '';
+}
+
 /* ---------- orchestration ------------------------------------------------- */
 
 async function biRefresh() {
@@ -1443,7 +1679,13 @@ async function biRefresh() {
       loadPareto(), loadGrowth(), loadRepeat(), loadHouseholdValue(),
       loadDiscountMix(), loadBrandMix(), loadHeatmap(),
     ]);
-    setTimeout(() => biSettleCharts(), 250);
+    setTimeout(() => { biSettleCharts(); biDecorateCards(); }, 250);
+    const stamp = document.getElementById('biStamp');
+    if (stamp) {
+      stamp.textContent = 'Read from the database at ' + new Date().toLocaleTimeString()
+        + '. Ctrl-click a mark to add it to the selection.';
+    }
+    renderBookmarks();
   } catch (error) {
     console.error(error);
     showNotification('Dashboard could not load: ' + error.message, 'danger');
