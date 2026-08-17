@@ -59,6 +59,9 @@ FILTER_COLUMNS = {
     "household_size": ("h.household_size", str),
 }
 
+# ``key`` is also the filter each level sets: descending the hierarchy and
+# filtering the dashboard are one action, so the breadcrumb and the filter chips
+# can never disagree.
 PRODUCT_LEVELS = [
     {"key": "department", "column": "p.department", "label": "Department"},
     {"key": "commodity", "column": "p.commodity", "label": "Commodity"},
@@ -214,21 +217,28 @@ def api_bi_kpis(request):
 
 
 def _drill(request, levels, is_product):
-    """Shared drill-down handler for both hierarchies."""
-    path = [v for v in request.GET.getlist("path") if v != ""]
-    depth = min(len(path), len(levels) - 1)
+    """Show the deepest hierarchy level the active filters have not yet pinned.
+
+    There is no separate drill path: each level's filter key is what a click
+    sets, so the level on display is simply the first one with no filter. That
+    keeps the breadcrumb, the chips and every other panel describing the same
+    selection.
+    """
+    where, params, needs = _filters(request, ["p"] if is_product else ["d"])
+
+    depth = 0
+    breadcrumb = []
+    for index, level in enumerate(levels):
+        value = (request.GET.get(level["key"]) or "").strip()
+        if not value or value.lower() == "all":
+            break
+        breadcrumb.append({"label": level["label"], "value": value, "key": level["key"]})
+        depth = index + 1
+    # The leaf stays selectable rather than drilling into nothing.
+    depth = min(depth, len(levels) - 1)
     level = levels[depth]
 
-    # The hierarchy being walked decides which dimension has to be joined.
-    where, params, needs = _filters(request, ["p"] if is_product else ["d"])
-    for index, value in enumerate(path):
-        if index >= len(levels):
-            break
-        column = levels[index]["column"] if is_product else levels[index]["select"]
-        where.append(f"{column} = %s")
-        params.append(value)
     clause = _clause(where)
-
     label_sql = level["column"] if is_product else level["select"]
     group_sql = level["column"] if is_product else level["group"]
     select_label = label_sql
@@ -247,9 +257,6 @@ def _drill(request, levels, is_product):
     """, params)
 
     _rank_rows(rows)
-    # Calendar buckets are not all the same length: the 711-day window clips the
-    # last quarter and a month's fifth week is a 1-3 day remnant. Reporting days
-    # covered, and revenue per day, stops a short bucket reading as a downturn.
     full = max((int(r["days"] or 0) for r in rows), default=0)
     for row in rows:
         row["days"] = int(row["days"] or 0)
@@ -263,11 +270,8 @@ def _drill(request, levels, is_product):
         "success": True,
         "level": level["key"],
         "level_label": level["label"],
-        "path": path,
-        "breadcrumb": [
-            {"label": levels[i]["label"], "value": value}
-            for i, value in enumerate(path) if i < len(levels)
-        ],
+        "level_keys": [lvl["key"] for lvl in levels],
+        "breadcrumb": breadcrumb,
         "can_drill": depth < len(levels) - 1,
         "next_label": levels[depth + 1]["label"] if depth < len(levels) - 1 else None,
         "rows": rows,
@@ -680,3 +684,224 @@ def api_bi_insights(request):
         })
 
     return JsonResponse({"success": True, "insights": insights})
+
+
+# Groups that can be compared head to head.  Each maps to the column holding the
+# group label and the dimension alias that column needs.
+COMPARISON_DIMENSIONS = {
+    "segment": ("h.rfm_segment", "h", "Customer segment"),
+    "brand": ("p.brand", "p", "Brand type"),
+    "weekday": ("d.day_name", "d", "Day of week"),
+    "quarter": ("d.quarter_name", "d", "Quarter"),
+    "department": ("p.department", "p", "Department"),
+    "income": ("h.income_band", "h", "Income band"),
+    "age": ("h.age_group", "h", "Age band"),
+}
+
+
+def _cliffs_delta(first, second, sample=4000):
+    """Cliff's delta: how often one group's baskets beat the other's.
+
+    Reported alongside the p-value because with hundreds of thousands of baskets
+    almost any difference reaches significance, so the p-value says only that a
+    difference exists, not that it is large enough to act on.  Computed on a
+    capped random sample because the exact form is quadratic in the group sizes.
+    """
+    import numpy as np
+    rng = np.random.default_rng(42)
+    a = np.asarray(first, dtype=float)
+    b = np.asarray(second, dtype=float)
+    if len(a) > sample:
+        a = rng.choice(a, sample, replace=False)
+    if len(b) > sample:
+        b = rng.choice(b, sample, replace=False)
+    if not len(a) or not len(b):
+        return 0.0
+    greater = int((a[:, None] > b[None, :]).sum())
+    less = int((a[:, None] < b[None, :]).sum())
+    return float((greater - less) / (len(a) * len(b)))
+
+
+def _delta_label(value):
+    """Conventional thresholds for interpreting an effect size."""
+    size = abs(value)
+    if size < 0.147:
+        return "negligible"
+    if size < 0.33:
+        return "small"
+    if size < 0.474:
+        return "medium"
+    return "large"
+
+
+@admin_required
+def api_bi_significance(request):
+    """Compare two groups on basket value and on department mix.
+
+    Only tests that suit this data are offered.  Basket value is heavily
+    right-skewed and the groups are large and unequal, so spend is compared with
+    Mann-Whitney U on ranks rather than a t-test, which would assume a normality
+    basket value does not have.  Kolmogorov-Smirnov answers the separate
+    question of distribution shape, and chi-square asks whether the two groups
+    buy from different parts of the catalogue.  Every test carries an effect
+    size, because at this sample size significance is close to guaranteed.
+    """
+    from scipy.stats import chi2_contingency, ks_2samp, mannwhitneyu
+
+    dimension = (request.GET.get("dimension") or "segment").strip()
+    column, alias, label = COMPARISON_DIMENSIONS.get(
+        dimension, COMPARISON_DIMENSIONS["segment"]
+    )
+    group_a = (request.GET.get("group_a") or "").strip()
+    group_b = (request.GET.get("group_b") or "").strip()
+
+    where, params, needs = _filters(request, [alias])
+    base = _clause(where + [column + " IS NOT NULL"])
+
+    options = [r["label"] for r in _query(f"""
+        SELECT {column} AS label, SUM(f.sales_value) AS revenue
+        {_from(needs)}{base}
+        GROUP BY {column}
+        ORDER BY revenue DESC
+    """, params) if r["label"]]
+
+    if group_a not in options:
+        group_a = options[0] if options else ""
+    if group_b not in options or group_b == group_a:
+        group_b = next((o for o in options if o != group_a), "")
+    if not group_a or not group_b:
+        return JsonResponse({
+            "success": True, "dimension": dimension, "dimension_label": label,
+            "options": options, "group_a": group_a, "group_b": group_b,
+            "tests": [],
+            "caveat": "Two distinct groups are needed for a comparison.",
+        })
+
+    # A capped hash-ordered sample per group. Pulling every basket into Python
+    # took nearly nine seconds on the larger segments, and the rank tests gain
+    # nothing from more: at 200,000 baskets the p-value is already pinned at
+    # zero, which is exactly why the effect size is the figure to read. The
+    # ordering is a hash of the basket id, so the sample is spread across the
+    # whole period rather than taken from one end of it, and is reproducible.
+    sample_cap = 20000
+
+    def basket_values(group):
+        rows = _query(f"""
+            SELECT TOP {sample_cap} SUM(f.sales_value) AS basket_value
+            {_from(needs)}{_clause(where + [column + " = %s"])}
+            GROUP BY f.basket_id
+            ORDER BY ABS(CHECKSUM(f.basket_id))
+        """, params + [group])
+        return [float(r["basket_value"] or 0) for r in rows]
+
+    def basket_total(group):
+        return int(_scalar_row(f"""
+            SELECT COUNT(DISTINCT f.basket_id) AS baskets
+            {_from(needs)}{_clause(where + [column + " = %s"])}
+        """, params + [group]).get("baskets") or 0)
+
+    values_a, values_b = basket_values(group_a), basket_values(group_b)
+    total_a, total_b = basket_total(group_a), basket_total(group_b)
+    sampled = len(values_a) < total_a or len(values_b) < total_b
+    tests = []
+    if len(values_a) >= 20 and len(values_b) >= 20:
+        import numpy as np
+        median_a, median_b = float(np.median(values_a)), float(np.median(values_b))
+        statistic, p_value = mannwhitneyu(values_a, values_b, alternative="two-sided")
+        delta = _cliffs_delta(values_a, values_b)
+        tests.append({
+            "name": "Mann-Whitney U",
+            "question": "Do the two groups spend differently per basket?",
+            "statistic": float(statistic),
+            "p_value": float(p_value),
+            "effect_name": "Cliff's delta",
+            "effect": delta,
+            "effect_label": _delta_label(delta),
+            "detail": (
+                f"{group_a}: median ${median_a:,.2f} across {total_a:,} baskets. "
+                f"{group_b}: median ${median_b:,.2f} across {total_b:,} baskets."
+            ),
+            "why": (
+                "Basket value is right-skewed, so a rank test is used instead of a "
+                "t-test, which assumes a normal distribution this data does not have."
+            ),
+        })
+
+        ks_statistic, ks_p = ks_2samp(values_a, values_b)
+        tests.append({
+            "name": "Kolmogorov-Smirnov",
+            "question": "Do the two spend distributions have different shapes?",
+            "statistic": float(ks_statistic),
+            "p_value": float(ks_p),
+            "effect_name": "D statistic",
+            "effect": float(ks_statistic),
+            "effect_label": _delta_label(float(ks_statistic)),
+            "detail": (
+                "D is the widest gap between the two cumulative distributions, so "
+                "it doubles as the effect size."
+            ),
+            "why": (
+                "A different question from the rank test: two groups can share a "
+                "median while one has a far longer tail of large baskets."
+            ),
+        })
+
+    mix = [] if dimension == "department" else _query(f"""
+        SELECT p.department AS department, {column} AS grp,
+               COUNT(DISTINCT f.basket_id) AS baskets
+        {_from(needs | {"p", alias})}{_clause(where + [column + " IN (%s, %s)"])}
+        GROUP BY p.department, {column}
+    """, params + [group_a, group_b])
+    # Comparing two departments and then asking whether they buy from different
+    # departments is circular: it can only return a perfect association, which
+    # is a property of the question rather than a finding about the data.
+    departments = sorted({r["department"] for r in mix})
+    if dimension != "department" and len(departments) >= 2:
+        table = [
+            [next((int(r["baskets"]) for r in mix
+                   if r["department"] == dept and r["grp"] == grp), 0)
+             for dept in departments]
+            for grp in (group_a, group_b)
+        ]
+        # Departments neither group touches would leave an all-zero column, which
+        # chi-square cannot take.
+        keep = [i for i in range(len(departments)) if table[0][i] + table[1][i] > 0]
+        table = [[row[i] for i in keep] for row in table]
+        if len(keep) >= 2 and all(sum(row) > 0 for row in table):
+            chi2, chi_p, _, _ = chi2_contingency(table)
+            total = sum(sum(row) for row in table)
+            # For a 2 x k table Cramer's V reduces to sqrt(chi2 / n).
+            cramers_v = float((chi2 / total) ** 0.5) if total else 0.0
+            tests.append({
+                "name": "Chi-square",
+                "question": "Do the two groups buy from different departments?",
+                "statistic": float(chi2),
+                "p_value": float(chi_p),
+                "effect_name": "Cramer's V",
+                "effect": cramers_v,
+                "effect_label": _delta_label(cramers_v),
+                "detail": f"Basket counts across {len(keep)} departments, {total:,} baskets in total.",
+                "why": (
+                    "Chi-square suits counts in categories. Cramer's V rescales it to "
+                    "0-1 so the strength does not simply grow with the sample size."
+                ),
+            })
+
+    return JsonResponse({
+        "success": True,
+        "dimension": dimension,
+        "dimension_label": label,
+        "options": options[:40],
+        "group_a": group_a,
+        "group_b": group_b,
+        "tests": tests,
+        "baskets_a": total_a,
+        "baskets_b": total_b,
+        "sampled": sampled,
+        "sample_size": sample_cap,
+        "caveat": (
+            "At this sample size a p-value below 0.05 is close to guaranteed, so it "
+            "only confirms a difference exists. The effect size is what says whether "
+            "it is large enough to matter."
+        ),
+    })

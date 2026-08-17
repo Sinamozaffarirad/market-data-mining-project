@@ -26,6 +26,7 @@ urlpatterns = [
     path("api/bi/brand/", bi_views.api_bi_brand, name="api_bi_brand"),
     path("api/bi/top-products/", bi_views.api_bi_top_products, name="api_bi_top_products"),
     path("api/bi/discount-trend/", bi_views.api_bi_discount_trend, name="api_bi_discount_trend"),
+    path("api/bi/significance/", bi_views.api_bi_significance, name="api_bi_significance"),
     path("api/bi/insights/", bi_views.api_bi_insights, name="api_bi_insights"),
     # JSON/API endpoints used by front-end JS
     path("api/table/", views.api_get_table_data, name="api_get_table_data"),
