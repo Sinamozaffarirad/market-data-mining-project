@@ -39,9 +39,25 @@ from sklearn.svm import SVC
 
 logger = logging.getLogger(__name__)
 MODEL_DIR = Path(__file__).resolve().parent.parent / "ml_models_cache"
-ARTIFACT_VERSION = 3
-HORIZON_DAYS = {"1month": 30, "3months": 90, "6months": 180, "12months": 360}
-HORIZON_MONTHS = {key: months for key, months in zip(HORIZON_DAYS, (1, 3, 6, 12))}
+ARTIFACT_VERSION = 4
+# A horizon needs two non-overlapping outcome windows inside the 711-day
+# calendar: one to train on and a later one to test against.  Twelve months
+# cannot supply that - 711 days holds only one 360-day outcome - so it was
+# always reported as "validation unavailable" and has been dropped rather than
+# offered as a setting that cannot produce an honest metric.  Ten months leaves
+# a single training origin, which is too thin to fit on, so the grid stops at
+# nine and the origin count is reported alongside every result.
+VALID_HORIZON_MONTHS = (1, 2, 3, 4, 5, 6, 7, 8, 9)
+
+
+def horizon_key(months):
+    """Cache key for a horizon; "1month" is kept singular for compatibility."""
+    months = int(months)
+    return "1month" if months == 1 else f"{months}months"
+
+
+HORIZON_DAYS = {horizon_key(m): m * 30 for m in VALID_HORIZON_MONTHS}
+HORIZON_MONTHS = {horizon_key(m): m for m in VALID_HORIZON_MONTHS}
 REQUIRED_MODEL_NAMES = ("neural_network", "random_forest", "gradient_boost", "svm")
 MIN_HISTORY_DAYS = 90
 SNAPSHOT_STEP_DAYS = 30
@@ -85,15 +101,28 @@ class PredictiveMarketBasketAnalyzer:
         self._load_cached_models()
 
     @staticmethod
-    def _model_path(horizon, model_name):
-        return MODEL_DIR / f"repurchase_v{ARTIFACT_VERSION}_{horizon}_{model_name}.pkl"
+    def _size_tag(training_size):
+        return f"tr{int(round(float(training_size) * 100)):02d}"
+
+    @classmethod
+    def _model_path(cls, horizon, model_name, training_size):
+        return MODEL_DIR / (
+            f"repurchase_v{ARTIFACT_VERSION}_{horizon}_"
+            f"{cls._size_tag(training_size)}_{model_name}.pkl"
+        )
 
     @staticmethod
     def _metrics_path():
         return MODEL_DIR / f"repurchase_v{ARTIFACT_VERSION}_model_metrics.json"
 
+    @classmethod
+    def _metric_key(cls, horizon, model_name, training_size):
+        """Metrics are keyed by training size too, so each size keeps its own."""
+        return f"{horizon}_{cls._size_tag(training_size)}_{model_name}"
+
     def _load_cached_models(self):
-        self.models = {horizon: {} for horizon in HORIZON_DAYS}
+        # Keyed by (horizon, size tag) so sizes do not overwrite one another.
+        self.models = {}
         metrics_path = self._metrics_path()
         if metrics_path.exists():
             try:
@@ -102,34 +131,44 @@ class PredictiveMarketBasketAnalyzer:
             except (OSError, ValueError):
                 logger.exception("Could not read corrected repurchase metrics cache")
                 self.model_metrics = {}
-        for horizon in HORIZON_DAYS:
-            for model_name in REQUIRED_MODEL_NAMES:
-                path = self._model_path(horizon, model_name)
-                if not path.exists():
-                    continue
-                try:
-                    with path.open("rb") as handle:
-                        artifact = pickle.load(handle)
-                    if artifact.get("artifact_version") == ARTIFACT_VERSION:
-                        self.models[horizon][model_name] = artifact
-                except (OSError, ValueError, pickle.UnpicklingError):
-                    logger.exception("Could not load repurchase artifact %s", path.name)
+        for path in MODEL_DIR.glob(f"repurchase_v{ARTIFACT_VERSION}_*_*_*.pkl"):
+            try:
+                with path.open("rb") as handle:
+                    artifact = pickle.load(handle)
+            except (OSError, ValueError, pickle.UnpicklingError):
+                logger.exception("Could not load repurchase artifact %s", path.name)
+                continue
+            if artifact.get("artifact_version") != ARTIFACT_VERSION:
+                continue
+            metadata = artifact.get("metadata", {})
+            horizon = metadata.get("horizon")
+            model_name = metadata.get("model_name")
+            size = metadata.get("training_size")
+            if horizon and model_name and size is not None:
+                bucket = self.models.setdefault((horizon, self._size_tag(size)), {})
+                bucket[model_name] = artifact
 
     def refresh_cached_models(self):
         self._load_cached_models()
 
-    def _is_horizon_ready(self, horizon):
+    def _is_horizon_ready(self, horizon, training_size=0.8):
+        bucket = self.models.get((horizon, self._size_tag(training_size)), {})
         return (
             horizon in HORIZON_DAYS
-            and all(name in self.models[horizon] for name in REQUIRED_MODEL_NAMES)
-            and all(f"{horizon}_{name}" in self.model_metrics for name in REQUIRED_MODEL_NAMES)
+            and all(name in bucket for name in REQUIRED_MODEL_NAMES)
+            and all(
+                self._metric_key(horizon, name, training_size) in self.model_metrics
+                for name in REQUIRED_MODEL_NAMES
+            )
         )
 
-    def has_cached_models(self, horizons=None, refresh=False):
+    def has_cached_models(self, horizons=None, refresh=False, training_size=0.8):
         if refresh:
             self._load_cached_models()
         requested = list(horizons or HORIZON_DAYS)
-        return bool(requested) and all(self._is_horizon_ready(horizon) for horizon in requested)
+        return bool(requested) and all(
+            self._is_horizon_ready(horizon, training_size) for horizon in requested
+        )
 
     @staticmethod
     def _dataset_bounds():
@@ -393,9 +432,11 @@ class PredictiveMarketBasketAnalyzer:
         training_size = max(0.5, min(float(training_size), 0.95))
         horizons = [time_horizon] if time_horizon else list(HORIZON_DAYS)
         if any(horizon not in HORIZON_DAYS for horizon in horizons):
-            raise ValueError("time_horizon must be 1month, 3months, 6months, or 12months.")
+            raise ValueError(
+                "time_horizon must be one of " + ", ".join(HORIZON_DAYS) + "."
+            )
         for horizon in horizons:
-            if not force_retrain and self._is_horizon_ready(horizon):
+            if not force_retrain and self._is_horizon_ready(horizon, training_size):
                 continue
             logger.info("Building leakage-safe repurchase snapshots for %s", horizon)
             fit_frame, test_frame, metadata = self._load_training_frames(
@@ -427,13 +468,40 @@ class PredictiveMarketBasketAnalyzer:
                     "pipeline": pipeline,
                     "metadata": metric_metadata,
                 }
-                with self._model_path(horizon, model_name).open("wb") as handle:
+                path = self._model_path(horizon, model_name, training_size)
+                with path.open("wb") as handle:
                     pickle.dump(artifact, handle)
-                self.models[horizon][model_name] = artifact
-                self.model_metrics[f"{horizon}_{model_name}"] = metrics
-            with self._metrics_path().open("w", encoding="utf-8") as handle:
-                json.dump(self.model_metrics, handle, indent=2)
+                bucket = self.models.setdefault(
+                    (horizon, self._size_tag(training_size)), {}
+                )
+                bucket[model_name] = artifact
+                self.model_metrics[
+                    self._metric_key(horizon, model_name, training_size)
+                ] = metrics
+            self._persist_metrics()
         return True
+
+    def _persist_metrics(self):
+        """Merge this run's metrics into the file rather than replacing it.
+
+        The metrics for every horizon, training size and algorithm share one
+        JSON file. Writing the in-memory dict wholesale meant a process holding
+        a stale copy - the web server, say, while a training script ran - erased
+        entries it had never seen. Re-reading immediately before the write keeps
+        both sets.
+        """
+        metrics_path = self._metrics_path()
+        merged = {}
+        if metrics_path.exists():
+            try:
+                with metrics_path.open(encoding="utf-8") as handle:
+                    merged = json.load(handle)
+            except (OSError, ValueError):
+                logger.exception("Could not read repurchase metrics before writing")
+        merged.update(self.model_metrics)
+        self.model_metrics = merged
+        with metrics_path.open("w", encoding="utf-8") as handle:
+            json.dump(merged, handle, indent=2)
 
     def get_model_performance(self):
         metrics_path = self._metrics_path()
@@ -445,16 +513,23 @@ class PredictiveMarketBasketAnalyzer:
                 logger.exception("Could not refresh repurchase metrics cache")
         return self.model_metrics
 
-    def predict_future_purchases(self, model_name="neural_network", time_horizon=3, top_n=10):
-        horizon_lookup = {1: "1month", 3: "3months", 6: "6months", 12: "12months"}
-        horizon = horizon_lookup.get(int(time_horizon), "3months")
+    def predict_future_purchases(self, model_name="neural_network", time_horizon=3,
+                                 top_n=10, training_size=0.8):
+        horizon = horizon_key(time_horizon)
+        if horizon not in HORIZON_DAYS:
+            raise ValueError(
+                "time_horizon must be one of " + ", ".join(str(m) for m in VALID_HORIZON_MONTHS) + " months."
+            )
         if model_name not in REQUIRED_MODEL_NAMES:
             raise ValueError("Unknown classifier.")
-        if model_name not in self.models[horizon]:
+        key = (horizon, self._size_tag(training_size))
+        if model_name not in self.models.get(key, {}):
             self._load_cached_models()
-        artifact = self.models[horizon].get(model_name)
+        artifact = self.models.get(key, {}).get(model_name)
         if not artifact:
-            raise ValueError("No corrected cached model exists for this horizon and algorithm. Train it first.")
+            raise ValueError(
+                "No cached model exists for this horizon, algorithm and training size. Train it first."
+            )
         _, max_day, _ = self._dataset_bounds()
         snapshot = self._load_snapshot(max_day, None, None)
         probabilities = artifact["pipeline"].predict_proba(snapshot[MODEL_FEATURES])[:, 1]
