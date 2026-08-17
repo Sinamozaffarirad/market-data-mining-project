@@ -21,6 +21,11 @@ urlpatterns = [
     path("api/bi/stores/", bi_views.api_bi_stores, name="api_bi_stores"),
     path("api/bi/segments/", bi_views.api_bi_segments, name="api_bi_segments"),
     path("api/bi/basket-distribution/", bi_views.api_bi_basket_distribution, name="api_bi_basket_distribution"),
+    path("api/bi/daypart/", bi_views.api_bi_daypart, name="api_bi_daypart"),
+    path("api/bi/demographics/", bi_views.api_bi_demographics, name="api_bi_demographics"),
+    path("api/bi/brand/", bi_views.api_bi_brand, name="api_bi_brand"),
+    path("api/bi/top-products/", bi_views.api_bi_top_products, name="api_bi_top_products"),
+    path("api/bi/discount-trend/", bi_views.api_bi_discount_trend, name="api_bi_discount_trend"),
     path("api/bi/insights/", bi_views.api_bi_insights, name="api_bi_insights"),
     # JSON/API endpoints used by front-end JS
     path("api/table/", views.api_get_table_data, name="api_get_table_data"),

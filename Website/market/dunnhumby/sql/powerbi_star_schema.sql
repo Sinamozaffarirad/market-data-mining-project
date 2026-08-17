@@ -14,12 +14,38 @@
    written analysis.
    ============================================================================ */
 
-/* ---------- Dimension: date ------------------------------------------------ */
-CREATE OR ALTER VIEW dbo.vw_dim_date AS
+/* ---------- Dimension: date ------------------------------------------------
+   Materialised as a table rather than a view.  Generating the day numbers from
+   sys.all_objects CROSS JOIN sys.all_objects meant an 8.4 million row cross
+   join was evaluated on every query that touched the calendar, which dominated
+   dashboard response times.  711 rows are trivial to store and let the
+   optimiser keep real statistics. */
+DROP TABLE IF EXISTS dbo.dim_date;
+GO
+
+CREATE TABLE dbo.dim_date (
+    day_key          int          NOT NULL PRIMARY KEY,
+    date_value       date         NOT NULL,
+    calendar_year    int          NOT NULL,
+    calendar_quarter int          NOT NULL,
+    quarter_name     varchar(2)   NOT NULL,
+    calendar_month   int          NOT NULL,
+    month_name       varchar(20)  NOT NULL,
+    year_month       varchar(7)   NOT NULL,
+    week_no          int          NOT NULL,
+    week_of_month    int          NOT NULL,
+    day_name         varchar(20)  NOT NULL,
+    month_sort       int          NOT NULL,
+    day_sort         int          NOT NULL,
+    forecast_period  int          NULL
+);
+GO
+
 WITH day_numbers AS (
     SELECT TOP (711) ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) AS day_key
     FROM sys.all_objects a CROSS JOIN sys.all_objects b
 )
+INSERT INTO dbo.dim_date
 SELECT
     d.day_key,
     CAST(DATEADD(DAY, d.day_key - 1, '2017-01-01') AS date)      AS date_value,
@@ -47,6 +73,13 @@ SELECT
        with the Predictive tab.  Days 1-21 fall outside the aligned periods. */
     CASE WHEN d.day_key >= 22 THEN ((d.day_key - 22) / 30) + 1 END AS forecast_period
 FROM day_numbers d;
+GO
+
+CREATE OR ALTER VIEW dbo.vw_dim_date AS
+SELECT day_key, date_value, calendar_year, calendar_quarter, quarter_name,
+       calendar_month, month_name, year_month, week_no, week_of_month,
+       day_name, month_sort, day_sort, forecast_period
+FROM dbo.dim_date;
 GO
 
 /* ---------- Dimension: product (Department > Commodity > Sub > Product) ---- */
@@ -108,6 +141,9 @@ SELECT
     t.household_key,
     t.basket_id,
     t.quantity,
+    /* trans_time is stored as HHMM, so 1631 is 16:31.  Integer division gives
+       the hour of day for trading-pattern analysis. */
+    (t.trans_time / 100) AS trans_hour,
     /* sales_value is what the customer actually paid.  retail_disc and
        coupon_disc are stored as negative amounts, so they are negated to give
        positive discount figures and added back to recover the pre-discount
@@ -150,4 +186,23 @@ SELECT
 FROM dbo.transactions t
 LEFT JOIN dbo.product p ON p.product_id = t.product_id
 GROUP BY t.basket_id;
+GO
+
+/* ---------- Analytic index -------------------------------------------------
+   Every dashboard panel scans and aggregates the whole fact table, which is the
+   workload a columnstore index is built for: column-at-a-time storage, heavy
+   compression and batch-mode aggregation.  Without it a single panel took up to
+   14 seconds because the only index was the clustered primary key on id.
+
+   Nonclustered, so the existing rowstore clustered index and every OLTP query
+   against transactions keep working unchanged.  Drop it with
+   DROP INDEX NCCI_transactions_analytics ON dbo.transactions; */
+IF NOT EXISTS (SELECT 1 FROM sys.indexes
+               WHERE name = 'NCCI_transactions_analytics'
+                 AND object_id = OBJECT_ID('dbo.transactions'))
+CREATE NONCLUSTERED COLUMNSTORE INDEX NCCI_transactions_analytics
+ON dbo.transactions (
+    day, product_id, store_id, household_key, basket_id,
+    quantity, sales_value, retail_disc, coupon_disc, trans_time
+);
 GO
