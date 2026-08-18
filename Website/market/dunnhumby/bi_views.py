@@ -1570,11 +1570,11 @@ def api_bi_significance_scan(request):
     asks how often a basket drawn from one group beats one drawn from the other,
     which is the question a manager is actually asking.
     """
-    from scipy.stats import mannwhitneyu
+    from scipy.stats import chi2_contingency, f_oneway, kruskal, mannwhitneyu
 
     import numpy as np
 
-    scanned, skipped = [], []
+    scanned, skipped, dimension_rows = [], [], []
     for key, (column, alias, label) in COMPARISON_DIMENSIONS.items():
         where, params, needs = _filters(request, [alias])
         clause = _clause(where + [column + " IS NOT NULL", column + " <> ''"])
@@ -1606,6 +1606,50 @@ def api_bi_significance_scan(request):
             continue
         largest = sorted(usable.items(), key=lambda kv: kv[1]["baskets"], reverse=True)[:SCAN_MAX_GROUPS]
 
+        # Spend is only half the question: two groups can spend alike and still
+        # fill their baskets from different aisles. One query gives the whole
+        # group-by-department grid, and every pair's chi-square is then read off
+        # it in memory rather than costing a query each.
+        mix_where, mix_params, mix_needs = _filters(request, [alias, "p"])
+        mix_rows = _query(f"""
+            SELECT {column} AS grp, p.department AS dept,
+                   COUNT(DISTINCT f.basket_id) AS baskets
+            {_from(mix_needs | {"p"})}
+            {_clause(mix_where + [column + " IS NOT NULL", column + " <> ''"])}
+            GROUP BY {column}, p.department
+        """, mix_params)
+        mix = {}
+        for row in mix_rows:
+            name = (row["grp"] or "").strip()
+            if name:
+                mix.setdefault(name, {})[row["dept"] or "Unknown"] = int(row["baskets"] or 0)
+
+        # One test across every group of this dimension, which is what says
+        # whether the dimension is worth slicing by at all. Kruskal-Wallis is
+        # the rank-based form and ANOVA the mean-based one; on skewed basket
+        # values the first is the one to read.
+        arrays = [np.asarray(g["values"], dtype=float) for _, g in largest]
+        if len(arrays) >= 3 and all(len(x) >= 20 for x in arrays):
+            observations = int(sum(len(x) for x in arrays))
+            h_stat, h_p = kruskal(*arrays)
+            epsilon = max(0.0, float((h_stat - len(arrays) + 1) / (observations - len(arrays))))
+            f_stat, f_p = f_oneway(*arrays)
+            grand = float(np.concatenate(arrays).mean())
+            between = float(sum(len(x) * (x.mean() - grand) ** 2 for x in arrays))
+            total_ss = float(sum(((x - grand) ** 2).sum() for x in arrays))
+            dimension_rows.append({
+                "dimension": key,
+                "dimension_label": label,
+                "groups": len(arrays),
+                "kruskal_h": float(h_stat),
+                "kruskal_p": float(h_p),
+                "epsilon_squared": epsilon,
+                "effect": _delta_label(epsilon ** 0.5),
+                "anova_f": float(f_stat),
+                "anova_p": float(f_p),
+                "eta_squared": (between / total_ss) if total_ss else 0.0,
+            })
+
         for i in range(len(largest)):
             for j in range(i + 1, len(largest)):
                 name_a, a = largest[i]
@@ -1622,7 +1666,24 @@ def api_bi_significance_scan(request):
                 median_a = float(np.median(values_a))
                 median_b = float(np.median(values_b))
                 leader, trailer = ((name_a, name_b) if delta >= 0 else (name_b, name_a))
+                # Cross-tabulating departments by department is circular: a
+                # basket in the GROCERY group is in GROCERY by definition, which
+                # is why that comparison returned a perfect 1.0.
+                mix_v, mix_label = (None, "n/a") if key == "department" else (0.0, "negligible")
+                mix_a, mix_b = mix.get(name_a, {}), mix.get(name_b, {})
+                columns = [d for d in set(mix_a) | set(mix_b)
+                           if mix_a.get(d, 0) + mix_b.get(d, 0) > 0]
+                if key != "department" and len(columns) >= 2:
+                    table = [[mix_a.get(d, 0) for d in columns], [mix_b.get(d, 0) for d in columns]]
+                    if all(sum(row) > 0 for row in table):
+                        chi2, _, _, _ = chi2_contingency(table)
+                        n = sum(sum(row) for row in table)
+                        # For a 2 x k table Cramer's V is sqrt(chi2 / n).
+                        mix_v = float((chi2 / n) ** 0.5) if n else 0.0
+                        mix_label = _delta_label(mix_v)
                 scanned.append({
+                    "mix_v": mix_v,
+                    "mix_effect": mix_label,
                     "dimension": key,
                     "dimension_label": label,
                     "group_a": name_a,
@@ -1649,11 +1710,13 @@ def api_bi_significance_scan(request):
     scanned.sort(key=lambda r: r["abs_delta"], reverse=True)
 
     notable = [r for r in scanned if r["actionable"]] if scanned else []
+    dimension_rows.sort(key=lambda r: r["epsilon_squared"], reverse=True)
     return JsonResponse({
         "success": True,
         # Every comparison is returned, not a slice of them: the headline counts
         # the ones worth a look, and a table cut short would contradict it.
         "rows": scanned,
+        "dimensions": dimension_rows,
         "compared": len(scanned),
         "actionable": len(notable),
         "skipped_dimensions": skipped,

@@ -124,6 +124,14 @@ one over several lines renders it onto the page as visible text.
 .sig-legend { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem;
   font-size: .76rem; color: var(--bi-muted, #6b7280); margin-bottom: .6rem; }
 .sig-table-fold { margin-top: .25rem; }
+.bi-flash { animation: biFlash 2.2s ease; }
+@keyframes biFlash {
+  0%   { box-shadow: 0 0 0 0 rgba(102,126,234,.55); transform: translateY(0); }
+  12%  { box-shadow: 0 0 0 6px rgba(102,126,234,.28); transform: translateY(-6px); }
+  40%  { box-shadow: 0 0 0 4px rgba(102,126,234,.18); transform: translateY(-2px); }
+  100% { box-shadow: 0 0 0 0 rgba(102,126,234,0);   transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) { .bi-flash { animation: none; outline: 3px solid var(--bi-1); } }
 .bi-note-inline { font-size: .78rem; color: var(--bi-muted, #6b7280); text-align: right; max-width: 320px; }
 .bi-foot { font-size: .78rem; color: var(--bi-muted, #6b7280); margin: .75rem 0 0; }
 .bi-heatmap { overflow-x: auto; padding-top: .25rem; }
@@ -706,6 +714,7 @@ one over several lines renders it onto the page as visible text.
         <span class="text-muted">the same colours are used everywhere on this page</span>
       </div>
       <div id="sigScanSummary" class="bi-note-inline mb-2" style="text-align:left;max-width:none"></div>
+      <div id="sigDimRank" class="mb-3"></div>
       <div id="sigScanResults">
         <div class="bi-loading">
           Press the button. It compares the main groups of every dimension and lists the
@@ -1331,6 +1340,75 @@ async function loadSignificanceScan() {
   }
 }
 
+/* One test per dimension rather than per pair, which answers a question the
+   pairwise list cannot: is this way of grouping customers worth slicing by at
+   all? */
+function renderDimensionRanking(dims) {
+  const box = document.getElementById('sigDimRank');
+  if (!box) return;
+  if (!dims.length) { box.innerHTML = ''; return; }
+  box.innerHTML = `
+    <h6 class="mb-1">Which way of grouping customers separates spend most</h6>
+    <span class="bi-stamp d-block mb-2">One test across all the groups of a dimension at once,
+    not a pair at a time.</span>
+    <div class="table-responsive"><table class="sig-scan">
+      <thead><tr><th>Grouping</th><th class="text-end">Groups</th>
+        <th>Share of the spread it explains</th><th class="text-end">Kruskal-Wallis H</th>
+        <th class="text-end">ANOVA F</th></tr></thead>
+      <tbody>${dims.map(d => `<tr onclick="biJumpToDimension('${escapeHtml(d.dimension)}')"
+            title="Compare this dimension's groups below">
+        <td><strong>${escapeHtml(d.dimension_label)}</strong></td>
+        <td class="text-end">${d.groups}</td>
+        <td><div class="gap"><span class="sig-bar"><i style="width:${
+            Math.min(100, Number(d.epsilon_squared) / 0.14 * 100).toFixed(1)}%"></i></span>
+            <span class="sig-tag ${d.effect}">${(Number(d.epsilon_squared) * 100).toFixed(1)}%</span></div></td>
+        <td class="text-end">${Number(d.kruskal_h).toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
+        <td class="text-end">${Number(d.anova_f).toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>
+    <p class="bi-foot">The percentage is how much of the variation in basket value that grouping
+    accounts for; the rest is everything else. ANOVA answers the same question assuming a normal
+    spread, which basket value does not have, so it sits alongside rather than being relied on.</p>`;
+}
+
+/* Scrolling alone left the reader hunting for what had changed, so the panel
+   lifts and rings briefly to say "this is the one you just opened". */
+function biFlashPanel() {
+  const panel = document.getElementById('sigResults')?.closest('.bi-card');
+  if (!panel) return;
+  panel.scrollIntoView({behavior: 'smooth', block: 'center'});
+  panel.classList.remove('bi-flash');
+  /* The smooth scroll is still travelling when this is called, and a flash that
+     runs during the journey is over before the reader arrives. Wait for the
+     scroll to settle, then draw attention. */
+  const settle = () => {
+    void panel.offsetWidth;          // restart the animation if it is already running
+    panel.classList.add('bi-flash');
+    setTimeout(() => panel.classList.remove('bi-flash'), 2200);
+  };
+  // Stillness alone is not enough: the panel is still at rest for a moment
+  // before a smooth scroll starts moving it. Wait until it has both arrived and
+  // stopped.
+  const onScreen = () => {
+    const box = panel.getBoundingClientRect();
+    return box.top < window.innerHeight * 0.9 && box.bottom > window.innerHeight * 0.1;
+  };
+  let last = null, still = 0;
+  const poll = setInterval(() => {
+    const top = Math.round(panel.getBoundingClientRect().top);
+    still = (top === last) ? still + 1 : 0;
+    last = top;
+    if (still >= 2 && onScreen()) { clearInterval(poll); settle(); }
+  }, 90);
+  setTimeout(() => { clearInterval(poll); if (!panel.classList.contains('bi-flash')) settle(); }, 1400);
+}
+
+function biJumpToDimension(dimension) {
+  const dim = document.getElementById('sigDim');
+  if (dim) dim.value = dimension;
+  loadSignificance(true).then(() => biFlashPanel());
+}
+
 function biScanRender(data) {
   const box = document.getElementById('sigScanResults');
   const summary = document.getElementById('sigScanSummary');
@@ -1355,7 +1433,8 @@ function biScanRender(data) {
     box.innerHTML = `<div class="table-responsive"><table class="sig-scan">
       <thead><tr>
         <th>#</th><th>Comparison</th><th>Which is bigger</th>
-        <th>Difference in basket value</th><th>Typical baskets</th><th>Chance of a fluke</th>
+        <th>Difference in basket value</th><th>Typical baskets</th>
+        <th>Different aisles</th><th>Chance of a fluke</th>
       </tr></thead><tbody>${shown.map((row, index) => {
         const delta = Math.abs(Number(row.delta));
         const leaderMedian = row.leader === row.group_a ? row.median_a : row.median_b;
@@ -1371,6 +1450,9 @@ function biScanRender(data) {
           <td><div class="gap"><span class="sig-bar"><i style="width:${(delta / top * 100).toFixed(1)}%"></i></span>
               <span class="sig-tag ${row.effect}">${row.effect}</span></div></td>
           <td>${money2(leaderMedian)} <span class="text-muted">vs</span> ${money2(trailerMedian)}</td>
+          <td>${row.mix_v === null
+              ? '<span class="text-muted" title="Comparing departments by department is circular">--</span>'
+              : `<span class="sig-tag ${row.mix_effect}">${row.mix_effect}</span>`}</td>
           <td>${row.actionable ? '' : '<span class="text-muted">'}${biFormatQ(row.q_value)}${row.actionable ? '' : '</span>'}</td>
         </tr>`;
       }).join('')}</tbody></table></div>
@@ -1385,6 +1467,8 @@ function biScanRender(data) {
                <button type="button" class="btn btn-link btn-sm p-0 align-baseline"
                        onclick="biScanToggleAll(false)">Show only the ${worthALook.length} worth a look</button>`
             : 'Faded rows are real differences that are too small to matter.')}</p>`;
+
+    renderDimensionRanking(data.dimensions || []);
   }
 }
 
@@ -1409,9 +1493,7 @@ function biOpenComparison(dimension, groupA, groupB) {
     if (a && [...a.options].some(o => o.value === groupA)) a.value = groupA;
     if (b && [...b.options].some(o => o.value === groupB)) b.value = groupB;
     return loadSignificance();
-  }).then(() => {
-    document.getElementById('sigResults')?.scrollIntoView({behavior: 'smooth', block: 'center'});
-  });
+  }).then(() => biFlashPanel());
 }
 
 async function loadSignificance(reset) {
