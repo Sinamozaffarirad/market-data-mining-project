@@ -1335,6 +1335,80 @@ def _complete_period_count():
         return 0
 
 
+def _describe_stored_rules(rules):
+    """Attach product, commodity and department names to saved rules.
+
+    Saved rules hold only the ids or names either side of the arrow, so the page
+    that lists them had nothing to label its chips with and every one of them
+    fell back to a grey box. The names are looked up here, in two queries for
+    the whole page rather than one per rule, and returned in the same shape the
+    freshly generated rules use so the template needs no branch.
+    """
+    rules = list(rules)
+    if not rules:
+        return []
+
+    product_ids, commodities = set(), set()
+    for rule in rules:
+        both = list(rule.antecedent or []) + list(rule.consequent or [])
+        if rule.rule_type == 'product':
+            product_ids.update(str(v) for v in both)
+        elif rule.rule_type == 'commodity':
+            commodities.update(str(v) for v in both)
+
+    products, commodity_departments = {}, {}
+    with connection.cursor() as cursor:
+        if product_ids:
+            ids = [int(v) for v in product_ids if str(v).isdigit()]
+            if ids:
+                placeholders = ', '.join(['%s'] * len(ids))
+                cursor.execute(f"""
+                    SELECT product_id, department, commodity_desc, brand
+                    FROM product WHERE product_id IN ({placeholders})
+                """, ids)
+                for pid, department, commodity, brand in cursor.fetchall():
+                    products[str(pid)] = {
+                        'department': department or 'UNKNOWN',
+                        'commodity': commodity or 'No description',
+                        'brand': brand or 'Generic',
+                    }
+        if commodities:
+            placeholders = ', '.join(['%s'] * len(commodities))
+            cursor.execute(f"""
+                SELECT commodity_desc, MAX(department) AS department
+                FROM product WHERE commodity_desc IN ({placeholders})
+                GROUP BY commodity_desc
+            """, list(commodities))
+            for commodity, department in cursor.fetchall():
+                commodity_departments[str(commodity)] = department or 'UNKNOWN'
+
+    def describe(value, rule_type):
+        text = str(value)
+        if rule_type == 'product':
+            return products.get(text, {
+                'department': 'UNKNOWN', 'commodity': f'Product {text}', 'brand': 'Generic',
+            })
+        if rule_type == 'commodity':
+            return {'department': commodity_departments.get(text, 'UNKNOWN'),
+                    'commodity': text, 'brand': ''}
+        # A department-level rule already names its own department.
+        return {'department': text, 'commodity': text, 'brand': ''}
+
+    described = []
+    for rule in rules:
+        described.append({
+            'antecedent': [str(v) for v in (rule.antecedent or [])],
+            'consequent': [str(v) for v in (rule.consequent or [])],
+            'antecedent_details': [describe(v, rule.rule_type) for v in (rule.antecedent or [])],
+            'consequent_details': [describe(v, rule.rule_type) for v in (rule.consequent or [])],
+            'support': rule.support,
+            'confidence': rule.confidence,
+            'lift': rule.lift,
+            'rule_type': rule.rule_type,
+        })
+    return described
+
+
 @admin_required
 def association_rules(request):
     if request.method == 'POST':
@@ -1411,7 +1485,8 @@ def association_rules(request):
     else:
         ctx = {
             'title': 'Association Rules',
-            'rules': AssociationRule.objects.all().order_by('-lift')[:100],
+            'rules': _describe_stored_rules(
+                AssociationRule.objects.all().order_by('-lift')[:100]),
         }
     return render(request, 'site/dunnhumby/association_rules.html', ctx)
 
