@@ -65,6 +65,14 @@
 }
 .ar-page .ar-pager:empty { display:none; }
 .ar-page .ar-pager-label { font-size:.8rem; color:var(--rev-muted); }
+.ar-page .ar-results-title { font-weight:700; color:var(--rev-ink); }
+.ar-page .ar-results-sub { font-size:.78rem; color:var(--rev-muted); margin-top:.15rem; }
+.ar-page .ar-saved {
+  display:inline-flex; align-items:center; gap:.35rem; margin-bottom:.4rem;
+  font-size:.7rem; font-weight:600; color:#0f766e;
+  background:#ecfdf5; border:1px solid #a7f3d0; border-radius:999px; padding:.15rem .5rem;
+}
+.ar-page .ar-saved-date { font-weight:500; color:#0d9488; }
 .ar-page .ar-thin {
   margin-top:.5rem; font-size:.72rem; font-weight:600; color:#b45309;
   background:#fff7ed; border:1px solid #fed7aa; border-radius:8px; padding:.3rem .5rem;
@@ -192,7 +200,14 @@
         <div class="rev-card">
           <div class="rev-head-sm">
             <div>
-              <i class="fas fa-table"></i> Results (sorted by Lift)
+              <div class="ar-results-title"><i class="fas fa-table"></i> Results, strongest lift first</div>
+              {% if rules.0.is_saved %}
+                <div class="ar-results-sub">Rules saved to the database from earlier runs. Run the
+                algorithm above to replace this list with a fresh one.</div>
+              {% elif rules %}
+                <div class="ar-results-sub">Just generated. Use <b>Insert</b> to save a rule to the
+                database.</div>
+              {% endif %}
             </div>
             <div class="btn-group btn-group-sm" role="group" id="rulesMultiSelectActions" style="display: none;">
               <button class="btn btn-outline-secondary" onclick="selectAllRules(true)" title="Select All">
@@ -290,6 +305,12 @@
 
                     <!-- Statistics -->
                     <div class="mt-2 pt-2 border-top">
+                      {% if rule.is_saved %}
+                        <div class="ar-saved" title="Read from the saved rules table, not from a run on this screen">
+                          <i class="fas fa-database"></i> Saved
+                          <span class="ar-saved-date">{{ rule.created_at|date:"j M Y, H:i" }}</span>
+                        </div>
+                      {% endif %}
                       <div class="d-flex justify-content-between small">
                         <span class="text-muted">Bought together in:</span>
                         <span class="fw-bold">{{ rule.baskets_together }} basket{{ rule.baskets_together|pluralize }}</span>

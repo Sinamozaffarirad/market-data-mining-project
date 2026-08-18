@@ -1438,6 +1438,11 @@ def _describe_stored_rules(rules):
             # Saved rules keep only the rate, so the basket count behind it is
             # recovered from the support it was stored with.
             'baskets_together': round((rule.support or 0) * total_baskets),
+            # Marks these as rules read back from the table rather than ones the
+            # run on this screen produced, and says when they were put there.
+            'is_saved': True,
+            'created_at': rule.created_at,
+            'source_view': rule.source_view,
             'support': rule.support,
             'confidence': rule.confidence,
             'lift': rule.lift,
