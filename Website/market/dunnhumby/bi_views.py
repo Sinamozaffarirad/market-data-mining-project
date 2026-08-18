@@ -1651,7 +1651,9 @@ def api_bi_significance_scan(request):
     notable = [r for r in scanned if r["actionable"]] if scanned else []
     return JsonResponse({
         "success": True,
-        "rows": scanned[:30],
+        # Every comparison is returned, not a slice of them: the headline counts
+        # the ones worth a look, and a table cut short would contradict it.
+        "rows": scanned,
         "compared": len(scanned),
         "actionable": len(notable),
         "skipped_dimensions": skipped,

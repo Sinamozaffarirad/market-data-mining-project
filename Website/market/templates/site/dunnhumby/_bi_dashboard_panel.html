@@ -1299,6 +1299,14 @@ let biScanRequested = false;
    only the newest is allowed to render, otherwise a slow earlier scan lands on
    top of a newer one and describes a selection that is no longer set. */
 let biScanSerial = 0;
+let biScanShowAll = false;
+let biScanLastPayload = null;
+
+/* Re-lays the table already in hand rather than asking the server again. */
+function biScanToggleAll(showAll) {
+  biScanShowAll = !!showAll;
+  if (biScanLastPayload) biScanRender(biScanLastPayload);
+}
 
 async function loadSignificanceScan() {
   biScanRequested = true;
@@ -1312,6 +1320,22 @@ async function loadSignificanceScan() {
   try {
     const data = await biGet('/analysis/api/bi/significance-scan/');
     if (serial !== biScanSerial) return;
+    biScanLastPayload = data;
+    biScanRender(data);
+  } catch (error) {
+    if (serial === biScanSerial) {
+      box.innerHTML = `<div class="alert alert-danger py-2 px-3 small mb-0">Scan failed: ${escapeHtml(error.message)}</div>`;
+    }
+  } finally {
+    if (button && serial === biScanSerial) { button.disabled = false; }
+  }
+}
+
+function biScanRender(data) {
+  const box = document.getElementById('sigScanResults');
+  const summary = document.getElementById('sigScanSummary');
+  if (!box) return;
+  {
     const rows = data.rows || [];
     if (summary) {
       summary.innerHTML = `<strong>${escapeHtml(data.headline)}</strong>
@@ -1322,11 +1346,17 @@ async function loadSignificanceScan() {
       return;
     }
     const top = Math.max(...rows.map(r => Math.abs(Number(r.delta)))) || 1;
+    /* The headline counts the comparisons worth a look, so those are the ones
+       laid out. The smaller ones stay one click away rather than padding the
+       table or being dropped silently. */
+    const worthALook = rows.filter(r => r.actionable);
+    const shown = biScanShowAll || !worthALook.length ? rows : worthALook;
+    const hidden = rows.length - shown.length;
     box.innerHTML = `<div class="table-responsive"><table class="sig-scan">
       <thead><tr>
         <th>#</th><th>Comparison</th><th>Which is bigger</th>
         <th>Difference in basket value</th><th>Typical baskets</th><th>Chance of a fluke</th>
-      </tr></thead><tbody>${rows.map((row, index) => {
+      </tr></thead><tbody>${shown.map((row, index) => {
         const delta = Math.abs(Number(row.delta));
         const leaderMedian = row.leader === row.group_a ? row.median_a : row.median_b;
         const trailerMedian = row.leader === row.group_a ? row.median_b : row.median_a;
@@ -1344,14 +1374,17 @@ async function loadSignificanceScan() {
           <td>${row.actionable ? '' : '<span class="text-muted">'}${biFormatQ(row.q_value)}${row.actionable ? '' : '</span>'}</td>
         </tr>`;
       }).join('')}</tbody></table></div>
-      <p class="bi-foot">Biggest gaps first. Faded rows are real differences that are too small to
-      matter. Click any row to test that pair in full below.</p>`;
-  } catch (error) {
-    if (serial === biScanSerial) {
-      box.innerHTML = `<div class="alert alert-danger py-2 px-3 small mb-0">Scan failed: ${escapeHtml(error.message)}</div>`;
-    }
-  } finally {
-    if (button && serial === biScanSerial) { button.disabled = false; }
+      <p class="bi-foot">Biggest gaps first. Click any row to test that pair in full below.
+      ${hidden > 0
+        ? `Another <strong>${hidden}</strong> comparison${hidden === 1 ? ' is' : 's are'} real but
+           too small to matter.
+           <button type="button" class="btn btn-link btn-sm p-0 align-baseline"
+                   onclick="biScanToggleAll(true)">Show ${hidden === 1 ? 'it' : 'them'}</button>`
+        : (biScanShowAll && worthALook.length
+            ? `Showing all ${rows.length}, including the ones too small to matter.
+               <button type="button" class="btn btn-link btn-sm p-0 align-baseline"
+                       onclick="biScanToggleAll(false)">Show only the ${worthALook.length} worth a look</button>`
+            : 'Faded rows are real differences that are too small to matter.')}</p>`;
   }
 }
 
