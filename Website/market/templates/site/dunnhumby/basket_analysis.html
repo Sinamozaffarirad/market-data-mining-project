@@ -1015,6 +1015,20 @@ html, body {
 .pred-panel .rev-kpi-hint { font-size: .68rem; color: #9aa1bd; margin-top: .2rem; position: relative; }
 
 .pred-panel .rev-context { font-size: .78rem; color: var(--rev-muted); margin: 0 0 .8rem; }
+/* Empty state for a chart that has nothing to draw yet. Sits over the canvas so
+   the card keeps its height and the layout does not jump when results land. */
+.pred-panel .rev-empty {
+  position: absolute; inset: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; text-align: center;
+  gap: .35rem; padding: 1rem; color: var(--rev-muted);
+  background: repeating-linear-gradient(135deg, #fbfcff 0 12px, #f6f8fd 12px 24px);
+  border: 1px dashed var(--rev-line); border-radius: 12px;
+}
+.pred-panel .rev-empty i { font-size: 1.9rem; color: #c3c9e4; }
+.pred-panel .rev-empty h6 { margin: 0; font-weight: 700; color: var(--rev-ink); font-size: .95rem; }
+.pred-panel .rev-empty p { margin: 0; font-size: .82rem; max-width: 430px; }
+/* The same empty state sitting in the flow rather than over a canvas. */
+.pred-panel .rev-empty.is-block { position: static; min-height: 230px; }
 .pred-panel .rev-note { font-size: .76rem; color: var(--rev-muted); margin: .6rem 0 0; }
 .pred-panel .rev-rule { margin: 1rem 0; border-color: var(--rev-line); }
 
@@ -1224,67 +1238,89 @@ html, body {
     </div>
 
     <!-- Descriptive Analysis Tab -->
-    <div id="descriptive" class="tab-content active">
+    <div id="descriptive" class="tab-content active pred-panel">
+      <!-- Same header card as the other two tabs: the tab a reader is on should
+           be recognisable from its frame, not just its wording. -->
       <div class="analysis-type-card descriptive-card">
         <h4 style="color: #28a745; margin-bottom: 1rem;">
           <i class="fas fa-search-plus"></i>
           Descriptive Market Basket Analysis
         </h4>
         <p style="color: #6c757d; line-height: 1.6; margin: 0;">
-          Analyzes existing patterns and relationships in transaction data to understand customer behavior, 
-          product associations, and optimal store layouts using Apriori algorithm.
+          Which products are bought together, and which baskets and customers are worth the most,
+          found in the transactions already recorded with the Apriori algorithm.
         </p>
       </div>
 
-      <!-- Interactive Controls -->
-      <div class="interactive-controls" style="background: #f8f9fa; border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem; border: 1px solid #e9ecef;">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-          <h5 class="mb-0" style="color: #495057; font-weight: 600;">
-            <i class="fas fa-sliders-h text-primary"></i> Algorithm Parameters
-          </h5>
-          <button class="btn btn-outline-info btn-sm" onclick="showDescriptiveHelp()" title="Configuration Help">
+      <!-- Step 1: settings -->
+      <section class="rev-card">
+        <div class="rev-step">
+          <span class="rev-step-num">1</span>
+          <div>
+            <h6 class="rev-step-title">Choose the settings</h6>
+            <p class="rev-step-hint">How much history to read, and how strong a pattern has to be
+            before it is reported.</p>
+          </div>
+          <button class="btn btn-outline-secondary btn-sm rev-help ms-auto" type="button"
+                  onclick="showDescriptiveHelp()" title="How to use this">
             <i class="fas fa-question-circle"></i> Help
           </button>
         </div>
-        <div class="row g-3">
-          <div class="col-md-3">
-            <label class="form-label fw-semibold">Transaction Period:</label>
+        <div class="rev-fields">
+          <div class="rev-field">
+            <label for="descriptiveTransactionPeriod">Transaction period</label>
             <select class="form-select" id="descriptiveTransactionPeriod">
-              <option value="all">All Transactions</option>
-              <option value="1_month">Last 1 Month</option>
-              <option value="3_months">Last 3 Months</option>
-              <option value="6_months">Last 6 Months</option>
-              <option value="12_months">Last 12 Months</option>
+              <option value="all" selected>All periods</option>
+              <option value="recent">Recent (last 30 days)</option>
+              <option value="quarter">Last quarter (90 days)</option>
+              <option value="half">Last half year (180 days)</option>
+              <option value="year">Last year (365 days)</option>
             </select>
-            <small class="form-text text-muted">Select transaction period: filters data by the 'day' field from transactions</small>
+            <p class="rev-note">Filters on the transaction day.</p>
           </div>
-          <div class="col-md-2">
-            <label class="form-label fw-semibold">Max Results:</label>
+          <div class="rev-field">
+            <label for="descriptiveMaxResults">Rules to show</label>
             <select class="form-select" id="descriptiveMaxResults">
-              <option value="50">50</option>
-              <option value="100" selected>100</option>
-              <option value="200">200</option>
-              <option value="500">500</option>
+              <option value="10">Top 10</option>
+              <option value="20" selected>Top 20</option>
+              <option value="50">Top 50</option>
+              <option value="100">Top 100</option>
             </select>
-            <small class="form-text text-muted">Maximum number of association rules to display in results</small>
+            <p class="rev-note">Display only. It does not change what is found.</p>
           </div>
-          <div class="col-md-3">
-            <label class="form-label fw-semibold">Min Support:</label>
-            <input type="number" class="form-control" id="supportInput" min="0.000001" max="0.1" step="0.000001" value="0.002" placeholder="0.002">
-            <small class="form-text text-muted">Recommended for 2.6M transactions:<br><strong>0.005+</strong>=Fast results, <strong>0.002</strong>=Good balance, <strong>0.001</strong>=Slower, rare patterns</small>
+          <div class="rev-field">
+            <label for="supportInput">Minimum support</label>
+            <input type="number" class="form-control" id="supportInput" min="0.000001" max="0.1"
+                   step="0.000001" value="0.002" placeholder="0.002">
+            <p class="rev-note">How often a combination must appear. Higher is faster and stricter:
+            <strong>0.005</strong> fast, <strong>0.002</strong> balanced, <strong>0.001</strong>
+            slow but finds rarer pairs.</p>
           </div>
-          <div class="col-md-4">
-            <label class="form-label fw-semibold">Min Confidence:</label>
-            <input type="number" class="form-control" id="confidenceInput" min="0.1" max="1.0" step="0.01" value="0.6" placeholder="0.6">
-            <small class="form-text text-muted">Minimum reliability of association rules (decimal: 0.6 = 60%)</small>
+          <div class="rev-field">
+            <label for="confidenceInput">Minimum confidence</label>
+            <input type="number" class="form-control" id="confidenceInput" min="0.1" max="1.0"
+                   step="0.01" value="0.6" placeholder="0.6">
+            <p class="rev-note">How reliable the rule must be. 0.6 means it holds 60% of the time.</p>
           </div>
         </div>
-        <div class="text-center mt-4">
-          <button class="btn btn-primary btn-lg px-4 py-2" onclick="runDescriptiveAnalysis()" style="border-radius: 8px; font-weight: 600;">
-            <i class="fas fa-play me-2"></i> Run Apriori Algorithm
+      </section>
+
+      <!-- Step 2: run it -->
+      <section class="rev-card">
+        <div class="rev-step">
+          <span class="rev-step-num">2</span>
+          <div>
+            <h6 class="rev-step-title">Run the analysis</h6>
+            <p class="rev-step-hint">Apriori scans the baskets for combinations that pass both
+            thresholds, then ranks them by lift.</p>
+          </div>
+        </div>
+        <div class="rev-actions">
+          <button class="btn rev-btn-primary" onclick="runDescriptiveAnalysis()">
+            <i class="fas fa-play"></i> Run Apriori algorithm
           </button>
         </div>
-      </div>
+      </section>
 
       <!-- Key Metrics -->
       <div class="metric-grid">
@@ -1307,9 +1343,9 @@ html, body {
       </div>
 
       <!-- Association Rules -->
-      <div class="chart-container association-rules-block">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-          <h5 class="mb-0" id="deptRulesTitle"><i class="fas fa-project-diagram"></i> Association Rules (0/∞) — Department Level</h5>
+      <div class="chart-container rev-card association-rules-block">
+        <div class="rev-head-sm">
+          <h5 class="rev-card-title" id="deptRulesTitle"><i class="fas fa-project-diagram"></i> Association Rules (0/∞) — Department Level</h5>
           <div class="d-flex gap-2 align-items-center">
             <div class="btn-group btn-group-sm" role="group" id="deptRulesActions" style="display: flex;">
               <button class="btn btn-outline-secondary" onclick="selectAllRules('department', true)" title="Select All">
@@ -1329,18 +1365,19 @@ html, body {
         </div>
         <div id="descriptiveInsertAlert" class="alert alert-success d-none" role="alert"></div>
         <div class="association-rules-container scrollable-section" id="associationRules" style="max-height: 950px; overflow-y: auto;">
-          <div class="text-center py-5 text-muted">
-            <i class="fas fa-play-circle fa-3x mb-3" style="color: #a0a0a0;"></i>
-            <h6 class="text-muted mb-2">No Association Rules Generated</h6>
-            <p class="mb-0">Configure parameters above and click <strong>"Run Apriori Algorithm"</strong> to analyze department-level associations</p>
+          <div class="rev-empty is-block">
+            <i class="fas fa-diagram-project"></i>
+            <h6>No rules yet</h6>
+            <p>Set the thresholds above, then click <strong>Run Apriori algorithm</strong> to find
+            the department combinations that are bought together.</p>
           </div>
         </div>
       </div>
 
       <!-- Commodity-level Rules -->
-      <div class="chart-container association-rules-block">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-          <h5 class="mb-0" id="commodityRulesTitle"><i class="fas fa-boxes-stacked"></i> Association Rules (0/∞) — Commodity Level</h5>
+      <div class="chart-container rev-card association-rules-block">
+        <div class="rev-head-sm">
+          <h5 class="rev-card-title" id="commodityRulesTitle"><i class="fas fa-boxes-stacked"></i> Association Rules (0/∞) — Commodity Level</h5>
           <div class="d-flex gap-2 align-items-center">
             <div class="btn-group btn-group-sm" role="group" id="commodityRulesActions" style="display: flex;">
               <button class="btn btn-outline-secondary" onclick="selectAllRules('commodity', true)" title="Select All">
@@ -1360,18 +1397,19 @@ html, body {
         </div>
         <div id="commodityInsertAlert" class="alert alert-success d-none" role="alert"></div>
         <div class="association-rules-container scrollable-section" id="associationRulesCommodity" style="max-height: 650px; overflow-y: auto;">
-          <div class="text-center py-5 text-muted">
-            <i class="fas fa-play-circle fa-3x mb-3" style="color: #a0a0a0;"></i>
-            <h6 class="text-muted mb-2">No Association Rules Generated</h6>
-            <p class="mb-0">Configure parameters above and click <strong>"Run Apriori Algorithm"</strong> to analyze commodity-level associations</p>
+          <div class="rev-empty is-block">
+            <i class="fas fa-diagram-project"></i>
+            <h6>No rules yet</h6>
+            <p>Set the thresholds above, then click <strong>Run Apriori algorithm</strong> to find
+            the commodity combinations that are bought together.</p>
           </div>
         </div>
       </div>
 
       <!-- Baskets Grid -->
-      <div class="chart-container high-value-panel">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-          <h5 class="mb-0"><i class="fas fa-shopping-basket"></i> High-Value Baskets Analysis</h5>
+      <div class="chart-container rev-card high-value-panel">
+        <div class="rev-head-sm">
+          <h5 class="rev-card-title"><i class="fas fa-shopping-basket"></i> High-Value Baskets Analysis</h5>
           <div>
             <button class="btn btn-outline-primary btn-sm" onclick="expandSection('baskets')" title="View All in Popup">
               <i class="fas fa-expand-arrows-alt"></i> Expand
@@ -1408,9 +1446,9 @@ html, body {
       </div>
 
       <!-- High-Value Products Analysis -->
-      <div class="chart-container high-value-panel">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-          <h5 class="mb-0"><i class="fas fa-star"></i> High-Value Products Analysis</h5>
+      <div class="chart-container rev-card high-value-panel">
+        <div class="rev-head-sm">
+          <h5 class="rev-card-title"><i class="fas fa-star"></i> High-Value Products Analysis</h5>
           <div class="d-flex align-items-center gap-2">
             <div class="btn-group btn-group-sm" role="group" aria-label="Product ranking toggle">
               <button type="button" class="btn btn-outline-primary active" data-product-filter="frequency" onclick="switchTopProductsView('frequency')">
@@ -1847,7 +1885,17 @@ html, body {
                 <i class="fas fa-expand-arrows-alt"></i> Expand
               </button>
             </div>
-            <div style="height: 340px;"><canvas id="timeSeriesDepartmentChart"></canvas></div>
+            <div style="height: 340px; position: relative;">
+              <canvas id="timeSeriesDepartmentChart"></canvas>
+              <!-- Shown until a forecast exists, so an empty axis never reads as
+                   a forecast of nothing. -->
+              <div id="timeSeriesDepartmentEmpty" class="rev-empty">
+                <i class="fas fa-chart-column"></i>
+                <h6>No forecast yet</h6>
+                <p>Train the models, then click <strong>Forecast revenue</strong> to see where the
+                predicted revenue lands by department.</p>
+              </div>
+            </div>
           </section>
 
           <!-- Display and advanced settings, folded away: a manager never needs
@@ -6664,6 +6712,8 @@ function renderTimeSeriesComparisonChart(report) {
 function renderTimeSeriesDepartmentChart(rows, productCount = 0) {
   const canvas = document.getElementById('timeSeriesDepartmentChart');
   if (!canvas || typeof Chart === 'undefined') return;
+  const empty = document.getElementById('timeSeriesDepartmentEmpty');
+  if (empty) empty.style.display = (rows && rows.length) ? 'none' : '';
   lastTimeSeriesDepartmentRows = Array.from(rows || []);
   const context = document.getElementById('timeSeriesDepartmentChartContext');
   const selectedTopN = Number(document.getElementById('timeSeriesTopN')?.value || 20);
