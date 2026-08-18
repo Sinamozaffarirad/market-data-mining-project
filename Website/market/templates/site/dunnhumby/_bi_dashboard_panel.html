@@ -124,14 +124,15 @@ one over several lines renders it onto the page as visible text.
 .sig-legend { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem;
   font-size: .76rem; color: var(--bi-muted, #6b7280); margin-bottom: .6rem; }
 .sig-table-fold { margin-top: .25rem; }
-.bi-flash { animation: biFlash 2.2s ease; }
-@keyframes biFlash {
-  0%   { box-shadow: 0 0 0 0 rgba(102,126,234,.55); transform: translateY(0); }
-  12%  { box-shadow: 0 0 0 6px rgba(102,126,234,.28); transform: translateY(-6px); }
-  40%  { box-shadow: 0 0 0 4px rgba(102,126,234,.18); transform: translateY(-2px); }
-  100% { box-shadow: 0 0 0 0 rgba(102,126,234,0);   transform: translateY(0); }
-}
-@media (prefers-reduced-motion: reduce) { .bi-flash { animation: none; outline: 3px solid var(--bi-1); } }
+/* The row whose comparison is open below. It keeps a marker in the margin so it
+   stays findable after scrolling back up. */
+.sig-scan tbody tr.is-selected { background: #eef1ff; opacity: 1; animation: sigPick .9s ease; }
+.sig-scan tbody tr.is-selected td { font-weight: 600;
+  box-shadow: 0 -1px 0 #c7cffc inset, 0 1px 0 #c7cffc inset; }
+.sig-scan tbody tr.is-selected td:first-child {
+  box-shadow: 0 -1px 0 #c7cffc inset, 0 1px 0 #c7cffc inset, 3px 0 0 var(--bi-1) inset; }
+@keyframes sigPick { 0% { background: #dbe1ff; } 100% { background: #eef1ff; } }
+@media (prefers-reduced-motion: reduce) { .sig-scan tbody tr.is-selected { animation: none; } }
 .bi-note-inline { font-size: .78rem; color: var(--bi-muted, #6b7280); text-align: right; max-width: 320px; }
 .bi-foot { font-size: .78rem; color: var(--bi-muted, #6b7280); margin: .75rem 0 0; }
 .bi-heatmap { overflow-x: auto; padding-top: .25rem; }
@@ -961,6 +962,10 @@ function biShowPage(page, button) {
   // Charts on a hidden page could not measure their container, so settle them
   // now the page is on screen.
   setTimeout(() => biSettleCharts(), 60);
+  /* Opening the tests page runs the search once, so the reader arrives at
+     findings rather than at a button. It is not run before the page is opened,
+     because it is the slowest panel here and most visits never reach it. */
+  if (page === 'tests' && !biScanRequested) setTimeout(() => loadSignificanceScan(), 80);
 }
 
 /* ---------- panels -------------------------------------------------------- */
@@ -1309,6 +1314,7 @@ let biScanRequested = false;
    top of a newer one and describes a selection that is no longer set. */
 let biScanSerial = 0;
 let biScanShowAll = false;
+let biScanSelectedKey = null;
 let biScanLastPayload = null;
 
 /* Re-lays the table already in hand rather than asking the server again. */
@@ -1371,36 +1377,11 @@ function renderDimensionRanking(dims) {
     spread, which basket value does not have, so it sits alongside rather than being relied on.</p>`;
 }
 
-/* Scrolling alone left the reader hunting for what had changed, so the panel
-   lifts and rings briefly to say "this is the one you just opened". */
+/* Brings the panel on screen without decorating it. Which comparison is open is
+   shown by the marked row above and by the two dropdowns here. */
 function biFlashPanel() {
-  const panel = document.getElementById('sigResults')?.closest('.bi-card');
-  if (!panel) return;
-  panel.scrollIntoView({behavior: 'smooth', block: 'center'});
-  panel.classList.remove('bi-flash');
-  /* The smooth scroll is still travelling when this is called, and a flash that
-     runs during the journey is over before the reader arrives. Wait for the
-     scroll to settle, then draw attention. */
-  const settle = () => {
-    void panel.offsetWidth;          // restart the animation if it is already running
-    panel.classList.add('bi-flash');
-    setTimeout(() => panel.classList.remove('bi-flash'), 2200);
-  };
-  // Stillness alone is not enough: the panel is still at rest for a moment
-  // before a smooth scroll starts moving it. Wait until it has both arrived and
-  // stopped.
-  const onScreen = () => {
-    const box = panel.getBoundingClientRect();
-    return box.top < window.innerHeight * 0.9 && box.bottom > window.innerHeight * 0.1;
-  };
-  let last = null, still = 0;
-  const poll = setInterval(() => {
-    const top = Math.round(panel.getBoundingClientRect().top);
-    still = (top === last) ? still + 1 : 0;
-    last = top;
-    if (still >= 2 && onScreen()) { clearInterval(poll); settle(); }
-  }, 90);
-  setTimeout(() => { clearInterval(poll); if (!panel.classList.contains('bi-flash')) settle(); }, 1400);
+  document.getElementById('sigResults')?.closest('.bi-card')
+    ?.scrollIntoView({behavior: 'smooth', block: 'start'});
 }
 
 function biJumpToDimension(dimension) {
@@ -1434,12 +1415,14 @@ function biScanRender(data) {
       <thead><tr>
         <th>#</th><th>Comparison</th><th>Which is bigger</th>
         <th>Difference in basket value</th><th>Typical baskets</th>
-        <th>Different aisles</th><th>Chance of a fluke</th>
+        <th>What they buy</th><th>Chance of a fluke</th>
       </tr></thead><tbody>${shown.map((row, index) => {
         const delta = Math.abs(Number(row.delta));
         const leaderMedian = row.leader === row.group_a ? row.median_a : row.median_b;
         const trailerMedian = row.leader === row.group_a ? row.median_b : row.median_a;
-        return `<tr class="${row.actionable ? '' : 'is-quiet'}"
+        const rowKey = `${row.dimension}|${row.group_a}|${row.group_b}`;
+        return `<tr class="${row.actionable ? '' : 'is-quiet'}${rowKey === biScanSelectedKey ? ' is-selected' : ''}"
+                 data-row-key="${escapeHtml(rowKey)}"
                  onclick="biOpenComparison('${escapeHtml(row.dimension)}','${escapeHtml(row.group_a).replace(/'/g, "\\'")}','${escapeHtml(row.group_b).replace(/'/g, "\\'")}')"
                  title="Open this comparison in the test below">
           <td>${index + 1}</td>
@@ -1452,11 +1435,16 @@ function biScanRender(data) {
           <td>${money2(leaderMedian)} <span class="text-muted">vs</span> ${money2(trailerMedian)}</td>
           <td>${row.mix_v === null
               ? '<span class="text-muted" title="Comparing departments by department is circular">--</span>'
-              : `<span class="sig-tag ${row.mix_effect}">${row.mix_effect}</span>`}</td>
+              : `<span class="sig-tag ${row.mix_effect}"
+                       title="How differently the two groups spread their baskets across departments">${
+                   biMixWords(row.mix_effect)}</span>`}</td>
           <td>${row.actionable ? '' : '<span class="text-muted">'}${biFormatQ(row.q_value)}${row.actionable ? '' : '</span>'}</td>
         </tr>`;
       }).join('')}</tbody></table></div>
-      <p class="bi-foot">Biggest gaps first. Click any row to test that pair in full below.
+      <p class="bi-foot"><strong>Basket value</strong> is how much they spend.
+      <strong>What they buy</strong> is which departments they spend it in. A group can spend far
+      more per basket and still shop the same aisles, so the two columns often disagree.
+      Biggest gaps first. Click any row to test that pair in full below.
       ${hidden > 0
         ? `Another <strong>${hidden}</strong> comparison${hidden === 1 ? ' is' : 's are'} real but
            too small to matter.
@@ -1472,6 +1460,14 @@ function biScanRender(data) {
   }
 }
 
+/* The mix column answers a different question from the spend column, and
+   reusing "negligible" for both made the pair look contradictory: a group can
+   spend far more per basket while filling it from the very same aisles. */
+function biMixWords(effect) {
+  return {negligible: 'same aisles', small: 'slightly different',
+          medium: 'different', large: 'very different'}[effect] || effect;
+}
+
 /* A number nobody reads as 4.2e-136. What matters is whether it is a fluke. */
 function biFormatQ(value) {
   const q = Number(value);
@@ -1485,6 +1481,13 @@ function biFormatQ(value) {
 /* Hands a scanned pair to the manual panel, so the scan is a starting point
    rather than a separate answer. */
 function biOpenComparison(dimension, groupA, groupB) {
+  /* Mark the row itself rather than lighting up the whole panel below: the
+     reader needs to know which line they are now looking at, and a card-sized
+     flash said only "something down here changed". */
+  biScanSelectedKey = `${dimension}|${groupA}|${groupB}`;
+  document.querySelectorAll('#sigScanResults tbody tr').forEach(tr => {
+    tr.classList.toggle('is-selected', tr.dataset.rowKey === biScanSelectedKey);
+  });
   const dim = document.getElementById('sigDim');
   if (dim) dim.value = dimension;
   loadSignificance(true).then(() => {
