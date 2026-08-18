@@ -1,4 +1,5 @@
 {% extends "site/base.html" %}
+{% load market_icons %}
 {% block title %}Comprehensive Market Basket Analysis | Analytics{% endblock %}
 
 {% block extra_css %}
@@ -2175,34 +2176,10 @@ html, body {
 
 <script>
 // Department mapping with colors and emojis
-const DEPARTMENT_CONFIG = {
-  'GROCERY': { color: '#2E86C1', emoji: '🛒', gradient: 'linear-gradient(135deg, #2E86C1, #3498DB)' },
-  'MEAT-PCKGD': { color: '#E74C3C', emoji: '🥩', gradient: 'linear-gradient(135deg, #E74C3C, #EC7063)' },
-  'PORK': { color: '#C0392B', emoji: '🐷', gradient: 'linear-gradient(135deg, #C0392B, #E74C3C)' },
-  'SEAFOOD': { color: '#148F77', emoji: '🐟', gradient: 'linear-gradient(135deg, #148F77, #1ABC9C)' },
-  'SEAFOOD-PCKGD': { color: '#0E6655', emoji: '🦐', gradient: 'linear-gradient(135deg, #0E6655, #148F77)' },
-  'FROZEN GROCERY': { color: '#85C1E9', emoji: '❄️', gradient: 'linear-gradient(135deg, #85C1E9, #AED6F1)' },
-  'DAIRY': { color: '#F39C12', emoji: '🥛', gradient: 'linear-gradient(135deg, #F39C12, #F8C471)' },
-  'DELI': { color: '#FF6B6B', emoji: '🥪', gradient: 'linear-gradient(135deg, #FF6B6B, #FF8E8E)' },
-  'DELI/SNACK BAR': { color: '#FF5722', emoji: '🌭', gradient: 'linear-gradient(135deg, #FF5722, #FF7043)' },
-  'BAKERY': { color: '#D4AC0D', emoji: '🍞', gradient: 'linear-gradient(135deg, #D4AC0D, #F1C40F)' },
-  'PASTRY': { color: '#D68910', emoji: '🧁', gradient: 'linear-gradient(135deg, #D68910, #E67E22)' },
-  'PRODUCE': { color: '#27AE60', emoji: '🥬', gradient: 'linear-gradient(135deg, #27AE60, #2ECC71)' },
-  'FLORAL': { color: '#FF69B4', emoji: '🌸', gradient: 'linear-gradient(135deg, #FF69B4, #FF1493)' },
-  'PHARMACY SUPPLY': { color: '#8E44AD', emoji: '💊', gradient: 'linear-gradient(135deg, #8E44AD, #9B59B6)' },
-  'RX': { color: '#7D3C98', emoji: '💉', gradient: 'linear-gradient(135deg, #7D3C98, #8E44AD)' },
-  'DRUG GM': { color: '#A569BD', emoji: '🩹', gradient: 'linear-gradient(135deg, #A569BD, #BB8FCE)' },
-  'SPIRITS': { color: '#795548', emoji: '🍷', gradient: 'linear-gradient(135deg, #795548, #8D6E63)' },
-  'BEVERAGE': { color: '#17A2B8', emoji: '🥤', gradient: 'linear-gradient(135deg, #17A2B8, #20C997)' },
-  'TOYS': { color: '#FF1493', emoji: '🧸', gradient: 'linear-gradient(135deg, #FF1493, #FF69B4)' },
-  'VIDEO': { color: '#9C27B0', emoji: '📺', gradient: 'linear-gradient(135deg, #9C27B0, #BA68C8)' },
-  'PHOTO': { color: '#607D8B', emoji: '📷', gradient: 'linear-gradient(135deg, #607D8B, #78909C)' },
-  'ELECT &PLUMBING': { color: '#FF9800', emoji: '🔧', gradient: 'linear-gradient(135deg, #FF9800, #FFB74D)' },
-  'MISC. TRANS.': { color: '#6C757D', emoji: '📦', gradient: 'linear-gradient(135deg, #6C757D, #868E96)' },
-  'MISC SALES TRAN': { color: '#6C757D', emoji: '🛍️', gradient: 'linear-gradient(135deg, #6C757D, #868E96)' },
-  'COUP/STR & MFG': { color: '#28A745', emoji: '🎫', gradient: 'linear-gradient(135deg, #28A745, #34CE57)' },
-  'DEFAULT': { color: '#6C757D', emoji: '📦', gradient: 'linear-gradient(135deg, #6C757D, #868E96)' }
-};
+// Department chips are styled from one table shared with the association-rules
+// page, so a department cannot have an icon on one page and a grey box on the
+// other.
+const DEPARTMENT_CONFIG = {% department_styles_json %};
 
 // Global variables for analysis
 let currentAnalysisData = {};

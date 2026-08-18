@@ -1,26 +1,87 @@
 {% extends "site/base.html" %}
+{% load market_icons %}
 {% block title %}Association Rules{% endblock %}
 {% block content %}
-<div class="module">
-  <h2>Association Rules Mining</h2>
+<style>
+/* The card system the basket-mining tabs use, so the two pages read as one
+   product rather than two. Only what this page draws is restated here. */
+/* Page banner in the house style: gradient bar, title, one line of subtitle,
+   and the dataset it is reading on the right. */
+.ar-page .ar-title-bar {
+  display:flex; align-items:flex-start; justify-content:space-between; gap:1rem;
+  margin:0 0 1.5rem; padding:1rem 1.25rem; color:#fff;
+  background:var(--gradient-primary); border-radius:.75rem;
+  box-shadow:0 .35rem 1rem rgba(25,45,80,.10);
+}
+/* Deliberately not an h2 or a p: `.admin .module h2` in market_analysis_v2.css
+   gives every h2 in a module its own gradient bar and padding, which drew a
+   second block behind this title, and it outranks anything scoped to this page.
+   Plain elements cannot be claimed by those rules. */
+.ar-page .ar-title-bar .ar-title {
+  font-size:1.2rem; font-weight:700; color:#fff; display:flex; align-items:center; gap:.5rem;
+}
+.ar-page .ar-title-bar .ar-subtitle {
+  font-size:.88rem; color:#fff; opacity:.9; margin-top:.3rem; max-width:78ch; line-height:1.5;
+}
+.ar-page .ar-title-bar .badge { align-self:center; white-space:nowrap; font-weight:600; }
+.ar-page { --rev-1:#667eea; --rev-2:#764ba2; --rev-ink:#1e2338; --rev-muted:#6b7391; --rev-line:#e6e8f2; }
+.ar-page .rev-card {
+  background:#fff; border:1px solid var(--rev-line); border-radius:16px;
+  padding:1.1rem 1.2rem; margin-bottom:1rem; box-shadow:0 2px 14px rgba(102,126,234,.06);
+}
+.ar-page .rev-step { display:flex; gap:.75rem; align-items:flex-start; margin-bottom:.9rem; }
+.ar-page .rev-step-num {
+  flex:0 0 auto; width:26px; height:26px; border-radius:50%;
+  background:linear-gradient(135deg, var(--rev-1), var(--rev-2)); color:#fff;
+  display:grid; place-items:center; font-size:.8rem; font-weight:700;
+}
+.ar-page .rev-step-title { margin:0; font-size:.97rem; font-weight:700; color:var(--rev-ink); }
+.ar-page .rev-step-hint { margin:.1rem 0 0; font-size:.8rem; color:var(--rev-muted); }
+.ar-page .rev-head-sm {
+  display:flex; justify-content:space-between; align-items:flex-start;
+  gap:.75rem; flex-wrap:wrap; margin-bottom:.85rem;
+}
+.ar-page .rev-btn-primary {
+  background:linear-gradient(135deg, var(--rev-1), var(--rev-2)); color:#fff; border:none;
+  border-radius:10px; padding:.55rem 1.1rem; font-weight:600;
+}
+.ar-page .rev-btn-primary:hover { color:#fff; filter:brightness(1.06); }
+.ar-page .form-label { font-size:.72rem; font-weight:700; letter-spacing:.04em;
+  text-transform:uppercase; color:var(--rev-muted); }
+.ar-page .form-select, .ar-page .form-control { border-radius:.55rem; border-color:#dfe3f1; }
+/* The chip carried inline padding and radius on every use; it belongs in one rule. */
+.ar-page .department-badge {
+  color:#fff; padding:4px 10px; border-radius:999px; font-size:.75rem; font-weight:600;
+  display:inline-flex; align-items:center; gap:5px; letter-spacing:.01em;
+  box-shadow:0 2px 6px rgba(15,23,42,.14);
+}
+.ar-page .rule-card { border-radius:16px; border:1px solid var(--rev-line); transition:transform .15s ease, box-shadow .15s ease; }
+.ar-page .rule-card:hover { transform:translateY(-3px); box-shadow:0 10px 26px rgba(102,126,234,.16); }
+</style>
+
+<div class="module pred-panel ar-page">
   <div class="p-4">
+    <div class="ar-title-bar flex-wrap">
+      <div>
+        <div class="ar-title"><i class="fas fa-diagram-project"></i> Association Rules Mining</div>
+        <div class="ar-subtitle">Which products are bought together, found with Apriori. Lower the
+        support to reach rarer pairs, at the cost of a longer run.</div>
+      </div>
+      <span class="badge bg-success px-3 py-2">2.6M transactions &middot; 276,450 baskets
+      &middot; 92,335 products</span>
+    </div>
     <div class="row g-4">
       <div class="col-12">
-        <div class="alert alert-info">
-          <i class="fas fa-info-circle"></i> <strong>Dataset Info:</strong>
-          Analyzing <strong>2.6M transactions</strong> across <strong>276,450 baskets</strong> with <strong>92,335 unique products</strong>.
-          <br>
-          <small>📊 Ultra-fine support control available - discover patterns appearing in as few as 2-25 transactions!</small>
-          <br>
-          <small>⚡ Performance: Higher support values (0.0005+) for fast results, lower values for rare pattern discovery.</small>
-        </div>
-      </div>
-      <div class="col-12">
-        <div class="card shadow-sm">
-          <div class="card-header" style="background:var(--gradient-primary); color:#fff; font-weight:700;">
-            <i class="fas fa-sliders-h"></i> Algorithm Configuration
+        <div class="rev-card">
+          <div class="rev-step">
+            <span class="rev-step-num">1</span>
+            <div>
+              <h6 class="rev-step-title">Choose the settings</h6>
+              <p class="rev-step-hint">How much history to read, and how strong a pattern has to be
+              before it is reported.</p>
+            </div>
           </div>
-          <div class="card-body">
+          <div>
             <form method="post" id="associationRulesForm">
               {% csrf_token %}
 
@@ -83,8 +144,8 @@
               <!-- Third row: Submit button -->
               <div class="row">
                 <div class="col-12">
-                  <button type="submit" class="btn btn-primary btn-lg" id="generateBtn">
-                    <i class="fas fa-gears"></i> Generate Association Rules
+                  <button type="submit" class="btn rev-btn-primary" id="generateBtn">
+                    <i class="fas fa-play"></i> Run Apriori algorithm
                   </button>
                 </div>
               </div>
@@ -93,8 +154,8 @@
         </div>
       </div>
       <div class="col-12">
-        <div class="card shadow-sm">
-          <div class="card-header bg-transparent d-flex justify-content-between align-items-center" style="font-weight:700;">
+        <div class="rev-card">
+          <div class="rev-head-sm">
             <div>
               <i class="fas fa-table"></i> Results (sorted by Lift)
             </div>
@@ -166,8 +227,8 @@
                     </div>
                     <!-- Antecedent Product -->
                     <div class="d-flex align-items-center mb-2">
-                      <span class="department-badge" style="background: {% if rule.antecedent_details.0.department == 'GROCERY' %}linear-gradient(135deg, #2E86C1, #3498DB){% elif rule.antecedent_details.0.department == 'DRUG GM' %}linear-gradient(135deg, #A569BD, #BB8FCE){% elif rule.antecedent_details.0.department == 'PRODUCE' %}linear-gradient(135deg, #27AE60, #2ECC71){% elif rule.antecedent_details.0.department == 'DAIRY' %}linear-gradient(135deg, #F39C12, #F8C471){% elif rule.antecedent_details.0.department == 'MEAT-PCKGD' %}linear-gradient(135deg, #E74C3C, #EC7063){% elif rule.antecedent_details.0.department == 'FROZEN GROCERY' %}linear-gradient(135deg, #85C1E9, #AED6F1){% elif rule.antecedent_details.0.department == 'BAKERY' %}linear-gradient(135deg, #D4AC0D, #F1C40F){% elif rule.antecedent_details.0.department == 'BEVERAGE' %}linear-gradient(135deg, #17A2B8, #20C997){% else %}linear-gradient(135deg, #6C757D, #ADB5BD){% endif %}; color: white; padding: 4px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;">
-                        {% if rule.antecedent_details.0.department == 'GROCERY' %}🛒{% elif rule.antecedent_details.0.department == 'DRUG GM' %}🩹{% elif rule.antecedent_details.0.department == 'PRODUCE' %}🥬{% elif rule.antecedent_details.0.department == 'DAIRY' %}🥛{% elif rule.antecedent_details.0.department == 'MEAT-PCKGD' %}🥩{% elif rule.antecedent_details.0.department == 'FROZEN GROCERY' %}❄️{% elif rule.antecedent_details.0.department == 'BAKERY' %}🍞{% elif rule.antecedent_details.0.department == 'BEVERAGE' %}🥤{% else %}📦{% endif %} {{ rule.antecedent_details.0.department }}
+                      <span class="department-badge" style="background: {{ rule.antecedent_details.0.department|dept_gradient }};">
+                        {{ rule.antecedent_details.0.department|dept_icon }} {{ rule.antecedent_details.0.department }}
                       </span>
                     </div>
                     <h6 class="card-title text-truncate mb-1" title="{{ rule.antecedent_details.0.commodity }}">
@@ -182,8 +243,8 @@
 
                     <!-- Consequent Product -->
                     <div class="mb-2">
-                      <span class="department-badge" style="background: {% if rule.consequent_details.0.department == 'GROCERY' %}linear-gradient(135deg, #2E86C1, #3498DB){% elif rule.consequent_details.0.department == 'DRUG GM' %}linear-gradient(135deg, #A569BD, #BB8FCE){% elif rule.consequent_details.0.department == 'PRODUCE' %}linear-gradient(135deg, #27AE60, #2ECC71){% elif rule.consequent_details.0.department == 'DAIRY' %}linear-gradient(135deg, #F39C12, #F8C471){% elif rule.consequent_details.0.department == 'MEAT-PCKGD' %}linear-gradient(135deg, #E74C3C, #EC7063){% elif rule.consequent_details.0.department == 'FROZEN GROCERY' %}linear-gradient(135deg, #85C1E9, #AED6F1){% elif rule.consequent_details.0.department == 'BAKERY' %}linear-gradient(135deg, #D4AC0D, #F1C40F){% elif rule.consequent_details.0.department == 'BEVERAGE' %}linear-gradient(135deg, #17A2B8, #20C997){% else %}linear-gradient(135deg, #6C757D, #ADB5BD){% endif %}; color: white; padding: 4px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;">
-                        {% if rule.consequent_details.0.department == 'GROCERY' %}🛒{% elif rule.consequent_details.0.department == 'DRUG GM' %}🩹{% elif rule.consequent_details.0.department == 'PRODUCE' %}🥬{% elif rule.consequent_details.0.department == 'DAIRY' %}🥛{% elif rule.consequent_details.0.department == 'MEAT-PCKGD' %}🥩{% elif rule.consequent_details.0.department == 'FROZEN GROCERY' %}❄️{% elif rule.consequent_details.0.department == 'BAKERY' %}🍞{% elif rule.consequent_details.0.department == 'BEVERAGE' %}🥤{% else %}📦{% endif %} {{ rule.consequent_details.0.department }}
+                      <span class="department-badge" style="background: {{ rule.consequent_details.0.department|dept_gradient }};">
+                        {{ rule.consequent_details.0.department|dept_icon }} {{ rule.consequent_details.0.department }}
                       </span>
                     </div>
                     <h6 class="card-title text-truncate mb-1" title="{{ rule.consequent_details.0.commodity }}">
