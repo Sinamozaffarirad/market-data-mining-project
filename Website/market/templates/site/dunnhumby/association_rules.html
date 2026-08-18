@@ -73,6 +73,12 @@
   background:#ecfdf5; border:1px solid #a7f3d0; border-radius:999px; padding:.15rem .5rem;
 }
 .ar-page .ar-saved-date { font-weight:500; color:#0d9488; }
+.ar-page .ar-changed {
+  display:inline-flex; align-items:center; gap:.35rem; margin-bottom:.4rem;
+  font-size:.7rem; font-weight:600; color:#b45309;
+  background:#fff7ed; border:1px solid #fed7aa; border-radius:999px; padding:.15rem .5rem;
+}
+.ar-page .ar-changed .ar-saved-date { color:#c2761a; font-weight:500; }
 .ar-page .ar-thin {
   margin-top:.5rem; font-size:.72rem; font-weight:600; color:#b45309;
   background:#fff7ed; border:1px solid #fed7aa; border-radius:8px; padding:.3rem .5rem;
@@ -309,6 +315,16 @@
                         <div class="ar-saved" title="Read from the saved rules table, not from a run on this screen">
                           <i class="fas fa-database"></i> Saved
                           <span class="ar-saved-date">{{ rule.created_at|date:"j M Y, H:i" }}</span>
+                        </div>
+                      {% elif rule.saved_state == 'saved' %}
+                        <div class="ar-saved" title="Already in the table with these same numbers">
+                          <i class="fas fa-database"></i> Saved
+                          <span class="ar-saved-date">{{ rule.saved_at|date:"j M Y" }}</span>
+                        </div>
+                      {% elif rule.saved_state == 'changed' %}
+                        <div class="ar-changed" title="In the table already, but the saved copy reads support {{ rule.saved_support|floatformat:6 }}, confidence {{ rule.saved_confidence|floatformat:4 }}, lift {{ rule.saved_lift|floatformat:2 }}. Insert to bring it up to date.">
+                          <i class="fas fa-rotate"></i> Update available
+                          <span class="ar-saved-date">saved {{ rule.saved_at|date:"j M Y" }}</span>
                         </div>
                       {% endif %}
                       <div class="d-flex justify-content-between small">

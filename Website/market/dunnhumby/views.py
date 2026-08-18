@@ -1451,6 +1451,49 @@ def _describe_stored_rules(rules):
     return described
 
 
+def _mark_saved_state(rules):
+    """Say whether each generated rule is already in the table, and if it moved.
+
+    A run repeats work that may have been saved before. Without this the reader
+    cannot tell a new finding from one they already stored, nor notice that a
+    stored rule's numbers have shifted since -- which is the case worth acting
+    on, because the saved copy is now out of date.
+    """
+    rules = list(rules)
+    if not rules:
+        return rules
+
+    wanted = {r.get('rule_type', 'product') for r in rules}
+    stored = {}
+    for row in AssociationRule.objects.filter(rule_type__in=wanted):
+        def key_part(value):
+            if isinstance(value, (list, tuple)):
+                return tuple(str(v) for v in value)
+            return (str(value),)
+        stored[(key_part(row.antecedent), key_part(row.consequent), row.rule_type)] = row
+
+    for rule in rules:
+        antecedent = tuple(str(v) for v in rule.get('antecedent') or [])
+        consequent = tuple(str(v) for v in rule.get('consequent') or [])
+        match = stored.get((antecedent, consequent, rule.get('rule_type', 'product')))
+        if match is None:
+            rule['saved_state'] = 'new'
+            continue
+        # Compared at the precision the cards print, so a rule is not called
+        # changed over a difference nobody can see.
+        same = (
+            round(float(match.support or 0), 6) == round(float(rule['support']), 6)
+            and round(float(match.confidence or 0), 4) == round(float(rule['confidence']), 4)
+            and round(float(match.lift or 0), 2) == round(float(rule['lift']), 2)
+        )
+        rule['saved_state'] = 'saved' if same else 'changed'
+        rule['saved_at'] = match.created_at
+        rule['saved_support'] = match.support
+        rule['saved_confidence'] = match.confidence
+        rule['saved_lift'] = match.lift
+    return rules
+
+
 @admin_required
 def association_rules(request):
     if request.method == 'POST':
@@ -1481,7 +1524,8 @@ def association_rules(request):
             if max_results not in [50, 100, 200, 500, 1000, 2000, 3000, 5000]:
                 max_results = 100
 
-            rules = _generate_association_rules(min_support, min_confidence, transaction_period, max_results)
+            rules = _mark_saved_state(
+                _generate_association_rules(min_support, min_confidence, transaction_period, max_results))
 
             # Get period display name
             period_names = {
