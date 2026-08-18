@@ -99,6 +99,8 @@ one over several lines renders it onto the page as visible text.
 .bi-datatable table { width: 100%; font-size: .8rem; }
 .bi-datatable th, .bi-datatable td { padding: .3rem .5rem; border-bottom: 1px solid var(--bi-border, #eef0f7); }
 .bi-datatable th { position: sticky; top: 0; background: #fff; text-align: left; }
+.bi-datatable th.bi-sortable { cursor: pointer; user-select: none; }
+.bi-datatable th.bi-sortable:hover { color: var(--bi-1, #667eea); }
 .bi-datatable td.n, .bi-datatable th.n { text-align: right; font-variant-numeric: tabular-nums; }
 .bi-bookmarks { display: flex; flex-wrap: wrap; gap: .35rem; align-items: center; margin-top: .5rem; }
 .bi-bookmark { border: 1px solid var(--bi-border, #e4e7f2); background: #fff; border-radius: 999px;
@@ -1737,11 +1739,30 @@ function biRenderDataView(card) {
   card.querySelector('.bi-datatable')?.remove();
   const rows = biCardRows(card);
   if (!rows) return;
+  /* Sorting is applied to the table rather than to the chart axis: several
+     charts resolve a click to a filter by the mark's position, so reordering
+     the plotted data would send clicks to the wrong category. */
+  const sortColumn = card.dataset.biSortCol === undefined ? null : Number(card.dataset.biSortCol);
+  const descending = card.dataset.biSortDir !== 'asc';
+  if (sortColumn !== null) {
+    const numeric = v => (v !== '' && v !== null && !isNaN(Number(v)));
+    rows.body = rows.body.slice().sort((a, b) => {
+      const x = a[sortColumn], y = b[sortColumn];
+      const both = numeric(x) && numeric(y);
+      const order = both ? Number(x) - Number(y) : String(x).localeCompare(String(y));
+      return descending ? -order : order;
+    });
+  }
   const isNumber = v => v !== '' && v !== null && !isNaN(Number(v));
   const box = document.createElement('div');
   box.className = 'bi-datatable';
   box.innerHTML = `<table><thead><tr>${
-    rows.header.map((h, i) => `<th class="${i ? 'n' : ''}">${escapeHtml(h)}</th>`).join('')
+    rows.header.map((h, i) => {
+      const active = sortColumn === i;
+      const arrow = active ? (descending ? ' ▾' : ' ▴') : '';
+      return `<th class="${i ? 'n' : ''} bi-sortable" data-col="${i}"
+                title="Sort by this column">${escapeHtml(h)}${arrow}</th>`;
+    }).join('')
   }</tr></thead><tbody>${
     rows.body.map(row => `<tr>${row.map((cell, i) => {
       /* The first column is a category. Whole numbers there are identities --
@@ -1757,6 +1778,18 @@ function biRenderDataView(card) {
       return `<td class="${i ? 'n' : ''}">${escapeHtml(value)}</td>`;
     }).join('')}</tr>`).join('')
   }</tbody></table>`;
+  box.querySelectorAll('th.bi-sortable').forEach(th => {
+    th.addEventListener('click', () => {
+      const column = Number(th.dataset.col);
+      if (Number(card.dataset.biSortCol) === column) {
+        card.dataset.biSortDir = card.dataset.biSortDir === 'asc' ? 'desc' : 'asc';
+      } else {
+        card.dataset.biSortCol = String(column);
+        card.dataset.biSortDir = column ? 'desc' : 'asc';   // numbers high first, names A-Z
+      }
+      biRenderDataView(card);
+    });
+  });
   card.appendChild(box);
 }
 
