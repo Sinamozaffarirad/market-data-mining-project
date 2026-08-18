@@ -2076,10 +2076,14 @@ html, body {
         </div>
         <div class="forecast-pagination d-flex flex-wrap justify-content-between align-items-center gap-2 mt-2">
           <div id="forecastResultSummary" class="small text-muted"></div>
-          <div class="btn-group btn-group-sm" role="group" aria-label="Forecast result pages">
-            <button class="btn btn-outline-secondary" id="forecastPreviousPage" type="button" onclick="changeForecastPage(-1)"><i class="fas fa-chevron-left"></i> Previous</button>
-            <span class="btn btn-light disabled" id="forecastPageStatus">Page 1 of 1</span>
-            <button class="btn btn-outline-secondary" id="forecastNextPage" type="button" onclick="changeForecastPage(1)">Next <i class="fas fa-chevron-right"></i></button>
+          <!-- Not a btn-group: that joins its buttons edge to edge, which ran the
+               labels together as "FirstPrevious". -->
+          <div class="pager" style="margin:0" role="group" aria-label="Forecast result pages">
+            <button class="pager-btn" id="forecastFirstPage" type="button" onclick="goForecastPage(1)">&laquo;&laquo; First</button>
+            <button class="pager-btn" id="forecastPreviousPage" type="button" onclick="changeForecastPage(-1)">Previous</button>
+            <span class="pager-status" id="forecastPageStatus">Page 1 of 1</span>
+            <button class="pager-btn" id="forecastNextPage" type="button" onclick="changeForecastPage(1)">Next</button>
+            <button class="pager-btn" id="forecastLastPage" type="button" onclick="goForecastPage(0)">Last &raquo;&raquo;</button>
           </div>
         </div>
       </div>
@@ -6659,6 +6663,7 @@ let lastTimeSeriesReport = null;
 let forecastCurrentPage = 1;
 const FORECAST_PAGE_SIZE = 10;
 let forecastResultContext = '';
+let forecastResultDetail = '';
 
 async function timeSeriesRequest(url, data) {
   const response = await fetch(url, {
@@ -8533,7 +8538,11 @@ function renderProductForecastRows(predictions, response) {
   const inactiveProducts = Math.max(0, forecastPanelProducts - eligibleProducts);
   const outsideAlignedHistory = Math.max(0, sourceUniqueProducts - forecastPanelProducts);
   const lookbackPeriods = Number(response.window_size_months || 0);
-  forecastResultContext = `${Number(response.products_after_threshold || 0).toLocaleString()} eligible active products passed the threshold, ranked by ${forecastMethodLabel(response.forecast_method_applied)}. ${inactiveProducts.toLocaleString()} of ${forecastPanelProducts.toLocaleString()} products in the aligned history had no revenue in the latest ${lookbackPeriods}-period lookback; ${outsideAlignedHistory.toLocaleString()} additional Product IDs occur outside that aligned history. Model Benchmarks evaluated ${evaluatedProducts.toLocaleString()} products on an earlier historical holdout (active before or during that holdout), so it is a different population.`;
+  /* The three caveats behind these figures are worth keeping, but four lines of
+     them under every table is more than the reader asked for. The line states
+     what was ranked and how; the rest waits on the hover. */
+  forecastResultContext = `${Number(response.products_after_threshold || 0).toLocaleString()} products passed the threshold, ranked by ${forecastMethodLabel(response.forecast_method_applied)}.`;
+  forecastResultDetail = `${inactiveProducts.toLocaleString()} of ${forecastPanelProducts.toLocaleString()} products in the aligned history had no revenue in the latest ${lookbackPeriods}-period lookback. ${outsideAlignedHistory.toLocaleString()} more Product IDs fall outside that history. Model Benchmarks scored ${evaluatedProducts.toLocaleString()} products on an earlier holdout, so that is a different population.`;
   forecastRowData = predictions.map(product => ({
     product,
     rank: Number(product.forecast_rank),
@@ -8652,14 +8661,31 @@ function filterForecastRows() {
   const summary = document.getElementById('forecastResultSummary');
   const shownStart = matching.length ? start + 1 : 0;
   const shownEnd = Math.min(start + FORECAST_PAGE_SIZE, matching.length);
-  if (summary) summary.textContent = `Showing ${shownStart}-${shownEnd} of ${matching.length.toLocaleString()} product${matching.length === 1 ? '' : 's'}${query ? ' matching the search' : ''}. ${forecastResultContext}`;
+  if (summary) {
+    summary.textContent = `Showing ${shownStart}-${shownEnd} of ${matching.length.toLocaleString()} product${matching.length === 1 ? '' : 's'}${query ? ' matching the search' : ''}. ${forecastResultContext}`;
+    summary.title = forecastResultDetail;
+  }
   const pageStatus = document.getElementById('forecastPageStatus');
   const previous = document.getElementById('forecastPreviousPage');
   const next = document.getElementById('forecastNextPage');
   if (pageStatus) pageStatus.textContent = `Page ${forecastCurrentPage} of ${totalPages}`;
+  const first = document.getElementById('forecastFirstPage');
+  const last = document.getElementById('forecastLastPage');
   if (previous) previous.disabled = forecastCurrentPage <= 1;
+  if (first) first.disabled = forecastCurrentPage <= 1;
   if (next) next.disabled = forecastCurrentPage >= totalPages;
+  if (last) last.disabled = forecastCurrentPage >= totalPages;
   updateForecastSortHeaders();
+}
+
+/* 0 means the last page, whatever it turns out to be. */
+function goForecastPage(page) {
+  const query = (document.getElementById('forecastProductSearch')?.value || '').trim().toLowerCase();
+  const matching = query ? forecastRowData.filter(entry => entry.search.includes(query)) : forecastRowData;
+  const pages = Math.max(1, Math.ceil(matching.length / FORECAST_PAGE_SIZE));
+  forecastCurrentPage = page === 0 ? pages : page;
+  filterForecastRows();
+  document.getElementById('productRevenueForecastTable')?.scrollIntoView({behavior: 'smooth', block: 'start'});
 }
 
 function changeForecastPage(delta) {

@@ -63,3 +63,69 @@
     white-space: nowrap;
     font-weight: 600;
 }
+
+
+/* ---- pagination ---------------------------------------------------------
+ * Every list on the site had grown its own pager: some Previous/Next only,
+ * some with first and last as chevrons, one as bare links. They share this
+ * shape now, and all of them can reach both ends.
+ */
+.pager {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: .35rem;
+    margin: 1.25rem 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.pager .pager-btn,
+.pager .page-link {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    padding: .4rem .75rem;
+    font-size: .82rem;
+    font-weight: 600;
+    line-height: 1.2;
+    white-space: nowrap;
+    color: #4a5170;
+    background: #fff;
+    border: 1px solid #e6e8f2;
+    border-radius: 10px;
+    text-decoration: none;
+    transition: border-color .15s ease, color .15s ease, background .15s ease;
+}
+
+.pager .pager-btn:hover:not(:disabled):not(.disabled),
+.pager .page-link:hover:not(.disabled) {
+    border-color: #667eea;
+    color: #667eea;
+    background: #f5f6ff;
+}
+
+/* Kept in place rather than hidden when unavailable, so the row does not
+ * shift under the cursor as the ends are reached. */
+.pager .pager-btn:disabled,
+.pager .pager-btn.disabled,
+.pager .disabled > .page-link,
+.pager .page-link.disabled {
+    color: #b3b8ca;
+    background: #f8f9fc;
+    border-color: #eef0f7;
+    cursor: default;
+    pointer-events: none;
+}
+
+.pager .pager-status {
+    padding: .4rem .8rem;
+    font-size: .8rem;
+    font-weight: 600;
+    color: #4a5170;
+    background: linear-gradient(135deg, rgba(102, 126, 234, .1), rgba(118, 75, 162, .1));
+    border: 1px solid #e0e4f6;
+    border-radius: 10px;
+    white-space: nowrap;
+}

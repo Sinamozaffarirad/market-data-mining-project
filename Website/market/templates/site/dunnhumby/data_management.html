@@ -389,13 +389,11 @@
             <!-- Pagination -->
             <div class="pagination-controls d-flex justify-content-between align-items-center mt-3" id="paginationControls" style="display:none;">
                 <div class="pagination-info" id="paginationInfo"></div>
-                <div class="pagination-buttons btn-group">
-                    <button type="button" class="btn btn-outline-secondary" onclick="previousPage()" id="prevButton">
-                        <i class="fas fa-chevron-left"></i> Previous
-                    </button>
-                    <button type="button" class="btn btn-outline-secondary" onclick="nextPage()" id="nextButton">
-                        Next <i class="fas fa-chevron-right"></i>
-                    </button>
+                <div class="pager" style="margin:0">
+                    <button type="button" class="pager-btn" onclick="firstPage()" id="firstButton">&laquo;&laquo; First</button>
+                    <button type="button" class="pager-btn" onclick="previousPage()" id="prevButton">Previous</button>
+                    <button type="button" class="pager-btn" onclick="nextPage()" id="nextButton">Next</button>
+                    <button type="button" class="pager-btn" onclick="lastPage()" id="lastButton">Last &raquo;&raquo;</button>
                 </div>
             </div>
         </div>
@@ -822,6 +820,8 @@ function clearFilters() {
     applyFilters();
 }
 
+function firstPage() { if (currentPage !== 1) { currentPage = 1; loadTableData(); } }
+function lastPage() { if (currentPage !== totalPages) { currentPage = totalPages; loadTableData(); } }
 function previousPage() { if (currentPage > 1) { currentPage--; loadTableData(); } }
 function nextPage() { if (currentPage < totalPages) { currentPage++; loadTableData(); } }
 
@@ -834,6 +834,16 @@ function updatePaginationInfo(json) {
 
     document.getElementById('prevButton').disabled = !json.has_prev;
     document.getElementById('nextButton').disabled = !json.has_next;
+
+    // The ends disable with the neighbours rather than staying live at page one.
+    const firstBtn = document.getElementById('firstButton');
+    const lastBtn = document.getElementById('lastButton');
+    const prevBtn = document.getElementById('prevButton');
+    const nextBtn = document.getElementById('nextButton');
+    if (prevBtn) prevBtn.disabled = currentPage <= 1;
+    if (firstBtn) firstBtn.disabled = currentPage <= 1;
+    if (nextBtn) nextBtn.disabled = currentPage >= totalPages;
+    if (lastBtn) lastBtn.disabled = currentPage >= totalPages;
 }
 
 // --- CRUD Functions ---

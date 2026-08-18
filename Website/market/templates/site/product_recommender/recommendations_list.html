@@ -132,32 +132,16 @@
     </div>
 
     <nav aria-label="Page navigation" class="mt-4">
-        <ul class="pagination justify-content-center">
-            {% if customers_page.has_previous %}
-                <li class="page-item">
-                    <a class="page-link" href="?level={{ level }}&value={{ value|urlencode }}&page=1">&laquo;&laquo;</a>
-                </li>
-                <li class="page-item">
-                    <a class="page-link" href="?level={{ level }}&value={{ value|urlencode }}&page={{ customers_page.previous_page_number }}">&laquo;</a>
-                </li>
-            {% else %}
-                <li class="page-item disabled"><a class="page-link" href="#">&laquo;</a></li>
-            {% endif %}
-
-            <li class="page-item active" aria-current="page">
-                <a class="page-link" href="#">Page {{ customers_page.number }} of {{ customers_page.paginator.num_pages }}</a>
-            </li>
-
-            {% if customers_page.has_next %}
-                <li class="page-item">
-                    <a class="page-link" href="?level={{ level }}&value={{ value|urlencode }}&page={{ customers_page.next_page_number }}">&raquo;</a>
-                </li>
-                <li class="page-item">
-                    <a class="page-link" href="?level={{ level }}&value={{ value|urlencode }}&page={{ customers_page.paginator.num_pages }}">&raquo;&raquo;</a>
-                </li>
-            {% else %}
-                <li class="page-item disabled"><a class="page-link" href="#">&raquo;</a></li>
-            {% endif %}
+        <ul class="pager">
+            <li class="{% if not customers_page.has_previous %}disabled{% endif %}">
+                <a class="page-link" href="?level={{ level }}&value={{ value|urlencode }}&page=1">&laquo;&laquo; First</a></li>
+            <li class="{% if not customers_page.has_previous %}disabled{% endif %}">
+                <a class="page-link" href="?level={{ level }}&value={{ value|urlencode }}&page={% if customers_page.has_previous %}{{ customers_page.previous_page_number }}{% else %}1{% endif %}">Previous</a></li>
+            <li><span class="pager-status">Page {{ customers_page.number }} of {{ customers_page.paginator.num_pages }}</span></li>
+            <li class="{% if not customers_page.has_next %}disabled{% endif %}">
+                <a class="page-link" href="?level={{ level }}&value={{ value|urlencode }}&page={% if customers_page.has_next %}{{ customers_page.next_page_number }}{% else %}{{ customers_page.paginator.num_pages }}{% endif %}">Next</a></li>
+            <li class="{% if not customers_page.has_next %}disabled{% endif %}">
+                <a class="page-link" href="?level={{ level }}&value={{ value|urlencode }}&page={{ customers_page.paginator.num_pages }}">Last &raquo;&raquo;</a></li>
         </ul>
     </nav>
 

@@ -237,7 +237,7 @@
             <!-- Results Container -->
             <div id="resultsContainer">
             {% if rules %}
-            <div class="ar-pager" id="rulePagerTop"></div>
+            <div class="pager" id="rulePagerTop"></div>
             <div class="row g-3" id="ruleGrid">
               {% for rule in rules %}
               <div class="col-12 col-sm-6 col-md-4 col-lg-3">
@@ -341,7 +341,7 @@
               </div>
               {% endfor %}
             </div>
-            <div class="ar-pager" id="rulePagerBottom"></div>
+            <div class="pager" id="rulePagerBottom"></div>
             {% else %}
               <div class="info-box">No association rules found. Try generating new rules with different parameters.</div>
             {% endif %}
@@ -647,20 +647,28 @@ function renderRulePage() {
   });
   const shown = `${first + 1}-${Math.min(first + RULE_PAGE_SIZE, cells.length)}`;
   const controls = `
-    <button type="button" class="btn btn-sm btn-outline-secondary"
-            onclick="changeRulePage(-1)" ${rulePage <= 1 ? 'disabled' : ''}>
-      <i class="fas fa-chevron-left"></i> Previous
-    </button>
-    <span class="ar-pager-label">Showing <b>${shown}</b> of
+    <button type="button" class="pager-btn"
+            onclick="goRulePage(1)" ${rulePage <= 1 ? 'disabled' : ''}>&laquo;&laquo; First</button>
+    <button type="button" class="pager-btn"
+            onclick="changeRulePage(-1)" ${rulePage <= 1 ? 'disabled' : ''}>Previous</button>
+    <span class="pager-status">Showing <b>${shown}</b> of
       <b>${cells.length.toLocaleString()}</b> rules &middot; page ${rulePage} of ${pages}</span>
-    <button type="button" class="btn btn-sm btn-outline-secondary"
-            onclick="changeRulePage(1)" ${rulePage >= pages ? 'disabled' : ''}>
-      Next <i class="fas fa-chevron-right"></i>
-    </button>`;
+    <button type="button" class="pager-btn"
+            onclick="changeRulePage(1)" ${rulePage >= pages ? 'disabled' : ''}>Next</button>
+    <button type="button" class="pager-btn"
+            onclick="goRulePage(0)" ${rulePage >= pages ? 'disabled' : ''}>Last &raquo;&raquo;</button>`;
   ['rulePagerTop', 'rulePagerBottom'].forEach(id => {
     const box = document.getElementById(id);
     if (box) box.innerHTML = cells.length > RULE_PAGE_SIZE ? controls : '';
   });
+}
+
+/* 0 means the last page, whatever it turns out to be. */
+function goRulePage(page) {
+  const pages = Math.max(1, Math.ceil(ruleCells().length / RULE_PAGE_SIZE));
+  rulePage = page === 0 ? pages : page;
+  renderRulePage();
+  document.getElementById('rulePagerTop')?.scrollIntoView({behavior: 'smooth', block: 'start'});
 }
 
 function changeRulePage(step) {

@@ -686,9 +686,11 @@ document.addEventListener('DOMContentLoaded', function() {
         const endItem = Math.min(p.current_page * itemsPerPage, p.total_items);
         let footerHtml = `<div class="d-flex justify-content-between w-100 align-items-center">
             <span class="text-muted small">Showing ${startItem}-${endItem} of ${p.total_items} records</span>
-            <div>
-                <a href="#" class="text-decoration-none ${p.has_previous ? '' : 'text-muted disabled'}" data-page="${p.current_page - 1}" id="prev-page-btn">&lt; Previous</a>
-                <a href="#" class="text-decoration-none ms-3 ${p.has_next ? '' : 'text-muted disabled'}" data-page="${p.current_page + 1}" id="next-page-btn">Next &gt;</a>
+            <div class="pager" style="margin:0">
+                <a href="#" class="page-link ${p.has_previous ? '' : 'disabled'}" data-page="1" id="first-page-btn">&laquo;&laquo; First</a>
+                <a href="#" class="page-link ${p.has_previous ? '' : 'disabled'}" data-page="${p.current_page - 1}" id="prev-page-btn">Previous</a>
+                <a href="#" class="page-link ${p.has_next ? '' : 'disabled'}" data-page="${p.current_page + 1}" id="next-page-btn">Next</a>
+                <a href="#" class="page-link ${p.has_next ? '' : 'disabled'}" data-page="${p.total_pages}" id="last-page-btn">Last &raquo;&raquo;</a>
             </div>
         </div>`;
 
@@ -709,7 +711,9 @@ document.addEventListener('DOMContentLoaded', function() {
         const type = detailModalEl.dataset.type;
         const identifier = detailModalEl.dataset.identifier;
 
-        if (target.id === 'next-page-btn' || target.id === 'prev-page-btn') {
+        // Any pager link carrying a page number, so First and Last work like the
+        // two that were here before rather than needing their ids listed.
+        if (target.dataset.page !== undefined) {
             event.preventDefault();
             if (!target.classList.contains('disabled')) {
                 const page = target.dataset.page;
