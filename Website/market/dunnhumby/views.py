@@ -1118,11 +1118,27 @@ def api_regenerate_segments(request):
             'error': f'{str(e)} - Check server logs for details'
         }, status=500)
 
+# The lists on the descriptive tab ship 25 rows. A reader who wants more picks
+# from this set rather than typing a number into the URL: the value goes into a
+# TOP clause, so it is chosen from a list and never taken from the request.
+TOP_LIST_SIZES = (25, 50, 100, 200)
+
+
+def _top_list_size(request, name, default=25):
+    try:
+        value = int(request.GET.get(name, default))
+    except (TypeError, ValueError):
+        return default
+    return value if value in TOP_LIST_SIZES else default
+
+
 @admin_required
 def basket_analysis(request):
     """
     Optimized Market Basket Analysis for 2.6M+ transactions
     """
+    top_baskets_size = _top_list_size(request, "top_baskets")
+    top_products_size = _top_list_size(request, "top_products")
     logger.info("Starting basket analysis for 2.6M+ transactions")
 
     try:
@@ -1142,8 +1158,8 @@ def basket_analysis(request):
             overall_stats = cursor.fetchone()
 
             # Top baskets by value (optimized for large dataset)
-            cursor.execute("""
-                SELECT TOP 25
+            cursor.execute(f"""
+                SELECT TOP {top_baskets_size}
                     basket_id,
                     household_key,
                     SUM(quantity) as total_items,
@@ -1180,8 +1196,8 @@ def basket_analysis(request):
             total_quantity=Sum('quantity')
         ).filter(product_id__isnull=False)
 
-        top_products_frequency_raw = list(product_stats.order_by('-frequency')[:25])
-        top_products_sales_raw = list(product_stats.order_by('-total_sales')[:25])
+        top_products_frequency_raw = list(product_stats.order_by('-frequency')[:top_products_size])
+        top_products_sales_raw = list(product_stats.order_by('-total_sales')[:top_products_size])
 
         # Get product details in one efficient query
         all_product_ids = {item['product_id'] for item in top_products_frequency_raw + top_products_sales_raw}
@@ -1249,6 +1265,9 @@ def basket_analysis(request):
                 'avg_basket_size': avg_basket_size
             },
             'basket_stats': formatted_basket_stats,
+            'top_baskets_size': top_baskets_size,
+            'top_products_size': top_products_size,
+            'top_list_sizes': TOP_LIST_SIZES,
             'dept_analysis': formatted_dept_analysis,
             'top_products_frequency': top_products_frequency,
             'top_products_sales': top_products_sales,
@@ -1269,6 +1288,9 @@ def basket_analysis(request):
             'error_message': f'Error loading basket analysis: {str(e)}. Please try again.',
             'overall_stats': None,
             'basket_stats': [],
+            'top_baskets_size': top_baskets_size,
+            'top_products_size': top_products_size,
+            'top_list_sizes': TOP_LIST_SIZES,
             'dept_analysis': [],
             'top_products_frequency': [],
             'top_products_sales': [],

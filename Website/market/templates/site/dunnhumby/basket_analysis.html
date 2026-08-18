@@ -1015,6 +1015,21 @@ html, body {
 .pred-panel .rev-kpi-text { font-size: 1.05rem; line-height: 1.25; color: var(--rev-1); }
 .pred-panel .rev-kpi-hint { font-size: .68rem; color: #9aa1bd; margin-top: .2rem; position: relative; }
 
+
+.pred-panel .head-actions { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
+.pred-panel .top-size {
+  display: inline-flex; align-items: center; gap: .4rem;
+  font-size: .74rem; font-weight: 700; letter-spacing: .03em;
+  text-transform: uppercase; color: var(--rev-muted);
+}
+.pred-panel .top-size select {
+  border: 1px solid var(--rev-line); border-radius: 8px;
+  padding: .2rem 1.4rem .2rem .5rem; font-size: .78rem; font-weight: 600;
+  color: var(--rev-ink); background-color: #fff; text-transform: none; letter-spacing: 0;
+}
+.pred-panel .top-size select:focus {
+  outline: none; border-color: var(--rev-1); box-shadow: 0 0 0 .18rem rgba(102,126,234,.15);
+}
 .pred-panel .rev-context { font-size: .78rem; color: var(--rev-muted); margin: 0 0 .8rem; }
 /* Empty state for a chart that has nothing to draw yet. Sits over the canvas so
    the card keeps its height and the layout does not jump when results land. */
@@ -1276,7 +1291,15 @@ html, body {
       <div class="chart-container rev-card high-value-panel">
         <div class="rev-head-sm">
           <h5 class="rev-card-title"><i class="fas fa-shopping-basket"></i> High-Value Baskets Analysis</h5>
-          <div>
+
+          <div class="head-actions">
+            <label class="top-size">Show top
+              <select onchange="setTopListSize('top_baskets', this.value)">
+                {% for size in top_list_sizes %}
+                  <option value="{{ size }}" {% if size == top_baskets_size %}selected{% endif %}>{{ size }}</option>
+                {% endfor %}
+              </select>
+            </label>
             <button class="btn btn-outline-primary btn-sm" onclick="expandSection('baskets')" title="View All in Popup">
               <i class="fas fa-expand-arrows-alt"></i> Expand
             </button>
@@ -1315,7 +1338,15 @@ html, body {
       <div class="chart-container rev-card high-value-panel">
         <div class="rev-head-sm">
           <h5 class="rev-card-title"><i class="fas fa-star"></i> High-Value Products Analysis</h5>
-          <div class="d-flex align-items-center gap-2">
+
+          <div class="head-actions">
+            <label class="top-size">Show top
+              <select onchange="setTopListSize('top_products', this.value)">
+                {% for size in top_list_sizes %}
+                  <option value="{{ size }}" {% if size == top_products_size %}selected{% endif %}>{{ size }}</option>
+                {% endfor %}
+              </select>
+            </label>
             <div class="btn-group btn-group-sm" role="group" aria-label="Product ranking toggle">
               <button type="button" class="btn btn-outline-primary active" data-product-filter="frequency" onclick="switchTopProductsView('frequency')">
                 <i class="fas fa-sync-alt"></i> By Transactions
@@ -2192,6 +2223,25 @@ let lastTimeSeriesDepartmentRows = [];
 let lastLegacyProbabilityPredictions = [];
 
 // Tab switching functionality
+
+/* Both lists are cut server-side, so a larger one means asking the server again.
+   The other list's size is carried along so changing one does not reset it, and
+   the descriptive tab is restored on arrival. */
+function setTopListSize(name, value) {
+  const params = new URLSearchParams(window.location.search);
+  params.set(name, value);
+  params.set('tab', 'descriptive');
+  window.location.search = params.toString();
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  if (new URLSearchParams(window.location.search).get('tab') === 'descriptive') {
+    const button = document.querySelector('.tab-btn');
+    if (button) switchTab('descriptive', button);
+    document.querySelector('.high-value-panel')?.scrollIntoView({behavior: 'instant', block: 'start'});
+  }
+});
+
 function switchTab(tabName) {
   // Hide all tab contents
   document.querySelectorAll('.tab-content').forEach(content => {
@@ -4278,18 +4328,19 @@ function renderHighValuePage(section, requestedPage = highValuePageState[section
   }
 
   controls.classList.remove('d-none');
+  // The same four controls the rest of the site uses, so these lists page the
+  // way every other list does.
+  controls.classList.add('pager');
   controls.innerHTML = `
-    <button type="button" class="btn btn-outline-primary btn-sm" ${page === 1 ? 'disabled' : ''}>
-      <i class="fas fa-chevron-left"></i> Previous
-    </button>
-    <span class="page-summary">${start + 1}-${end} of ${cards.length}</span>
-    <button type="button" class="btn btn-outline-primary btn-sm" ${page === totalPages ? 'disabled' : ''}>
-      Next <i class="fas fa-chevron-right"></i>
-    </button>`;
+    <button type="button" class="pager-btn" data-go="1" ${page === 1 ? 'disabled' : ''}>&laquo;&laquo; First</button>
+    <button type="button" class="pager-btn" data-go="${page - 1}" ${page === 1 ? 'disabled' : ''}>Previous</button>
+    <span class="pager-status">${start + 1}-${end} of ${cards.length}</span>
+    <button type="button" class="pager-btn" data-go="${page + 1}" ${page === totalPages ? 'disabled' : ''}>Next</button>
+    <button type="button" class="pager-btn" data-go="${totalPages}" ${page === totalPages ? 'disabled' : ''}>Last &raquo;&raquo;</button>`;
 
-  const [previousButton, nextButton] = controls.querySelectorAll('button');
-  previousButton?.addEventListener('click', () => renderHighValuePage(section, page - 1));
-  nextButton?.addEventListener('click', () => renderHighValuePage(section, page + 1));
+  controls.querySelectorAll('button[data-go]').forEach(button => {
+    button.addEventListener('click', () => renderHighValuePage(section, Number(button.dataset.go)));
+  });
 }
 
 function initializeHighValuePagination() {
