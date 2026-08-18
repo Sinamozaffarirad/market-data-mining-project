@@ -33,8 +33,19 @@
   <script src="{% static 'js/chart_quality.js' %}"></script>
   <link rel="stylesheet" href="{% static 'css/market_theme.css' %}" />
   <link rel="stylesheet" href="{% static 'css/market_analysis_v2.css' %}" />
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+  <!-- Bootstrap Icons is not loaded. Its stylesheet styles every class beginning
+       "bi-", and the BI dashboard's layout classes use that prefix, so bi-table and
+       bi-bookmark were being given icon glyphs. The one icon the site took from it
+       is drawn with Font Awesome, which everything else already uses. -->
   <style>
+    /* market_analysis_v2.css forces `.admin .table th { text-align: left !important }`,
+       which outranks Bootstrap's alignment utilities. Every right-aligned number
+       column therefore sat under a left-aligned heading. Restated here, after that
+       file and specific enough to win, so a heading sits over its own column. */
+    .admin .table th.text-end,    .table th.text-end,    th.text-end    { text-align: right !important; }
+    .admin .table th.text-center, .table th.text-center, th.text-center { text-align: center !important; }
+    .admin .table th.text-start,  .table th.text-start,  th.text-start  { text-align: left !important; }
+
     :root {
       --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       --gradient-nav: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
