@@ -1382,6 +1382,10 @@ def _describe_stored_rules(rules):
     if not rules:
         return []
 
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT COUNT(DISTINCT basket_id) FROM transactions")
+        total_baskets = cursor.fetchone()[0] or 0
+
     product_ids, commodities = set(), set()
     for rule in rules:
         both = list(rule.antecedent or []) + list(rule.consequent or [])
@@ -1431,6 +1435,9 @@ def _describe_stored_rules(rules):
             'consequent': [str(v) for v in (rule.consequent or [])],
             'antecedent_details': [describe(v, rule.rule_type) for v in (rule.antecedent or [])],
             'consequent_details': [describe(v, rule.rule_type) for v in (rule.consequent or [])],
+            # Saved rules keep only the rate, so the basket count behind it is
+            # recovered from the support it was stored with.
+            'baskets_together': round((rule.support or 0) * total_baskets),
             'support': rule.support,
             'confidence': rule.confidence,
             'lift': rule.lift,
