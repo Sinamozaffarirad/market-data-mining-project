@@ -100,11 +100,15 @@
     <!-- Pagination Controls -->
     <nav class="mt-4">
       <ul class="pagination justify-content-center">
-        {% if page_obj.has_previous %}
-          <li class="page-item">
-            <a class="page-link" href="?period={{ selected_period }}&page={{ page_obj.previous_page_number }}">Previous</a>
-          </li>
-        {% endif %}
+        {# Thirty-nine pages is a long way to walk one at a time, so the ends are
+           reachable directly. The controls stay in place when unavailable rather
+           than disappearing and shifting the row. #}
+        <li class="page-item {% if not page_obj.has_previous %}disabled{% endif %}">
+          <a class="page-link" href="?period={{ selected_period }}&page=1" title="First page">&laquo;&laquo; First</a>
+        </li>
+        <li class="page-item {% if not page_obj.has_previous %}disabled{% endif %}">
+          <a class="page-link" href="?period={{ selected_period }}&page={% if page_obj.has_previous %}{{ page_obj.previous_page_number }}{% else %}1{% endif %}">Previous</a>
+        </li>
 
         <li class="page-item disabled">
           <span class="page-link">
@@ -112,11 +116,12 @@
           </span>
         </li>
 
-        {% if page_obj.has_next %}
-          <li class="page-item">
-            <a class="page-link" href="?period={{ selected_period }}&page={{ page_obj.next_page_number }}">Next</a>
-          </li>
-        {% endif %}
+        <li class="page-item {% if not page_obj.has_next %}disabled{% endif %}">
+          <a class="page-link" href="?period={{ selected_period }}&page={% if page_obj.has_next %}{{ page_obj.next_page_number }}{% else %}{{ page_obj.paginator.num_pages }}{% endif %}">Next</a>
+        </li>
+        <li class="page-item {% if not page_obj.has_next %}disabled{% endif %}">
+          <a class="page-link" href="?period={{ selected_period }}&page={{ page_obj.paginator.num_pages }}" title="Last page">Last &raquo;&raquo;</a>
+        </li>
       </ul>
     </nav>
   {% else %}
