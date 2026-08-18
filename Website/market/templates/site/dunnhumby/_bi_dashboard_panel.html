@@ -109,6 +109,22 @@ one over several lines renders it onto the page as visible text.
 .bi-bookmark b { font-weight: 600; }
 .bi-bookmark span.x { color: #9aa1b4; }
 .bi-stamp { font-size: .74rem; color: var(--bi-muted, #6b7280); }
+.sig-scan { width: 100%; font-size: .82rem; border-collapse: collapse; }
+.sig-scan th { text-align: left; font-size: .68rem; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--bi-muted, #6b7280); padding: .35rem .5rem; border-bottom: 1px solid var(--bi-line); }
+.sig-scan td { padding: .45rem .5rem; border-bottom: 1px solid #f1f2f8; vertical-align: middle; }
+.sig-scan tbody tr { cursor: pointer; }
+.sig-scan tbody tr:hover { background: #f4f5fd; }
+.sig-scan .gap { display: flex; align-items: center; gap: .5rem; }
+.sig-bar { flex: 0 0 92px; height: 7px; border-radius: 99px; background: #eef0f7; overflow: hidden; }
+.sig-bar i { display: block; height: 100%; border-radius: 99px; background: var(--bi-1); }
+.sig-tag { font-size: .68rem; font-weight: 700; padding: .1rem .45rem; border-radius: 99px;
+  text-transform: uppercase; letter-spacing: .04em; }
+.sig-tag.large { background: #fee2e2; color: #b91c1c; }
+.sig-tag.medium { background: #ffedd5; color: #b45309; }
+.sig-tag.small { background: #e0f2fe; color: #0369a1; }
+.sig-tag.negligible { background: #f1f5f9; color: #64748b; }
+.sig-scan tr.is-quiet td { opacity: .62; }
 .bi-note-inline { font-size: .78rem; color: var(--bi-muted, #6b7280); text-align: right; max-width: 320px; }
 .bi-foot { font-size: .78rem; color: var(--bi-muted, #6b7280); margin: .75rem 0 0; }
 .bi-heatmap { overflow-x: auto; padding-top: .25rem; }
@@ -662,6 +678,24 @@ one over several lines renders it onto the page as visible text.
 
   <!-- Significance tests -->
   <div class="bi-page" id="biPage-tests">
+    <div class="bi-card" style="--panel-accent:var(--bi-emerald)">
+      <div class="bi-head">
+        <div>
+          <h5><i class="fas fa-magnifying-glass-chart"></i> Biggest differences, found for you</h5>
+          <p class="sub">Every pair of groups compared on basket value, ordered by how far apart they sit</p>
+        </div>
+        <button class="btn btn-sm btn-primary" type="button" id="sigScanBtn" onclick="loadSignificanceScan()">
+          <i class="fas fa-radar"></i> Run the scan
+        </button>
+      </div>
+      <div id="sigScanSummary" class="bi-note-inline mb-2" style="text-align:left;max-width:none"></div>
+      <div id="sigScanResults">
+        <div class="bi-loading">
+          Runs a few seconds. Compares the largest groups of every dimension against each other
+          and ranks what it finds, so a useful comparison does not have to be guessed at first.
+        </div>
+      </div>
+    </div>
     <div class="bi-card" style="--panel-accent:var(--bi-cyan)">
       <div class="bi-head">
         <div>
@@ -1234,6 +1268,86 @@ async function loadInsights() {
 /* Significance tests. `reset` clears the chosen groups so switching dimension
    picks that dimension's own two largest groups rather than carrying stale
    names across. */
+/* Searches the comparisons rather than waiting to be pointed at one. Ordered
+   by effect size: at this many baskets a p-value is significant almost
+   everywhere, so sorting by it would rank noise alongside the real gaps. */
+async function loadSignificanceScan() {
+  const box = document.getElementById('sigScanResults');
+  const summary = document.getElementById('sigScanSummary');
+  const button = document.getElementById('sigScanBtn');
+  if (!box) return;
+  box.innerHTML = '<div class="bi-loading"><div class="spinner-border spinner-border-sm text-primary" role="status"></div> Comparing every pair of groups&hellip;</div>';
+  if (button) { button.disabled = true; }
+  try {
+    const data = await biGet('/analysis/api/bi/significance-scan/');
+    const rows = data.rows || [];
+    if (summary) {
+      summary.innerHTML = `<strong>${escapeHtml(data.headline)}</strong>
+        <span class="d-block mt-1">${escapeHtml(data.method)}</span>`;
+    }
+    if (!rows.length) {
+      box.innerHTML = '<div class="bi-loading">No pair of groups has enough baskets in this selection to compare.</div>';
+      return;
+    }
+    const top = Math.max(...rows.map(r => Math.abs(Number(r.delta)))) || 1;
+    box.innerHTML = `<div class="table-responsive"><table class="sig-scan">
+      <thead><tr>
+        <th>#</th><th>Comparison</th><th>Which is bigger</th>
+        <th>Difference in basket value</th><th>Typical baskets</th><th>Chance of a fluke</th>
+      </tr></thead><tbody>${rows.map((row, index) => {
+        const delta = Math.abs(Number(row.delta));
+        const leaderMedian = row.leader === row.group_a ? row.median_a : row.median_b;
+        const trailerMedian = row.leader === row.group_a ? row.median_b : row.median_a;
+        return `<tr class="${row.actionable ? '' : 'is-quiet'}"
+                 onclick="biOpenComparison('${escapeHtml(row.dimension)}','${escapeHtml(row.group_a).replace(/'/g, "\\'")}','${escapeHtml(row.group_b).replace(/'/g, "\\'")}')"
+                 title="Open this comparison in the test below">
+          <td>${index + 1}</td>
+          <td><strong>${escapeHtml(row.dimension_label)}</strong>
+              <small class="d-block text-muted">${escapeHtml(row.group_a)} vs ${escapeHtml(row.group_b)}</small></td>
+          <td><strong>${escapeHtml(row.leader)}</strong>
+              <small class="d-block text-muted">over ${escapeHtml(row.trailer)}</small></td>
+          <td><div class="gap"><span class="sig-bar"><i style="width:${(delta / top * 100).toFixed(1)}%"></i></span>
+              <span class="sig-tag ${row.effect}">${row.effect}</span></div></td>
+          <td>${money2(leaderMedian)} <span class="text-muted">vs</span> ${money2(trailerMedian)}</td>
+          <td>${row.actionable ? '' : '<span class="text-muted">'}${biFormatQ(row.q_value)}${row.actionable ? '' : '</span>'}</td>
+        </tr>`;
+      }).join('')}</tbody></table></div>
+      <p class="bi-foot">Rows are ordered by how far apart the two groups sit, not by the p-value.
+      Faded rows are real but too small to be worth acting on. Click any row to run the full set of
+      tests on that pair below.</p>`;
+  } catch (error) {
+    box.innerHTML = `<div class="alert alert-danger py-2 px-3 small mb-0">Scan failed: ${escapeHtml(error.message)}</div>`;
+  } finally {
+    if (button) { button.disabled = false; }
+  }
+}
+
+/* A number nobody reads as 4.2e-136. What matters is whether it is a fluke. */
+function biFormatQ(value) {
+  const q = Number(value);
+  if (!isFinite(q)) return '--';
+  if (q < 0.0001) return 'under 1 in 10,000';
+  if (q < 0.01) return 'under 1 in 100';
+  if (q < 0.05) return `about ${(q * 100).toFixed(1)}%`;
+  return `${(q * 100).toFixed(0)}% -- could be chance`;
+}
+
+/* Hands a scanned pair to the manual panel, so the scan is a starting point
+   rather than a separate answer. */
+function biOpenComparison(dimension, groupA, groupB) {
+  const dim = document.getElementById('sigDim');
+  if (dim) dim.value = dimension;
+  loadSignificance(true).then(() => {
+    const a = document.getElementById('sigA');
+    const b = document.getElementById('sigB');
+    if (a && [...a.options].some(o => o.value === groupA)) a.value = groupA;
+    if (b && [...b.options].some(o => o.value === groupB)) b.value = groupB;
+    return loadSignificance();
+  }).then(() => {
+    document.getElementById('sigResults')?.scrollIntoView({behavior: 'smooth', block: 'center'});
+  });
+}
+
 async function loadSignificance(reset) {
   const dimension = document.getElementById('sigDim')?.value || 'segment';
   const extra = [['dimension', dimension]];

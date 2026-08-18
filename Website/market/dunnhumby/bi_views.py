@@ -1316,3 +1316,144 @@ def api_bi_brand_mix(request):
         row["national_share"] = float(row["national_revenue"] or 0) / total * 100 if total else 0
     rows.sort(key=lambda r: r["private_share"], reverse=True)
     return JsonResponse({"success": True, "rows": rows})
+
+
+# Groups smaller than this are not worth comparing: the estimate moves too much
+# on a handful of baskets.
+SCAN_MIN_BASKETS = 300
+# Per-group sample. The comparison is rank-based, so a few thousand baskets
+# place the groups against each other about as well as the full set would.
+SCAN_SAMPLE = 2000
+# Comparing every group in a dimension against every other grows quadratically;
+# the largest few carry almost all the trade.
+SCAN_MAX_GROUPS = 6
+
+
+def _benjamini_hochberg(p_values):
+    """Expected share of false findings among those called significant.
+
+    A scan of a hundred comparisons at p < 0.05 would turn up several by chance
+    alone, so the raw p-value stops meaning what it does for a single planned
+    test. This rescales them for the number of comparisons actually made.
+    """
+    indexed = sorted(enumerate(p_values), key=lambda pair: pair[1])
+    total = len(p_values)
+    adjusted = [1.0] * total
+    running = 1.0
+    for rank, (position, value) in reversed(list(enumerate(indexed, start=1))):
+        running = min(running, value * total / rank)
+        adjusted[position] = running
+    return adjusted
+
+
+@admin_required
+def api_bi_significance_scan(request):
+    """Rank every pair of groups by how far apart their basket values sit.
+
+    The panel below tests one pair a reader has already picked, which only helps
+    if they guessed a useful pair. This searches the pairs for them and orders
+    the results by effect size, not by p-value: at this many baskets almost
+    everything reaches significance, so a p-value sorts nothing. Cliff's delta
+    asks how often a basket drawn from one group beats one drawn from the other,
+    which is the question a manager is actually asking.
+    """
+    from scipy.stats import mannwhitneyu
+
+    import numpy as np
+
+    scanned, skipped = [], []
+    for key, (column, alias, label) in COMPARISON_DIMENSIONS.items():
+        where, params, needs = _filters(request, [alias])
+        clause = _clause(where + [column + " IS NOT NULL", column + " <> ''"])
+        rows = _query(f"""
+            ;WITH baskets AS (
+                SELECT {column} AS grp, f.basket_id, SUM(f.sales_value) AS basket_value
+                {_from(needs)}{clause}
+                GROUP BY {column}, f.basket_id
+            ), ranked AS (
+                SELECT grp, basket_value,
+                       ROW_NUMBER() OVER (PARTITION BY grp ORDER BY ABS(CHECKSUM(basket_id))) AS rn,
+                       COUNT(*)     OVER (PARTITION BY grp) AS baskets
+                FROM baskets
+            )
+            SELECT grp, basket_value, baskets FROM ranked WHERE rn <= %s
+        """, params + [SCAN_SAMPLE])
+
+        groups = {}
+        for row in rows:
+            name = (row["grp"] or "").strip()
+            if not name:
+                continue
+            entry = groups.setdefault(name, {"values": [], "baskets": int(row["baskets"] or 0)})
+            entry["values"].append(float(row["basket_value"] or 0))
+
+        usable = {n: g for n, g in groups.items() if g["baskets"] >= SCAN_MIN_BASKETS}
+        if len(usable) < 2:
+            skipped.append(label)
+            continue
+        largest = sorted(usable.items(), key=lambda kv: kv[1]["baskets"], reverse=True)[:SCAN_MAX_GROUPS]
+
+        for i in range(len(largest)):
+            for j in range(i + 1, len(largest)):
+                name_a, a = largest[i]
+                name_b, b = largest[j]
+                values_a = np.asarray(a["values"], dtype=float)
+                values_b = np.asarray(b["values"], dtype=float)
+                if len(values_a) < 20 or len(values_b) < 20:
+                    continue
+                statistic, p_value = mannwhitneyu(
+                    values_a, values_b, alternative="two-sided", method="asymptotic")
+                # Cliff's delta follows directly from the same U statistic, so
+                # the effect size costs nothing beyond the test itself.
+                delta = float(2 * statistic / (len(values_a) * len(values_b)) - 1)
+                median_a = float(np.median(values_a))
+                median_b = float(np.median(values_b))
+                leader, trailer = ((name_a, name_b) if delta >= 0 else (name_b, name_a))
+                scanned.append({
+                    "dimension": key,
+                    "dimension_label": label,
+                    "group_a": name_a,
+                    "group_b": name_b,
+                    "leader": leader,
+                    "trailer": trailer,
+                    "delta": delta,
+                    "abs_delta": abs(delta),
+                    "effect": _delta_label(delta),
+                    "p_value": float(p_value),
+                    "median_a": median_a,
+                    "median_b": median_b,
+                    "median_gap": abs(median_a - median_b),
+                    "baskets_a": a["baskets"],
+                    "baskets_b": b["baskets"],
+                })
+
+    if scanned:
+        for row, q in zip(scanned, _benjamini_hochberg([r["p_value"] for r in scanned])):
+            row["q_value"] = q
+            # Worth acting on only if it is both unlikely to be chance and big
+            # enough to notice; either alone is not enough.
+            row["actionable"] = q < 0.05 and row["abs_delta"] >= 0.147
+    scanned.sort(key=lambda r: r["abs_delta"], reverse=True)
+
+    notable = [r for r in scanned if r["actionable"]] if scanned else []
+    return JsonResponse({
+        "success": True,
+        "rows": scanned[:30],
+        "compared": len(scanned),
+        "actionable": len(notable),
+        "skipped_dimensions": skipped,
+        "sample_per_group": SCAN_SAMPLE,
+        "minimum_baskets": SCAN_MIN_BASKETS,
+        "headline": (
+            f"{len(notable)} of {len(scanned)} comparisons are both unlikely to be chance "
+            f"and large enough to notice."
+            if scanned else
+            "Not enough baskets in this selection to compare any pair of groups."
+        ),
+        "method": (
+            "Basket values compared with Mann-Whitney U on ranks, since basket value is "
+            "heavily right-skewed. Ordered by Cliff's delta, which is how often a basket from "
+            "one group beats one from the other. P-values are adjusted for the number of "
+            f"comparisons made, and each group is sampled to {SCAN_SAMPLE} baskets."
+        ),
+    })

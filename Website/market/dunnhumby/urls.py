@@ -27,6 +27,8 @@ urlpatterns = [
     path("api/bi/top-products/", bi_views.api_bi_top_products, name="api_bi_top_products"),
     path("api/bi/discount-trend/", bi_views.api_bi_discount_trend, name="api_bi_discount_trend"),
     path("api/bi/significance/", bi_views.api_bi_significance, name="api_bi_significance"),
+    path("api/bi/significance-scan/", bi_views.api_bi_significance_scan,
+         name="api_bi_significance_scan"),
     path("api/bi/insights/", bi_views.api_bi_insights, name="api_bi_insights"),
     path("api/bi/growth/", bi_views.api_bi_growth, name="api_bi_growth"),
     path("api/bi/pareto/", bi_views.api_bi_pareto, name="api_bi_pareto"),
