@@ -1027,8 +1027,27 @@ html, body {
 .pred-panel .rev-empty i { font-size: 1.9rem; color: #c3c9e4; }
 .pred-panel .rev-empty h6 { margin: 0; font-weight: 700; color: var(--rev-ink); font-size: .95rem; }
 .pred-panel .rev-empty p { margin: 0; font-size: .82rem; max-width: 430px; }
-/* The same empty state sitting in the flow rather than over a canvas. */
+/* The same empty state sitting in the flow rather than over a canvas. The rules
+   card keeps a tall minimum so the layout does not jump when results arrive, so
+   the list area is stretched to fill it and the empty state fills that in turn.
+   Without this the placeholder sat in a band with white space under it. */
 .pred-panel .rev-empty.is-block { position: static; min-height: 230px; }
+.pred-panel .association-rules-block { display: flex; flex-direction: column; }
+.pred-panel .association-rules-block > .scrollable-section { flex: 1 1 auto; }
+/* Stretch the placeholder over the whole list area, but only while it is the
+   placeholder: once rules render, the list goes back to normal flow so their
+   own spacing is untouched. */
+.pred-panel .association-rules-block > .scrollable-section:has(> .rev-empty) {
+  display: flex; flex-direction: column;
+}
+.pred-panel .association-rules-block > .scrollable-section > .rev-empty { flex: 1 1 auto; }
+/* The settings row bottom-aligns its fields, which is right when they are bare
+   controls but not here: the captions run to different lengths, so the four
+   labels landed at three different heights. Align them at the top and let the
+   captions hang from the bottom instead. */
+#descriptive .rev-fields { align-items: stretch; }
+#descriptive .rev-fields .rev-field { display: flex; flex-direction: column; }
+#descriptive .rev-fields .rev-field .rev-note { margin-top: auto; padding-top: .4rem; }
 .pred-panel .rev-note { font-size: .76rem; color: var(--rev-muted); margin: .6rem 0 0; }
 .pred-panel .rev-rule { margin: 1rem 0; border-color: var(--rev-line); }
 
@@ -1247,9 +1266,151 @@ html, body {
           Descriptive Market Basket Analysis
         </h4>
         <p style="color: #6c757d; line-height: 1.6; margin: 0;">
-          Which products are bought together, and which baskets and customers are worth the most,
-          found in the transactions already recorded with the Apriori algorithm.
+          What the transactions already recorded can be asked directly. First the baskets and the
+          products that earn the most, which are read straight from the data. Then the product
+          combinations that sell together, which Apriori finds once you set the thresholds and run
+          it. Nothing here is predicted &mdash; every figure describes trade that has happened.
         </p>
+      </div>
+
+      <!-- Baskets Grid -->
+      <div class="chart-container rev-card high-value-panel">
+        <div class="rev-head-sm">
+          <h5 class="rev-card-title"><i class="fas fa-shopping-basket"></i> High-Value Baskets Analysis</h5>
+          <div>
+            <button class="btn btn-outline-primary btn-sm" onclick="expandSection('baskets')" title="View All in Popup">
+              <i class="fas fa-expand-arrows-alt"></i> Expand
+            </button>
+          </div>
+        </div>
+        <div class="row g-3 scrollable-section" id="basketsGrid">
+        {% for b in basket_stats %}
+        <div class="col-12 col-sm-6 col-lg-4 col-xl-3">
+          <div class="basket-card fade-in" data-basket-id="{{ b.basket_id }}">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <span style="font-weight: 700; color: #2d3748;">#{{ b.basket_id }}</span>
+              <span class="badge bg-success">{{ b.unique_products }} items</span>
+            </div>
+            <div style="font-size: 1.5rem; font-weight: 800; color: #667eea; margin-bottom: 0.5rem;">
+              ${{ b.total_value|floatformat:2 }}
+            </div>
+            <div style="color: #718096; font-size: 0.9rem;">
+              Total Value • Qty {{ b.total_items }}
+            </div>
+          </div>
+        </div>
+        {% empty %}
+        <div class="col-12">
+          <div class="text-center py-4">
+            <i class="fas fa-shopping-basket fa-3x text-muted mb-3"></i>
+            <h5>No basket data available</h5>
+            <p class="text-muted">Load transaction data to see basket analysis.</p>
+          </div>
+        </div>
+        {% endfor %}
+        </div>
+        <div id="basketsPagination" class="high-value-pagination" aria-label="High-value basket pages"></div>
+      </div>
+
+      <!-- High-Value Products Analysis -->
+      <div class="chart-container rev-card high-value-panel">
+        <div class="rev-head-sm">
+          <h5 class="rev-card-title"><i class="fas fa-star"></i> High-Value Products Analysis</h5>
+          <div class="d-flex align-items-center gap-2">
+            <div class="btn-group btn-group-sm" role="group" aria-label="Product ranking toggle">
+              <button type="button" class="btn btn-outline-primary active" data-product-filter="frequency" onclick="switchTopProductsView('frequency')">
+                <i class="fas fa-sync-alt"></i> By Transactions
+              </button>
+              <button type="button" class="btn btn-outline-primary" data-product-filter="sales" onclick="switchTopProductsView('sales')">
+                <i class="fas fa-dollar-sign"></i> By Total Sales
+              </button>
+            </div>
+            <button class="btn btn-outline-primary btn-sm" onclick="expandSection('products')" title="View All in Popup">
+              <i class="fas fa-expand-arrows-alt"></i> Expand
+            </button>
+          </div>
+        </div>
+        <div id="topProductsGrid" class="scrollable-section">
+          <div class="row g-3" data-products-view="frequency">
+          {% for product in top_products_frequency %}
+            <div class="col-12 col-sm-6 col-lg-4 col-xl-3">
+              <div class="product-card fade-in"
+                   data-product-id="{{ product.product_id }}"
+                   data-brand="{{ product.brand|default:'Unknown Brand' }}"
+                   data-department="{{ product.department|default:'MISC. TRANS.' }}"
+                   data-commodity="{{ product.commodity_desc|default:'All Products' }}"
+                   data-sub-commodity="{{ product.sub_commodity_desc|default:'' }}"
+                   data-manufacturer="{{ product.manufacturer|default:'' }}"
+                   data-frequency="{{ product.frequency }}"
+                   data-total-sales="{{ product.total_sales }}"
+                   onclick="handleTopProductCardClick(this)">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <span class="product-id-badge">ID {{ product.product_id }}</span>
+                  <span class="badge bg-success"><i class="fas fa-sync-alt me-1"></i>{{ product.frequency }}</span>
+                </div>
+                <h6 class="mb-1" style="font-weight: 700; color: #1a202c;">{{ product.brand|default:'Unknown Brand' }}</h6>
+                <div class="text-muted small mb-3">{{ product.commodity_desc|default:'All Products' }}</div>
+                <div class="mb-3">
+                  <div style="font-size: 1.4rem; font-weight: 800; color: #f97316;">{{ product.frequency }}</div>
+                  <small class="text-muted">Total transactions</small>
+                </div>
+                <div class="d-flex justify-content-between text-muted small">
+                  <span><i class="fas fa-dollar-sign text-success me-1"></i>${{ product.total_sales|floatformat:2 }}</span>
+                  <span><i class="fas fa-building text-primary me-1"></i>{{ product.department|default:'MISC. TRANS.' }}</span>
+                </div>
+              </div>
+            </div>
+          {% empty %}
+            <div class="col-12">
+              <div class="text-center py-4 text-muted">
+                <i class="fas fa-box-open fa-3x mb-3"></i>
+                <h5>No product data available</h5>
+                <p>Load transaction data to see high-value products.</p>
+              </div>
+            </div>
+          {% endfor %}
+          </div>
+          <div class="row g-3 d-none" data-products-view="sales">
+          {% for product in top_products_sales %}
+            <div class="col-12 col-sm-6 col-lg-4 col-xl-3">
+              <div class="product-card fade-in"
+                   data-product-id="{{ product.product_id }}"
+                   data-brand="{{ product.brand|default:'Unknown Brand' }}"
+                   data-department="{{ product.department|default:'MISC. TRANS.' }}"
+                   data-commodity="{{ product.commodity_desc|default:'All Products' }}"
+                   data-sub-commodity="{{ product.sub_commodity_desc|default:'' }}"
+                   data-manufacturer="{{ product.manufacturer|default:'' }}"
+                   data-frequency="{{ product.frequency }}"
+                   data-total-sales="{{ product.total_sales }}"
+                   onclick="handleTopProductCardClick(this)">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <span class="product-id-badge">ID {{ product.product_id }}</span>
+                  <span class="badge bg-warning text-dark"><i class="fas fa-dollar-sign me-1"></i>${{ product.total_sales|floatformat:0 }}</span>
+                </div>
+                <h6 class="mb-1" style="font-weight: 700; color: #1a202c;">{{ product.brand|default:'Unknown Brand' }}</h6>
+                <div class="text-muted small mb-3">{{ product.commodity_desc|default:'All Products' }}</div>
+                <div class="mb-3">
+                  <div style="font-size: 1.4rem; font-weight: 800; color: #28a745;">${{ product.total_sales|floatformat:2 }}</div>
+                  <small class="text-muted">Total sales</small>
+                </div>
+                <div class="d-flex justify-content-between text-muted small">
+                  <span><i class="fas fa-sync-alt text-primary me-1"></i>{{ product.frequency }} tx</span>
+                  <span><i class="fas fa-building text-primary me-1"></i>{{ product.department|default:'MISC. TRANS.' }}</span>
+                </div>
+              </div>
+            </div>
+          {% empty %}
+            <div class="col-12">
+              <div class="text-center py-4 text-muted">
+                <i class="fas fa-box-open fa-3x mb-3"></i>
+                <h5>No product sales data available</h5>
+                <p>Load transaction data to view best-selling products.</p>
+              </div>
+            </div>
+          {% endfor %}
+          </div>
+        </div>
+        <div id="topProductsPagination" class="high-value-pagination" aria-label="High-value product pages"></div>
       </div>
 
       <!-- Step 1: settings -->
@@ -1404,146 +1565,6 @@ html, body {
             the commodity combinations that are bought together.</p>
           </div>
         </div>
-      </div>
-
-      <!-- Baskets Grid -->
-      <div class="chart-container rev-card high-value-panel">
-        <div class="rev-head-sm">
-          <h5 class="rev-card-title"><i class="fas fa-shopping-basket"></i> High-Value Baskets Analysis</h5>
-          <div>
-            <button class="btn btn-outline-primary btn-sm" onclick="expandSection('baskets')" title="View All in Popup">
-              <i class="fas fa-expand-arrows-alt"></i> Expand
-            </button>
-          </div>
-        </div>
-        <div class="row g-3 scrollable-section" id="basketsGrid">
-        {% for b in basket_stats %}
-        <div class="col-12 col-sm-6 col-lg-4 col-xl-3">
-          <div class="basket-card fade-in" data-basket-id="{{ b.basket_id }}">
-            <div class="d-flex justify-content-between align-items-center mb-2">
-              <span style="font-weight: 700; color: #2d3748;">#{{ b.basket_id }}</span>
-              <span class="badge bg-success">{{ b.unique_products }} items</span>
-            </div>
-            <div style="font-size: 1.5rem; font-weight: 800; color: #667eea; margin-bottom: 0.5rem;">
-              ${{ b.total_value|floatformat:2 }}
-            </div>
-            <div style="color: #718096; font-size: 0.9rem;">
-              Total Value • Qty {{ b.total_items }}
-            </div>
-          </div>
-        </div>
-        {% empty %}
-        <div class="col-12">
-          <div class="text-center py-4">
-            <i class="fas fa-shopping-basket fa-3x text-muted mb-3"></i>
-            <h5>No basket data available</h5>
-            <p class="text-muted">Load transaction data to see basket analysis.</p>
-          </div>
-        </div>
-        {% endfor %}
-        </div>
-        <div id="basketsPagination" class="high-value-pagination" aria-label="High-value basket pages"></div>
-      </div>
-
-      <!-- High-Value Products Analysis -->
-      <div class="chart-container rev-card high-value-panel">
-        <div class="rev-head-sm">
-          <h5 class="rev-card-title"><i class="fas fa-star"></i> High-Value Products Analysis</h5>
-          <div class="d-flex align-items-center gap-2">
-            <div class="btn-group btn-group-sm" role="group" aria-label="Product ranking toggle">
-              <button type="button" class="btn btn-outline-primary active" data-product-filter="frequency" onclick="switchTopProductsView('frequency')">
-                <i class="fas fa-sync-alt"></i> By Transactions
-              </button>
-              <button type="button" class="btn btn-outline-primary" data-product-filter="sales" onclick="switchTopProductsView('sales')">
-                <i class="fas fa-dollar-sign"></i> By Total Sales
-              </button>
-            </div>
-            <button class="btn btn-outline-primary btn-sm" onclick="expandSection('products')" title="View All in Popup">
-              <i class="fas fa-expand-arrows-alt"></i> Expand
-            </button>
-          </div>
-        </div>
-        <div id="topProductsGrid" class="scrollable-section">
-          <div class="row g-3" data-products-view="frequency">
-          {% for product in top_products_frequency %}
-            <div class="col-12 col-sm-6 col-lg-4 col-xl-3">
-              <div class="product-card fade-in"
-                   data-product-id="{{ product.product_id }}"
-                   data-brand="{{ product.brand|default:'Unknown Brand' }}"
-                   data-department="{{ product.department|default:'MISC. TRANS.' }}"
-                   data-commodity="{{ product.commodity_desc|default:'All Products' }}"
-                   data-sub-commodity="{{ product.sub_commodity_desc|default:'' }}"
-                   data-manufacturer="{{ product.manufacturer|default:'' }}"
-                   data-frequency="{{ product.frequency }}"
-                   data-total-sales="{{ product.total_sales }}"
-                   onclick="handleTopProductCardClick(this)">
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                  <span class="product-id-badge">ID {{ product.product_id }}</span>
-                  <span class="badge bg-success"><i class="fas fa-sync-alt me-1"></i>{{ product.frequency }}</span>
-                </div>
-                <h6 class="mb-1" style="font-weight: 700; color: #1a202c;">{{ product.brand|default:'Unknown Brand' }}</h6>
-                <div class="text-muted small mb-3">{{ product.commodity_desc|default:'All Products' }}</div>
-                <div class="mb-3">
-                  <div style="font-size: 1.4rem; font-weight: 800; color: #f97316;">{{ product.frequency }}</div>
-                  <small class="text-muted">Total transactions</small>
-                </div>
-                <div class="d-flex justify-content-between text-muted small">
-                  <span><i class="fas fa-dollar-sign text-success me-1"></i>${{ product.total_sales|floatformat:2 }}</span>
-                  <span><i class="fas fa-building text-primary me-1"></i>{{ product.department|default:'MISC. TRANS.' }}</span>
-                </div>
-              </div>
-            </div>
-          {% empty %}
-            <div class="col-12">
-              <div class="text-center py-4 text-muted">
-                <i class="fas fa-box-open fa-3x mb-3"></i>
-                <h5>No product data available</h5>
-                <p>Load transaction data to see high-value products.</p>
-              </div>
-            </div>
-          {% endfor %}
-          </div>
-          <div class="row g-3 d-none" data-products-view="sales">
-          {% for product in top_products_sales %}
-            <div class="col-12 col-sm-6 col-lg-4 col-xl-3">
-              <div class="product-card fade-in"
-                   data-product-id="{{ product.product_id }}"
-                   data-brand="{{ product.brand|default:'Unknown Brand' }}"
-                   data-department="{{ product.department|default:'MISC. TRANS.' }}"
-                   data-commodity="{{ product.commodity_desc|default:'All Products' }}"
-                   data-sub-commodity="{{ product.sub_commodity_desc|default:'' }}"
-                   data-manufacturer="{{ product.manufacturer|default:'' }}"
-                   data-frequency="{{ product.frequency }}"
-                   data-total-sales="{{ product.total_sales }}"
-                   onclick="handleTopProductCardClick(this)">
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                  <span class="product-id-badge">ID {{ product.product_id }}</span>
-                  <span class="badge bg-warning text-dark"><i class="fas fa-dollar-sign me-1"></i>${{ product.total_sales|floatformat:0 }}</span>
-                </div>
-                <h6 class="mb-1" style="font-weight: 700; color: #1a202c;">{{ product.brand|default:'Unknown Brand' }}</h6>
-                <div class="text-muted small mb-3">{{ product.commodity_desc|default:'All Products' }}</div>
-                <div class="mb-3">
-                  <div style="font-size: 1.4rem; font-weight: 800; color: #28a745;">${{ product.total_sales|floatformat:2 }}</div>
-                  <small class="text-muted">Total sales</small>
-                </div>
-                <div class="d-flex justify-content-between text-muted small">
-                  <span><i class="fas fa-sync-alt text-primary me-1"></i>{{ product.frequency }} tx</span>
-                  <span><i class="fas fa-building text-primary me-1"></i>{{ product.department|default:'MISC. TRANS.' }}</span>
-                </div>
-              </div>
-            </div>
-          {% empty %}
-            <div class="col-12">
-              <div class="text-center py-4 text-muted">
-                <i class="fas fa-box-open fa-3x mb-3"></i>
-                <h5>No product sales data available</h5>
-                <p>Load transaction data to view best-selling products.</p>
-              </div>
-            </div>
-          {% endfor %}
-          </div>
-        </div>
-        <div id="topProductsPagination" class="high-value-pagination" aria-label="High-value product pages"></div>
       </div>
     </div>
 
