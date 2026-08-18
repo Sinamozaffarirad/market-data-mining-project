@@ -275,17 +275,7 @@
 .cs-page {
   --rev-1:#667eea; --rev-2:#764ba2; --rev-ink:#1e2338; --rev-muted:#6b7391; --rev-line:#e6e8f2;
 }
-/* Geometry copied from .ar-title-bar so the two pages carry the same banner. */
-.cs-page .cs-title-bar {
-  display:flex; align-items:flex-start; justify-content:space-between; gap:1rem;
-  margin:0 0 1.5rem; padding:1rem 1.25rem; color:#fff;
-  background:var(--gradient-primary); border-radius:.75rem;
-  box-shadow:0 .35rem 1rem rgba(25,45,80,.10);
-}
-.cs-page .cs-subtitle {
-  font-size:.88rem; color:#fff; opacity:.9; margin-top:.3rem; max-width:78ch; line-height:1.5;
-}
-.cs-page .cs-title-bar .badge { align-self:center; white-space:nowrap; font-weight:600; }
+/* Banner comes from analysis_shell.css. */
 .cs-page .cs-title {
   font-size:1.2rem; font-weight:700; color:#fff;
   display:flex; align-items:center; gap:.5rem;
@@ -337,10 +327,10 @@
   <div class="col-12">
     <!-- Same banner the association-rules and basket-mining pages use: a rounded
          bar standing above the card rather than a header flush inside it. -->
-    <div class="cs-title-bar">
+    <div class="analysis-banner">
       <div>
-        <div class="cs-title"><i class="fas fa-users"></i> Customer Segmentation Dashboard</div>
-        <div class="cs-subtitle">Who the customers are and who is drifting away, grouped by how
+        <div class="analysis-banner-title"><i class="fas fa-users"></i> Customer Segmentation Dashboard</div>
+        <div class="analysis-banner-sub">Who the customers are and who is drifting away, grouped by how
         recently and how often they buy and how much they spend, with churn risk from the active
         model.</div>
       </div>

@@ -27,13 +27,17 @@
 {% endblock %}
 
 {% block content %}
-<div class="container py-5">
+<div class="analysis-frame">
 
-    <h1 class="fw-bold mb-2">Find Customer Leads</h1>
-    <p class="text-muted mb-4">
-        Pick a level, search, then get an ML-ranked list of households most
-        likely to buy it — customers who haven't bought it yet.
-    </p>
+    <!-- Same banner and frame as the other analysis pages, from
+         analysis_shell.css. The wording is the page's own. -->
+    <div class="analysis-banner">
+        <div>
+            <div class="analysis-banner-title"><i class="fa-solid fa-file-pen"></i> Find Customer Leads</div>
+            <div class="analysis-banner-sub">Pick a level, search, then get an ML-ranked list of
+            households most likely to buy it &mdash; customers who haven't bought it yet.</div>
+        </div>
+    </div>
 
     <!-- سطح -->
     <ul class="nav nav-pills level-pills mb-3">

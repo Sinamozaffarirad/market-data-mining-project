@@ -36,24 +36,7 @@
 .data-table-container {
     overflow-x: auto;
 }
-.page-frame {
-    width: min(calc(100% - 3rem), 1400px);
-    margin: 1.25rem auto 2rem;
-    padding: 1.25rem;
-    background: #fff;
-    border: 1px solid #e1e6ef;
-    border-radius: .85rem;
-    box-shadow: 0 .35rem 1rem rgba(25, 45, 80, .08);
-}
-.page-title-bar {
-    margin: -1.25rem -1.25rem 1.5rem;
-    padding: 1rem 1.25rem;
-    color: #fff;
-    background: var(--gradient-primary);
-    border-radius: .75rem .75rem 0 0;
-}
-.page-title-bar .hero-title, .page-title-bar .hero-subtitle { color: #fff; }
-.page-title-bar .hero-title { margin-bottom: .15rem; }
+/* Frame and banner come from analysis_shell.css, shared with the other pages. */
 .table thead th {
     position: sticky;
     top: 0;
@@ -208,17 +191,19 @@
     border-color: #0d6efd;
 }
 
-  .page-title-bar .text-primary, .page-title-bar .text-muted { color: #fff !important; }
-  .page-title-bar .text-muted { opacity: .88; }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="page-frame fade-in">
+<div class="analysis-frame fade-in">
     <!-- Header -->
-    <div class="hero-section page-title-bar">
-        <h1 class="fw-bold text-primary mb-1"><i class="fa-solid fa-database"></i> Advanced Database Management</h1>
-        <p class="text-muted mb-0 hero-subtitle">View, filter, and manage your datasets in real-time.</p>
+    <div class="analysis-banner">
+        <div>
+            <div class="analysis-banner-title"><i class="fa-solid fa-database"></i> Advanced Database Management</div>
+            <div class="analysis-banner-sub">View, filter, and manage your datasets in real-time.</div>
+        </div>
+        <span class="badge bg-success px-3 py-2">{{ data_stats.total_transactions|default:0 }} transactions
+        &middot; {{ data_stats.total_products|default:0 }} products</span>
     </div>
 
     <!-- Stats Row -->

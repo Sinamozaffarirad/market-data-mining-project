@@ -5,25 +5,7 @@
 <style>
 /* The card system the basket-mining tabs use, so the two pages read as one
    product rather than two. Only what this page draws is restated here. */
-/* Page banner in the house style: gradient bar, title, one line of subtitle,
-   and the dataset it is reading on the right. */
-.ar-page .ar-title-bar {
-  display:flex; align-items:flex-start; justify-content:space-between; gap:1rem;
-  margin:0 0 1.5rem; padding:1rem 1.25rem; color:#fff;
-  background:var(--gradient-primary); border-radius:.75rem;
-  box-shadow:0 .35rem 1rem rgba(25,45,80,.10);
-}
-/* Deliberately not an h2 or a p: `.admin .module h2` in market_analysis_v2.css
-   gives every h2 in a module its own gradient bar and padding, which drew a
-   second block behind this title, and it outranks anything scoped to this page.
-   Plain elements cannot be claimed by those rules. */
-.ar-page .ar-title-bar .ar-title {
-  font-size:1.2rem; font-weight:700; color:#fff; display:flex; align-items:center; gap:.5rem;
-}
-.ar-page .ar-title-bar .ar-subtitle {
-  font-size:.88rem; color:#fff; opacity:.9; margin-top:.3rem; max-width:78ch; line-height:1.5;
-}
-.ar-page .ar-title-bar .badge { align-self:center; white-space:nowrap; font-weight:600; }
+/* Banner and frame come from analysis_shell.css. */
 .ar-page { --rev-1:#667eea; --rev-2:#764ba2; --rev-ink:#1e2338; --rev-muted:#6b7391; --rev-line:#e6e8f2; }
 .ar-page .rev-card {
   background:#fff; border:1px solid var(--rev-line); border-radius:16px;
@@ -95,10 +77,10 @@
 
 <div class="module pred-panel ar-page">
   <div class="p-4">
-    <div class="ar-title-bar flex-wrap">
+    <div class="analysis-banner">
       <div>
-        <div class="ar-title"><i class="fas fa-diagram-project"></i> Association Rules Mining</div>
-        <div class="ar-subtitle">Which products are bought together, found with Apriori. Lower the
+        <div class="analysis-banner-title"><i class="fas fa-diagram-project"></i> Association Rules Mining</div>
+        <div class="analysis-banner-sub">Which products are bought together, found with Apriori. Lower the
         support to reach rarer pairs, at the cost of a longer run.</div>
       </div>
       <span class="badge bg-success px-3 py-2">2.6M transactions &middot; 276,450 baskets

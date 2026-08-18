@@ -21,32 +21,7 @@
   .badge-risk-high { background-color: #ffc107; color: #212529 !important; }
   .badge-risk-medium { background-color: #0dcaf0; color: #212529 !important; }
   .retention-filter { border-left: 4px solid #6674df; width: 100%; }
-  /* Frame and banner matched to the other analysis pages: the same white panel,
-     and a rounded bar standing inside it rather than one welded to its top edge. */
-  .page-frame {
-    width: min(calc(100% - 3rem), 1400px);
-    margin: 1.25rem auto 2rem;
-    padding: 1.25rem;
-    background: #fff;
-    border: 1px solid #dee2e6;
-    border-radius: .75rem;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, .1);
-  }
-  .page-title-bar {
-    display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem;
-    margin: 0 0 1.5rem; padding: 1rem 1.25rem;
-    color: #fff; background: var(--gradient-primary); border-radius: .75rem;
-    box-shadow: 0 .35rem 1rem rgba(25, 45, 80, .10);
-  }
-  .page-title-bar .text-primary, .page-title-bar .text-muted { color: #fff !important; }
-  .page-title-bar .text-muted { opacity: .9; }
-  /* Title and subtitle metrics as on the other banners. */
-  .page-title-bar h2 {
-    font-size: 1.2rem; font-weight: 700; margin: 0; padding: 0; background: none;
-    display: flex; align-items: center;
-  }
-  .page-title-bar p { font-size: .88rem; margin: .3rem 0 0; max-width: 78ch; line-height: 1.5; }
-  .page-title-bar .badge { align-self: center; white-space: nowrap; font-weight: 600; }
+  /* Frame and banner come from analysis_shell.css. */
 
   /* Card system shared with the association-rules and basket-mining pages. */
   .page-frame .card {
@@ -135,11 +110,11 @@
 {% endblock %}
 
 {% block content %}
-<div class="page-frame">
-<div class="page-title-bar flex-wrap">
+<div class="analysis-frame">
+<div class="analysis-banner">
   <div>
-    <h2 class="fw-bold text-primary mb-1"><i class="fa-solid fa-heart-circle-check me-2"></i>Customer Retention</h2>
-    <p class="text-muted mb-0">Prioritize at-risk customers, then open their existing personalized product recommender.</p>
+    <div class="analysis-banner-title"><i class="fa-solid fa-heart-circle-check"></i> Customer Retention</div>
+    <div class="analysis-banner-sub">Prioritize at-risk customers, then open their existing personalized product recommender.</div>
   </div>
   {% if active_experiment %}
     <span class="badge bg-success px-3 py-2">Active model: {{ active_experiment.method|title }} &middot; {{ active_experiment.observation_window_days }}d / {{ active_experiment.prediction_horizon_days }}d / {{ active_experiment.step_size_days }}d</span>
