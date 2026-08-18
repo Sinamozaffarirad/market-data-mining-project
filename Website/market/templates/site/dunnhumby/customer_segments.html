@@ -282,6 +282,10 @@
   background:var(--gradient-primary); border-radius:.75rem;
   box-shadow:0 .35rem 1rem rgba(25,45,80,.10);
 }
+.cs-page .cs-subtitle {
+  font-size:.88rem; color:#fff; opacity:.9; margin-top:.3rem; max-width:78ch; line-height:1.5;
+}
+.cs-page .cs-title-bar .badge { align-self:center; white-space:nowrap; font-weight:600; }
 .cs-page .cs-title {
   font-size:1.2rem; font-weight:700; color:#fff;
   display:flex; align-items:center; gap:.5rem;
@@ -325,13 +329,23 @@
 </style>
 
 
-<div class="row g-4 cs-page">
+<!-- The white page frame the other analysis pages sit on. This page put its
+     content straight onto the grey background. -->
+<div class="module cs-page">
+  <div class="p-4">
+<div class="row g-4">
   <div class="col-12">
     <!-- Same banner the association-rules and basket-mining pages use: a rounded
-         bar standing above the card rather than a header flush inside it. The
-         wording is untouched. -->
+         bar standing above the card rather than a header flush inside it. -->
     <div class="cs-title-bar">
-      <div class="cs-title"><i class="fas fa-users"></i> Customer Segmentation Dashboard</div>
+      <div>
+        <div class="cs-title"><i class="fas fa-users"></i> Customer Segmentation Dashboard</div>
+        <div class="cs-subtitle">Who the customers are and who is drifting away, grouped by how
+        recently and how often they buy and how much they spend, with churn risk from the active
+        model.</div>
+      </div>
+      {% if segments %}<span class="badge bg-success px-3 py-2">{{ segments|length }} RFM segments
+      &middot; as of day {{ lifetime_rfm_cutoff_day|default:"N/A" }}</span>{% endif %}
     </div>
     <div class="card shadow-sm segmentation-dashboard-card">
       <div class="card-body">
@@ -549,6 +563,8 @@
         </div>
       </div>
     </div>
+  </div>
+</div>
   </div>
 </div>
 
