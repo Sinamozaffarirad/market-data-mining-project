@@ -48,6 +48,12 @@
 
   .pd-rule { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
   .pd-arrow { color: #667eea; }
+  .pd-back {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    border: none; border-radius: 10px; font-weight: 600;
+    padding: .55rem 1.4rem; color: #fff;
+  }
+  .pd-back:hover { filter: brightness(1.06); color: #fff; }
   .pd-empty {
     padding: 1.4rem; text-align: center; color: #6b7391; font-size: .85rem;
     border: 1px dashed #dfe3f1; border-radius: 12px;
@@ -116,6 +122,10 @@
       </div>
     </div>
 
+  </div>
+
+  <div class="text-center mt-4">
+    <a href="{% url 'product_recommender:home' %}" class="btn pd-back">&larr; Back to product search</a>
   </div>
 </div>
 {% endblock %}

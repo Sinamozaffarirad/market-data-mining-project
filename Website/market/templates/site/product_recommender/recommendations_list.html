@@ -3,52 +3,87 @@
 
 {% block title %}Customer Leads{% endblock %}
 
+{% block extra_css %}
+<style>
+  /* Frame, banner, tiles and table shared with the other analysis pages. */
+  .lead-tiles { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    margin-bottom: 1.25rem; }
+  .lead-tile {
+    background: #fff; border: 1px solid #e6e8f2; border-radius: 14px;
+    box-shadow: 0 2px 12px rgba(102, 126, 234, .05); padding: 1.1rem 1.2rem; text-align: center;
+  }
+  .lead-tile .lead-figure {
+    font-size: 1.9rem; font-weight: 800; line-height: 1.1;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .lead-tile .lead-caption { font-size: .78rem; color: #6b7391; margin: .2rem 0 0; }
+  .analysis-frame .card-title { font-size: .97rem; font-weight: 700; color: #1e2338; }
+  .analysis-frame .table thead th {
+    font-size: .66rem; letter-spacing: .05em; text-transform: uppercase;
+    color: #fff !important; font-weight: 700;
+    background: linear-gradient(135deg, #667eea, #764ba2) !important; border-bottom: 0;
+  }
+  .analysis-frame .table tbody td { font-size: .85rem; vertical-align: middle; }
+  .analysis-frame .progress { background: #eef0f7; border-radius: 999px; }
+  .analysis-frame .progress-bar { background: linear-gradient(90deg, #667eea, #764ba2) !important; }
+  .analysis-frame .btn-outline-primary {
+    border-radius: 8px !important; border-color: #dfe3f1 !important; color: #667eea !important;
+  }
+  .analysis-frame .btn-outline-primary:hover { background: #667eea !important; color: #fff !important; }
+  .analysis-frame .page-link { border-radius: 8px; margin: 0 .15rem; color: #4a5170; border-color: #e6e8f2; }
+  .analysis-frame .page-item.active .page-link {
+    background: linear-gradient(135deg, #667eea, #764ba2); border-color: transparent; color: #fff;
+  }
+  .lead-back {
+    background: linear-gradient(135deg, #667eea, #764ba2); border: none; border-radius: 10px;
+    font-weight: 600; padding: .55rem 1.4rem; color: #fff;
+  }
+  .lead-back:hover { filter: brightness(1.06); color: #fff; }
+  .lead-note { font-size: .8rem; color: #6b7391; margin: 0 0 1.25rem; }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="container py-5">
+<div class="analysis-frame">
 
-    <h1 class="fw-bold mb-2">Customer Leads for:</h1>
-    {% if level == "product" and product %}
-        <h3 class="text-primary">{{ product.brand }} — {{ product.commodity_desc }}</h3>
-        <p class="text-muted">{{ product.sub_commodity_desc }} | {{ product.department }} <span class="badge bg-secondary">Product level</span></p>
-    {% elif level == "commodity" %}
-        <h3 class="text-primary">{{ target_label }}</h3>
-        <p class="text-muted"><span class="badge bg-secondary">Commodity level</span></p>
-    {% elif level == "department" %}
-        <h3 class="text-primary">{{ target_label }}</h3>
-        <p class="text-muted"><span class="badge bg-secondary">Department level</span></p>
-    {% endif %}
+    <div class="analysis-banner">
+      <div>
+        <div class="analysis-banner-title">
+          <i class="fa-solid fa-user-check"></i>
+          {% if level == "product" and product %}{{ product.brand }} &mdash; {{ product.commodity_desc }}
+          {% else %}{{ target_label }}{% endif %}
+        </div>
+        <div class="analysis-banner-sub">Customer leads for
+          {% if level == "product" and product %}{{ product.sub_commodity_desc }} &middot; {{ product.department }}
+          {% else %}this selection{% endif %}, ranked by the trained hybrid model.</div>
+      </div>
+      <span class="badge bg-success px-3 py-2">
+        {% if level == "product" %}Product level{% elif level == "commodity" %}Commodity level{% else %}Department level{% endif %}
+      </span>
+    </div>
 
-    <p class="small text-muted">
+    <p class="lead-note">
         Ranked with the trained Hybrid Recommender ML model, using Association Rules,
         Collaborative Filtering, and content similarity as candidate signals.
     </p>
-
-    <hr class="my-4">
 
     {% if error %}
         <div class="alert alert-warning">{{ error }}</div>
     {% else %}
 
-    <div class="row mb-4 text-center">
-        <div class="col-md-6">
-            <div class="card h-100 bg-light border-0">
-                <div class="card-body">
-                    <h2 class="card-title text-primary fw-bold">{{ total_recommendations|default:0 }}</h2>
-                    <p class="card-text text-muted">Total New Leads Found</p>
-                </div>
-            </div>
+    <div class="lead-tiles">
+        <div class="lead-tile">
+            <div class="lead-figure">{{ total_recommendations|default:0 }}</div>
+            <p class="lead-caption">Total New Leads Found</p>
         </div>
-        <div class="col-md-6">
-            <div class="card h-100 border-0">
-                <div class="card-body">
-                    <h2 class="card-title fw-bold">{{ direct_buyers_count|default:0 }}</h2>
-                    <p class="card-text text-muted">Existing Direct Buyers (excluded from leads)</p>
-                </div>
-            </div>
+        <div class="lead-tile">
+            <div class="lead-figure">{{ direct_buyers_count|default:0 }}</div>
+            <p class="lead-caption">Existing Direct Buyers (excluded from leads)</p>
         </div>
     </div>
 
-    <h4 class="mt-5 mb-3">Top Recommended Customers</h4>
+    <h4 class="card-title mb-3">Top Recommended Customers</h4>
 
     {% if customers_page %}
     <div class="table-responsive">
@@ -135,7 +170,7 @@
     {% endif %}
 
     <div class="text-center mt-4">
-        <a href="{% url 'product_recommender:home' %}?level={{ level }}" class="btn btn-secondary">← Back to Search</a>
+        <a href="{% url 'product_recommender:home' %}?level={{ level }}" class="btn lead-back">← Back to Search</a>
     </div>
 
 </div>
