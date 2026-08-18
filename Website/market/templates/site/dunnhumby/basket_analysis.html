@@ -2086,7 +2086,7 @@ html, body {
           <div class="col-lg-6">
             <div class="bench-card" id="timeSeriesComparisonChartContainer">
               <h6>Error and ranking quality</h6>
-              <p class="bench-sub">Lower is better for WMAPE; higher is better for the two ranking scores.</p>
+              <p class="bench-sub">Lower is better for WMAPE. Higher is better for the two ranking scores.</p>
               <div style="height: 340px;"><canvas id="timeSeriesComparisonChart"></canvas></div>
             </div>
           </div>
@@ -5426,7 +5426,7 @@ function showDescriptiveHelp() {
         </div>
         <div class="help-option mb-2">
           <strong>Balance Support & Confidence</strong>
-          <small class="d-block text-muted">Higher support highlights store-wide behaviour; lower support reveals emerging, high-lift opportunities worth testing.</small>
+          <small class="d-block text-muted">Higher support highlights store-wide behaviour. Lower support reveals emerging, high-lift opportunities worth testing.</small>
         </div>
         <div class="help-option">
           <strong>Review Lift</strong>
@@ -5553,7 +5553,7 @@ function showRevenueForecastHelp() {
         <div class="help-option mb-2">
           <strong>Forecast Horizon &amp; Lookback window</strong>
           <small class="d-block text-muted">
-            The horizon is how far ahead to predict; the lookback is how much past revenue the
+            The horizon is how far ahead to predict. The lookback is how much past revenue the
             model reads to do it. These two compete for the same 23 periods of history, so the
             control underneath tells you live whether the pair is
             <strong>fully supervised</strong> &mdash; meaning every predicted step has real history
@@ -5565,7 +5565,7 @@ function showRevenueForecastHelp() {
           <strong>Window step</strong>
           <small class="d-block text-muted">
             How far the training window slides between samples. A 1-period step produces the most
-            training examples and is the sensible default; larger steps train faster on less data.
+            training examples and is the sensible default. Larger steps train faster on less data.
           </small>
         </div>
 
@@ -8484,7 +8484,7 @@ function renderProductForecastRows(predictions, response) {
   const inactiveProducts = Math.max(0, forecastPanelProducts - eligibleProducts);
   const outsideAlignedHistory = Math.max(0, sourceUniqueProducts - forecastPanelProducts);
   const lookbackPeriods = Number(response.window_size_months || 0);
-  forecastResultContext = `${Number(response.products_after_threshold || 0).toLocaleString()} eligible active products passed the threshold; ranked by ${forecastMethodLabel(response.forecast_method_applied)}. ${inactiveProducts.toLocaleString()} of ${forecastPanelProducts.toLocaleString()} products in the aligned history had no revenue in the latest ${lookbackPeriods}-period lookback; ${outsideAlignedHistory.toLocaleString()} additional Product IDs occur outside that aligned history. Model Benchmarks evaluated ${evaluatedProducts.toLocaleString()} products on an earlier historical holdout (active before or during that holdout), so it is a different population.`;
+  forecastResultContext = `${Number(response.products_after_threshold || 0).toLocaleString()} eligible active products passed the threshold, ranked by ${forecastMethodLabel(response.forecast_method_applied)}. ${inactiveProducts.toLocaleString()} of ${forecastPanelProducts.toLocaleString()} products in the aligned history had no revenue in the latest ${lookbackPeriods}-period lookback; ${outsideAlignedHistory.toLocaleString()} additional Product IDs occur outside that aligned history. Model Benchmarks evaluated ${evaluatedProducts.toLocaleString()} products on an earlier historical holdout (active before or during that holdout), so it is a different population.`;
   forecastRowData = predictions.map(product => ({
     product,
     rank: Number(product.forecast_rank),
@@ -8603,7 +8603,7 @@ function filterForecastRows() {
   const summary = document.getElementById('forecastResultSummary');
   const shownStart = matching.length ? start + 1 : 0;
   const shownEnd = Math.min(start + FORECAST_PAGE_SIZE, matching.length);
-  if (summary) summary.textContent = `Showing ${shownStart}-${shownEnd} of ${matching.length.toLocaleString()} product${matching.length === 1 ? '' : 's'}${query ? ' matching the search' : ''}; ${forecastResultContext}`;
+  if (summary) summary.textContent = `Showing ${shownStart}-${shownEnd} of ${matching.length.toLocaleString()} product${matching.length === 1 ? '' : 's'}${query ? ' matching the search' : ''}. ${forecastResultContext}`;
   const pageStatus = document.getElementById('forecastPageStatus');
   const previous = document.getElementById('forecastPreviousPage');
   const next = document.getElementById('forecastNextPage');

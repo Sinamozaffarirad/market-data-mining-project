@@ -67,14 +67,20 @@ one over several lines renders it onto the page as visible text.
 .bi-page { display: none; }
 .bi-card { position: relative; }
 .bi-vis-tools { position: absolute; top: 10px; right: 12px; display: flex; gap: 4px; opacity: 0; transition: opacity .15s ease; z-index: 3; }
-.bi-card:hover .bi-vis-tools, .bi-card.bi-focused .bi-vis-tools { opacity: 1; }
+.bi-card:hover .bi-vis-tools { opacity: 1; }
 .bi-vis-tools button { border: 1px solid var(--bi-border, #e4e7f2); background: #fff; color: #6b7280;
   width: 26px; height: 26px; border-radius: 6px; font-size: .72rem; line-height: 1; cursor: pointer; }
 .bi-vis-tools button:hover { color: var(--bi-1, #667eea); border-color: var(--bi-1, #667eea); }
 .bi-vis-tools button.on { background: var(--bi-1, #667eea); border-color: var(--bi-1, #667eea); color: #fff; }
-.bi-card.bi-focused { position: fixed; inset: 3vh 3vw; z-index: 1080; overflow: auto; box-shadow: 0 30px 80px rgba(15,23,42,.35); }
-.bi-card.bi-focused .chart-box, .bi-card.bi-focused .chart-box.tall { height: calc(94vh - 190px); }
-.bi-focus-backdrop { position: fixed; inset: 0; background: rgba(15,23,42,.45); z-index: 1070; }
+/* The focused card is moved into this layer on the body. Kept in place it
+   inherited a stacking context from the tab wrapper, so its z-index counted
+   only inside that context and the backdrop covered it. */
+.bi-focus-layer { position: fixed; inset: 0; z-index: 20000; background: rgba(15,23,42,.5);
+  display: flex; padding: 3vh 3vw; overscroll-behavior: contain; }
+.bi-focus-layer > .bi-card { width: 100%; height: 100%; margin: 0; overflow: auto;
+  box-shadow: 0 30px 80px rgba(15,23,42,.35); }
+.bi-focus-layer .chart-box, .bi-focus-layer .chart-box.tall { height: calc(94vh - 210px); min-height: 320px; }
+.bi-focus-layer .bi-vis-tools { opacity: 1; }
 .bi-datatable { max-height: 320px; overflow: auto; margin-top: .5rem; }
 .bi-datatable table { width: 100%; font-size: .8rem; }
 .bi-datatable th, .bi-datatable td { padding: .3rem .5rem; border-bottom: 1px solid var(--bi-border, #eef0f7); }
@@ -274,8 +280,8 @@ one over several lines renders it onto the page as visible text.
     </h4>
     <p>
       Drill-down reporting over the market-basket star schema, with significance testing
-      between groups. Click any bar, slice, point or row to filter every panel by it;
-      filters stack and appear as chips you can remove.
+      between groups. Click any bar, slice, point or row to filter every panel by it.
+      Filters stack and appear as chips you can remove.
     </p>
   </div>
 
@@ -426,7 +432,7 @@ one over several lines renders it onto the page as visible text.
         <div id="paretoMilestones" class="bi-note-inline"></div></div>
       <div class="chart-box"><canvas id="paretoChart"></canvas></div>
       <p class="bi-foot">Ranking products by revenue and adding them up. A short head means
-      a few lines carry the trade; it does not by itself argue for delisting the tail, because
+      a few lines carry the trade. It does not by itself argue for delisting the tail, because
       a small line can still be the reason a basket was opened.</p>
     </div>
   </div>
@@ -925,10 +931,10 @@ async function loadBaskets() {
   const caption = document.getElementById('basketCaption');
   if (caption) {
     caption.innerHTML = data.tail.baskets
-      ? `Median basket holds <strong>${data.median_size}</strong> products; largest is <strong>${data.max_size}</strong>.
+      ? `Median basket holds <strong>${data.median_size}</strong> products. The largest holds <strong>${data.max_size}</strong>.
          Sizes above ${data.cutoff} are left off the bars &mdash; <strong>${num(data.tail.baskets)}</strong>
          baskets (${pct(data.tail.share)}), ${money(data.tail.revenue)}.`
-      : `Median basket holds <strong>${data.median_size}</strong> products; largest is <strong>${data.max_size}</strong>.`;
+      : `Median basket holds <strong>${data.median_size}</strong> products. The largest holds <strong>${data.max_size}</strong>.`;
   }
   if (BI.basket) BI.basket.destroy();
   BI.basket = new Chart(document.getElementById('basketChart'), {
@@ -1104,7 +1110,7 @@ async function loadSignificance(reset) {
   document.getElementById('sigCaveat').innerHTML =
     `<i class="fas fa-triangle-exclamation"></i> ${escapeHtml(data.caveat)}` +
     (data.sampled ? ` Spend tests use a reproducible sample of up to ${num(data.sample_size)}
-       baskets per group; the medians and counts quoted are from all of them.` : '');
+       baskets per group. The medians and counts quoted are from all of them.` : '');
 
   results.innerHTML = data.tests.length ? data.tests.map(t => `
     <div class="test-card">
@@ -1474,7 +1480,10 @@ async function biSettleCharts(attempt = 0) {
     box.dataset.biObserved = '1';
     new ResizeObserver(() => get()?.resize()).observe(box);
   });
-  if (rebuilds.size) await Promise.all([...rebuilds].map(load => load()));
+  if (rebuilds.size) {
+    await Promise.all([...rebuilds].map(load => load()));
+    biRefreshDataViews();
+  }
   if (attempt < 4) setTimeout(() => biSettleCharts(attempt + 1), 300);
 }
 
@@ -1522,16 +1531,25 @@ function biCardRows(card) {
   if (canvas) {
     const chart = (BI_CHART_BY_ID()[canvas.id] || (() => null))();
     if (!chart) return null;
-    const labels = chart.data.labels;
-    const sets = chart.data.datasets;
-    const header = ['Category', ...sets.map(d => d.label || 'Value')];
-    const length = labels ? labels.length : Math.max(...sets.map(d => d.data.length));
+    const sets = chart.data.datasets || [];
+    // Chart.js stores an empty array when a chart is plotted from {x, y} points
+    // rather than labels, so an empty one has to count as "no labels" or the
+    // table comes out with headings and nothing under them.
+    const labels = (chart.data.labels && chart.data.labels.length) ? chart.data.labels : null;
+    const length = labels ? labels.length
+      : Math.max(0, ...sets.map(d => (d.data || []).length));
+    const firstHeading = labels
+      ? 'Category'
+      : (chart.options?.scales?.x?.title?.text || 'Point');
+    const header = [firstHeading, ...sets.map(d => d.label || 'Value')];
     const body = [];
     for (let i = 0; i < length; i++) {
-      const first = labels ? labels[i] : i + 1;
+      const lead = sets[0]?.data?.[i];
+      const first = labels ? labels[i]
+        : (lead && typeof lead === 'object' ? (lead.x ?? i + 1) : i + 1);
       body.push([first, ...sets.map(d => {
-        const point = d.data[i];
-        if (point && typeof point === 'object') return point.y ?? point.x ?? '';
+        const point = (d.data || [])[i];
+        if (point && typeof point === 'object') return point.y ?? point.r ?? '';
         return point ?? '';
       })]);
     }
@@ -1552,7 +1570,26 @@ function biCardRows(card) {
 
 function biToggleDataView(card, button) {
   const open = card.querySelector('.bi-datatable');
-  if (open) { open.remove(); button.classList.remove('on'); return; }
+  if (open) {
+    open.remove();
+    delete card.dataset.biDataview;
+    button.classList.remove('on');
+    return;
+  }
+  card.dataset.biDataview = '1';
+  biRenderDataView(card);
+  button.classList.add('on');
+}
+
+/* An open table has to follow its chart. Drilling or cross-filtering rebuilds
+   the chart, and a table left as first drawn would keep quoting the level the
+   reader has already moved off. */
+function biRefreshDataViews() {
+  document.querySelectorAll('.bi-card[data-bi-dataview]').forEach(biRenderDataView);
+}
+
+function biRenderDataView(card) {
+  card.querySelector('.bi-datatable')?.remove();
   const rows = biCardRows(card);
   if (!rows) return;
   const isNumber = v => v !== '' && v !== null && !isNaN(Number(v));
@@ -1562,12 +1599,20 @@ function biToggleDataView(card, button) {
     rows.header.map((h, i) => `<th class="${i ? 'n' : ''}">${escapeHtml(h)}</th>`).join('')
   }</tr></thead><tbody>${
     rows.body.map(row => `<tr>${row.map((cell, i) => {
-      const value = isNumber(cell) ? Number(cell).toLocaleString(undefined, {maximumFractionDigits: 2}) : cell;
+      /* The first column is a category. Whole numbers there are identities --
+         a year or a store id -- so they keep their digits; a fraction there is
+         a plotted position and only needs a few figures. */
+      let value = cell;
+      if (isNumber(cell)) {
+        const n = Number(cell);
+        if (!i) value = Number.isInteger(n) ? String(n)
+          : n.toLocaleString(undefined, {maximumSignificantDigits: 4});
+        else value = n.toLocaleString(undefined, {maximumFractionDigits: 2});
+      }
       return `<td class="${i ? 'n' : ''}">${escapeHtml(value)}</td>`;
     }).join('')}</tr>`).join('')
   }</tbody></table>`;
   card.appendChild(box);
-  button.classList.add('on');
 }
 
 function biExportCard(card) {
@@ -1593,27 +1638,41 @@ function biExportCard(card) {
    than resized, for the same reason the tab switch rebuilds: a canvas measured
    at one size will not stretch cleanly to another. */
 function biToggleFocus(card, button) {
-  const active = card.classList.contains('bi-focused');
-  document.querySelector('.bi-focus-backdrop')?.remove();
-  document.querySelectorAll('.bi-card.bi-focused').forEach(el => {
-    el.classList.remove('bi-focused');
-    el.querySelector('.bi-vis-tools button[data-act="focus"]')?.classList.remove('on');
-  });
-  if (!active) {
-    const backdrop = document.createElement('div');
-    backdrop.className = 'bi-focus-backdrop';
-    backdrop.addEventListener('click', () => biToggleFocus(card, button));
-    document.body.appendChild(backdrop);
-    card.classList.add('bi-focused');
-    button?.classList.add('on');
+  const layer = document.querySelector('.bi-focus-layer');
+  if (layer && layer.contains(card)) { biCloseFocus(); return; }
+  if (layer) biCloseFocus();
+  // Leave a marker so the card returns to exactly where it came from.
+  const placeholder = document.createElement('div');
+  placeholder.dataset.biPlaceholder = '1';
+  card.parentNode.insertBefore(placeholder, card);
+  const host = document.createElement('div');
+  host.className = 'bi-focus-layer';
+  host.addEventListener('click', event => { if (event.target === host) biCloseFocus(); });
+  host.appendChild(card);
+  document.body.appendChild(host);
+  document.body.style.overflow = 'hidden';
+  button?.classList.add('on');
+  setTimeout(() => biSettleCharts(), 80);
+}
+
+function biCloseFocus() {
+  const host = document.querySelector('.bi-focus-layer');
+  if (!host) return;
+  const card = host.querySelector('.bi-card');
+  const placeholder = document.querySelector('[data-bi-placeholder]');
+  if (card && placeholder) {
+    placeholder.parentNode.insertBefore(card, placeholder);
+    placeholder.remove();
+    card.querySelector('.bi-vis-tools button[data-act="focus"]')?.classList.remove('on');
   }
+  host.remove();
+  document.body.style.overflow = '';
   setTimeout(() => biSettleCharts(), 80);
 }
 
 document.addEventListener('keydown', event => {
   if (event.key !== 'Escape') return;
-  const focused = document.querySelector('.bi-card.bi-focused');
-  if (focused) biToggleFocus(focused, focused.querySelector('.bi-vis-tools button[data-act="focus"]'));
+  biCloseFocus();
 });
 
 /* ---------- saved views --------------------------------------------------- */
@@ -1679,7 +1738,7 @@ async function biRefresh() {
       loadPareto(), loadGrowth(), loadRepeat(), loadHouseholdValue(),
       loadDiscountMix(), loadBrandMix(), loadHeatmap(),
     ]);
-    setTimeout(() => { biSettleCharts(); biDecorateCards(); }, 250);
+    setTimeout(() => { biSettleCharts(); biDecorateCards(); biRefreshDataViews(); }, 250);
     const stamp = document.getElementById('biStamp');
     if (stamp) {
       stamp.textContent = 'Read from the database at ' + new Date().toLocaleTimeString()
