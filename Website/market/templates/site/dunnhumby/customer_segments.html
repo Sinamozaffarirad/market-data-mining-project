@@ -268,14 +268,67 @@
     margin-left: auto;
   }
 }
+
+/* ---- shared card system -------------------------------------------------
+   Matches the association-rules and basket-mining pages. Styling only: every
+   control, label and figure on this page is left exactly as it was. */
+.cs-page {
+  --rev-1:#667eea; --rev-2:#764ba2; --rev-ink:#1e2338; --rev-muted:#6b7391; --rev-line:#e6e8f2;
+}
+.cs-page .cs-title-bar {
+  background: var(--gradient-primary);
+  color:#fff; border:0; padding:1rem 1.25rem;
+}
+.cs-page .cs-title {
+  font-size:1.2rem; font-weight:700; color:#fff;
+  display:flex; align-items:center; gap:.5rem;
+}
+.cs-page .segmentation-dashboard-card {
+  border:1px solid var(--rev-line); border-radius:16px; overflow:hidden;
+  box-shadow:0 2px 14px rgba(102,126,234,.06);
+}
+/* Inner panels take the same border, radius and lift as the cards elsewhere. */
+.cs-page .card:not(.segmentation-dashboard-card) {
+  border:1px solid var(--rev-line); border-radius:14px;
+  box-shadow:0 2px 12px rgba(102,126,234,.05);
+}
+.cs-page .segment-card, .cs-page .churn-card,
+.cs-page .household-card, .cs-page .guide-card {
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+.cs-page .segment-card:hover, .cs-page .churn-card:hover,
+.cs-page .household-card:hover, .cs-page .guide-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 26px rgba(102,126,234,.16);
+}
+.cs-page h5 { font-size:.97rem; font-weight:700; color:var(--rev-ink); }
+.cs-page .form-select, .cs-page .form-control {
+  border-radius:.55rem; border-color:#dfe3f1;
+}
+.cs-page .form-select:focus, .cs-page .form-control:focus {
+  border-color: var(--rev-1); box-shadow: 0 0 0 .18rem rgba(102,126,234,.15);
+}
+.cs-page .btn-primary {
+  background:linear-gradient(135deg, var(--rev-1), var(--rev-2)); border:none;
+  border-radius:10px; font-weight:600;
+}
+.cs-page .btn-primary:hover { filter:brightness(1.06); }
+.cs-page .table thead th {
+  font-size:.66rem; letter-spacing:.05em; text-transform:uppercase;
+  color:#fff; font-weight:700;
+  background:linear-gradient(135deg, var(--rev-1), var(--rev-2));
+  border-bottom:0;
+}
 </style>
 
 
-<div class="row g-4">
+<div class="row g-4 cs-page">
   <div class="col-12">
     <div class="card shadow-sm segmentation-dashboard-card">
-      <div class="card-header" style="background:var(--gradient-primary); color:#fff; font-weight:700;">
-        <i class="fas fa-users"></i> Customer Segmentation Dashboard
+      <!-- Same banner the association-rules and basket-mining pages use. The
+           wording is untouched; only the frame around it changed. -->
+      <div class="card-header cs-title-bar">
+        <div class="cs-title"><i class="fas fa-users"></i> Customer Segmentation Dashboard</div>
       </div>
       <div class="card-body">
         <div class="row g-4">
