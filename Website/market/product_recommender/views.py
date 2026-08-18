@@ -56,6 +56,8 @@ def recommend_home(request):
     products = None
     commodities = None
     departments = None
+    all_commodities = None
+    all_departments = None
 
     if form.is_valid():
         query = form.cleaned_data.get("query")
@@ -88,6 +90,25 @@ def recommend_home(request):
                     .order_by("department")[:50]
                 )
 
+    if level ==  "commodity":
+        all_commodities = (
+            DunnhumbyProduct.objects
+            .exclude(commodity_desc__isnull=True)
+            .values_list("commodity_desc", flat=True)
+            .distinct()
+            .order_by("commodity_desc")
+        )
+
+    elif level =="department":
+        all_departments =(
+            DunnhumbyProduct.objects
+            .exclude(department__isnull=True)
+            .values_list("department", flat=True)
+            .distinct()
+            .order_by("department")
+
+        )
+
     return render(request, "site/product_recommender/recommend_customers.html", {
         "form": form,
         "query": query,
@@ -95,6 +116,8 @@ def recommend_home(request):
         "products": products,
         "commodities": commodities,
         "departments": departments,
+        "all_commodities": all_commodities,
+        "all_departments":all_departments,
     })
 
 
