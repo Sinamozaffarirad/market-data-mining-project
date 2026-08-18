@@ -2300,27 +2300,30 @@ const COMMODITY_CONFIG = {
   'DEFAULT': { color: '#6C757D', emoji: '🛒', gradient: 'linear-gradient(135deg, #6C757D, #868E96)' }
 };
 
-// Create commodity badge with proper colors and emojis
+// Which department each commodity belongs to, so a commodity chip carries the
+// same icon and colour as its department does one level up.
+const COMMODITY_DEPARTMENT = {% commodity_departments_json %};
+
+// Create commodity badge: its department's icon, and the whole commodity name.
+// Truncating at ten characters turned "BAKED BREAD/BUNS/ROLLS" into
+// "BAKED BREA...", which named nothing.
 function createCommodityBadge(name) {
-  const config = COMMODITY_CONFIG[name] || COMMODITY_CONFIG['DEFAULT'];
-  const textColor = config.textColor || '#ffffff';
+  const department = COMMODITY_DEPARTMENT[String(name || '').trim().toUpperCase()];
+  const config = DEPARTMENT_CONFIG[department] || DEPARTMENT_CONFIG['DEFAULT'];
   return `
     <span class="commodity-badge" style="
       background: ${config.gradient};
-      color: ${textColor};
+      color: #fff;
       font-weight: 600;
-      border-radius: 15px;
-      padding: 0.25rem 0.6rem;
+      border-radius: 999px;
+      padding: 0.25rem 0.65rem;
       font-size: 0.7rem;
-      white-space: nowrap;
       display: inline-flex;
       align-items: center;
-      gap: 0.3rem;
-      max-width: 140px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    ">
-      ${config.emoji} ${name.length > 12 ? name.substring(0, 10) + '...' : name}
+      gap: 0.35rem;
+      text-align: left;
+    " title="${escapeHtml(name)}${department ? ' — ' + escapeHtml(department) : ''}">
+      ${config.emoji} ${escapeHtml(name)}
     </span>
   `;
 }

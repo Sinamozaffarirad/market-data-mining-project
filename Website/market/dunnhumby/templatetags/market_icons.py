@@ -103,3 +103,53 @@ def department_styles_json():
     payload["DEFAULT"] = {"emoji": emoji, "color": start,
                           "gradient": f"linear-gradient(135deg, {start}, {end})"}
     return mark_safe(json.dumps(payload))
+
+
+# Built once per process: 307 commodities, and the catalogue does not change
+# between requests.
+_COMMODITY_DEPARTMENTS = None
+
+
+def _commodity_departments():
+    global _COMMODITY_DEPARTMENTS
+    if _COMMODITY_DEPARTMENTS is None:
+        from django.db import connection
+        mapping = {}
+        try:
+            with connection.cursor() as cursor:
+                # A commodity can appear under more than one department; the one
+                # holding the most of its products is the one to show.
+                cursor.execute("""
+                    SELECT commodity_desc, department FROM (
+                        SELECT commodity_desc, department, COUNT(*) AS n,
+                               ROW_NUMBER() OVER (PARTITION BY commodity_desc
+                                                  ORDER BY COUNT(*) DESC) AS rn
+                        FROM product
+                        WHERE commodity_desc IS NOT NULL AND commodity_desc <> ''
+                          AND department IS NOT NULL AND department <> ''
+                        GROUP BY commodity_desc, department
+                    ) ranked WHERE rn = 1
+                """)
+                mapping = {str(row[0]).strip().upper(): row[1] for row in cursor.fetchall()}
+        except Exception:
+            logger = __import__('logging').getLogger(__name__)
+            logger.warning('commodity-to-department lookup unavailable', exc_info=True)
+        _COMMODITY_DEPARTMENTS = mapping
+    return _COMMODITY_DEPARTMENTS
+
+
+@register.simple_tag
+def commodity_departments_json():
+    """Which department each commodity sits in, for chips drawn in JavaScript."""
+    return mark_safe(json.dumps(_commodity_departments()))
+
+
+@register.filter
+def commodity_icon(commodity):
+    """A commodity wears its department's icon, so the two levels agree."""
+    return dept_icon(_commodity_departments().get((commodity or '').strip().upper()))
+
+
+@register.filter
+def commodity_gradient(commodity):
+    return dept_gradient(_commodity_departments().get((commodity or '').strip().upper()))
