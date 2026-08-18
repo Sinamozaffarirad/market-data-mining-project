@@ -4,6 +4,8 @@ from django.conf import settings
 from django.db import models
 from django.http import JsonResponse, HttpResponse
 from django.shortcuts import render, get_object_or_404, redirect
+import math
+
 from django.db import connection
 from django.contrib import messages
 from django.urls import reverse
@@ -345,6 +347,25 @@ def api_refresh_basket_analysis(request):
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
 
+# SQL Server accepts at most 2,100 parameters in one statement, and an IN list
+# built from a page of results runs past that: 1,000 rules reference up to 2,000
+# products, which failed with "COUNT field incorrect or syntax error" -- a
+# message that says nothing about the real cause. Lookups are batched instead.
+SQL_PARAMETER_BATCH = 900
+
+
+def _rows_in_batches(cursor, sql_template, values):
+    """Run an IN-list query in batches small enough for the driver."""
+    collected = []
+    values = list(values)
+    for start in range(0, len(values), SQL_PARAMETER_BATCH):
+        batch = values[start:start + SQL_PARAMETER_BATCH]
+        placeholders = ', '.join(['%s'] * len(batch))
+        cursor.execute(sql_template.format(placeholders=placeholders), batch)
+        collected.extend(cursor.fetchall())
+    return collected
+
+
 def _generate_association_rules(min_support, min_confidence, transaction_period='all', max_results=100):
     """
     Efficient association rules generation using database-level queries
@@ -391,7 +412,10 @@ def _generate_association_rules(min_support, min_confidence, transaction_period=
                 return rules
 
             # Calculate minimum basket count threshold
-            min_basket_count = max(1, int(total_baskets * min_support))
+            # Rounded up, not down: truncating let a rule through at a support
+            # marginally below the one that was asked for, so the threshold on
+            # screen was not quite the threshold applied.
+            min_basket_count = max(1, math.ceil(total_baskets * min_support))
             logger.info(f"Total baskets: {total_baskets}, Min basket count: {min_basket_count}")
 
             # Validate parameters to prevent extremely long queries
@@ -411,8 +435,15 @@ def _generate_association_rules(min_support, min_confidence, transaction_period=
                 date_filter_pairs = ""
                 date_filter_single = ""
 
+            # Candidates are taken by lift, which is what the results are ranked
+            # and read by. Taking the 2,000 most frequent pairs and then sorting
+            # those by lift could not surface the strongest rules: lift is
+            # highest for rare pairs, so the most frequent candidates are the
+            # least likely to hold them. At the default threshold 4.1M pairs
+            # qualify, so which 2,000 were examined decided the answer.
+            candidate_limit = max(int(max_results) * 4, 400)
             pairs_query = f"""
-            SELECT TOP 2000
+            SELECT TOP {candidate_limit}
                 pairs.product_a,
                 pairs.product_b,
                 pairs.pair_count,
@@ -446,7 +477,10 @@ def _generate_association_rules(min_support, min_confidence, transaction_period=
                 {date_filter_single}
                 GROUP BY product_id
             ) counts_b ON pairs.product_b = counts_b.product_id
-            ORDER BY pairs.pair_count DESC
+            ORDER BY
+                (CAST(pairs.pair_count AS float) * {total_baskets})
+                / (CAST(counts_a.product_count AS float) * counts_b.product_count) DESC,
+                pairs.pair_count DESC
             """
 
             logger.info(f"Executing pairs query with min_basket_count: {min_basket_count}")
@@ -462,17 +496,12 @@ def _generate_association_rules(min_support, min_confidence, transaction_period=
                     product_ids.add(pair[0])
                     product_ids.add(pair[1])
 
-                product_ids_list = list(product_ids)
-                placeholders = ','.join(['%s'] * len(product_ids_list))
-
-                cursor.execute(f"""
+                product_details = {}
+                for row in _rows_in_batches(cursor, """
                     SELECT product_id, department, commodity_desc, brand, curr_size_of_product
                     FROM product
                     WHERE product_id IN ({placeholders})
-                """, product_ids_list)
-
-                product_details = {}
-                for row in cursor.fetchall():
+                """, product_ids):
                     product_details[str(row[0])] = {
                         'department': row[1] or 'GENERAL',
                         'commodity': row[2] or 'No Description',
@@ -507,6 +536,7 @@ def _generate_association_rules(min_support, min_confidence, transaction_period=
                     'consequent': [str(product_b)],
                     'antecedent_details': [ant_detail],
                     'consequent_details': [cons_detail],
+                    'baskets_together': pair_count,
                     'support': support,
                     'confidence': confidence_a_to_b,
                     'lift': lift,
@@ -539,6 +569,7 @@ def _generate_association_rules(min_support, min_confidence, transaction_period=
                     'consequent': [str(product_a)],
                     'antecedent_details': [ant_detail],
                     'consequent_details': [cons_detail],
+                    'baskets_together': pair_count,
                     'support': support,
                     'confidence': confidence_b_to_a,
                     'lift': lift,
@@ -555,7 +586,10 @@ def _generate_association_rules(min_support, min_confidence, transaction_period=
 
         # Sort by lift and return top N results
         all_rules = sorted(rules, key=lambda x: x['lift'], reverse=True)
-        logger.info(f"Generated {len(all_rules)} total association rules, returning top {max_results}")
+        logger.info(
+            "Generated %s rules from %s candidate pairs (limit %s, min %s baskets), returning top %s",
+            len(all_rules), len(product_pairs), candidate_limit, min_basket_count, max_results,
+        )
         return all_rules[:max_results]
 
     except Exception as e:
@@ -1361,25 +1395,21 @@ def _describe_stored_rules(rules):
         if product_ids:
             ids = [int(v) for v in product_ids if str(v).isdigit()]
             if ids:
-                placeholders = ', '.join(['%s'] * len(ids))
-                cursor.execute(f"""
+                for pid, department, commodity, brand in _rows_in_batches(cursor, """
                     SELECT product_id, department, commodity_desc, brand
                     FROM product WHERE product_id IN ({placeholders})
-                """, ids)
-                for pid, department, commodity, brand in cursor.fetchall():
+                """, ids):
                     products[str(pid)] = {
                         'department': department or 'UNKNOWN',
                         'commodity': commodity or 'No description',
                         'brand': brand or 'Generic',
                     }
         if commodities:
-            placeholders = ', '.join(['%s'] * len(commodities))
-            cursor.execute(f"""
+            for commodity, department in _rows_in_batches(cursor, """
                 SELECT commodity_desc, MAX(department) AS department
                 FROM product WHERE commodity_desc IN ({placeholders})
                 GROUP BY commodity_desc
-            """, list(commodities))
-            for commodity, department in cursor.fetchall():
+            """, commodities):
                 commodity_departments[str(commodity)] = department or 'UNKNOWN'
 
     def describe(value, rule_type):

@@ -49,6 +49,16 @@
 .ar-page .form-label { font-size:.72rem; font-weight:700; letter-spacing:.04em;
   text-transform:uppercase; color:var(--rev-muted); }
 .ar-page .form-select, .ar-page .form-control { border-radius:.55rem; border-color:#dfe3f1; }
+.ar-page .form-text { font-size:.8rem; color:var(--rev-muted); }
+/* The value scale, as chips rather than a stack of one-line paragraphs. */
+.ar-page .ar-scale { display:flex; flex-wrap:wrap; gap:.3rem; margin:.45rem 0 .3rem; }
+.ar-page .ar-scale span {
+  background:#f2f4fb; border:1px solid #e4e7f4; border-radius:999px;
+  padding:.1rem .5rem; font-size:.72rem; color:#4a5170;
+}
+.ar-page .ar-scale b { color:var(--rev-ink); }
+.ar-page .ar-live { display:block; font-size:.78rem; color:#0369a1; }
+.ar-page .ar-live.is-thin { color:#b45309; }
 /* The chip carried inline padding and radius on every use; it belongs in one rule. */
 .ar-page .department-badge {
   color:#fff; padding:4px 10px; border-radius:999px; font-size:.75rem; font-weight:600;
@@ -97,8 +107,8 @@
                     <option value="12_months" {% if transaction_period == '12_months' %}selected{% endif %}>Last 12 Months</option>
                   </select>
                   <div class="form-text">
-                    Choose time range for analysis.<br>
-                    <small><strong>Tip:</strong> Recent periods (1-3 months) process faster and may reveal emerging patterns!</small>
+                    How much history to read. Shorter periods run faster and show what is
+                    selling now.
                   </div>
                 </div>
                 <div class="col-12 col-md-6">
@@ -110,7 +120,7 @@
                     <option value="500" {% if max_results == 500 %}selected{% endif %}>500</option>
                     <option value="1000" {% if max_results == 1000 %}selected{% endif %}>1000</option>
                   </select>
-                  <div class="form-text">Number of top rules to show.</div>
+                  <div class="form-text">How many of the strongest rules to keep, ranked by lift.</div>
                 </div>
               </div>
 
@@ -120,23 +130,27 @@
                   <label for="min_support" class="form-label">Minimum Support (0.0 - 1.0)</label>
                   <input type="number" class="form-control" id="min_support" name="min_support" step="0.00001" min="0" max="1" value="{{ min_support|default:'0.0005' }}" oninput="updateSupportInfo()">
                   <div class="form-text">
-                    <small>For 2.6M transactions - Ultra-fine control:</small><br>
-                    <small><strong>0.001</strong> = Very frequent (2,595+ transactions)</small><br>
-                    <small><strong>0.0005</strong> = Common (1,297+ transactions)</small><br>
-                    <small><strong>0.0001</strong> = Moderate (259+ transactions)</small><br>
-                    <small><strong>0.00005</strong> = Rare (129+ transactions)</small><br>
-                    <small><strong>0.00001</strong> = Very rare (26+ transactions)</small><br>
-                    <small class="text-warning"><strong>⚠️ Values &lt; 0.00001 may be very slow</strong></small><br>
-                    <small id="supportInfo" class="text-info"><strong>Current: </strong><span id="currentSupportCount">1,297+ transactions</span></small>
+                    How often a pair must appear before it counts. Higher is faster and stricter.
+                    <span class="ar-scale">
+                      <span><b>0.001</b> frequent</span>
+                      <span><b>0.0005</b> common</span>
+                      <span><b>0.0001</b> occasional</span>
+                      <span><b>0.00001</b> rare</span>
+                    </span>
+                    <span id="supportInfo" class="ar-live">Needs <b id="currentSupportCount">138</b>
+                    baskets of the <b id="supportBasketTotal">276,450</b> in range.</span>
                   </div>
                 </div>
                 <div class="col-12 col-md-6">
                   <label for="min_confidence" class="form-label">Minimum Confidence (0.0 - 1.0)</label>
                   <input type="number" class="form-control" id="min_confidence" name="min_confidence" step="0.01" min="0" max="1" value="{{ min_confidence|default:'0.3' }}">
                   <div class="form-text">
-                    <small><strong>0.7+</strong> = Very strong rules (70%+ confidence)</small><br>
-                    <small><strong>0.5</strong> = Moderate rules (50%+ confidence)</small><br>
-                    <small><strong>0.3</strong> = Exploratory (30%+ confidence)</small>
+                    How often the second product follows the first. 0.5 means half the time.
+                    <span class="ar-scale">
+                      <span><b>0.7</b> strong</span>
+                      <span><b>0.5</b> moderate</span>
+                      <span><b>0.3</b> exploratory</span>
+                    </span>
                   </div>
                 </div>
               </div>
@@ -563,49 +577,34 @@ document.addEventListener('DOMContentLoaded', function() {
 // Real-time support value calculator
 function updateSupportInfo() {
   const supportInput = document.getElementById('min_support');
-  const supportCountSpan = document.getElementById('currentSupportCount');
+  const countSpan = document.getElementById('currentSupportCount');
+  const totalSpan = document.getElementById('supportBasketTotal');
   const periodSelect = document.getElementById('transaction_period');
+  if (!supportInput || !countSpan) return;
 
-  if (supportInput && supportCountSpan) {
-    const supportValue = parseFloat(supportInput.value);
-    const selectedPeriod = periodSelect ? periodSelect.value : 'all';
+  /* Support is measured against baskets, not transaction lines. This read
+     transaction counts and so overstated every threshold about ninefold: 0.00001
+     was labelled "26+ transactions" when the algorithm was in fact accepting
+     pairs seen in 3 baskets. Basket counts for this fixed 711-day dataset. */
+  const basketsInPeriod = {
+    'all': 276450, '12_months': 155352, '6_months': 75236,
+    '3_months': 37109, '1_month': 12121,
+  };
+  const period = periodSelect ? periodSelect.value : 'all';
+  const total = basketsInPeriod[period] || basketsInPeriod['all'];
+  const support = parseFloat(supportInput.value);
+  if (totalSpan) totalSpan.textContent = total.toLocaleString();
+  if (isNaN(support) || support <= 0) { countSpan.textContent = '--'; return; }
 
-    // Transaction counts by period (from your data)
-    const transactionCounts = {
-      'all': 2595277,
-      '12_months': 1477227,
-      '6_months': 732216,
-      '3_months': 373342,
-      '1_month': 126222
-    };
-
-    const totalTransactions = transactionCounts[selectedPeriod] || transactionCounts['all'];
-
-    if (!isNaN(supportValue) && supportValue > 0) {
-      const minTransactions = Math.ceil(totalTransactions * supportValue);
-      const formattedCount = minTransactions.toLocaleString();
-      const periodText = selectedPeriod === 'all' ? '' : ` (${selectedPeriod})`;
-
-      // Add performance warnings
-      let warningText = '';
-      if (supportValue < 0.000005) {
-        warningText = ' ⚠️ EXTREMELY SLOW';
-        supportCountSpan.className = 'text-danger fw-bold';
-      } else if (supportValue < 0.00001) {
-        warningText = ' ⚠️ Very slow';
-        supportCountSpan.className = 'text-warning fw-bold';
-      } else if (supportValue < 0.00005) {
-        warningText = ' ⚠️ Slow';
-        supportCountSpan.className = 'text-warning';
-      } else {
-        supportCountSpan.className = 'text-info';
-      }
-
-      supportCountSpan.textContent = `${formattedCount}+ transactions${periodText}${warningText}`;
-    } else {
-      supportCountSpan.textContent = '1,297+ transactions';
-      supportCountSpan.className = 'text-info';
-    }
+  // Rounded up, matching the threshold the query applies.
+  const needed = Math.max(1, Math.ceil(total * support));
+  countSpan.textContent = needed.toLocaleString();
+  const box = document.getElementById('supportInfo');
+  if (box) {
+    box.classList.toggle('is-thin', needed < 20);
+    box.title = needed < 20
+      ? 'Fewer than 20 baskets is thin evidence: a high lift on a handful of baskets is usually noise.'
+      : '';
   }
 }
 
