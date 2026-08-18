@@ -1636,6 +1636,11 @@ def api_insert_association_rule(request):
         )
         return JsonResponse({'success': True, 'message': 'Rule inserted.'}, status=201)
 
+# One request is sent per record when deleting, so a selection that can be acted
+# on has to stay within reach of that.
+SELECTION_ID_CAP = 5000
+
+
 @login_required(login_url='/admin/login/')
 def api_get_table_data(request):
     if request.method != 'POST':
@@ -1768,6 +1773,22 @@ def api_get_table_data(request):
 
 
         total_count = queryset.count()
+
+        # "Select all matching" asks for the keys alone, so a selection can span
+        # pages without pulling every column of every row. Capped, because the
+        # delete path issues one request per record and the larger tables run to
+        # millions of rows.
+        if request.POST.get('ids_only'):
+            pk_name = model._meta.pk.name
+            cap = SELECTION_ID_CAP
+            ids = list(queryset.values_list(pk_name, flat=True)[:cap + 1])
+            return JsonResponse({
+                'ids': [str(value) for value in ids[:cap]],
+                'total': total_count,
+                'capped': len(ids) > cap,
+                'cap': cap,
+            })
+
         offset = (page - 1) * limit
         
         # Simple slicing now works because queryset is always a ValuesQuerySet
