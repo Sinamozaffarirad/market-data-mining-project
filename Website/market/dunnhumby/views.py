@@ -1470,7 +1470,10 @@ def association_rules(request):
                 min_confidence = 0.5
             if transaction_period not in ['all', '1_month', '3_months', '6_months', '12_months']:
                 transaction_period = 'all'
-            if max_results not in [50, 100, 200, 500, 1000]:
+            # Kept in step with the choices the form offers: a value the form
+            # can produce was being silently replaced with 100, so asking for
+            # 2,000 or 3,000 quietly returned a hundred.
+            if max_results not in [50, 100, 200, 500, 1000, 2000, 3000]:
                 max_results = 100
 
             rules = _generate_association_rules(min_support, min_confidence, transaction_period, max_results)
