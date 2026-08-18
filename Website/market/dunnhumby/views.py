@@ -1249,21 +1249,69 @@ def _bi_filter_options():
     Returns empty lists when the reporting views are absent so the page still
     renders and the panel can explain what to run.
     """
-    try:
+    # Imported here rather than at module scope: bi_views imports from this
+    # module, so a top-level import would close the circle.
+    from .bi_views import _apply_natural_order
+
+    def rows(sql):
         with connection.cursor() as cursor:
-            cursor.execute("SELECT DISTINCT calendar_year FROM vw_dim_date ORDER BY calendar_year")
-            years = [row[0] for row in cursor.fetchall()]
-            cursor.execute("SELECT DISTINCT department FROM vw_dim_product ORDER BY department")
-            departments = [row[0] for row in cursor.fetchall()]
-            cursor.execute(
-                "SELECT rfm_segment, COUNT(*) n FROM vw_dim_household "
-                "GROUP BY rfm_segment ORDER BY n DESC"
-            )
-            segments = [row[0] for row in cursor.fetchall()]
-        return {"years": years, "departments": departments, "segments": segments}
+            cursor.execute(sql)
+            return cursor.fetchall()
+
+    def banded(dimension, sql):
+        """Bands ordered by their number, not alphabetically, and without the
+        blank rows the source leaves for households with no demographics."""
+        values = [{"value": r[0]} for r in rows(sql) if (r[0] or "").strip()]
+        return [r["value"] for r in _apply_natural_order(dimension, values, "value")]
+
+    try:
+        years = [r[0] for r in rows(
+            "SELECT DISTINCT calendar_year FROM vw_dim_date ORDER BY calendar_year")]
+        quarters = [r[0] for r in rows(
+            "SELECT quarter_name FROM vw_dim_date GROUP BY quarter_name, calendar_quarter "
+            "ORDER BY calendar_quarter")]
+        months = [r[0] for r in rows(
+            "SELECT month_name FROM vw_dim_date GROUP BY month_name, month_sort "
+            "ORDER BY month_sort")]
+        weekdays = [r[0] for r in rows(
+            "SELECT day_name FROM vw_dim_date GROUP BY day_name, day_sort ORDER BY day_sort")]
+        hours = [r[0] for r in rows(
+            "SELECT DISTINCT trans_hour FROM vw_fact_sales "
+            "WHERE trans_hour IS NOT NULL ORDER BY trans_hour")]
+        departments = [r[0] for r in rows(
+            "SELECT DISTINCT department FROM vw_dim_product ORDER BY department")]
+        # Carries its department so the commodity list can narrow to whichever
+        # department is chosen instead of listing all three hundred.
+        commodities = [
+            {"name": r[0], "department": r[1]}
+            for r in rows("SELECT DISTINCT commodity, department FROM vw_dim_product "
+                          "WHERE commodity IS NOT NULL ORDER BY commodity")
+        ]
+        brands = [r[0] for r in rows(
+            "SELECT DISTINCT brand FROM vw_dim_product WHERE brand IS NOT NULL ORDER BY brand")]
+        segments = [r[0] for r in rows(
+            "SELECT rfm_segment, COUNT(*) n FROM vw_dim_household "
+            "GROUP BY rfm_segment ORDER BY n DESC") if r[0]]
+        stores = [r[0] for r in rows(
+            "SELECT store_id FROM vw_fact_sales GROUP BY store_id "
+            "ORDER BY SUM(sales_value) DESC")]
+        return {
+            "years": years, "quarters": quarters, "months": months,
+            "weekdays": weekdays, "hours": hours,
+            "departments": departments, "commodities": commodities, "brands": brands,
+            "segments": segments, "stores": stores,
+            "incomes": banded("income", "SELECT DISTINCT income_band FROM vw_dim_household"),
+            "ages": banded("age", "SELECT DISTINCT age_group FROM vw_dim_household"),
+            "household_sizes": banded(
+                "household_size", "SELECT DISTINCT household_size FROM vw_dim_household"),
+        }
     except Exception:
         logger.warning("BI reporting views unavailable", exc_info=True)
-        return {"years": [], "departments": [], "segments": []}
+        return {
+            "years": [], "quarters": [], "months": [], "weekdays": [], "hours": [],
+            "departments": [], "commodities": [], "brands": [], "segments": [],
+            "stores": [], "incomes": [], "ages": [], "household_sizes": [],
+        }
 
 
 def _complete_period_count():

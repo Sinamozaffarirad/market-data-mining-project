@@ -43,7 +43,21 @@ one over several lines renders it onto the page as visible text.
   padding: 1rem 1.15rem; margin-bottom: 1rem;
   box-shadow: 0 2px 14px rgba(102,126,234,.07);
 }
-.bi-slicers { display: flex; flex-wrap: wrap; gap: .8rem; align-items: flex-end; }
+.bi-slicers { display: grid; gap: .7rem .9rem; align-items: end;
+  grid-template-columns: repeat(auto-fit, minmax(155px, 1fr)); }
+.bi-slicers-more { margin-top: .75rem; padding-top: .75rem;
+  border-top: 1px dashed var(--bi-line); }
+.bi-slicers .field-actions { display: flex; flex-wrap: wrap; gap: .4rem;
+  grid-column: 1 / -1; justify-content: flex-end; }
+.bi-slicers .form-select, .bi-slicers .form-control { border-radius: .55rem;
+  border-color: #dfe3f1; }
+.bi-slicers .form-select:focus, .bi-slicers .form-control:focus {
+  border-color: var(--bi-1); box-shadow: 0 0 0 .18rem rgba(102,126,234,.15); }
+/* An active slicer is tinted so a narrowed dashboard is obvious at a glance. */
+.bi-slicers .field.is-set .form-select, .bi-slicers .field.is-set .form-control {
+  border-color: var(--bi-1); background: rgba(102,126,234,.07); font-weight: 600;
+  color: var(--bi-1); }
+.bi-slicers .field.is-set label { color: var(--bi-1); }
 .bi-slicers .field { min-width: 148px; flex: 1 1 148px; }
 .bi-slicers label {
   display: block; font-size: .66rem; font-weight: 700; letter-spacing: .07em;
@@ -290,44 +304,119 @@ one over several lines renders it onto the page as visible text.
   {% endif %}
 
   <div class="bi-toolbar">
-    <div class="bi-slicers">
-      <div class="field">
-        <label for="fYear">Year</label>
-        <select id="fYear" class="form-select form-select-sm" onchange="biSetFilter('year', this.value)">
-          <option value="all">All years</option>
-          {% for y in filter_options.years %}<option value="{{ y }}">{{ y }}</option>{% endfor %}
-        </select>
-      </div>
-      <div class="field">
-        <label for="fDept">Department</label>
-        <select id="fDept" class="form-select form-select-sm" onchange="biSetFilter('department', this.value)">
-          <option value="all">All departments</option>
-          {% for d in filter_options.departments %}<option value="{{ d }}">{{ d }}</option>{% endfor %}
-        </select>
-      </div>
-      <div class="field">
-        <label for="fSegment">Customer segment</label>
-        <select id="fSegment" class="form-select form-select-sm" onchange="biSetFilter('segment', this.value)">
-          <option value="all">All segments</option>
-          {% for s in filter_options.segments %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
-        </select>
-      </div>
-      <div class="field">
-        <label for="fStore">Store ID</label>
-        <input id="fStore" type="number" class="form-control form-control-sm" placeholder="All stores"
-               onchange="biSetFilter('store', this.value)">
-      </div>
-      <div class="d-flex align-items-end gap-2">
-        <button class="btn btn-sm btn-outline-secondary" type="button" onclick="biClearAll()">
-          <i class="fas fa-rotate-left"></i> Clear all
-        </button>
-        <button class="btn btn-sm btn-outline-secondary" type="button" onclick="biRefresh()" title="Re-read the database">
-          <i class="fas fa-arrows-rotate"></i> Refresh
-        </button>
-        <button class="btn btn-sm btn-outline-secondary" type="button" onclick="biSaveBookmark()" title="Save the current filters">
-          <i class="fas fa-bookmark"></i> Save view
-        </button>
-      </div>
+    <div class="bi-slicers" id="biSlicersPrimary">
+        <div class="field">
+          <label for="fYear">Year</label>
+          <select id="fYear" class="form-select form-select-sm" onchange="biSetFilter('year', this.value)">
+            <option value="all">All years</option>
+            {% for y in filter_options.years %}<option value="{{ y }}">{{ y }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="fQuarter">Quarter</label>
+          <select id="fQuarter" class="form-select form-select-sm" onchange="biSetFilter('quarter', this.value)">
+            <option value="all">All quarters</option>
+            {% for q in filter_options.quarters %}<option value="{{ q }}">{{ q }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="fMonth">Month</label>
+          <select id="fMonth" class="form-select form-select-sm" onchange="biSetFilter('month', this.value)">
+            <option value="all">All months</option>
+            {% for m in filter_options.months %}<option value="{{ m }}">{{ m }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="fDept">Department</label>
+          <select id="fDept" class="form-select form-select-sm" onchange="biSetFilter('department', this.value)">
+            <option value="all">All departments</option>
+            {% for d in filter_options.departments %}<option value="{{ d }}">{{ d }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="fCommodity">Commodity</label>
+          <select id="fCommodity" class="form-select form-select-sm" onchange="biSetFilter('commodity', this.value)">
+            <option value="all">All commodities</option>
+            {% for c in filter_options.commodities %}<option value="{{ c.name }}" data-department="{{ c.department }}">{{ c.name }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="fSegment">Customer segment</label>
+          <select id="fSegment" class="form-select form-select-sm" onchange="biSetFilter('segment', this.value)">
+            <option value="all">All segments</option>
+            {% for sg in filter_options.segments %}<option value="{{ sg }}">{{ sg }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="field field-actions">
+          <button class="btn btn-sm btn-outline-secondary" type="button" onclick="biClearAll()">
+            <i class="fas fa-rotate-left"></i> Clear all
+          </button>
+          <button class="btn btn-sm btn-outline-secondary" type="button" onclick="biRefresh()"
+                  title="Re-read the database">
+            <i class="fas fa-arrows-rotate"></i> Refresh
+          </button>
+          <button class="btn btn-sm btn-outline-secondary" type="button" onclick="biSaveBookmark()"
+                  title="Save the current filters as a named view">
+            <i class="fas fa-bookmark"></i> Save view
+          </button>
+          <button class="btn btn-sm btn-outline-secondary" type="button" id="biMoreFiltersBtn"
+                  onclick="biToggleMoreFilters()" aria-expanded="false">
+            <i class="fas fa-sliders"></i> More filters
+          </button>
+        </div>
+    </div>
+    <div class="bi-slicers bi-slicers-more" id="biSlicersMore" hidden>
+        <div class="field">
+          <label for="fBrand">Brand type</label>
+          <select id="fBrand" class="form-select form-select-sm" onchange="biSetFilter('brand', this.value)">
+            <option value="all">All brands</option>
+            {% for b in filter_options.brands %}<option value="{{ b }}">{{ b }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="fWeekday">Day of week</label>
+          <select id="fWeekday" class="form-select form-select-sm" onchange="biSetFilter('weekday', this.value)">
+            <option value="all">All days</option>
+            {% for w in filter_options.weekdays %}<option value="{{ w }}">{{ w }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="fHour">Hour of day</label>
+          <select id="fHour" class="form-select form-select-sm" onchange="biSetFilter('hour', this.value)">
+            <option value="all">All hours</option>
+            {% for h in filter_options.hours %}<option value="{{ h }}">{{ h }}:00</option>{% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="fIncome">Income band</label>
+          <select id="fIncome" class="form-select form-select-sm" onchange="biSetFilter('income', this.value)">
+            <option value="all">All incomes</option>
+            {% for i in filter_options.incomes %}<option value="{{ i }}">{{ i }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="fAge">Age band</label>
+          <select id="fAge" class="form-select form-select-sm" onchange="biSetFilter('age', this.value)">
+            <option value="all">All ages</option>
+            {% for a in filter_options.ages %}<option value="{{ a }}">{{ a }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="fHouseholdSize">Household size</label>
+          <select id="fHouseholdSize" class="form-select form-select-sm" onchange="biSetFilter('household_size', this.value)">
+            <option value="all">Any size</option>
+            {% for hs in filter_options.household_sizes %}<option value="{{ hs }}">{{ hs }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="fStore">Store</label>
+          <input id="fStore" class="form-control form-control-sm" list="biStoreList"
+                 placeholder="All stores" inputmode="numeric"
+                 onchange="biSetFilter('store', this.value)">
+          <datalist id="biStoreList">
+            {% for st in filter_options.stores %}<option value="{{ st }}"></option>{% endfor %}
+          </datalist>
+        </div>
     </div>
     <div class="bi-chips empty" id="biChips"></div>
     <div class="bi-bookmarks" id="biBookmarks"></div>
@@ -700,13 +789,69 @@ function biClearAll() { BI.filters = {}; biSyncSlicers(); biRefresh(); }
 /* Keep the dropdowns showing whatever the chips say, so a filter set by
    clicking a chart is reflected in the controls and the other way round. */
 function biSyncSlicers() {
-  [['fYear','year'],['fDept','department'],['fSegment','segment'],['fStore','store']].forEach(([id, key]) => {
+  const bound = [
+    ['fYear', 'year'], ['fQuarter', 'quarter'], ['fMonth', 'month'],
+    ['fDept', 'department'], ['fCommodity', 'commodity'], ['fSegment', 'segment'],
+    ['fBrand', 'brand'], ['fWeekday', 'weekday'], ['fHour', 'hour'],
+    ['fIncome', 'income'], ['fAge', 'age'], ['fHouseholdSize', 'household_size'],
+    ['fStore', 'store'],
+  ];
+  bound.forEach(([id, key]) => {
     const el = document.getElementById(id);
     if (!el) return;
     const value = BI.filters[key] || '';
-    if (el.tagName === 'SELECT') el.value = [...el.options].some(o => o.value === value) ? value : 'all';
-    else el.value = value;
+    /* A slicer shows a single choice. Several values can be selected by
+       ctrl-clicking marks, and the control steps back rather than pretending
+       one of them is the selection; the chips carry the full set. */
+    const many = value.includes('|');
+    if (el.tagName === 'SELECT') {
+      el.value = (!many && [...el.options].some(o => o.value === value)) ? value : 'all';
+    } else {
+      el.value = many ? '' : value;
+    }
+    el.closest('.field')?.classList.toggle('is-set', !!value);
+    if (many) el.title = 'Several selected: ' + value.split('|').join(', ');
+    else el.removeAttribute('title');
   });
+  biNarrowCommodities();
+  const more = document.getElementById('biSlicersMore');
+  const secondaryActive = ['brand', 'weekday', 'hour', 'income', 'age', 'household_size', 'store']
+    .some(key => BI.filters[key]);
+  if (secondaryActive && more?.hidden) biToggleMoreFilters();
+}
+
+/* Three hundred commodities is not a list anyone reads. Choosing a department
+   narrows it to that department's own, which is also what clicking through the
+   product hierarchy does. */
+function biNarrowCommodities() {
+  const select = document.getElementById('fCommodity');
+  if (!select) return;
+  const department = BI.filters.department;
+  const single = department && !department.includes('|') ? department : null;
+  let visible = 0;
+  [...select.options].forEach(option => {
+    if (!option.dataset.department) return;
+    const show = !single || option.dataset.department === single;
+    option.hidden = !show;
+    if (show) visible += 1;
+  });
+  const first = select.options[0];
+  if (first) {
+    first.textContent = single ? `All ${visible} in ${single}` : 'All commodities';
+  }
+}
+
+function biToggleMoreFilters() {
+  const box = document.getElementById('biSlicersMore');
+  const button = document.getElementById('biMoreFiltersBtn');
+  if (!box) return;
+  box.hidden = !box.hidden;
+  button?.setAttribute('aria-expanded', String(!box.hidden));
+  if (button) {
+    button.innerHTML = box.hidden
+      ? '<i class="fas fa-sliders"></i> More filters'
+      : '<i class="fas fa-sliders"></i> Fewer filters';
+  }
 }
 
 const FILTER_LABELS = {
