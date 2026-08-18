@@ -3,14 +3,71 @@
 {% load custom_filters %}
 {% block title %}Customer Purchases{% endblock %}
 
-{% block content %}
-<div class="container my-5">
-  <h3 class="text-center mb-4 fw-bold">
-    Purchases for Customer {{ household.household_key }}
-  </h3>
-  <p class="text-muted">Found {{ transaction_count }} baskets in this period</p>
+{% block extra_css %}
+<style>
+  /* Frame, banner and cards shared with the other analysis pages. */
+  .purchase-filter {
+    max-width: 340px;
+    margin-bottom: 1.25rem;
+    padding: 1rem 1.1rem;
+    background: #fbfcff;
+    border: 1px solid #eef0f7;
+    border-radius: 14px;
+  }
+  .purchase-filter .form-label {
+    font-size: .72rem; font-weight: 700; letter-spacing: .04em;
+    text-transform: uppercase; color: #6b7391;
+  }
+  .analysis-frame .form-select { border-radius: .55rem; border-color: #dfe3f1; }
+  .analysis-frame .form-select:focus {
+    border-color: #667eea; box-shadow: 0 0 0 .18rem rgba(102, 126, 234, .15);
+  }
+  .analysis-frame .list-group { display: grid; gap: .6rem; }
+  .basket-row {
+    border: 1px solid #e6e8f2 !important;
+    border-radius: 14px !important;
+    box-shadow: 0 2px 12px rgba(102, 126, 234, .05);
+    transition: transform .15s ease, box-shadow .15s ease;
+  }
+  .basket-row:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(102, 126, 234, .14); }
+  .basket-facts { display: flex; flex-wrap: wrap; gap: .35rem 1.1rem; font-size: .85rem; color: #4a5170; }
+  .basket-facts strong { color: #6b7391; font-weight: 600; font-size: .74rem;
+    text-transform: uppercase; letter-spacing: .03em; }
+  .basket-items { color: #1e2338; font-weight: 600; }
+  .analysis-frame .btn-primary {
+    background: linear-gradient(135deg, #667eea, #764ba2) !important;
+    border: none !important; border-radius: 10px !important; font-weight: 600;
+  }
+  .analysis-frame .btn-primary:hover { filter: brightness(1.06); }
+  .analysis-frame .page-link { border-radius: 8px; margin: 0 .15rem; color: #4a5170; border-color: #e6e8f2; }
+  .analysis-frame .page-item.disabled .page-link { color: #9aa1b4; }
+  .modal-content { border: none; border-radius: 16px; overflow: hidden; }
+  .modal-header {
+    background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; border-bottom: 0;
+  }
+  .modal-header .btn-close { filter: invert(1) grayscale(1) brightness(2); }
+  .modal thead th {
+    font-size: .66rem; letter-spacing: .05em; text-transform: uppercase;
+    color: #fff; font-weight: 700;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+  }
+</style>
+{% endblock %}
 
-  <form method="get" class="mb-4">
+{% block content %}
+<div class="analysis-frame">
+
+  <!-- Banner and frame shared with the other analysis pages. -->
+  <div class="analysis-banner">
+    <div>
+      <div class="analysis-banner-title"><i class="fa-solid fa-basket-shopping"></i> Purchases for Customer {{ household.household_key }}</div>
+      <div class="analysis-banner-sub">Every basket this household has filled in the chosen period,
+      newest first. Open one to see what was in it.</div>
+    </div>
+    <span class="badge bg-success px-3 py-2">Found {{ transaction_count }} baskets in this period</span>
+  </div>
+
+  <form method="get" class="purchase-filter">
     <label for="period" class="form-label">Filter by period:</label>
     <select name="period" id="period" class="form-select" onchange="this.form.submit()">
       <option value="3m" {% if selected_period == '3m' %}selected{% endif %}>Last 3 Months</option>
@@ -26,12 +83,12 @@
   {% if page_obj %}
     <div class="list-group">
       {% for basket_id, items in page_obj %}
-        <div class="list-group-item d-flex justify-content-between align-items-center">
-          <div>
-            <strong>Basket ID:</strong> {{ basket_id }} | 
-            <strong>Day:</strong> {{ items.0.day }} | 
-            <strong>Time:</strong> {{ items.0.trans_time|format_time }} | 
-            <strong>Items:</strong> {{ items|length }}
+        <div class="list-group-item basket-row d-flex justify-content-between align-items-center">
+          <div class="basket-facts">
+            <span><strong>Basket ID:</strong> {{ basket_id }}</span>
+            <span><strong>Day:</strong> {{ items.0.day }}</span>
+            <span><strong>Time:</strong> {{ items.0.trans_time|format_time }}</span>
+            <span class="basket-items"><strong>Items:</strong> {{ items|length }}</span>
           </div>
           <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modal{{ basket_id }}">
             View Details

@@ -34,16 +34,57 @@
     @media (min-width: 992px) {
         .churn-rfm-summary { border-left: 1px solid #dee2e6; }
     }
+
+    /* Card system shared with the other analysis pages. */
+    .analysis-frame .card {
+        border: 1px solid #e6e8f2; border-radius: 16px;
+        box-shadow: 0 2px 14px rgba(102, 126, 234, .06);
+    }
+    /* The figure carries Bootstrap's .text-primary, which is !important, so the
+       gradient has to say it too or the number stays flat blue. */
+    .analysis-frame .churn-probability {
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        -webkit-background-clip: text; background-clip: text;
+        color: transparent !important;
+        -webkit-text-fill-color: transparent;
+        font-weight: 800;
+    }
+    .analysis-frame .table thead th {
+        font-size: .66rem; letter-spacing: .05em; text-transform: uppercase;
+        color: #fff; font-weight: 700;
+        background: linear-gradient(135deg, #667eea, #764ba2); border-bottom: 0;
+    }
+    .analysis-frame .btn-primary, .analysis-frame .btn-success {
+        background: linear-gradient(135deg, #667eea, #764ba2) !important;
+        border: none !important; border-radius: 10px !important; font-weight: 600;
+    }
+    .analysis-frame .btn-primary:hover, .analysis-frame .btn-success:hover { filter: brightness(1.06); }
+    .analysis-frame .btn-outline-secondary {
+        border-radius: 10px !important; border-color: #dfe3f1 !important; color: #4a5170 !important;
+    }
+    .analysis-frame .badge { border-radius: 999px; }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="container my-5">
+<div class="analysis-frame">
+
+    <!-- Banner and frame shared with the other analysis pages. -->
+    <div class="analysis-banner">
+      <div>
+        <div class="analysis-banner-title"><i class="fa-solid fa-chart-line"></i> Churn Analysis for Customer {{ household.household_key }}</div>
+        <div class="analysis-banner-sub">How likely this household is to stop buying, with the RFM
+        picture and the model behind the figure.</div>
+      </div>
+      {% if segment %}
+        <span class="badge bg-success px-3 py-2">{{ segment.rfm_segment|default:"Unsegmented" }}</span>
+      {% endif %}
+    </div>
+
     {% if segment %}
     <div class="row justify-content-center">
         <div class="col-12">
             <div class="card shadow-sm churn-profile-card">
-                <div class="card-header"><i class="fa-solid fa-chart-line me-2"></i>Churn Analysis for Customer {{ household.household_key }}</div>
                 <div class="card-body p-4">
                     <div class="row g-4 align-items-center">
                     <div class="col-12 col-lg-4">
