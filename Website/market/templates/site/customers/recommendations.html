@@ -105,6 +105,15 @@
   }
   .table-container { overflow-x: auto; width: 100%; }
 
+  /* Twelve columns did not fit in modal-xl, so every row had to be scrolled
+     sideways to be read. The dialog takes the width of the window instead. */
+  .modal-xl { max-width: min(1560px, 96vw); }
+  .modal-table { font-size: .82rem; }
+  .modal-table th, .modal-table td { padding: .5rem .6rem; white-space: nowrap; }
+  /* The one column that can be long is allowed to wrap; the rest stay on a line. */
+  .modal-table td:nth-child(5), .modal-table th:nth-child(5) { white-space: normal; min-width: 9rem; }
+  .modal-table td:last-child, .modal-table th:last-child { white-space: normal; min-width: 8rem; }
+
   @media (max-width: 576px) {
     .rec-grid { grid-template-columns: 1fr; }
   }
