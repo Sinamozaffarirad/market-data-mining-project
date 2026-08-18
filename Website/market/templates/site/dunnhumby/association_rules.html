@@ -59,6 +59,12 @@
 .ar-page .ar-scale b { color:var(--rev-ink); }
 .ar-page .ar-live { display:block; font-size:.78rem; color:#0369a1; }
 .ar-page .ar-live.is-thin { color:#b45309; }
+.ar-page .ar-pager {
+  display:flex; align-items:center; justify-content:center; gap:.75rem;
+  flex-wrap:wrap; margin:.75rem 0;
+}
+.ar-page .ar-pager:empty { display:none; }
+.ar-page .ar-pager-label { font-size:.8rem; color:var(--rev-muted); }
 .ar-page .ar-thin {
   margin-top:.5rem; font-size:.72rem; font-weight:600; color:#b45309;
   background:#fff7ed; border:1px solid #fed7aa; border-radius:8px; padding:.3rem .5rem;
@@ -125,6 +131,7 @@
                     <option value="1000" {% if max_results == 1000 %}selected{% endif %}>1000</option>
                     <option value="2000" {% if max_results == 2000 %}selected{% endif %}>2000</option>
                     <option value="3000" {% if max_results == 3000 %}selected{% endif %}>3000</option>
+                    <option value="5000" {% if max_results == 5000 %}selected{% endif %}>5000</option>
                   </select>
                   <div class="form-text">How many of the strongest rules to keep, ranked by lift.</div>
                 </div>
@@ -227,7 +234,8 @@
             <!-- Results Container -->
             <div id="resultsContainer">
             {% if rules %}
-            <div class="row g-3">
+            <div class="ar-pager" id="rulePagerTop"></div>
+            <div class="row g-3" id="ruleGrid">
               {% for rule in rules %}
               <div class="col-12 col-sm-6 col-md-4 col-lg-3">
                 <div class="card h-100 shadow-sm rule-card selectable-rule"
@@ -314,6 +322,7 @@
               </div>
               {% endfor %}
             </div>
+            <div class="ar-pager" id="rulePagerBottom"></div>
             {% else %}
               <div class="info-box">No association rules found. Try generating new rules with different parameters.</div>
             {% endif %}
@@ -595,6 +604,54 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // Real-time support value calculator
+/* Five thousand rules is a legitimate request, but laying them all out at once
+   made a three-million-pixel page: one scroll to the bottom cost 1.6 seconds.
+   The cards are all here in the document; only a page of them is displayed, so
+   the browser lays out a hundred instead of five thousand. Selection and the
+   insert count still work across the whole set. */
+const RULE_PAGE_SIZE = 100;
+let rulePage = 1;
+
+function ruleCells() {
+  const grid = document.getElementById('ruleGrid');
+  return grid ? Array.from(grid.children) : [];
+}
+
+function renderRulePage() {
+  const cells = ruleCells();
+  if (!cells.length) return;
+  const pages = Math.max(1, Math.ceil(cells.length / RULE_PAGE_SIZE));
+  rulePage = Math.min(Math.max(rulePage, 1), pages);
+  const first = (rulePage - 1) * RULE_PAGE_SIZE;
+  cells.forEach((cell, index) => {
+    cell.style.display = (index >= first && index < first + RULE_PAGE_SIZE) ? '' : 'none';
+  });
+  const shown = `${first + 1}-${Math.min(first + RULE_PAGE_SIZE, cells.length)}`;
+  const controls = `
+    <button type="button" class="btn btn-sm btn-outline-secondary"
+            onclick="changeRulePage(-1)" ${rulePage <= 1 ? 'disabled' : ''}>
+      <i class="fas fa-chevron-left"></i> Previous
+    </button>
+    <span class="ar-pager-label">Showing <b>${shown}</b> of
+      <b>${cells.length.toLocaleString()}</b> rules &middot; page ${rulePage} of ${pages}</span>
+    <button type="button" class="btn btn-sm btn-outline-secondary"
+            onclick="changeRulePage(1)" ${rulePage >= pages ? 'disabled' : ''}>
+      Next <i class="fas fa-chevron-right"></i>
+    </button>`;
+  ['rulePagerTop', 'rulePagerBottom'].forEach(id => {
+    const box = document.getElementById(id);
+    if (box) box.innerHTML = cells.length > RULE_PAGE_SIZE ? controls : '';
+  });
+}
+
+function changeRulePage(step) {
+  rulePage += step;
+  renderRulePage();
+  document.getElementById('rulePagerTop')?.scrollIntoView({behavior: 'smooth', block: 'start'});
+}
+
+document.addEventListener('DOMContentLoaded', renderRulePage);
+
 function updateSupportInfo() {
   const supportInput = document.getElementById('min_support');
   const countSpan = document.getElementById('currentSupportCount');
