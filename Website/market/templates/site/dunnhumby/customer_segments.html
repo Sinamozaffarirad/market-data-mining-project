@@ -316,6 +316,19 @@
   background:linear-gradient(135deg, var(--rev-1), var(--rev-2));
   border-bottom:0;
 }
+
+/* The three scores sat in a justify-between row with no gap, so at card width
+   the words ran together as RECENCYFREQUENCYMONETARY. Equal columns with a gap,
+   and a label size that fits the longest of the three. */
+.cs-page .rfm-row { display: flex; gap: .5rem; }
+.cs-page .rfm-row > div { flex: 1 1 0; min-width: 0; }
+.cs-page .rfm-label {
+  font-size: .58rem; font-weight: 700; letter-spacing: .02em;
+  text-transform: uppercase; color: #8b91a7; line-height: 1.2;
+}
+/* "Transactions" was breaking mid-word into "Transactio ns". */
+.cs-page .card-facts > [class^="col"] { font-size: .72rem; line-height: 1.3; }
+.cs-page .card-facts { word-break: keep-all; overflow-wrap: normal; hyphens: none; }
 </style>
 
 
@@ -490,13 +503,13 @@
 						</div>
 					</div>
 
-					<div class="d-flex justify-content-between text-center my-2">
-						<div><div class="text-muted small">RECENCY</div><div class="fw-bold fs-5">{{ c.recency_score }}</div></div>
-						<div><div class="text-muted small">FREQUENCY</div><div class="fw-bold fs-5">{{ c.frequency_score }}</div></div>
-						<div><div class="text-muted small">MONETARY</div><div class="fw-bold fs-5">{{ c.monetary_score }}</div></div>
+					<div class="rfm-row text-center my-2">
+						<div><div class="rfm-label">RECENCY</div><div class="fw-bold fs-5">{{ c.recency_score }}</div></div>
+						<div><div class="rfm-label">FREQUENCY</div><div class="fw-bold fs-5">{{ c.frequency_score }}</div></div>
+						<div><div class="rfm-label">MONETARY</div><div class="fw-bold fs-5">{{ c.monetary_score }}</div></div>
 					</div>
 					<hr class="my-2"/>
-					<div class="row text-center g-2 small text-muted">
+					<div class="row text-center g-2 small text-muted card-facts">
 						<div class="col-4">Total Spend<br><span class="text-body fw-semibold">${{ c.total_spend|floatformat:2 }}</span></div>
 						<div class="col-4">Transactions<br><span class="text-body fw-semibold">{{ c.total_transactions }}</span></div>
 						<div class="col-4">Avg. Basket<br><span class="text-body fw-semibold">${{ c.avg_basket_value|floatformat:2 }}</span></div>
