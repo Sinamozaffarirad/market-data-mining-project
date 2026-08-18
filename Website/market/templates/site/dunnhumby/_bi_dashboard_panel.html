@@ -722,6 +722,7 @@ one over several lines renders it onto the page as visible text.
       </div>
       <div class="alert alert-warning py-2 px-3 small mb-3" id="sigCaveat"></div>
       <div id="sigResults"><div class="bi-loading">Loading&hellip;</div></div>
+      <div id="sigTable" class="mt-3"></div>
     </div>
   </div>
 
@@ -1397,6 +1398,89 @@ async function loadSignificance(reset) {
       </details>
     </div>`).join('')
     : '<div class="bi-loading">Not enough baskets in these groups to test.</div>';
+
+  renderSignificanceTable(data);
+}
+
+/* One row per test in the shape a report expects: the two groups, the test, its
+   statistic, the p-value, the effect size and the verdict. The cards above are
+   for reading; this is the table to quote, and to hand to another tool. */
+let lastSignificanceTable = null;
+
+function renderSignificanceTable(data) {
+  const box = document.getElementById('sigTable');
+  if (!box) return;
+  const tests = data.tests || [];
+  if (!tests.length) { box.innerHTML = ''; lastSignificanceTable = null; return; }
+  const pairFor = t => (/ANOVA|Kruskal/i.test(t.name)
+    ? `all ${escapeHtml(data.dimension_label.toLowerCase())} groups`
+    : `${escapeHtml(data.group_a)} vs ${escapeHtml(data.group_b)}`);
+  lastSignificanceTable = tests.map(t => ({
+    group_a: /ANOVA|Kruskal/i.test(t.name) ? 'all groups' : data.group_a,
+    group_b: /ANOVA|Kruskal/i.test(t.name) ? 'all groups' : data.group_b,
+    dimension: data.dimension_label,
+    test: t.name,
+    statistic: t.statistic,
+    p_value: t.p_value,
+    effect_name: t.effect_name,
+    effect_size: t.effect,
+    effect_label: t.effect_label,
+    confidence_interval: t.confidence_interval
+      ? `${t.confidence_interval[0].toFixed(2)} to ${t.confidence_interval[1].toFixed(2)}`
+      : '',
+    significant: t.p_value < 0.05 ? 'yes' : 'no',
+    worth_acting_on: t.verdict === 'acted-on' ? 'yes' : 'no',
+  }));
+  box.innerHTML = `
+    <div class="d-flex justify-content-between align-items-end flex-wrap gap-2 mb-2">
+      <div><h6 class="mb-0">Results table</h6>
+        <span class="bi-stamp">Every test on this pair, with its statistic, p-value and effect size.</span></div>
+      <button class="btn btn-sm btn-outline-secondary" type="button" onclick="exportSignificanceTable()">
+        <i class="fas fa-download"></i> Export CSV
+      </button>
+    </div>
+    <div class="table-responsive"><table class="sig-scan">
+      <thead><tr>
+        <th>Groups compared</th><th>Test</th><th class="text-end">Statistic</th>
+        <th class="text-end">P-value</th><th>Effect size</th><th class="text-end">95% CI</th>
+        <th>Significant</th><th>Worth acting on</th>
+      </tr></thead>
+      <tbody>${tests.map(t => `<tr>
+        <td>${pairFor(t)}</td>
+        <td>${escapeHtml(t.name)}</td>
+        <td class="text-end">${Number(t.statistic).toLocaleString(undefined, {maximumFractionDigits: 3})}</td>
+        <td class="text-end">${t.p_value < 0.001 ? '&lt; 0.001' : Number(t.p_value).toFixed(4)}</td>
+        <td>${escapeHtml(t.effect_name)} ${Number(t.effect).toFixed(4)}
+            <span class="sig-tag ${t.effect_label}">${t.effect_label}</span></td>
+        <td class="text-end">${t.confidence_interval
+            ? money2(t.confidence_interval[0]) + ' to ' + money2(t.confidence_interval[1]) : '--'}</td>
+        <td>${t.p_value < 0.05 ? 'yes' : 'no'}</td>
+        <td>${t.verdict === 'acted-on' ? 'yes' : 'no'}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>
+    <p class="bi-foot">Significance and importance are separate columns on purpose. With this many
+    baskets nearly everything is significant, so the effect size is what decides whether a
+    difference is worth acting on. Only the t-test yields a confidence interval; the rank and
+    category tests do not estimate a difference in currency.</p>`;
+}
+
+function exportSignificanceTable() {
+  if (!lastSignificanceTable || !lastSignificanceTable.length) return;
+  const columns = Object.keys(lastSignificanceTable[0]);
+  const quote = v => {
+    const text = String(v ?? '');
+    return /[",\n]/.test(text) ? '"' + text.replace(/"/g, '""') + '"' : text;
+  };
+  const csv = [columns.join(','),
+    ...lastSignificanceTable.map(row => columns.map(c => quote(row[c])).join(','))].join('\n');
+  const url = URL.createObjectURL(new Blob([csv], {type: 'text/csv;charset=utf-8'}));
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = 'significance_results.csv';
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
 }
 
 /* ---------- concentration, growth, loyalty and promotion panels ----------- */

@@ -594,6 +594,7 @@ def api_bi_insights(request):
 
     quarters = _query(f"""
         SELECT CAST(d.calendar_year AS varchar(4)) + ' ' + d.quarter_name AS label,
+               d.calendar_year AS yr, d.calendar_quarter AS qtr,
                SUM(f.sales_value)        AS revenue,
                COUNT(DISTINCT f.day_key) AS days
         {_from(needs | {"d"})}{clause}
@@ -601,7 +602,8 @@ def api_bi_insights(request):
         ORDER BY d.calendar_year, d.calendar_quarter
     """, params)
     rated = [
-        (r["label"], float(r["revenue"] or 0) / int(r["days"]), int(r["days"]))
+        (r["label"], float(r["revenue"] or 0) / int(r["days"]), int(r["days"]),
+         int(r["yr"]), int(r["qtr"]))
         for r in quarters if int(r["days"] or 0) > 0
     ]
     if len(rated) >= 2:
@@ -616,6 +618,53 @@ def api_bi_insights(request):
                 "the window clips the final quarter."
             ),
         })
+
+        # The follow-through: the strongest quarter's best sellers, and what the
+        # same products did in the weakest one. Comparing the same products
+        # across both periods keeps the change about those products rather than
+        # about a changing assortment. Daily rates again, because the quarters
+        # do not hold the same number of trading days.
+        movers = _query(f"""
+            SELECT TOP 5
+                f.product_id,
+                MAX(p.commodity) AS commodity,
+                SUM(CASE WHEN d.calendar_year = %s AND d.calendar_quarter = %s
+                         THEN f.sales_value ELSE 0 END) AS best_revenue,
+                SUM(CASE WHEN d.calendar_year = %s AND d.calendar_quarter = %s
+                         THEN f.sales_value ELSE 0 END) AS worst_revenue
+            {_from(needs | {"d", "p"})}
+            {_clause(where + ["(d.calendar_year = %s AND d.calendar_quarter = %s)"
+                              " OR (d.calendar_year = %s AND d.calendar_quarter = %s)"])}
+            GROUP BY f.product_id
+            ORDER BY best_revenue DESC
+        """, [best[3], best[4], worst[3], worst[4]]
+             + params + [best[3], best[4], worst[3], worst[4]])
+        moved = []
+        for row in movers:
+            best_rate = float(row["best_revenue"] or 0) / best[2]
+            worst_rate = float(row["worst_revenue"] or 0) / worst[2]
+            if best_rate <= 0:
+                continue
+            change = (best_rate / worst_rate - 1) if worst_rate > 0 else None
+            moved.append((int(row["product_id"]), row["commodity"] or "Unknown", change))
+        if moved:
+            parts = []
+            for product_id, commodity, change in moved[:3]:
+                if change is None:
+                    parts.append(f"{product_id} ({commodity.title()}) sold nothing in {worst[0]}")
+                else:
+                    parts.append(
+                        f"{product_id} ({commodity.title()}) "
+                        f"{'up' if change >= 0 else 'down'} {abs(change):.0%}"
+                    )
+            insights.append({
+                "kind": "season",
+                "title": f"What {best[0]}'s best sellers did in {worst[0]}",
+                "detail": (
+                    "Same products, both quarters, compared per trading day: "
+                    + " · ".join(parts) + "."
+                ),
+            })
 
     departments = _query(f"""
         SELECT TOP 3 p.department AS label, SUM(f.sales_value) AS revenue
@@ -764,6 +813,33 @@ COMPARISON_DIMENSIONS = {
 }
 
 
+def _dimension_samples(column, where, params, needs, per_group=1200, minimum=100):
+    """A reproducible basket-value sample for every group of one dimension.
+
+    ANOVA and Kruskal-Wallis need all the groups at once, not the chosen pair,
+    and one windowed query is far cheaper than a query per group.
+    """
+    rows = _query(f"""
+        ;WITH baskets AS (
+            SELECT {column} AS grp, f.basket_id, SUM(f.sales_value) AS basket_value
+            {_from(needs)}{_clause(where + [column + " IS NOT NULL", column + " <> ''"])}
+            GROUP BY {column}, f.basket_id
+        ), ranked AS (
+            SELECT grp, basket_value,
+                   ROW_NUMBER() OVER (PARTITION BY grp ORDER BY ABS(CHECKSUM(basket_id))) AS rn,
+                   COUNT(*)     OVER (PARTITION BY grp) AS baskets
+            FROM baskets
+        )
+        SELECT grp, basket_value FROM ranked WHERE rn <= %s AND baskets >= %s
+    """, params + [per_group, minimum])
+    grouped = {}
+    for row in rows:
+        name = (row["grp"] or "").strip()
+        if name:
+            grouped.setdefault(name, []).append(float(row["basket_value"] or 0))
+    return {name: values for name, values in grouped.items() if len(values) >= 20}
+
+
 def _cliffs_delta(first, second, sample=4000):
     """Cliff's delta: how often one group's baskets beat the other's.
 
@@ -811,7 +887,8 @@ def api_bi_significance(request):
     buy from different parts of the catalogue.  Every test carries an effect
     size, because at this sample size significance is close to guaranteed.
     """
-    from scipy.stats import chi2_contingency, ks_2samp, mannwhitneyu
+    from scipy.stats import (chi2_contingency, f_oneway, kruskal, ks_2samp,
+                             mannwhitneyu, skew, t as student_t, ttest_ind)
 
     dimension = (request.GET.get("dimension") or "segment").strip()
     column, alias, label = COMPARISON_DIMENSIONS.get(
@@ -986,6 +1063,142 @@ def api_bi_significance(request):
                     f"across departments identically, 1 means they never overlap. This is {cramers_v:.2f}."
                 ),
             })
+
+    # Welch's t-test on the same pair. It compares means rather than ranks and
+    # assumes roughly normal data, which basket value is not, so it is reported
+    # with its skew and with the rank test standing as the primary read. It is
+    # here because a mean difference in currency is what a manager budgets with,
+    # and it is the only test of the set that yields a confidence interval.
+    if len(values_a) >= 20 and len(values_b) >= 20:
+        import numpy as np
+
+        a = np.asarray(values_a, dtype=float)
+        b = np.asarray(values_b, dtype=float)
+        t_stat, t_p = ttest_ind(a, b, equal_var=False)
+        mean_gap = float(a.mean() - b.mean())
+        # Welch-Satterthwaite degrees of freedom for the interval.
+        var_a, var_b = a.var(ddof=1) / len(a), b.var(ddof=1) / len(b)
+        standard_error = float((var_a + var_b) ** 0.5)
+        degrees = ((var_a + var_b) ** 2 /
+                   (var_a ** 2 / (len(a) - 1) + var_b ** 2 / (len(b) - 1))) if standard_error else 1
+        margin = float(student_t.ppf(0.975, degrees) * standard_error) if standard_error else 0.0
+        pooled = float((((len(a) - 1) * a.var(ddof=1) + (len(b) - 1) * b.var(ddof=1)) /
+                        (len(a) + len(b) - 2)) ** 0.5)
+        cohens_d = float(mean_gap / pooled) if pooled else 0.0
+        worst_skew = max(abs(float(skew(a))), abs(float(skew(b))))
+        d_label = ("negligible" if abs(cohens_d) < 0.2 else
+                   "small" if abs(cohens_d) < 0.5 else
+                   "medium" if abs(cohens_d) < 0.8 else "large")
+        tests.append({
+            "name": "Welch's t-test",
+            "question": "Do the two groups differ in average basket value?",
+            "statistic": float(t_stat),
+            "p_value": float(t_p),
+            "effect_name": "Cohen's d",
+            "effect": cohens_d,
+            "effect_label": d_label,
+            "confidence_interval": [mean_gap - margin, mean_gap + margin],
+            "confidence_level": 95,
+            "detail": (
+                f"Mean {group_a} ${a.mean():,.2f} against {group_b} ${b.mean():,.2f}. "
+                f"95% confident the true gap lies between ${mean_gap - margin:,.2f} and "
+                f"${mean_gap + margin:,.2f}."
+            ),
+            "why": (
+                "Welch's form is used because the two groups differ in size and spread. "
+                f"It assumes roughly normal data and the skew here is {worst_skew:.1f}, so "
+                "the rank test above is the one to quote; this is reported for the "
+                "confidence interval, which is the figure to budget with."
+            ),
+            "headline": (
+                f"Mean baskets differ by ${abs(mean_gap):,.2f}, "
+                f"{'higher' if mean_gap > 0 else 'lower'} for {group_a}"
+            ),
+            "verdict": "acted-on" if d_label not in ("negligible", "small") else "too-small",
+            "plain": (
+                "Cohen's d is the gap measured in standard deviations. Under 0.2 is "
+                f"negligible, over 0.8 is large. This is {cohens_d:.2f}."
+            ),
+        })
+
+    # The two tests above answer a question about one pair. These ask whether the
+    # dimension as a whole separates the groups, which is what the professor's
+    # ANOVA / Kruskal-Wallis pairing is for: the same question, one assuming
+    # normality and one not.
+    group_samples = _dimension_samples(column, where, params, needs)
+    if len(group_samples) >= 3:
+        import numpy as np
+
+        names = list(group_samples)
+        arrays = [np.asarray(group_samples[n], dtype=float) for n in names]
+        observations = int(sum(len(x) for x in arrays))
+
+        f_stat, f_p = f_oneway(*arrays)
+        grand = float(np.concatenate(arrays).mean())
+        between = float(sum(len(x) * (x.mean() - grand) ** 2 for x in arrays))
+        total_ss = float(sum(((x - grand) ** 2).sum() for x in arrays))
+        eta_squared = (between / total_ss) if total_ss else 0.0
+        eta_label = ("negligible" if eta_squared < 0.01 else
+                     "small" if eta_squared < 0.06 else
+                     "medium" if eta_squared < 0.14 else "large")
+        tests.append({
+            "name": "One-way ANOVA",
+            "question": f"Does basket value differ across all {len(names)} {label.lower()} groups?",
+            "statistic": float(f_stat),
+            "p_value": float(f_p),
+            "effect_name": "Eta squared",
+            "effect": float(eta_squared),
+            "effect_label": eta_label,
+            "detail": (
+                f"All {len(names)} groups at once ({', '.join(names[:4])}"
+                f"{'...' if len(names) > 4 else ''}), {observations:,} sampled baskets."
+            ),
+            "why": (
+                "ANOVA compares more than two groups in one test, avoiding the inflated "
+                "false-positive rate of testing every pair separately. It assumes normality, "
+                "so Kruskal-Wallis below is the safer read on this data."
+            ),
+            "headline": (
+                f"{label} explains {eta_squared:.1%} of the variation in basket value"
+            ),
+            "verdict": "acted-on" if eta_label not in ("negligible", "small") else "too-small",
+            "plain": (
+                "Eta squared is the share of the variation in basket value that group "
+                f"membership accounts for. This is {eta_squared:.1%}; the rest is everything else."
+            ),
+        })
+
+        h_stat, h_p = kruskal(*arrays)
+        epsilon = float((h_stat - len(names) + 1) / (observations - len(names))) if observations > len(names) else 0.0
+        epsilon = max(0.0, epsilon)
+        eps_label = ("negligible" if epsilon < 0.01 else
+                     "small" if epsilon < 0.06 else
+                     "medium" if epsilon < 0.14 else "large")
+        tests.append({
+            "name": "Kruskal-Wallis",
+            "question": f"Same question without assuming normal data: do the {len(names)} groups differ?",
+            "statistic": float(h_stat),
+            "p_value": float(h_p),
+            "effect_name": "Epsilon squared",
+            "effect": epsilon,
+            "effect_label": eps_label,
+            "detail": f"Rank-based across all {len(names)} groups, {observations:,} sampled baskets.",
+            "why": (
+                "The non-parametric counterpart of ANOVA. It ranks the baskets instead of "
+                "averaging them, so the skew in basket value does not distort it. Where the "
+                "two disagree, this is the one to trust here."
+            ),
+            "headline": (
+                f"The {len(names)} {label.lower()} groups "
+                + ("do not separate on basket value" if eps_label == "negligible"
+                   else "separate on basket value")
+            ),
+            "verdict": "acted-on" if eps_label not in ("negligible", "small") else "too-small",
+            "plain": (
+                "Epsilon squared rescales the test to 0-1 as a share of rank variation "
+                f"explained by the group. This is {epsilon:.1%}."
+            ),
+        })
 
     return JsonResponse({
         "success": True,
