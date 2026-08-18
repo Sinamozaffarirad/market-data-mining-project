@@ -3,6 +3,29 @@
 
 {% block title %}Find Customer Leads{% endblock %}
 
+{% block extra_css %}
+<style>
+    .level-pills {
+        gap: 0.5rem;
+    }
+    .level-pills .nav-link {
+        border-radius: 20px;
+        border: 1px solid #764ba2;
+        color: #764ba2;
+        background: #fff;
+        transition: all 0.3s ease;
+    }
+    .level-pills .nav-link:hover {
+        background: rgba(118, 75, 162, 0.08);
+    }
+    .level-pills .nav-link.active {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: #fff;
+        border-color: transparent;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container py-5">
 
@@ -13,26 +36,50 @@
     </p>
 
     <!-- سطح -->
-    <ul class="nav nav-pills mb-4">
+    <ul class="nav nav-pills level-pills mb-3">
         <li class="nav-item">
             <a class="nav-link {% if level == 'product' %}active{% endif %}"
-               href="?level=product">🛒 Product</a>
+               href="?level=product">🛒 Product{% if level == 'product' %} ✓{% endif %}</a>
         </li>
         <li class="nav-item">
             <a class="nav-link {% if level == 'commodity' %}active{% endif %}"
-               href="?level=commodity">📦 Commodity</a>
+               href="?level=commodity">📦 Commodity{% if level == 'commodity' %} ✓{% endif %}</a>
         </li>
         <li class="nav-item">
             <a class="nav-link {% if level == 'department' %}active{% endif %}"
-               href="?level=department">🏬 Department</a>
+               href="?level=department">🏬 Department{% if level == 'department' %} ✓{% endif %}</a>
         </li>
     </ul>
 
-    <form method="GET" class="mb-4 d-flex gap-2">
+    <div class="alert alert-info py-2 px-3 mb-4 d-inline-block">
+        Currently searching by: <strong>{{ level|title }}</strong>
+    </div>
+
+    <form method="GET" class="mb-3 d-flex gap-2">
         <input type="hidden" name="level" value="{{ level }}">
         {{ form.query }}
         <button class="btn btn-primary" type="submit">Search</button>
     </form>
+
+    {% if level == "commodity" and all_commodities %}
+    <div class="mb-4">
+        <select class="form-select level-select">
+            <option value="">-- select Commodity --</option>
+            {% for c in all_commodities %}
+            <option value="{{ c }}">{{ c }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    {% elif level == "department" and all_departments %}
+    <div class="mb-4">
+        <select class="form-select level-select">
+            <option value="">-- select Department --</option>
+            {% for d in all_departments %}
+            <option value="{{ d }}">{{ d }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    {% endif %}
 
     {% if query %}
         <h5 class="text-muted mb-3">Results for "{{ query }}" ({{ level }})</h5>
@@ -48,8 +95,12 @@
                         <br>
                         <small class="text-muted">{{ p.sub_commodity_desc }} | {{ p.department }} (ID: {{ p.product_id }})</small>
                     </div>
-                    <a href="{% url 'product_recommender:recommend_customers' %}?level=product&value={{ p.product_id }}"
-                       class="btn btn-sm btn-success">Get Recommendations</a>
+                    <div class="d-flex gap-2">
+                        <a href="{% url 'product_recommender:recommend_customers' %}?level=product&value={{ p.product_id }}"
+                        class="btn btn-sm btn-success">Get Recommendations</a>
+                        <a href="{% url 'product_recommender:product_detail' p.product_id %}"
+                        class="btn btn-sm btn-outline-secondary">Product Detail</a>
+                    </div>
                 </li>
                 {% endfor %}
             </ul>
@@ -89,4 +140,19 @@
     {% endif %}
 
 </div>
+
+<script>
+document.querySelectorAll('.level-select').forEach(function (select) {
+    select.addEventListener('change', function () {
+        if (!this.value) {
+            return;
+        }
+        var queryInput = document.getElementById('id_query');
+        if (queryInput) {
+            queryInput.value = this.value;
+            queryInput.focus();
+        }
+    });
+});
+</script>
 {% endblock %}
