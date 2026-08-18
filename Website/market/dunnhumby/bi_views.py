@@ -943,13 +943,36 @@ def api_bi_significance(request):
             {_from(needs)}{_clause(where + [column + " = %s"])}
         """, params + [group]).get("baskets") or 0)
 
+    def basket_median(group):
+        """Median over every basket in the group, not over the sample.
+
+        The tests run on a sample, which is sound, but the median is quoted to
+        the reader and also appears in the scan above. Computing it over all the
+        baskets keeps the two panels in agreement.
+        """
+        row = _scalar_row(f"""
+            ;WITH baskets AS (
+                SELECT f.basket_id, SUM(f.sales_value) AS basket_value
+                {_from(needs)}{_clause(where + [column + " = %s"])}
+                GROUP BY f.basket_id
+            ), ordered AS (
+                SELECT basket_value,
+                       ROW_NUMBER() OVER (ORDER BY basket_value) AS rn,
+                       COUNT(*)     OVER () AS n
+                FROM baskets
+            )
+            SELECT AVG(basket_value) AS median_value
+            FROM ordered WHERE rn IN ((n + 1) / 2, (n + 2) / 2)
+        """, params + [group])
+        return float(row.get("median_value") or 0)
+
     values_a, values_b = basket_values(group_a), basket_values(group_b)
     total_a, total_b = basket_total(group_a), basket_total(group_b)
     sampled = len(values_a) < total_a or len(values_b) < total_b
     tests = []
     if len(values_a) >= 20 and len(values_b) >= 20:
         import numpy as np
-        median_a, median_b = float(np.median(values_a)), float(np.median(values_b))
+        median_a, median_b = basket_median(group_a), basket_median(group_b)
         statistic, p_value = mannwhitneyu(values_a, values_b, alternative="two-sided")
         delta = _cliffs_delta(values_a, values_b)
         higher, lower = (group_a, group_b) if median_a >= median_b else (group_b, group_a)
@@ -1597,7 +1620,9 @@ def api_bi_significance_scan(request):
             name = (row["grp"] or "").strip()
             if not name:
                 continue
-            entry = groups.setdefault(name, {"values": [], "baskets": int(row["baskets"] or 0)})
+            entry = groups.setdefault(name, {
+                "values": [], "baskets": int(row["baskets"] or 0), "median": 0.0,
+            })
             entry["values"].append(float(row["basket_value"] or 0))
 
         usable = {n: g for n, g in groups.items() if g["baskets"] >= SCAN_MIN_BASKETS}
@@ -1605,6 +1630,29 @@ def api_bi_significance_scan(request):
             skipped.append(label)
             continue
         largest = sorted(usable.items(), key=lambda kv: kv[1]["baskets"], reverse=True)[:SCAN_MAX_GROUPS]
+
+        # The median every panel quotes, taken over all the baskets rather than the
+        # sample the test runs on, so the scan and the panel below cannot
+        # disagree about the same group. Picked by rank: PERCENTILE_CONT repeats
+        # its answer on every row and cost more than the whole rest of the scan.
+        for row in _query(f"""
+            ;WITH baskets AS (
+                SELECT {column} AS grp, f.basket_id, SUM(f.sales_value) AS basket_value
+                {_from(needs)}{_clause(where + [column + " IS NOT NULL", column + " <> ''"])}
+                GROUP BY {column}, f.basket_id
+            ), ordered AS (
+                SELECT grp, basket_value,
+                       ROW_NUMBER() OVER (PARTITION BY grp ORDER BY basket_value) AS rn,
+                       COUNT(*)     OVER (PARTITION BY grp) AS n
+                FROM baskets
+            )
+            SELECT grp, AVG(basket_value) AS median_value
+            FROM ordered WHERE rn IN ((n + 1) / 2, (n + 2) / 2)
+            GROUP BY grp
+        """, params):
+            name = (row["grp"] or "").strip()
+            if name in groups:
+                groups[name]["median"] = float(row["median_value"] or 0)
 
         # Spend is only half the question: two groups can spend alike and still
         # fill their baskets from different aisles. One query gives the whole
@@ -1663,8 +1711,8 @@ def api_bi_significance_scan(request):
                 # Cliff's delta follows directly from the same U statistic, so
                 # the effect size costs nothing beyond the test itself.
                 delta = float(2 * statistic / (len(values_a) * len(values_b)) - 1)
-                median_a = float(np.median(values_a))
-                median_b = float(np.median(values_b))
+                median_a = float(a["median"])
+                median_b = float(b["median"])
                 leader, trailer = ((name_a, name_b) if delta >= 0 else (name_b, name_a))
                 # Cross-tabulating departments by department is circular: a
                 # basket in the GROCERY group is in GROCERY by definition, which

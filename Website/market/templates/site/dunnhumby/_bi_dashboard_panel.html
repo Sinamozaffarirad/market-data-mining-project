@@ -124,15 +124,19 @@ one over several lines renders it onto the page as visible text.
 .sig-legend { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem;
   font-size: .76rem; color: var(--bi-muted, #6b7280); margin-bottom: .6rem; }
 .sig-table-fold { margin-top: .25rem; }
-/* The row whose comparison is open below. It keeps a marker in the margin so it
-   stays findable after scrolling back up. */
-.sig-scan tbody tr.is-selected { background: #eef1ff; opacity: 1; animation: sigPick .9s ease; }
-.sig-scan tbody tr.is-selected td { font-weight: 600;
-  box-shadow: 0 -1px 0 #c7cffc inset, 0 1px 0 #c7cffc inset; }
-.sig-scan tbody tr.is-selected td:first-child {
-  box-shadow: 0 -1px 0 #c7cffc inset, 0 1px 0 #c7cffc inset, 3px 0 0 var(--bi-1) inset; }
-@keyframes sigPick { 0% { background: #dbe1ff; } 100% { background: #eef1ff; } }
-@media (prefers-reduced-motion: reduce) { .sig-scan tbody tr.is-selected { animation: none; } }
+/* The test a click opened. It stays marked until another is chosen, so it is
+   still identifiable after scrolling away and back. */
+.test-card.test-card-picked {
+  border-color: var(--bi-1); background: #f7f8ff;
+  box-shadow: 0 0 0 3px rgba(102,126,234,.18);
+  animation: sigPick 1.5s ease;
+}
+@keyframes sigPick {
+  0%   { box-shadow: 0 0 0 0 rgba(102,126,234,.5); transform: translateY(-5px); }
+  45%  { box-shadow: 0 0 0 8px rgba(102,126,234,.22); transform: translateY(0); }
+  100% { box-shadow: 0 0 0 3px rgba(102,126,234,.18); transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) { .test-card.test-card-picked { animation: none; } }
 .bi-note-inline { font-size: .78rem; color: var(--bi-muted, #6b7280); text-align: right; max-width: 320px; }
 .bi-foot { font-size: .78rem; color: var(--bi-muted, #6b7280); margin: .75rem 0 0; }
 .bi-heatmap { overflow-x: auto; padding-top: .25rem; }
@@ -1314,7 +1318,6 @@ let biScanRequested = false;
    top of a newer one and describes a selection that is no longer set. */
 let biScanSerial = 0;
 let biScanShowAll = false;
-let biScanSelectedKey = null;
 let biScanLastPayload = null;
 
 /* Re-lays the table already in hand rather than asking the server again. */
@@ -1377,17 +1380,41 @@ function renderDimensionRanking(dims) {
     spread, which basket value does not have, so it sits alongside rather than being relied on.</p>`;
 }
 
-/* Brings the panel on screen without decorating it. Which comparison is open is
-   shown by the marked row above and by the two dropdowns here. */
-function biFlashPanel() {
-  document.getElementById('sigResults')?.closest('.bi-card')
-    ?.scrollIntoView({behavior: 'smooth', block: 'start'});
+/* Points at the test the click actually opened. The pair list ranks on the rank
+   test, and the dimension list on Kruskal-Wallis, so those are the cards to
+   bring forward -- highlighting the whole panel said only "something changed"
+   and highlighting the source row left the reader looking in the wrong place. */
+function biHighlightTest(testName) {
+  const cards = [...document.querySelectorAll('#sigResults .test-card')];
+  if (!cards.length) return;
+  cards.forEach(card => card.classList.remove('test-card-picked'));
+  const card = cards.find(c => (c.dataset.testName || '').toLowerCase() === testName.toLowerCase())
+            || cards[0];
+  card.scrollIntoView({behavior: 'smooth', block: 'center'});
+  // Wait for the scroll to arrive, or the pop is over before the reader is.
+  const onScreen = () => {
+    const box = card.getBoundingClientRect();
+    return box.top < window.innerHeight * 0.9 && box.bottom > window.innerHeight * 0.1;
+  };
+  let last = null, still = 0;
+  const start = () => {
+    void card.offsetWidth;
+    card.classList.add('test-card-picked');
+  };
+  const poll = setInterval(() => {
+    const top = Math.round(card.getBoundingClientRect().top);
+    still = (top === last) ? still + 1 : 0;
+    last = top;
+    if (still >= 2 && onScreen()) { clearInterval(poll); start(); }
+  }, 90);
+  setTimeout(() => { clearInterval(poll);
+    if (!card.classList.contains('test-card-picked')) start(); }, 1400);
 }
 
 function biJumpToDimension(dimension) {
   const dim = document.getElementById('sigDim');
   if (dim) dim.value = dimension;
-  loadSignificance(true).then(() => biFlashPanel());
+  loadSignificance(true).then(() => biHighlightTest('Kruskal-Wallis'));
 }
 
 function biScanRender(data) {
@@ -1420,9 +1447,7 @@ function biScanRender(data) {
         const delta = Math.abs(Number(row.delta));
         const leaderMedian = row.leader === row.group_a ? row.median_a : row.median_b;
         const trailerMedian = row.leader === row.group_a ? row.median_b : row.median_a;
-        const rowKey = `${row.dimension}|${row.group_a}|${row.group_b}`;
-        return `<tr class="${row.actionable ? '' : 'is-quiet'}${rowKey === biScanSelectedKey ? ' is-selected' : ''}"
-                 data-row-key="${escapeHtml(rowKey)}"
+        return `<tr class="${row.actionable ? '' : 'is-quiet'}"
                  onclick="biOpenComparison('${escapeHtml(row.dimension)}','${escapeHtml(row.group_a).replace(/'/g, "\\'")}','${escapeHtml(row.group_b).replace(/'/g, "\\'")}')"
                  title="Open this comparison in the test below">
           <td>${index + 1}</td>
@@ -1481,13 +1506,6 @@ function biFormatQ(value) {
 /* Hands a scanned pair to the manual panel, so the scan is a starting point
    rather than a separate answer. */
 function biOpenComparison(dimension, groupA, groupB) {
-  /* Mark the row itself rather than lighting up the whole panel below: the
-     reader needs to know which line they are now looking at, and a card-sized
-     flash said only "something down here changed". */
-  biScanSelectedKey = `${dimension}|${groupA}|${groupB}`;
-  document.querySelectorAll('#sigScanResults tbody tr').forEach(tr => {
-    tr.classList.toggle('is-selected', tr.dataset.rowKey === biScanSelectedKey);
-  });
   const dim = document.getElementById('sigDim');
   if (dim) dim.value = dimension;
   loadSignificance(true).then(() => {
@@ -1496,7 +1514,7 @@ function biOpenComparison(dimension, groupA, groupB) {
     if (a && [...a.options].some(o => o.value === groupA)) a.value = groupA;
     if (b && [...b.options].some(o => o.value === groupB)) b.value = groupB;
     return loadSignificance();
-  }).then(() => biFlashPanel());
+  }).then(() => biHighlightTest('Mann-Whitney U'));
 }
 
 async function loadSignificance(reset) {
@@ -1527,7 +1545,7 @@ async function loadSignificance(reset) {
   /* The card answers the question. The numbers behind it stay folded away, so a
      reader who wants the finding is not made to read the statistics first. */
   results.innerHTML = data.tests.length ? data.tests.map(t => `
-    <div class="test-card">
+    <div class="test-card" data-test-name="${escapeHtml(t.name)}">
       <div class="verdict-row">
         <span class="verdict-badge verdict-${t.verdict}">
           <i class="fas ${t.verdict === 'acted-on' ? 'fa-circle-check' : 'fa-circle-minus'}"></i>
