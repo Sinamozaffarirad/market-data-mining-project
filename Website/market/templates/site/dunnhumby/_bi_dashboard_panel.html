@@ -120,11 +120,10 @@ one over several lines renders it onto the page as visible text.
 .sig-bar i { display: block; height: 100%; border-radius: 99px; background: var(--bi-1); }
 .sig-tag { font-size: .68rem; font-weight: 700; padding: .1rem .45rem; border-radius: 99px;
   text-transform: uppercase; letter-spacing: .04em; }
-.sig-tag.large { background: #fee2e2; color: #b91c1c; }
-.sig-tag.medium { background: #ffedd5; color: #b45309; }
-.sig-tag.small { background: #e0f2fe; color: #0369a1; }
-.sig-tag.negligible { background: #f1f5f9; color: #64748b; }
 .sig-scan tr.is-quiet td { opacity: .62; }
+.sig-legend { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem;
+  font-size: .76rem; color: var(--bi-muted, #6b7280); margin-bottom: .6rem; }
+.sig-table-fold { margin-top: .25rem; }
 .bi-note-inline { font-size: .78rem; color: var(--bi-muted, #6b7280); text-align: right; max-width: 320px; }
 .bi-foot { font-size: .78rem; color: var(--bi-muted, #6b7280); margin: .75rem 0 0; }
 .bi-heatmap { overflow-x: auto; padding-top: .25rem; }
@@ -293,10 +292,20 @@ one over several lines renders it onto the page as visible text.
   display: inline-block; padding: .12rem .55rem; border-radius: 999px;
   font-size: .7rem; font-weight: 700; text-transform: capitalize;
 }
-.effect-negligible { background: #eef0f6; color: #6b7391; }
-.effect-small      { background: #fff4e0; color: #a86a00; }
-.effect-medium     { background: #e6f6ef; color: #0a7a56; }
-.effect-large      { background: #e8ebff; color: #4a54c9; }
+/* One scale for the size of a difference, used by every badge that shows it:
+   the further from grey, the more there is to look at. The two panels had
+   drifted onto different scales, so medium was green in one and orange in the
+   other. */
+:root {
+  --eff-negligible-bg: #f1f5f9; --eff-negligible-fg: #64748b;
+  --eff-small-bg:      #e0f2fe; --eff-small-fg:      #0369a1;
+  --eff-medium-bg:     #ffedd5; --eff-medium-fg:     #b45309;
+  --eff-large-bg:      #fee2e2; --eff-large-fg:      #b91c1c;
+}
+.effect-negligible, .sig-tag.negligible { background: var(--eff-negligible-bg); color: var(--eff-negligible-fg); }
+.effect-small,      .sig-tag.small      { background: var(--eff-small-bg);      color: var(--eff-small-fg); }
+.effect-medium,     .sig-tag.medium     { background: var(--eff-medium-bg);     color: var(--eff-medium-fg); }
+.effect-large,      .sig-tag.large      { background: var(--eff-large-bg);      color: var(--eff-large-fg); }
 .test-why {
   font-size: .76rem; color: var(--bi-muted); border-top: 1px dashed var(--bi-line);
   padding-top: .5rem; margin-top: .3rem;
@@ -681,18 +690,26 @@ one over several lines renders it onto the page as visible text.
     <div class="bi-card" style="--panel-accent:var(--bi-emerald)">
       <div class="bi-head">
         <div>
-          <h5><i class="fas fa-magnifying-glass-chart"></i> Biggest differences, found for you</h5>
-          <p class="sub">Every pair of groups compared on basket value, ordered by how far apart they sit</p>
+          <h5><i class="fas fa-magnifying-glass-chart"></i> Where the biggest differences are</h5>
+          <p class="sub">Checks every pair of groups for you and puts the largest gaps first</p>
         </div>
         <button class="btn btn-sm btn-primary" type="button" id="sigScanBtn" onclick="loadSignificanceScan()">
-          <i class="fas fa-radar"></i> Run the scan
+          <i class="fas fa-magnifying-glass"></i> Find them
         </button>
+      </div>
+      <div class="sig-legend">
+        <span>Size of difference:</span>
+        <span class="sig-tag negligible">negligible</span>
+        <span class="sig-tag small">small</span>
+        <span class="sig-tag medium">medium</span>
+        <span class="sig-tag large">large</span>
+        <span class="text-muted">the same colours are used everywhere on this page</span>
       </div>
       <div id="sigScanSummary" class="bi-note-inline mb-2" style="text-align:left;max-width:none"></div>
       <div id="sigScanResults">
         <div class="bi-loading">
-          Runs a few seconds. Compares the largest groups of every dimension against each other
-          and ranks what it finds, so a useful comparison does not have to be guessed at first.
+          Press the button. It compares the main groups of every dimension and lists the
+          biggest gaps first, so you do not have to guess which comparison is worth a look.
         </div>
       </div>
     </div>
@@ -1277,7 +1294,7 @@ async function loadSignificanceScan() {
   const summary = document.getElementById('sigScanSummary');
   const button = document.getElementById('sigScanBtn');
   if (!box) return;
-  box.innerHTML = '<div class="bi-loading"><div class="spinner-border spinner-border-sm text-primary" role="status"></div> Comparing every pair of groups&hellip;</div>';
+  box.innerHTML = '<div class="bi-loading"><div class="spinner-border spinner-border-sm text-primary" role="status"></div> Checking every pair&hellip;</div>';
   if (button) { button.disabled = true; }
   try {
     const data = await biGet('/analysis/api/bi/significance-scan/');
@@ -1313,9 +1330,8 @@ async function loadSignificanceScan() {
           <td>${row.actionable ? '' : '<span class="text-muted">'}${biFormatQ(row.q_value)}${row.actionable ? '' : '</span>'}</td>
         </tr>`;
       }).join('')}</tbody></table></div>
-      <p class="bi-foot">Rows are ordered by how far apart the two groups sit, not by the p-value.
-      Faded rows are real but too small to be worth acting on. Click any row to run the full set of
-      tests on that pair below.</p>`;
+      <p class="bi-foot">Biggest gaps first. Faded rows are real differences that are too small to
+      matter. Click any row to test that pair in full below.</p>`;
   } catch (error) {
     box.innerHTML = `<div class="alert alert-danger py-2 px-3 small mb-0">Scan failed: ${escapeHtml(error.message)}</div>`;
   } finally {
@@ -1374,6 +1390,8 @@ async function loadSignificance(reset) {
     (data.sampled ? ` Spend tests use a reproducible sample of up to ${num(data.sample_size)}
        baskets per group. The medians and counts quoted are from all of them.` : '');
 
+  /* The card answers the question. The numbers behind it stay folded away, so a
+     reader who wants the finding is not made to read the statistics first. */
   results.innerHTML = data.tests.length ? data.tests.map(t => `
     <div class="test-card">
       <div class="verdict-row">
@@ -1384,17 +1402,18 @@ async function loadSignificance(reset) {
         <span class="effect-pill effect-${t.effect_label}">${t.effect_label} difference</span>
       </div>
       <div class="headline">${escapeHtml(t.headline)}</div>
-      <div class="q">${escapeHtml(t.plain)}</div>
-      <div class="q mt-1">${escapeHtml(t.detail)}</div>
+      <div class="q">${escapeHtml(t.question)}</div>
       <details class="test-detail">
-        <summary>Statistical detail</summary>
+        <summary>Show the numbers</summary>
         <div class="test-metrics">
           <div class="m"><div class="mv">${escapeHtml(t.name)}</div><div class="ml">test used</div></div>
           <div class="m"><div class="mv">${t.p_value < 0.001 ? '&lt; 0.001' : t.p_value.toFixed(4)}</div><div class="ml">p-value</div></div>
           <div class="m"><div class="mv">${Number(t.effect).toFixed(4)}</div><div class="ml">${escapeHtml(t.effect_name)}</div></div>
           <div class="m"><div class="mv">${Number(t.statistic).toLocaleString(undefined,{maximumFractionDigits:3})}</div><div class="ml">statistic</div></div>
         </div>
-        <div class="test-why"><strong>${escapeHtml(t.question)}</strong> ${escapeHtml(t.why)}</div>
+        <div class="q mb-2">${escapeHtml(t.detail)}</div>
+        <div class="q mb-2">${escapeHtml(t.plain)}</div>
+        <div class="test-why">${escapeHtml(t.why)}</div>
       </details>
     </div>`).join('')
     : '<div class="bi-loading">Not enough baskets in these groups to test.</div>';
@@ -1432,9 +1451,10 @@ function renderSignificanceTable(data) {
     worth_acting_on: t.verdict === 'acted-on' ? 'yes' : 'no',
   }));
   box.innerHTML = `
-    <div class="d-flex justify-content-between align-items-end flex-wrap gap-2 mb-2">
-      <div><h6 class="mb-0">Results table</h6>
-        <span class="bi-stamp">Every test on this pair, with its statistic, p-value and effect size.</span></div>
+    <details class="rev-advanced sig-table-fold">
+    <summary><i class="fas fa-table-list"></i> All ${tests.length} tests side by side</summary>
+    <div class="d-flex justify-content-between align-items-end flex-wrap gap-2 mb-2 mt-2">
+      <span class="bi-stamp">One row per test, with its statistic, p-value and effect size.</span>
       <button class="btn btn-sm btn-outline-secondary" type="button" onclick="exportSignificanceTable()">
         <i class="fas fa-download"></i> Export CSV
       </button>
@@ -1458,10 +1478,9 @@ function renderSignificanceTable(data) {
         <td>${t.verdict === 'acted-on' ? 'yes' : 'no'}</td>
       </tr>`).join('')}</tbody>
     </table></div>
-    <p class="bi-foot">Significance and importance are separate columns on purpose. With this many
-    baskets nearly everything is significant, so the effect size is what decides whether a
-    difference is worth acting on. Only the t-test yields a confidence interval; the rank and
-    category tests do not estimate a difference in currency.</p>`;
+    <p class="bi-foot"><strong>Significant</strong> means the difference is unlikely to be chance.
+    <strong>Worth acting on</strong> means it is also big enough to notice. With this many baskets
+    almost everything is significant, so the second column is the one to read.</p></details>`;
 }
 
 function exportSignificanceTable() {

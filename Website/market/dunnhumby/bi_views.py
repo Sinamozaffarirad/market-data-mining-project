@@ -1213,9 +1213,9 @@ def api_bi_significance(request):
         "sampled": sampled,
         "sample_size": sample_cap,
         "caveat": (
-            "At this sample size a p-value below 0.05 is close to guaranteed, so it "
-            "only confirms a difference exists. The effect size is what says whether "
-            "it is large enough to matter."
+            "With this many baskets a low p-value is almost guaranteed, so it only "
+            "tells you a difference exists. The size of the difference tells you "
+            "whether it is worth doing anything about."
         ),
     })
 
@@ -1658,15 +1658,13 @@ def api_bi_significance_scan(request):
         "sample_per_group": SCAN_SAMPLE,
         "minimum_baskets": SCAN_MIN_BASKETS,
         "headline": (
-            f"{len(notable)} of {len(scanned)} comparisons are both unlikely to be chance "
-            f"and large enough to notice."
+            f"{len(notable)} of {len(scanned)} comparisons are big enough to be worth a look."
             if scanned else
             "Not enough baskets in this selection to compare any pair of groups."
         ),
         "method": (
-            "Basket values compared with Mann-Whitney U on ranks, since basket value is "
-            "heavily right-skewed. Ordered by Cliff's delta, which is how often a basket from "
-            "one group beats one from the other. P-values are adjusted for the number of "
-            f"comparisons made, and each group is sampled to {SCAN_SAMPLE} baskets."
+            "Groups are compared on basket value and ranked by how often one group's "
+            "basket beats the other's. Because many pairs are checked at once, the odds "
+            f"of a fluke are adjusted for that. Each group uses {SCAN_SAMPLE:,} sampled baskets."
         ),
     })
