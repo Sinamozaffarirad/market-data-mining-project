@@ -21,22 +21,27 @@
   .badge-risk-high { background-color: #ffc107; color: #212529 !important; }
   .badge-risk-medium { background-color: #0dcaf0; color: #212529 !important; }
   .retention-filter { border-left: 4px solid #6674df; width: 100%; }
-  .page-frame {
-    width: min(calc(100% - 3rem), 1400px);
-    margin: 1.25rem auto 2rem;
-    padding: 1.25rem;
-    background: #fff;
-    border: 1px solid #e1e6ef;
-    border-radius: .85rem;
-    box-shadow: 0 .35rem 1rem rgba(25, 45, 80, .08);
+  /* Frame and banner come from analysis_shell.css. */
+
+  /* Card system shared with the association-rules and basket-mining pages. */
+  .page-frame .card {
+    border: 1px solid #e6e8f2; border-radius: 14px;
+    box-shadow: 0 2px 12px rgba(102, 126, 234, .05);
   }
-  .page-title-bar {
-    display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem;
-    margin: -1.25rem -1.25rem 1.5rem; padding: 1rem 1.25rem;
-    color: #fff; background: var(--gradient-primary); border-radius: .75rem .75rem 0 0;
+  .page-frame .form-select, .page-frame .form-control { border-radius: .55rem; border-color: #dfe3f1; }
+  .page-frame .form-select:focus, .page-frame .form-control:focus {
+    border-color: #667eea; box-shadow: 0 0 0 .18rem rgba(102, 126, 234, .15);
   }
-  .page-title-bar .text-primary, .page-title-bar .text-muted { color: #fff !important; }
-  .page-title-bar .text-muted { opacity: .88; }
+  .page-frame .btn-primary {
+    background: linear-gradient(135deg, #667eea, #764ba2); border: none;
+    border-radius: 10px; font-weight: 600;
+  }
+  .page-frame .btn-primary:hover { filter: brightness(1.06); }
+  .page-frame .table thead th {
+    font-size: .66rem; letter-spacing: .05em; text-transform: uppercase;
+    color: #fff; font-weight: 700;
+    background: linear-gradient(135deg, #667eea, #764ba2); border-bottom: 0;
+  }
   .retention-filter .form-select,
   .retention-filter .form-control {
     height: calc(1.5em + .75rem + 2px);
@@ -105,11 +110,11 @@
 {% endblock %}
 
 {% block content %}
-<div class="page-frame">
-<div class="page-title-bar flex-wrap">
+<div class="analysis-frame">
+<div class="analysis-banner">
   <div>
-    <h2 class="fw-bold text-primary mb-1"><i class="fa-solid fa-heart-circle-check me-2"></i>Customer Retention</h2>
-    <p class="text-muted mb-0">Prioritize at-risk customers, then open their existing personalized product recommender.</p>
+    <div class="analysis-banner-title"><i class="fa-solid fa-heart-circle-check"></i> Customer Retention</div>
+    <div class="analysis-banner-sub">Prioritize at-risk customers, then open their existing personalized product recommender.</div>
   </div>
   {% if active_experiment %}
     <span class="badge bg-success px-3 py-2">Active model: {{ active_experiment.method|title }} &middot; {{ active_experiment.observation_window_days }}d / {{ active_experiment.prediction_horizon_days }}d / {{ active_experiment.step_size_days }}d</span>
@@ -171,11 +176,17 @@
 
 {% if page_obj.paginator.num_pages > 1 %}
 <nav class="mt-3" aria-label="Retention priority pages">
-  <ul class="pagination justify-content-center">
-    {% if page_obj.has_previous %}<li class="page-item"><a class="page-link" href="?minimum_probability={{ minimum_probability }}&customer={{ customer_query }}&maximum_customers={{ maximum_customers|default_if_none:'' }}&probability_order={{ probability_order }}&page={{ page_obj.previous_page_number }}">Previous</a></li>{% endif %}
-    <li class="page-item disabled"><span class="page-link">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span></li>
-    {% if page_obj.has_next %}<li class="page-item"><a class="page-link" href="?minimum_probability={{ minimum_probability }}&customer={{ customer_query }}&maximum_customers={{ maximum_customers|default_if_none:'' }}&probability_order={{ probability_order }}&page={{ page_obj.next_page_number }}">Next</a></li>{% endif %}
-  </ul>
+  <ul class="pager">
+      <li class="{% if not page_obj.has_previous %}disabled{% endif %}">
+        <a class="page-link" href="?minimum_probability={{ minimum_probability }}&customer={{ customer_query }}&maximum_customers={{ maximum_customers|default_if_none:'' }}&probability_order={{ probability_order }}&page=1">&laquo;&laquo; First</a></li>
+      <li class="{% if not page_obj.has_previous %}disabled{% endif %}">
+        <a class="page-link" href="?minimum_probability={{ minimum_probability }}&customer={{ customer_query }}&maximum_customers={{ maximum_customers|default_if_none:'' }}&probability_order={{ probability_order }}&page={% if page_obj.has_previous %}{{ page_obj.previous_page_number }}{% else %}1{% endif %}">Previous</a></li>
+      <li><span class="pager-status">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span></li>
+      <li class="{% if not page_obj.has_next %}disabled{% endif %}">
+        <a class="page-link" href="?minimum_probability={{ minimum_probability }}&customer={{ customer_query }}&maximum_customers={{ maximum_customers|default_if_none:'' }}&probability_order={{ probability_order }}&page={% if page_obj.has_next %}{{ page_obj.next_page_number }}{% else %}{{ page_obj.paginator.num_pages }}{% endif %}">Next</a></li>
+      <li class="{% if not page_obj.has_next %}disabled{% endif %}">
+        <a class="page-link" href="?minimum_probability={{ minimum_probability }}&customer={{ customer_query }}&maximum_customers={{ maximum_customers|default_if_none:'' }}&probability_order={{ probability_order }}&page={{ page_obj.paginator.num_pages }}">Last &raquo;&raquo;</a></li>
+    </ul>
 </nav>
 {% endif %}
 

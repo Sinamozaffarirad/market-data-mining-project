@@ -268,15 +268,89 @@
     margin-left: auto;
   }
 }
+
+/* ---- shared card system -------------------------------------------------
+   Matches the association-rules and basket-mining pages. Styling only: every
+   control, label and figure on this page is left exactly as it was. */
+.cs-page {
+  --rev-1:#667eea; --rev-2:#764ba2; --rev-ink:#1e2338; --rev-muted:#6b7391; --rev-line:#e6e8f2;
+}
+/* Banner comes from analysis_shell.css. */
+.cs-page .cs-title {
+  font-size:1.2rem; font-weight:700; color:#fff;
+  display:flex; align-items:center; gap:.5rem;
+}
+.cs-page .segmentation-dashboard-card {
+  border:1px solid var(--rev-line); border-radius:16px; overflow:hidden;
+  box-shadow:0 2px 14px rgba(102,126,234,.06);
+}
+/* Inner panels take the same border, radius and lift as the cards elsewhere. */
+.cs-page .card:not(.segmentation-dashboard-card) {
+  border:1px solid var(--rev-line); border-radius:14px;
+  box-shadow:0 2px 12px rgba(102,126,234,.05);
+}
+.cs-page .segment-card, .cs-page .churn-card,
+.cs-page .household-card, .cs-page .guide-card {
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+.cs-page .segment-card:hover, .cs-page .churn-card:hover,
+.cs-page .household-card:hover, .cs-page .guide-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 26px rgba(102,126,234,.16);
+}
+.cs-page h5 { font-size:.97rem; font-weight:700; color:var(--rev-ink); }
+.cs-page .form-select, .cs-page .form-control {
+  border-radius:.55rem; border-color:#dfe3f1;
+}
+.cs-page .form-select:focus, .cs-page .form-control:focus {
+  border-color: var(--rev-1); box-shadow: 0 0 0 .18rem rgba(102,126,234,.15);
+}
+.cs-page .btn-primary {
+  background:linear-gradient(135deg, var(--rev-1), var(--rev-2)); border:none;
+  border-radius:10px; font-weight:600;
+}
+.cs-page .btn-primary:hover { filter:brightness(1.06); }
+.cs-page .table thead th {
+  font-size:.66rem; letter-spacing:.05em; text-transform:uppercase;
+  color:#fff; font-weight:700;
+  background:linear-gradient(135deg, var(--rev-1), var(--rev-2));
+  border-bottom:0;
+}
+
+/* The three scores sat in a justify-between row with no gap, so at card width
+   the words ran together as RECENCYFREQUENCYMONETARY. Equal columns with a gap,
+   and a label size that fits the longest of the three. */
+.cs-page .rfm-row { display: flex; gap: .5rem; }
+.cs-page .rfm-row > div { flex: 1 1 0; min-width: 0; }
+.cs-page .rfm-label {
+  font-size: .58rem; font-weight: 700; letter-spacing: .02em;
+  text-transform: uppercase; color: #8b91a7; line-height: 1.2;
+}
+/* "Transactions" was breaking mid-word into "Transactio ns". */
+.cs-page .card-facts > [class^="col"] { font-size: .72rem; line-height: 1.3; }
+.cs-page .card-facts { word-break: keep-all; overflow-wrap: normal; hyphens: none; }
 </style>
 
 
+<!-- The white page frame the other analysis pages sit on. This page put its
+     content straight onto the grey background. -->
+<div class="module cs-page">
+  <div class="p-4">
 <div class="row g-4">
   <div class="col-12">
-    <div class="card shadow-sm segmentation-dashboard-card">
-      <div class="card-header" style="background:var(--gradient-primary); color:#fff; font-weight:700;">
-        <i class="fas fa-users"></i> Customer Segmentation Dashboard
+    <!-- Same banner the association-rules and basket-mining pages use: a rounded
+         bar standing above the card rather than a header flush inside it. -->
+    <div class="analysis-banner">
+      <div>
+        <div class="analysis-banner-title"><i class="fas fa-users"></i> Customer Segmentation Dashboard</div>
+        <div class="analysis-banner-sub">Who the customers are and who is drifting away, grouped by how
+        recently and how often they buy and how much they spend, with churn risk from the active
+        model.</div>
       </div>
+      {% if segments %}<span class="badge bg-success px-3 py-2">{{ segments|length }} RFM segments
+      &middot; as of day {{ lifetime_rfm_cutoff_day|default:"N/A" }}</span>{% endif %}
+    </div>
+    <div class="card shadow-sm segmentation-dashboard-card">
       <div class="card-body">
         <div class="row g-4">
           <div class="col-12">
@@ -429,13 +503,13 @@
 						</div>
 					</div>
 
-					<div class="d-flex justify-content-between text-center my-2">
-						<div><div class="text-muted small">RECENCY</div><div class="fw-bold fs-5">{{ c.recency_score }}</div></div>
-						<div><div class="text-muted small">FREQUENCY</div><div class="fw-bold fs-5">{{ c.frequency_score }}</div></div>
-						<div><div class="text-muted small">MONETARY</div><div class="fw-bold fs-5">{{ c.monetary_score }}</div></div>
+					<div class="rfm-row text-center my-2">
+						<div><div class="rfm-label">RECENCY</div><div class="fw-bold fs-5">{{ c.recency_score }}</div></div>
+						<div><div class="rfm-label">FREQUENCY</div><div class="fw-bold fs-5">{{ c.frequency_score }}</div></div>
+						<div><div class="rfm-label">MONETARY</div><div class="fw-bold fs-5">{{ c.monetary_score }}</div></div>
 					</div>
 					<hr class="my-2"/>
-					<div class="row text-center g-2 small text-muted">
+					<div class="row text-center g-2 small text-muted card-facts">
 						<div class="col-4">Total Spend<br><span class="text-body fw-semibold">${{ c.total_spend|floatformat:2 }}</span></div>
 						<div class="col-4">Transactions<br><span class="text-body fw-semibold">{{ c.total_transactions }}</span></div>
 						<div class="col-4">Avg. Basket<br><span class="text-body fw-semibold">${{ c.avg_basket_value|floatformat:2 }}</span></div>
@@ -492,6 +566,8 @@
         </div>
       </div>
     </div>
+  </div>
+</div>
   </div>
 </div>
 
@@ -610,9 +686,11 @@ document.addEventListener('DOMContentLoaded', function() {
         const endItem = Math.min(p.current_page * itemsPerPage, p.total_items);
         let footerHtml = `<div class="d-flex justify-content-between w-100 align-items-center">
             <span class="text-muted small">Showing ${startItem}-${endItem} of ${p.total_items} records</span>
-            <div>
-                <a href="#" class="text-decoration-none ${p.has_previous ? '' : 'text-muted disabled'}" data-page="${p.current_page - 1}" id="prev-page-btn">&lt; Previous</a>
-                <a href="#" class="text-decoration-none ms-3 ${p.has_next ? '' : 'text-muted disabled'}" data-page="${p.current_page + 1}" id="next-page-btn">Next &gt;</a>
+            <div class="pager" style="margin:0">
+                <a href="#" class="page-link ${p.has_previous ? '' : 'disabled'}" data-page="1" id="first-page-btn">&laquo;&laquo; First</a>
+                <a href="#" class="page-link ${p.has_previous ? '' : 'disabled'}" data-page="${p.current_page - 1}" id="prev-page-btn">Previous</a>
+                <a href="#" class="page-link ${p.has_next ? '' : 'disabled'}" data-page="${p.current_page + 1}" id="next-page-btn">Next</a>
+                <a href="#" class="page-link ${p.has_next ? '' : 'disabled'}" data-page="${p.total_pages}" id="last-page-btn">Last &raquo;&raquo;</a>
             </div>
         </div>`;
 
@@ -633,7 +711,9 @@ document.addEventListener('DOMContentLoaded', function() {
         const type = detailModalEl.dataset.type;
         const identifier = detailModalEl.dataset.identifier;
 
-        if (target.id === 'next-page-btn' || target.id === 'prev-page-btn') {
+        // Any pager link carrying a page number, so First and Last work like the
+        // two that were here before rather than needing their ids listed.
+        if (target.dataset.page !== undefined) {
             event.preventDefault();
             if (!target.classList.contains('disabled')) {
                 const page = target.dataset.page;

@@ -1,38 +1,131 @@
 {% extends "site/base.html" %}
+{% load market_icons %}
 
 {% block title %}Product Detail {% endblock %}
 
+{% block extra_css %}
+<style>
+  /* Frame, banner and cards shared with the other analysis pages. */
+  .pd-grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+  .pd-card {
+    background: #fff;
+    border: 1px solid #e6e8f2;
+    border-radius: 16px;
+    box-shadow: 0 2px 14px rgba(102, 126, 234, .06);
+    padding: 1.1rem 1.2rem;
+  }
+  .pd-card h6 {
+    margin: 0 0 .2rem;
+    font-size: .97rem;
+    font-weight: 700;
+    color: #1e2338;
+    display: flex; align-items: center; gap: .45rem;
+  }
+  .pd-sub { font-size: .8rem; color: #6b7391; margin: 0 0 .9rem; }
+
+  .pd-list { display: grid; gap: .55rem; }
+  .pd-row {
+    display: flex; justify-content: space-between; align-items: center; gap: .75rem;
+    padding: .65rem .8rem;
+    border: 1px solid #eef0f7;
+    border-radius: 12px;
+    background: #fbfcff;
+    font-size: .85rem;
+  }
+  .pd-row .pd-key { font-weight: 700; color: #1e2338; }
+  .pd-row .pd-meta { font-size: .76rem; color: #6b7391; }
+
+  /* One shared scale for how likely a household is to leave, so the figure is
+     readable at a glance instead of eighteen decimal places of noise. */
+  .pd-chip {
+    font-size: .7rem; font-weight: 700; padding: .15rem .55rem; border-radius: 999px;
+    white-space: nowrap;
+  }
+  .pd-chip.low { background: #ecfdf5; color: #0f766e; }
+  .pd-chip.medium { background: #e0f2fe; color: #0369a1; }
+  .pd-chip.high { background: #ffedd5; color: #b45309; }
+  .pd-chip.very-high { background: #fee2e2; color: #b91c1c; }
+
+  .pd-rule { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+  .pd-arrow { color: #667eea; }
+  .pd-back {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    border: none; border-radius: 10px; font-weight: 600;
+    padding: .55rem 1.4rem; color: #fff;
+  }
+  .pd-back:hover { filter: brightness(1.06); color: #fff; }
+  .pd-empty {
+    padding: 1.4rem; text-align: center; color: #6b7391; font-size: .85rem;
+    border: 1px dashed #dfe3f1; border-radius: 12px;
+    background: repeating-linear-gradient(135deg, #fbfcff 0 12px, #f6f8fd 12px 24px);
+  }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="container py-5">
+<div class="analysis-frame">
 
-    <h2 class="fw-bold">{{ product.brand }} — {{ product.commodity_desc }}</h2>
-    <p class="text-muted">{{ product.sub_commodity_desc }} | {{ product.department }}</p>
+  <div class="analysis-banner">
+    <div>
+      <div class="analysis-banner-title">
+        {{ product.commodity_desc|commodity_icon }} {{ product.brand }} &mdash; {{ product.commodity_desc }}
+      </div>
+      <div class="analysis-banner-sub">{{ product.sub_commodity_desc }} &middot; {{ product.department }}
+      &middot; Product {{ product.product_id }}</div>
+    </div>
+    <span class="badge bg-success px-3 py-2">{{ product.department }}</span>
+  </div>
 
-    <hr>
+  <div class="pd-grid">
 
-    <h4>Top Customers (Based on Purchase History)</h4>
-    <ul class="list-group mb-4">
+    <div class="pd-card">
+      <h6><i class="fa-solid fa-users"></i> Top Customers</h6>
+      <p class="pd-sub">Households that buy this most, with how likely each is to stop buying.</p>
+      <div class="pd-list">
         {% for c in segments %}
-        <li class="list-group-item">
-            Household: {{ c.household_key }}
-            <br>
-            Segment: {{ c.rfm_segment }} — Churn: {{ c.churn_probability }}
-        </li>
+        <div class="pd-row">
+          <span>
+            <span class="pd-key">Household {{ c.household_key }}</span>
+            <span class="pd-meta d-block">{{ c.rfm_segment }}</span>
+          </span>
+          <span class="pd-chip
+            {% if c.churn_probability >= 0.75 %}very-high
+            {% elif c.churn_probability >= 0.5 %}high
+            {% elif c.churn_probability >= 0.25 %}medium
+            {% else %}low{% endif %}">
+            {{ c.churn_probability|floatformat:3 }} churn
+          </span>
+        </div>
+        {% empty %}
+        <div class="pd-empty">No household has bought this product yet.</div>
         {% endfor %}
-    </ul>
+      </div>
+    </div>
 
-    <h4>Association Rules Related to This Product</h4>
-    <ul class="list-group">
+    <div class="pd-card">
+      <h6><i class="fa-solid fa-diagram-project"></i> Association Rules</h6>
+      <p class="pd-sub">What this product is bought together with, from the saved rules.</p>
+      <div class="pd-list">
         {% for r in rules %}
-        <li class="list-group-item">
-            <strong>Antecedent:</strong> {{ r.antecedent }}
-            <br>
-            <strong>Consequent:</strong> {{ r.consequent }}
-            <br>
-            Confidence: {{ r.confidence }}
-        </li>
+        <div class="pd-row">
+          <span class="pd-rule">
+            <span class="pd-key">{{ r.antecedent }}</span>
+            <i class="fa-solid fa-arrow-right pd-arrow"></i>
+            <span class="pd-key">{{ r.consequent }}</span>
+          </span>
+          <span class="pd-meta">Confidence {{ r.confidence|floatformat:4 }}</span>
+        </div>
+        {% empty %}
+        <div class="pd-empty">No saved rule mentions this product. Run the Apriori algorithm on the
+        association-rules page to look for some.</div>
         {% endfor %}
-    </ul>
+      </div>
+    </div>
 
+  </div>
+
+  <div class="text-center mt-4">
+    <a href="{% url 'product_recommender:home' %}" class="btn pd-back">&larr; Back to product search</a>
+  </div>
 </div>
 {% endblock %}

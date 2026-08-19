@@ -95,6 +95,7 @@ DATABASES = {
         "ENGINE": "mssql",
         "NAME": "marketdb",
         "HOST": "localhost",
+        # "HOST": "localhost\SQLEXPRESS",
         "OPTIONS": {
             "driver": "ODBC Driver 17 for SQL Server",
             "Encrypt": "no",
@@ -130,7 +131,10 @@ AUTH_USER_MODEL = "customers.User"
 
 LANGUAGE_CODE = "en-us"
 
-TIME_ZONE = "UTC"
+# Timestamps are stored in UTC, as USE_TZ requires, and rendered in the timezone
+# the site is read in. Left at UTC, saved-rule dates and every other timestamp
+# displayed three and a half hours behind the clock on the wall.
+TIME_ZONE = "Asia/Tehran"
 
 USE_I18N = True
 

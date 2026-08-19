@@ -1,4 +1,5 @@
 {% extends "site/base.html" %}
+{% load market_icons %}
 {% block title %}Comprehensive Market Basket Analysis | Analytics{% endblock %}
 
 {% block extra_css %}
@@ -1014,7 +1015,55 @@ html, body {
 .pred-panel .rev-kpi-text { font-size: 1.05rem; line-height: 1.25; color: var(--rev-1); }
 .pred-panel .rev-kpi-hint { font-size: .68rem; color: #9aa1bd; margin-top: .2rem; position: relative; }
 
+
+.pred-panel .head-actions { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
+.pred-panel .top-size {
+  display: inline-flex; align-items: center; gap: .4rem;
+  font-size: .74rem; font-weight: 700; letter-spacing: .03em;
+  text-transform: uppercase; color: var(--rev-muted);
+}
+.pred-panel .top-size select {
+  border: 1px solid var(--rev-line); border-radius: 8px;
+  padding: .2rem 1.4rem .2rem .5rem; font-size: .78rem; font-weight: 600;
+  color: var(--rev-ink); background-color: #fff; text-transform: none; letter-spacing: 0;
+}
+.pred-panel .top-size select:focus {
+  outline: none; border-color: var(--rev-1); box-shadow: 0 0 0 .18rem rgba(102,126,234,.15);
+}
 .pred-panel .rev-context { font-size: .78rem; color: var(--rev-muted); margin: 0 0 .8rem; }
+/* Empty state for a chart that has nothing to draw yet. Sits over the canvas so
+   the card keeps its height and the layout does not jump when results land. */
+.pred-panel .rev-empty {
+  position: absolute; inset: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; text-align: center;
+  gap: .35rem; padding: 1rem; color: var(--rev-muted);
+  background: repeating-linear-gradient(135deg, #fbfcff 0 12px, #f6f8fd 12px 24px);
+  border: 1px dashed var(--rev-line); border-radius: 12px;
+}
+.pred-panel .rev-empty i { font-size: 1.9rem; color: #c3c9e4; }
+.pred-panel .rev-empty h6 { margin: 0; font-weight: 700; color: var(--rev-ink); font-size: .95rem; }
+.pred-panel .rev-empty p { margin: 0; font-size: .82rem; max-width: 430px; }
+/* The same empty state sitting in the flow rather than over a canvas. The rules
+   card keeps a tall minimum so the layout does not jump when results arrive, so
+   the list area is stretched to fill it and the empty state fills that in turn.
+   Without this the placeholder sat in a band with white space under it. */
+.pred-panel .rev-empty.is-block { position: static; min-height: 230px; }
+.pred-panel .association-rules-block { display: flex; flex-direction: column; }
+.pred-panel .association-rules-block > .scrollable-section { flex: 1 1 auto; }
+/* Stretch the placeholder over the whole list area, but only while it is the
+   placeholder: once rules render, the list goes back to normal flow so their
+   own spacing is untouched. */
+.pred-panel .association-rules-block > .scrollable-section:has(> .rev-empty) {
+  display: flex; flex-direction: column;
+}
+.pred-panel .association-rules-block > .scrollable-section > .rev-empty { flex: 1 1 auto; }
+/* The settings row bottom-aligns its fields, which is right when they are bare
+   controls but not here: the captions run to different lengths, so the four
+   labels landed at three different heights. Align them at the top and let the
+   captions hang from the bottom instead. */
+#descriptive .rev-fields { align-items: stretch; }
+#descriptive .rev-fields .rev-field { display: flex; flex-direction: column; }
+#descriptive .rev-fields .rev-field .rev-note { margin-top: auto; padding-top: .4rem; }
 .pred-panel .rev-note { font-size: .76rem; color: var(--rev-muted); margin: .6rem 0 0; }
 .pred-panel .rev-rule { margin: 1rem 0; border-color: var(--rev-line); }
 
@@ -1224,155 +1273,33 @@ html, body {
     </div>
 
     <!-- Descriptive Analysis Tab -->
-    <div id="descriptive" class="tab-content active">
+    <div id="descriptive" class="tab-content active pred-panel">
+      <!-- Same header card as the other two tabs: the tab a reader is on should
+           be recognisable from its frame, not just its wording. -->
       <div class="analysis-type-card descriptive-card">
         <h4 style="color: #28a745; margin-bottom: 1rem;">
           <i class="fas fa-search-plus"></i>
           Descriptive Market Basket Analysis
         </h4>
         <p style="color: #6c757d; line-height: 1.6; margin: 0;">
-          Analyzes existing patterns and relationships in transaction data to understand customer behavior, 
-          product associations, and optimal store layouts using Apriori algorithm.
+          The baskets and products that earn the most, read straight from the data, then the
+          combinations that sell together once you run Apriori. Nothing here is predicted.
         </p>
       </div>
 
-      <!-- Interactive Controls -->
-      <div class="interactive-controls" style="background: #f8f9fa; border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem; border: 1px solid #e9ecef;">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-          <h5 class="mb-0" style="color: #495057; font-weight: 600;">
-            <i class="fas fa-sliders-h text-primary"></i> Algorithm Parameters
-          </h5>
-          <button class="btn btn-outline-info btn-sm" onclick="showDescriptiveHelp()" title="Configuration Help">
-            <i class="fas fa-question-circle"></i> Help
-          </button>
-        </div>
-        <div class="row g-3">
-          <div class="col-md-3">
-            <label class="form-label fw-semibold">Transaction Period:</label>
-            <select class="form-select" id="descriptiveTransactionPeriod">
-              <option value="all">All Transactions</option>
-              <option value="1_month">Last 1 Month</option>
-              <option value="3_months">Last 3 Months</option>
-              <option value="6_months">Last 6 Months</option>
-              <option value="12_months">Last 12 Months</option>
-            </select>
-            <small class="form-text text-muted">Select transaction period: filters data by the 'day' field from transactions</small>
-          </div>
-          <div class="col-md-2">
-            <label class="form-label fw-semibold">Max Results:</label>
-            <select class="form-select" id="descriptiveMaxResults">
-              <option value="50">50</option>
-              <option value="100" selected>100</option>
-              <option value="200">200</option>
-              <option value="500">500</option>
-            </select>
-            <small class="form-text text-muted">Maximum number of association rules to display in results</small>
-          </div>
-          <div class="col-md-3">
-            <label class="form-label fw-semibold">Min Support:</label>
-            <input type="number" class="form-control" id="supportInput" min="0.000001" max="0.1" step="0.000001" value="0.002" placeholder="0.002">
-            <small class="form-text text-muted">Recommended for 2.6M transactions:<br><strong>0.005+</strong>=Fast results, <strong>0.002</strong>=Good balance, <strong>0.001</strong>=Slower, rare patterns</small>
-          </div>
-          <div class="col-md-4">
-            <label class="form-label fw-semibold">Min Confidence:</label>
-            <input type="number" class="form-control" id="confidenceInput" min="0.1" max="1.0" step="0.01" value="0.6" placeholder="0.6">
-            <small class="form-text text-muted">Minimum reliability of association rules (decimal: 0.6 = 60%)</small>
-          </div>
-        </div>
-        <div class="text-center mt-4">
-          <button class="btn btn-primary btn-lg px-4 py-2" onclick="runDescriptiveAnalysis()" style="border-radius: 8px; font-weight: 600;">
-            <i class="fas fa-play me-2"></i> Run Apriori Algorithm
-          </button>
-        </div>
-      </div>
-
-      <!-- Key Metrics -->
-      <div class="metric-grid">
-        <div class="metric-item">
-          <div class="metric-value" id="totalBaskets">{% if overall_stats.total_baskets %}{{ overall_stats.total_baskets|floatformat:0 }}{% else %}155,352{% endif %}</div>
-          <div class="metric-label">Total Baskets<br><small style="color: #6c757d; font-size: 0.6rem;">from 2.6M+ transactions (All)</small></div>
-        </div>
-        <div class="metric-item">
-          <div class="metric-value" id="avgBasketSize">{{ overall_stats.avg_basket_size|floatformat:1|default:"9.5" }}</div>
-          <div class="metric-label">Avg Basket Size<br><small style="color: #6c757d; font-size: 0.6rem;">items per basket</small></div>
-        </div>
-        <div class="metric-item">
-          <div class="metric-value" id="strongRules">0</div>
-          <div class="metric-label">Strong Rules Found<br><small style="color: #6c757d; font-size: 0.6rem;">run algorithm to generate</small></div>
-        </div>
-        <div class="metric-item">
-          <div class="metric-value" id="topLift">-</div>
-          <div class="metric-label">Highest Lift<br><small style="color: #6c757d; font-size: 0.6rem;">measure of association</small></div>
-        </div>
-      </div>
-
-      <!-- Association Rules -->
-      <div class="chart-container association-rules-block">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-          <h5 class="mb-0" id="deptRulesTitle"><i class="fas fa-project-diagram"></i> Association Rules (0/∞) — Department Level</h5>
-          <div class="d-flex gap-2 align-items-center">
-            <div class="btn-group btn-group-sm" role="group" id="deptRulesActions" style="display: flex;">
-              <button class="btn btn-outline-secondary" onclick="selectAllRules('department', true)" title="Select All">
-                <i class="fas fa-check-square"></i> All
-              </button>
-              <button class="btn btn-outline-secondary" onclick="selectAllRules('department', false)" title="Select None">
-                <i class="fas fa-square"></i> None
-              </button>
-              <button class="btn btn-success" onclick="insertSelectedRules('department')" title="Insert Selected Rules">
-                <i class="fas fa-plus"></i> Insert (<span id="deptSelectedCount">0</span>)
-              </button>
-            </div>
-            <button class="btn btn-outline-primary btn-sm" onclick="expandSection('department')" title="View All in Popup">
-              <i class="fas fa-expand-arrows-alt"></i> Expand
-            </button>
-          </div>
-        </div>
-        <div id="descriptiveInsertAlert" class="alert alert-success d-none" role="alert"></div>
-        <div class="association-rules-container scrollable-section" id="associationRules" style="max-height: 950px; overflow-y: auto;">
-          <div class="text-center py-5 text-muted">
-            <i class="fas fa-play-circle fa-3x mb-3" style="color: #a0a0a0;"></i>
-            <h6 class="text-muted mb-2">No Association Rules Generated</h6>
-            <p class="mb-0">Configure parameters above and click <strong>"Run Apriori Algorithm"</strong> to analyze department-level associations</p>
-          </div>
-        </div>
-      </div>
-
-      <!-- Commodity-level Rules -->
-      <div class="chart-container association-rules-block">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-          <h5 class="mb-0" id="commodityRulesTitle"><i class="fas fa-boxes-stacked"></i> Association Rules (0/∞) — Commodity Level</h5>
-          <div class="d-flex gap-2 align-items-center">
-            <div class="btn-group btn-group-sm" role="group" id="commodityRulesActions" style="display: flex;">
-              <button class="btn btn-outline-secondary" onclick="selectAllRules('commodity', true)" title="Select All">
-                <i class="fas fa-check-square"></i> All
-              </button>
-              <button class="btn btn-outline-secondary" onclick="selectAllRules('commodity', false)" title="Select None">
-                <i class="fas fa-square"></i> None
-              </button>
-              <button class="btn btn-success" onclick="insertSelectedRules('commodity')" title="Insert Selected Rules">
-                <i class="fas fa-plus"></i> Insert (<span id="commoditySelectedCount">0</span>)
-              </button>
-            </div>
-            <button class="btn btn-outline-primary btn-sm" onclick="expandSection('commodity')" title="View All in Popup">
-              <i class="fas fa-expand-arrows-alt"></i> Expand
-            </button>
-          </div>
-        </div>
-        <div id="commodityInsertAlert" class="alert alert-success d-none" role="alert"></div>
-        <div class="association-rules-container scrollable-section" id="associationRulesCommodity" style="max-height: 650px; overflow-y: auto;">
-          <div class="text-center py-5 text-muted">
-            <i class="fas fa-play-circle fa-3x mb-3" style="color: #a0a0a0;"></i>
-            <h6 class="text-muted mb-2">No Association Rules Generated</h6>
-            <p class="mb-0">Configure parameters above and click <strong>"Run Apriori Algorithm"</strong> to analyze commodity-level associations</p>
-          </div>
-        </div>
-      </div>
-
       <!-- Baskets Grid -->
-      <div class="chart-container high-value-panel">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-          <h5 class="mb-0"><i class="fas fa-shopping-basket"></i> High-Value Baskets Analysis</h5>
-          <div>
+      <div class="chart-container rev-card high-value-panel">
+        <div class="rev-head-sm">
+          <h5 class="rev-card-title"><i class="fas fa-shopping-basket"></i> High-Value Baskets Analysis</h5>
+
+          <div class="head-actions">
+            <label class="top-size">Show top
+              <select onchange="setTopListSize('top_baskets', this.value)">
+                {% for size in top_list_sizes %}
+                  <option value="{{ size }}" {% if size == top_baskets_size %}selected{% endif %}>{{ size }}</option>
+                {% endfor %}
+              </select>
+            </label>
             <button class="btn btn-outline-primary btn-sm" onclick="expandSection('baskets')" title="View All in Popup">
               <i class="fas fa-expand-arrows-alt"></i> Expand
             </button>
@@ -1408,10 +1335,18 @@ html, body {
       </div>
 
       <!-- High-Value Products Analysis -->
-      <div class="chart-container high-value-panel">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-          <h5 class="mb-0"><i class="fas fa-star"></i> High-Value Products Analysis</h5>
-          <div class="d-flex align-items-center gap-2">
+      <div class="chart-container rev-card high-value-panel">
+        <div class="rev-head-sm">
+          <h5 class="rev-card-title"><i class="fas fa-star"></i> High-Value Products Analysis</h5>
+
+          <div class="head-actions">
+            <label class="top-size">Show top
+              <select onchange="setTopListSize('top_products', this.value)">
+                {% for size in top_list_sizes %}
+                  <option value="{{ size }}" {% if size == top_products_size %}selected{% endif %}>{{ size }}</option>
+                {% endfor %}
+              </select>
+            </label>
             <div class="btn-group btn-group-sm" role="group" aria-label="Product ranking toggle">
               <button type="button" class="btn btn-outline-primary active" data-product-filter="frequency" onclick="switchTopProductsView('frequency')">
                 <i class="fas fa-sync-alt"></i> By Transactions
@@ -1506,6 +1441,160 @@ html, body {
           </div>
         </div>
         <div id="topProductsPagination" class="high-value-pagination" aria-label="High-value product pages"></div>
+      </div>
+
+      <!-- Step 1: settings -->
+      <section class="rev-card">
+        <div class="rev-step">
+          <span class="rev-step-num">1</span>
+          <div>
+            <h6 class="rev-step-title">Choose the settings</h6>
+            <p class="rev-step-hint">How much history to read, and how strong a pattern has to be
+            before it is reported.</p>
+          </div>
+          <button class="btn btn-outline-secondary btn-sm rev-help ms-auto" type="button"
+                  onclick="showDescriptiveHelp()" title="How to use this">
+            <i class="fas fa-question-circle"></i> Help
+          </button>
+        </div>
+        <div class="rev-fields">
+          <div class="rev-field">
+            <label for="descriptiveTransactionPeriod">Transaction period</label>
+            <select class="form-select" id="descriptiveTransactionPeriod">
+              <option value="all" selected>All periods</option>
+              <option value="recent">Recent (last 30 days)</option>
+              <option value="quarter">Last quarter (90 days)</option>
+              <option value="half">Last half year (180 days)</option>
+              <option value="year">Last year (365 days)</option>
+            </select>
+            <p class="rev-note">Filters on the transaction day.</p>
+          </div>
+          <div class="rev-field">
+            <label for="descriptiveMaxResults">Rules to show</label>
+            <select class="form-select" id="descriptiveMaxResults">
+              <option value="10">Top 10</option>
+              <option value="20" selected>Top 20</option>
+              <option value="50">Top 50</option>
+              <option value="100">Top 100</option>
+            </select>
+            <p class="rev-note">Display only. It does not change what is found.</p>
+          </div>
+          <div class="rev-field">
+            <label for="supportInput">Minimum support</label>
+            <input type="number" class="form-control" id="supportInput" min="0.000001" max="0.1"
+                   step="0.000001" value="0.002" placeholder="0.002">
+            <p class="rev-note">How often a combination must appear. Higher is faster and stricter:
+            <strong>0.005</strong> fast, <strong>0.002</strong> balanced, <strong>0.001</strong>
+            slow but finds rarer pairs.</p>
+          </div>
+          <div class="rev-field">
+            <label for="confidenceInput">Minimum confidence</label>
+            <input type="number" class="form-control" id="confidenceInput" min="0.1" max="1.0"
+                   step="0.01" value="0.6" placeholder="0.6">
+            <p class="rev-note">How reliable the rule must be. 0.6 means it holds 60% of the time.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Step 2: run it -->
+      <section class="rev-card">
+        <div class="rev-step">
+          <span class="rev-step-num">2</span>
+          <div>
+            <h6 class="rev-step-title">Run the analysis</h6>
+            <p class="rev-step-hint">Apriori scans the baskets for combinations that pass both
+            thresholds, then ranks them by lift.</p>
+          </div>
+        </div>
+        <div class="rev-actions">
+          <button class="btn rev-btn-primary" onclick="runDescriptiveAnalysis()">
+            <i class="fas fa-play"></i> Run Apriori algorithm
+          </button>
+        </div>
+      </section>
+
+      <!-- Key Metrics -->
+      <div class="metric-grid">
+        <div class="metric-item">
+          <div class="metric-value" id="totalBaskets">{% if overall_stats.total_baskets %}{{ overall_stats.total_baskets|floatformat:0 }}{% else %}155,352{% endif %}</div>
+          <div class="metric-label">Total Baskets<br><small style="color: #6c757d; font-size: 0.6rem;">from 2.6M+ transactions (All)</small></div>
+        </div>
+        <div class="metric-item">
+          <div class="metric-value" id="avgBasketSize">{{ overall_stats.avg_basket_size|floatformat:1|default:"9.5" }}</div>
+          <div class="metric-label">Avg Basket Size<br><small style="color: #6c757d; font-size: 0.6rem;">items per basket</small></div>
+        </div>
+        <div class="metric-item">
+          <div class="metric-value" id="strongRules">0</div>
+          <div class="metric-label">Strong Rules Found<br><small style="color: #6c757d; font-size: 0.6rem;">run algorithm to generate</small></div>
+        </div>
+        <div class="metric-item">
+          <div class="metric-value" id="topLift">-</div>
+          <div class="metric-label">Highest Lift<br><small style="color: #6c757d; font-size: 0.6rem;">measure of association</small></div>
+        </div>
+      </div>
+
+      <!-- Association Rules -->
+      <div class="chart-container rev-card association-rules-block">
+        <div class="rev-head-sm">
+          <h5 class="rev-card-title" id="deptRulesTitle"><i class="fas fa-project-diagram"></i> Association Rules (0/∞) — Department Level</h5>
+          <div class="d-flex gap-2 align-items-center">
+            <div class="btn-group btn-group-sm" role="group" id="deptRulesActions" style="display: flex;">
+              <button class="btn btn-outline-secondary" onclick="selectAllRules('department', true)" title="Select All">
+                <i class="fas fa-check-square"></i> All
+              </button>
+              <button class="btn btn-outline-secondary" onclick="selectAllRules('department', false)" title="Select None">
+                <i class="fas fa-square"></i> None
+              </button>
+              <button class="btn btn-success" onclick="insertSelectedRules('department')" title="Insert Selected Rules">
+                <i class="fas fa-plus"></i> Insert (<span id="deptSelectedCount">0</span>)
+              </button>
+            </div>
+            <button class="btn btn-outline-primary btn-sm" onclick="expandSection('department')" title="View All in Popup">
+              <i class="fas fa-expand-arrows-alt"></i> Expand
+            </button>
+          </div>
+        </div>
+        <div id="descriptiveInsertAlert" class="alert alert-success d-none" role="alert"></div>
+        <div class="association-rules-container scrollable-section" id="associationRules" style="max-height: 950px; overflow-y: auto;">
+          <div class="rev-empty is-block">
+            <i class="fas fa-diagram-project"></i>
+            <h6>No rules yet</h6>
+            <p>Set the thresholds above, then click <strong>Run Apriori algorithm</strong> to find
+            the department combinations that are bought together.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Commodity-level Rules -->
+      <div class="chart-container rev-card association-rules-block">
+        <div class="rev-head-sm">
+          <h5 class="rev-card-title" id="commodityRulesTitle"><i class="fas fa-boxes-stacked"></i> Association Rules (0/∞) — Commodity Level</h5>
+          <div class="d-flex gap-2 align-items-center">
+            <div class="btn-group btn-group-sm" role="group" id="commodityRulesActions" style="display: flex;">
+              <button class="btn btn-outline-secondary" onclick="selectAllRules('commodity', true)" title="Select All">
+                <i class="fas fa-check-square"></i> All
+              </button>
+              <button class="btn btn-outline-secondary" onclick="selectAllRules('commodity', false)" title="Select None">
+                <i class="fas fa-square"></i> None
+              </button>
+              <button class="btn btn-success" onclick="insertSelectedRules('commodity')" title="Insert Selected Rules">
+                <i class="fas fa-plus"></i> Insert (<span id="commoditySelectedCount">0</span>)
+              </button>
+            </div>
+            <button class="btn btn-outline-primary btn-sm" onclick="expandSection('commodity')" title="View All in Popup">
+              <i class="fas fa-expand-arrows-alt"></i> Expand
+            </button>
+          </div>
+        </div>
+        <div id="commodityInsertAlert" class="alert alert-success d-none" role="alert"></div>
+        <div class="association-rules-container scrollable-section" id="associationRulesCommodity" style="max-height: 650px; overflow-y: auto;">
+          <div class="rev-empty is-block">
+            <i class="fas fa-diagram-project"></i>
+            <h6>No rules yet</h6>
+            <p>Set the thresholds above, then click <strong>Run Apriori algorithm</strong> to find
+            the commodity combinations that are bought together.</p>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -1847,7 +1936,17 @@ html, body {
                 <i class="fas fa-expand-arrows-alt"></i> Expand
               </button>
             </div>
-            <div style="height: 340px;"><canvas id="timeSeriesDepartmentChart"></canvas></div>
+            <div style="height: 340px; position: relative;">
+              <canvas id="timeSeriesDepartmentChart"></canvas>
+              <!-- Shown until a forecast exists, so an empty axis never reads as
+                   a forecast of nothing. -->
+              <div id="timeSeriesDepartmentEmpty" class="rev-empty">
+                <i class="fas fa-chart-column"></i>
+                <h6>No forecast yet</h6>
+                <p>Train the models, then click <strong>Forecast revenue</strong> to see where the
+                predicted revenue lands by department.</p>
+              </div>
+            </div>
           </section>
 
           <!-- Display and advanced settings, folded away: a manager never needs
@@ -2008,10 +2107,14 @@ html, body {
         </div>
         <div class="forecast-pagination d-flex flex-wrap justify-content-between align-items-center gap-2 mt-2">
           <div id="forecastResultSummary" class="small text-muted"></div>
-          <div class="btn-group btn-group-sm" role="group" aria-label="Forecast result pages">
-            <button class="btn btn-outline-secondary" id="forecastPreviousPage" type="button" onclick="changeForecastPage(-1)"><i class="fas fa-chevron-left"></i> Previous</button>
-            <span class="btn btn-light disabled" id="forecastPageStatus">Page 1 of 1</span>
-            <button class="btn btn-outline-secondary" id="forecastNextPage" type="button" onclick="changeForecastPage(1)">Next <i class="fas fa-chevron-right"></i></button>
+          <!-- Not a btn-group: that joins its buttons edge to edge, which ran the
+               labels together as "FirstPrevious". -->
+          <div class="pager" style="margin:0" role="group" aria-label="Forecast result pages">
+            <button class="pager-btn" id="forecastFirstPage" type="button" onclick="goForecastPage(1)">&laquo;&laquo; First</button>
+            <button class="pager-btn" id="forecastPreviousPage" type="button" onclick="changeForecastPage(-1)">Previous</button>
+            <span class="pager-status" id="forecastPageStatus">Page 1 of 1</span>
+            <button class="pager-btn" id="forecastNextPage" type="button" onclick="changeForecastPage(1)">Next</button>
+            <button class="pager-btn" id="forecastLastPage" type="button" onclick="goForecastPage(0)">Last &raquo;&raquo;</button>
           </div>
         </div>
       </div>
@@ -2086,7 +2189,7 @@ html, body {
           <div class="col-lg-6">
             <div class="bench-card" id="timeSeriesComparisonChartContainer">
               <h6>Error and ranking quality</h6>
-              <p class="bench-sub">Lower is better for WMAPE; higher is better for the two ranking scores.</p>
+              <p class="bench-sub">Lower is better for WMAPE. Higher is better for the two ranking scores.</p>
               <div style="height: 340px;"><canvas id="timeSeriesComparisonChart"></canvas></div>
             </div>
           </div>
@@ -2108,34 +2211,10 @@ html, body {
 
 <script>
 // Department mapping with colors and emojis
-const DEPARTMENT_CONFIG = {
-  'GROCERY': { color: '#2E86C1', emoji: '🛒', gradient: 'linear-gradient(135deg, #2E86C1, #3498DB)' },
-  'MEAT-PCKGD': { color: '#E74C3C', emoji: '🥩', gradient: 'linear-gradient(135deg, #E74C3C, #EC7063)' },
-  'PORK': { color: '#C0392B', emoji: '🐷', gradient: 'linear-gradient(135deg, #C0392B, #E74C3C)' },
-  'SEAFOOD': { color: '#148F77', emoji: '🐟', gradient: 'linear-gradient(135deg, #148F77, #1ABC9C)' },
-  'SEAFOOD-PCKGD': { color: '#0E6655', emoji: '🦐', gradient: 'linear-gradient(135deg, #0E6655, #148F77)' },
-  'FROZEN GROCERY': { color: '#85C1E9', emoji: '❄️', gradient: 'linear-gradient(135deg, #85C1E9, #AED6F1)' },
-  'DAIRY': { color: '#F39C12', emoji: '🥛', gradient: 'linear-gradient(135deg, #F39C12, #F8C471)' },
-  'DELI': { color: '#FF6B6B', emoji: '🥪', gradient: 'linear-gradient(135deg, #FF6B6B, #FF8E8E)' },
-  'DELI/SNACK BAR': { color: '#FF5722', emoji: '🌭', gradient: 'linear-gradient(135deg, #FF5722, #FF7043)' },
-  'BAKERY': { color: '#D4AC0D', emoji: '🍞', gradient: 'linear-gradient(135deg, #D4AC0D, #F1C40F)' },
-  'PASTRY': { color: '#D68910', emoji: '🧁', gradient: 'linear-gradient(135deg, #D68910, #E67E22)' },
-  'PRODUCE': { color: '#27AE60', emoji: '🥬', gradient: 'linear-gradient(135deg, #27AE60, #2ECC71)' },
-  'FLORAL': { color: '#FF69B4', emoji: '🌸', gradient: 'linear-gradient(135deg, #FF69B4, #FF1493)' },
-  'PHARMACY SUPPLY': { color: '#8E44AD', emoji: '💊', gradient: 'linear-gradient(135deg, #8E44AD, #9B59B6)' },
-  'RX': { color: '#7D3C98', emoji: '💉', gradient: 'linear-gradient(135deg, #7D3C98, #8E44AD)' },
-  'DRUG GM': { color: '#A569BD', emoji: '🩹', gradient: 'linear-gradient(135deg, #A569BD, #BB8FCE)' },
-  'SPIRITS': { color: '#795548', emoji: '🍷', gradient: 'linear-gradient(135deg, #795548, #8D6E63)' },
-  'BEVERAGE': { color: '#17A2B8', emoji: '🥤', gradient: 'linear-gradient(135deg, #17A2B8, #20C997)' },
-  'TOYS': { color: '#FF1493', emoji: '🧸', gradient: 'linear-gradient(135deg, #FF1493, #FF69B4)' },
-  'VIDEO': { color: '#9C27B0', emoji: '📺', gradient: 'linear-gradient(135deg, #9C27B0, #BA68C8)' },
-  'PHOTO': { color: '#607D8B', emoji: '📷', gradient: 'linear-gradient(135deg, #607D8B, #78909C)' },
-  'ELECT &PLUMBING': { color: '#FF9800', emoji: '🔧', gradient: 'linear-gradient(135deg, #FF9800, #FFB74D)' },
-  'MISC. TRANS.': { color: '#6C757D', emoji: '📦', gradient: 'linear-gradient(135deg, #6C757D, #868E96)' },
-  'MISC SALES TRAN': { color: '#6C757D', emoji: '🛍️', gradient: 'linear-gradient(135deg, #6C757D, #868E96)' },
-  'COUP/STR & MFG': { color: '#28A745', emoji: '🎫', gradient: 'linear-gradient(135deg, #28A745, #34CE57)' },
-  'DEFAULT': { color: '#6C757D', emoji: '📦', gradient: 'linear-gradient(135deg, #6C757D, #868E96)' }
-};
+// Department chips are styled from one table shared with the association-rules
+// page, so a department cannot have an icon on one page and a grey box on the
+// other.
+const DEPARTMENT_CONFIG = {% department_styles_json %};
 
 // Global variables for analysis
 let currentAnalysisData = {};
@@ -2144,6 +2223,25 @@ let lastTimeSeriesDepartmentRows = [];
 let lastLegacyProbabilityPredictions = [];
 
 // Tab switching functionality
+
+/* Both lists are cut server-side, so a larger one means asking the server again.
+   The other list's size is carried along so changing one does not reset it, and
+   the descriptive tab is restored on arrival. */
+function setTopListSize(name, value) {
+  const params = new URLSearchParams(window.location.search);
+  params.set(name, value);
+  params.set('tab', 'descriptive');
+  window.location.search = params.toString();
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  if (new URLSearchParams(window.location.search).get('tab') === 'descriptive') {
+    const button = document.querySelector('.tab-btn');
+    if (button) switchTab('descriptive', button);
+    document.querySelector('.high-value-panel')?.scrollIntoView({behavior: 'instant', block: 'start'});
+  }
+});
+
 function switchTab(tabName) {
   // Hide all tab contents
   document.querySelectorAll('.tab-content').forEach(content => {
@@ -2256,27 +2354,30 @@ const COMMODITY_CONFIG = {
   'DEFAULT': { color: '#6C757D', emoji: '🛒', gradient: 'linear-gradient(135deg, #6C757D, #868E96)' }
 };
 
-// Create commodity badge with proper colors and emojis
+// Which department each commodity belongs to, so a commodity chip carries the
+// same icon and colour as its department does one level up.
+const COMMODITY_DEPARTMENT = {% commodity_departments_json %};
+
+// Create commodity badge: its department's icon, and the whole commodity name.
+// Truncating at ten characters turned "BAKED BREAD/BUNS/ROLLS" into
+// "BAKED BREA...", which named nothing.
 function createCommodityBadge(name) {
-  const config = COMMODITY_CONFIG[name] || COMMODITY_CONFIG['DEFAULT'];
-  const textColor = config.textColor || '#ffffff';
+  const department = COMMODITY_DEPARTMENT[String(name || '').trim().toUpperCase()];
+  const config = DEPARTMENT_CONFIG[department] || DEPARTMENT_CONFIG['DEFAULT'];
   return `
     <span class="commodity-badge" style="
       background: ${config.gradient};
-      color: ${textColor};
+      color: #fff;
       font-weight: 600;
-      border-radius: 15px;
-      padding: 0.25rem 0.6rem;
+      border-radius: 999px;
+      padding: 0.25rem 0.65rem;
       font-size: 0.7rem;
-      white-space: nowrap;
       display: inline-flex;
       align-items: center;
-      gap: 0.3rem;
-      max-width: 140px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    ">
-      ${config.emoji} ${name.length > 12 ? name.substring(0, 10) + '...' : name}
+      gap: 0.35rem;
+      text-align: left;
+    " title="${escapeHtml(name)}${department ? ' — ' + escapeHtml(department) : ''}">
+      ${config.emoji} ${escapeHtml(name)}
     </span>
   `;
 }
@@ -4227,18 +4328,19 @@ function renderHighValuePage(section, requestedPage = highValuePageState[section
   }
 
   controls.classList.remove('d-none');
+  // The same four controls the rest of the site uses, so these lists page the
+  // way every other list does.
+  controls.classList.add('pager');
   controls.innerHTML = `
-    <button type="button" class="btn btn-outline-primary btn-sm" ${page === 1 ? 'disabled' : ''}>
-      <i class="fas fa-chevron-left"></i> Previous
-    </button>
-    <span class="page-summary">${start + 1}-${end} of ${cards.length}</span>
-    <button type="button" class="btn btn-outline-primary btn-sm" ${page === totalPages ? 'disabled' : ''}>
-      Next <i class="fas fa-chevron-right"></i>
-    </button>`;
+    <button type="button" class="pager-btn" data-go="1" ${page === 1 ? 'disabled' : ''}>&laquo;&laquo; First</button>
+    <button type="button" class="pager-btn" data-go="${page - 1}" ${page === 1 ? 'disabled' : ''}>Previous</button>
+    <span class="pager-status">${start + 1}-${end} of ${cards.length}</span>
+    <button type="button" class="pager-btn" data-go="${page + 1}" ${page === totalPages ? 'disabled' : ''}>Next</button>
+    <button type="button" class="pager-btn" data-go="${totalPages}" ${page === totalPages ? 'disabled' : ''}>Last &raquo;&raquo;</button>`;
 
-  const [previousButton, nextButton] = controls.querySelectorAll('button');
-  previousButton?.addEventListener('click', () => renderHighValuePage(section, page - 1));
-  nextButton?.addEventListener('click', () => renderHighValuePage(section, page + 1));
+  controls.querySelectorAll('button[data-go]').forEach(button => {
+    button.addEventListener('click', () => renderHighValuePage(section, Number(button.dataset.go)));
+  });
 }
 
 function initializeHighValuePagination() {
@@ -5426,7 +5528,7 @@ function showDescriptiveHelp() {
         </div>
         <div class="help-option mb-2">
           <strong>Balance Support & Confidence</strong>
-          <small class="d-block text-muted">Higher support highlights store-wide behaviour; lower support reveals emerging, high-lift opportunities worth testing.</small>
+          <small class="d-block text-muted">Higher support highlights store-wide behaviour. Lower support reveals emerging, high-lift opportunities worth testing.</small>
         </div>
         <div class="help-option">
           <strong>Review Lift</strong>
@@ -5553,7 +5655,7 @@ function showRevenueForecastHelp() {
         <div class="help-option mb-2">
           <strong>Forecast Horizon &amp; Lookback window</strong>
           <small class="d-block text-muted">
-            The horizon is how far ahead to predict; the lookback is how much past revenue the
+            The horizon is how far ahead to predict. The lookback is how much past revenue the
             model reads to do it. These two compete for the same 23 periods of history, so the
             control underneath tells you live whether the pair is
             <strong>fully supervised</strong> &mdash; meaning every predicted step has real history
@@ -5565,7 +5667,7 @@ function showRevenueForecastHelp() {
           <strong>Window step</strong>
           <small class="d-block text-muted">
             How far the training window slides between samples. A 1-period step produces the most
-            training examples and is the sensible default; larger steps train faster on less data.
+            training examples and is the sensible default. Larger steps train faster on less data.
           </small>
         </div>
 
@@ -6612,6 +6714,7 @@ let lastTimeSeriesReport = null;
 let forecastCurrentPage = 1;
 const FORECAST_PAGE_SIZE = 10;
 let forecastResultContext = '';
+let forecastResultDetail = '';
 
 async function timeSeriesRequest(url, data) {
   const response = await fetch(url, {
@@ -6664,6 +6767,8 @@ function renderTimeSeriesComparisonChart(report) {
 function renderTimeSeriesDepartmentChart(rows, productCount = 0) {
   const canvas = document.getElementById('timeSeriesDepartmentChart');
   if (!canvas || typeof Chart === 'undefined') return;
+  const empty = document.getElementById('timeSeriesDepartmentEmpty');
+  if (empty) empty.style.display = (rows && rows.length) ? 'none' : '';
   lastTimeSeriesDepartmentRows = Array.from(rows || []);
   const context = document.getElementById('timeSeriesDepartmentChartContext');
   const selectedTopN = Number(document.getElementById('timeSeriesTopN')?.value || 20);
@@ -8484,7 +8589,11 @@ function renderProductForecastRows(predictions, response) {
   const inactiveProducts = Math.max(0, forecastPanelProducts - eligibleProducts);
   const outsideAlignedHistory = Math.max(0, sourceUniqueProducts - forecastPanelProducts);
   const lookbackPeriods = Number(response.window_size_months || 0);
-  forecastResultContext = `${Number(response.products_after_threshold || 0).toLocaleString()} eligible active products passed the threshold; ranked by ${forecastMethodLabel(response.forecast_method_applied)}. ${inactiveProducts.toLocaleString()} of ${forecastPanelProducts.toLocaleString()} products in the aligned history had no revenue in the latest ${lookbackPeriods}-period lookback; ${outsideAlignedHistory.toLocaleString()} additional Product IDs occur outside that aligned history. Model Benchmarks evaluated ${evaluatedProducts.toLocaleString()} products on an earlier historical holdout (active before or during that holdout), so it is a different population.`;
+  /* The three caveats behind these figures are worth keeping, but four lines of
+     them under every table is more than the reader asked for. The line states
+     what was ranked and how; the rest waits on the hover. */
+  forecastResultContext = `${Number(response.products_after_threshold || 0).toLocaleString()} products passed the threshold, ranked by ${forecastMethodLabel(response.forecast_method_applied)}.`;
+  forecastResultDetail = `${inactiveProducts.toLocaleString()} of ${forecastPanelProducts.toLocaleString()} products in the aligned history had no revenue in the latest ${lookbackPeriods}-period lookback. ${outsideAlignedHistory.toLocaleString()} more Product IDs fall outside that history. Model Benchmarks scored ${evaluatedProducts.toLocaleString()} products on an earlier holdout, so that is a different population.`;
   forecastRowData = predictions.map(product => ({
     product,
     rank: Number(product.forecast_rank),
@@ -8603,14 +8712,31 @@ function filterForecastRows() {
   const summary = document.getElementById('forecastResultSummary');
   const shownStart = matching.length ? start + 1 : 0;
   const shownEnd = Math.min(start + FORECAST_PAGE_SIZE, matching.length);
-  if (summary) summary.textContent = `Showing ${shownStart}-${shownEnd} of ${matching.length.toLocaleString()} product${matching.length === 1 ? '' : 's'}${query ? ' matching the search' : ''}; ${forecastResultContext}`;
+  if (summary) {
+    summary.textContent = `Showing ${shownStart}-${shownEnd} of ${matching.length.toLocaleString()} product${matching.length === 1 ? '' : 's'}${query ? ' matching the search' : ''}. ${forecastResultContext}`;
+    summary.title = forecastResultDetail;
+  }
   const pageStatus = document.getElementById('forecastPageStatus');
   const previous = document.getElementById('forecastPreviousPage');
   const next = document.getElementById('forecastNextPage');
   if (pageStatus) pageStatus.textContent = `Page ${forecastCurrentPage} of ${totalPages}`;
+  const first = document.getElementById('forecastFirstPage');
+  const last = document.getElementById('forecastLastPage');
   if (previous) previous.disabled = forecastCurrentPage <= 1;
+  if (first) first.disabled = forecastCurrentPage <= 1;
   if (next) next.disabled = forecastCurrentPage >= totalPages;
+  if (last) last.disabled = forecastCurrentPage >= totalPages;
   updateForecastSortHeaders();
+}
+
+/* 0 means the last page, whatever it turns out to be. */
+function goForecastPage(page) {
+  const query = (document.getElementById('forecastProductSearch')?.value || '').trim().toLowerCase();
+  const matching = query ? forecastRowData.filter(entry => entry.search.includes(query)) : forecastRowData;
+  const pages = Math.max(1, Math.ceil(matching.length / FORECAST_PAGE_SIZE));
+  forecastCurrentPage = page === 0 ? pages : page;
+  filterForecastRows();
+  document.getElementById('productRevenueForecastTable')?.scrollIntoView({behavior: 'smooth', block: 'start'});
 }
 
 function changeForecastPage(delta) {

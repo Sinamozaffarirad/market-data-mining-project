@@ -105,13 +105,18 @@ def _filters(request, needs=()):
         raw = (request.GET.get(key) or "").strip()
         if not raw or raw.lower() == "all":
             continue
+        # A slicer may hold several values. They arrive pipe-separated because a
+        # comma appears inside real department and commodity names.
+        values = [v.strip() for v in raw.split("|") if v.strip()]
         if cast is int:
-            if not raw.lstrip("-").isdigit():
-                continue
-            params.append(int(raw))
+            values = [int(v) for v in values if v.lstrip("-").isdigit()]
+        if not values:
+            continue
+        if len(values) == 1:
+            where.append(f"{column} = %s")
         else:
-            params.append(raw)
-        where.append(f"{column} = %s")
+            where.append(f"{column} IN ({', '.join(['%s'] * len(values))})")
+        params.extend(values)
         required.add(column.split(".")[0])
     return where, params, required
 
@@ -589,6 +594,7 @@ def api_bi_insights(request):
 
     quarters = _query(f"""
         SELECT CAST(d.calendar_year AS varchar(4)) + ' ' + d.quarter_name AS label,
+               d.calendar_year AS yr, d.calendar_quarter AS qtr,
                SUM(f.sales_value)        AS revenue,
                COUNT(DISTINCT f.day_key) AS days
         {_from(needs | {"d"})}{clause}
@@ -596,7 +602,8 @@ def api_bi_insights(request):
         ORDER BY d.calendar_year, d.calendar_quarter
     """, params)
     rated = [
-        (r["label"], float(r["revenue"] or 0) / int(r["days"]), int(r["days"]))
+        (r["label"], float(r["revenue"] or 0) / int(r["days"]), int(r["days"]),
+         int(r["yr"]), int(r["qtr"]))
         for r in quarters if int(r["days"] or 0) > 0
     ]
     if len(rated) >= 2:
@@ -611,6 +618,53 @@ def api_bi_insights(request):
                 "the window clips the final quarter."
             ),
         })
+
+        # The follow-through: the strongest quarter's best sellers, and what the
+        # same products did in the weakest one. Comparing the same products
+        # across both periods keeps the change about those products rather than
+        # about a changing assortment. Daily rates again, because the quarters
+        # do not hold the same number of trading days.
+        movers = _query(f"""
+            SELECT TOP 5
+                f.product_id,
+                MAX(p.commodity) AS commodity,
+                SUM(CASE WHEN d.calendar_year = %s AND d.calendar_quarter = %s
+                         THEN f.sales_value ELSE 0 END) AS best_revenue,
+                SUM(CASE WHEN d.calendar_year = %s AND d.calendar_quarter = %s
+                         THEN f.sales_value ELSE 0 END) AS worst_revenue
+            {_from(needs | {"d", "p"})}
+            {_clause(where + ["(d.calendar_year = %s AND d.calendar_quarter = %s)"
+                              " OR (d.calendar_year = %s AND d.calendar_quarter = %s)"])}
+            GROUP BY f.product_id
+            ORDER BY best_revenue DESC
+        """, [best[3], best[4], worst[3], worst[4]]
+             + params + [best[3], best[4], worst[3], worst[4]])
+        moved = []
+        for row in movers:
+            best_rate = float(row["best_revenue"] or 0) / best[2]
+            worst_rate = float(row["worst_revenue"] or 0) / worst[2]
+            if best_rate <= 0:
+                continue
+            change = (best_rate / worst_rate - 1) if worst_rate > 0 else None
+            moved.append((int(row["product_id"]), row["commodity"] or "Unknown", change))
+        if moved:
+            parts = []
+            for product_id, commodity, change in moved[:3]:
+                if change is None:
+                    parts.append(f"{product_id} ({commodity.title()}) sold nothing in {worst[0]}")
+                else:
+                    parts.append(
+                        f"{product_id} ({commodity.title()}) "
+                        f"{'up' if change >= 0 else 'down'} {abs(change):.0%}"
+                    )
+            insights.append({
+                "kind": "season",
+                "title": f"What {best[0]}'s best sellers did in {worst[0]}",
+                "detail": (
+                    "Same products, both quarters, compared per trading day: "
+                    + " · ".join(parts) + "."
+                ),
+            })
 
     departments = _query(f"""
         SELECT TOP 3 p.department AS label, SUM(f.sales_value) AS revenue
@@ -759,6 +813,33 @@ COMPARISON_DIMENSIONS = {
 }
 
 
+def _dimension_samples(column, where, params, needs, per_group=1200, minimum=100):
+    """A reproducible basket-value sample for every group of one dimension.
+
+    ANOVA and Kruskal-Wallis need all the groups at once, not the chosen pair,
+    and one windowed query is far cheaper than a query per group.
+    """
+    rows = _query(f"""
+        ;WITH baskets AS (
+            SELECT {column} AS grp, f.basket_id, SUM(f.sales_value) AS basket_value
+            {_from(needs)}{_clause(where + [column + " IS NOT NULL", column + " <> ''"])}
+            GROUP BY {column}, f.basket_id
+        ), ranked AS (
+            SELECT grp, basket_value,
+                   ROW_NUMBER() OVER (PARTITION BY grp ORDER BY ABS(CHECKSUM(basket_id))) AS rn,
+                   COUNT(*)     OVER (PARTITION BY grp) AS baskets
+            FROM baskets
+        )
+        SELECT grp, basket_value FROM ranked WHERE rn <= %s AND baskets >= %s
+    """, params + [per_group, minimum])
+    grouped = {}
+    for row in rows:
+        name = (row["grp"] or "").strip()
+        if name:
+            grouped.setdefault(name, []).append(float(row["basket_value"] or 0))
+    return {name: values for name, values in grouped.items() if len(values) >= 20}
+
+
 def _cliffs_delta(first, second, sample=4000):
     """Cliff's delta: how often one group's baskets beat the other's.
 
@@ -806,7 +887,8 @@ def api_bi_significance(request):
     buy from different parts of the catalogue.  Every test carries an effect
     size, because at this sample size significance is close to guaranteed.
     """
-    from scipy.stats import chi2_contingency, ks_2samp, mannwhitneyu
+    from scipy.stats import (chi2_contingency, f_oneway, kruskal, ks_2samp,
+                             mannwhitneyu, skew, t as student_t, ttest_ind)
 
     dimension = (request.GET.get("dimension") or "segment").strip()
     column, alias, label = COMPARISON_DIMENSIONS.get(
@@ -861,13 +943,36 @@ def api_bi_significance(request):
             {_from(needs)}{_clause(where + [column + " = %s"])}
         """, params + [group]).get("baskets") or 0)
 
+    def basket_median(group):
+        """Median over every basket in the group, not over the sample.
+
+        The tests run on a sample, which is sound, but the median is quoted to
+        the reader and also appears in the scan above. Computing it over all the
+        baskets keeps the two panels in agreement.
+        """
+        row = _scalar_row(f"""
+            ;WITH baskets AS (
+                SELECT f.basket_id, SUM(f.sales_value) AS basket_value
+                {_from(needs)}{_clause(where + [column + " = %s"])}
+                GROUP BY f.basket_id
+            ), ordered AS (
+                SELECT basket_value,
+                       ROW_NUMBER() OVER (ORDER BY basket_value) AS rn,
+                       COUNT(*)     OVER () AS n
+                FROM baskets
+            )
+            SELECT AVG(basket_value) AS median_value
+            FROM ordered WHERE rn IN ((n + 1) / 2, (n + 2) / 2)
+        """, params + [group])
+        return float(row.get("median_value") or 0)
+
     values_a, values_b = basket_values(group_a), basket_values(group_b)
     total_a, total_b = basket_total(group_a), basket_total(group_b)
     sampled = len(values_a) < total_a or len(values_b) < total_b
     tests = []
     if len(values_a) >= 20 and len(values_b) >= 20:
         import numpy as np
-        median_a, median_b = float(np.median(values_a)), float(np.median(values_b))
+        median_a, median_b = basket_median(group_a), basket_median(group_b)
         statistic, p_value = mannwhitneyu(values_a, values_b, alternative="two-sided")
         delta = _cliffs_delta(values_a, values_b)
         higher, lower = (group_a, group_b) if median_a >= median_b else (group_b, group_a)
@@ -982,6 +1087,142 @@ def api_bi_significance(request):
                 ),
             })
 
+    # Welch's t-test on the same pair. It compares means rather than ranks and
+    # assumes roughly normal data, which basket value is not, so it is reported
+    # with its skew and with the rank test standing as the primary read. It is
+    # here because a mean difference in currency is what a manager budgets with,
+    # and it is the only test of the set that yields a confidence interval.
+    if len(values_a) >= 20 and len(values_b) >= 20:
+        import numpy as np
+
+        a = np.asarray(values_a, dtype=float)
+        b = np.asarray(values_b, dtype=float)
+        t_stat, t_p = ttest_ind(a, b, equal_var=False)
+        mean_gap = float(a.mean() - b.mean())
+        # Welch-Satterthwaite degrees of freedom for the interval.
+        var_a, var_b = a.var(ddof=1) / len(a), b.var(ddof=1) / len(b)
+        standard_error = float((var_a + var_b) ** 0.5)
+        degrees = ((var_a + var_b) ** 2 /
+                   (var_a ** 2 / (len(a) - 1) + var_b ** 2 / (len(b) - 1))) if standard_error else 1
+        margin = float(student_t.ppf(0.975, degrees) * standard_error) if standard_error else 0.0
+        pooled = float((((len(a) - 1) * a.var(ddof=1) + (len(b) - 1) * b.var(ddof=1)) /
+                        (len(a) + len(b) - 2)) ** 0.5)
+        cohens_d = float(mean_gap / pooled) if pooled else 0.0
+        worst_skew = max(abs(float(skew(a))), abs(float(skew(b))))
+        d_label = ("negligible" if abs(cohens_d) < 0.2 else
+                   "small" if abs(cohens_d) < 0.5 else
+                   "medium" if abs(cohens_d) < 0.8 else "large")
+        tests.append({
+            "name": "Welch's t-test",
+            "question": "Do the two groups differ in average basket value?",
+            "statistic": float(t_stat),
+            "p_value": float(t_p),
+            "effect_name": "Cohen's d",
+            "effect": cohens_d,
+            "effect_label": d_label,
+            "confidence_interval": [mean_gap - margin, mean_gap + margin],
+            "confidence_level": 95,
+            "detail": (
+                f"Mean {group_a} ${a.mean():,.2f} against {group_b} ${b.mean():,.2f}. "
+                f"95% confident the true gap lies between ${mean_gap - margin:,.2f} and "
+                f"${mean_gap + margin:,.2f}."
+            ),
+            "why": (
+                "Welch's form is used because the two groups differ in size and spread. "
+                f"It assumes roughly normal data and the skew here is {worst_skew:.1f}, so "
+                "the rank test above is the one to quote; this is reported for the "
+                "confidence interval, which is the figure to budget with."
+            ),
+            "headline": (
+                f"Mean baskets differ by ${abs(mean_gap):,.2f}, "
+                f"{'higher' if mean_gap > 0 else 'lower'} for {group_a}"
+            ),
+            "verdict": "acted-on" if d_label not in ("negligible", "small") else "too-small",
+            "plain": (
+                "Cohen's d is the gap measured in standard deviations. Under 0.2 is "
+                f"negligible, over 0.8 is large. This is {cohens_d:.2f}."
+            ),
+        })
+
+    # The two tests above answer a question about one pair. These ask whether the
+    # dimension as a whole separates the groups, which is what the professor's
+    # ANOVA / Kruskal-Wallis pairing is for: the same question, one assuming
+    # normality and one not.
+    group_samples = _dimension_samples(column, where, params, needs)
+    if len(group_samples) >= 3:
+        import numpy as np
+
+        names = list(group_samples)
+        arrays = [np.asarray(group_samples[n], dtype=float) for n in names]
+        observations = int(sum(len(x) for x in arrays))
+
+        f_stat, f_p = f_oneway(*arrays)
+        grand = float(np.concatenate(arrays).mean())
+        between = float(sum(len(x) * (x.mean() - grand) ** 2 for x in arrays))
+        total_ss = float(sum(((x - grand) ** 2).sum() for x in arrays))
+        eta_squared = (between / total_ss) if total_ss else 0.0
+        eta_label = ("negligible" if eta_squared < 0.01 else
+                     "small" if eta_squared < 0.06 else
+                     "medium" if eta_squared < 0.14 else "large")
+        tests.append({
+            "name": "One-way ANOVA",
+            "question": f"Does basket value differ across all {len(names)} {label.lower()} groups?",
+            "statistic": float(f_stat),
+            "p_value": float(f_p),
+            "effect_name": "Eta squared",
+            "effect": float(eta_squared),
+            "effect_label": eta_label,
+            "detail": (
+                f"All {len(names)} groups at once ({', '.join(names[:4])}"
+                f"{'...' if len(names) > 4 else ''}), {observations:,} sampled baskets."
+            ),
+            "why": (
+                "ANOVA compares more than two groups in one test, avoiding the inflated "
+                "false-positive rate of testing every pair separately. It assumes normality, "
+                "so Kruskal-Wallis below is the safer read on this data."
+            ),
+            "headline": (
+                f"{label} explains {eta_squared:.1%} of the variation in basket value"
+            ),
+            "verdict": "acted-on" if eta_label not in ("negligible", "small") else "too-small",
+            "plain": (
+                "Eta squared is the share of the variation in basket value that group "
+                f"membership accounts for. This is {eta_squared:.1%}; the rest is everything else."
+            ),
+        })
+
+        h_stat, h_p = kruskal(*arrays)
+        epsilon = float((h_stat - len(names) + 1) / (observations - len(names))) if observations > len(names) else 0.0
+        epsilon = max(0.0, epsilon)
+        eps_label = ("negligible" if epsilon < 0.01 else
+                     "small" if epsilon < 0.06 else
+                     "medium" if epsilon < 0.14 else "large")
+        tests.append({
+            "name": "Kruskal-Wallis",
+            "question": f"Same question without assuming normal data: do the {len(names)} groups differ?",
+            "statistic": float(h_stat),
+            "p_value": float(h_p),
+            "effect_name": "Epsilon squared",
+            "effect": epsilon,
+            "effect_label": eps_label,
+            "detail": f"Rank-based across all {len(names)} groups, {observations:,} sampled baskets.",
+            "why": (
+                "The non-parametric counterpart of ANOVA. It ranks the baskets instead of "
+                "averaging them, so the skew in basket value does not distort it. Where the "
+                "two disagree, this is the one to trust here."
+            ),
+            "headline": (
+                f"The {len(names)} {label.lower()} groups "
+                + ("do not separate on basket value" if eps_label == "negligible"
+                   else "separate on basket value")
+            ),
+            "verdict": "acted-on" if eps_label not in ("negligible", "small") else "too-small",
+            "plain": (
+                "Epsilon squared rescales the test to 0-1 as a share of rank variation "
+                f"explained by the group. This is {epsilon:.1%}."
+            ),
+        })
+
     return JsonResponse({
         "success": True,
         "dimension": dimension,
@@ -995,8 +1236,548 @@ def api_bi_significance(request):
         "sampled": sampled,
         "sample_size": sample_cap,
         "caveat": (
-            "At this sample size a p-value below 0.05 is close to guaranteed, so it "
-            "only confirms a difference exists. The effect size is what says whether "
-            "it is large enough to matter."
+            "With this many baskets a low p-value is almost guaranteed, so it only "
+            "tells you a difference exists. The size of the difference tells you "
+            "whether it is worth doing anything about."
+        ),
+    })
+
+
+# ---------------------------------------------------------------------------
+# Decision panels
+#
+# Each of the following answers a question the earlier panels could not: they
+# report levels, these report concentration, direction and mix.  All of them
+# read the same filter context, so a department or segment chosen anywhere
+# narrows them too.
+# ---------------------------------------------------------------------------
+
+# The calendar divides into 23 complete 30-day periods.  Growth compares the
+# last two of them, so both sides of the comparison cover the same number of
+# trading days; comparing against a partial period would read as a collapse.
+COMPLETE_PERIODS = 23
+
+
+@admin_required
+def api_bi_growth(request):
+    """Revenue change by department between the last two complete 30-day periods.
+
+    This is a like-for-like comparison of two equal windows, not a trend line
+    or a forecast.  A department can move because demand moved or because the
+    assortment did; the panel says which departments changed, not why.
+    """
+    dimension = (request.GET.get("dimension") or "department").strip()
+    column = {
+        "department": "p.department",
+        "commodity": "p.commodity",
+        "store": "CAST(f.store_id AS varchar(20))",
+        "segment": "COALESCE(h.rfm_segment, 'Unsegmented')",
+    }.get(dimension, "p.department")
+    alias = column.split(".")[0]
+    where, params, needs = _filters(request, ["d", alias])
+    current, previous = COMPLETE_PERIODS, COMPLETE_PERIODS - 1
+    rows = _query(f"""
+        SELECT TOP 40
+            {column} AS label,
+            SUM(CASE WHEN d.forecast_period = %s THEN f.sales_value ELSE 0 END) AS current_revenue,
+            SUM(CASE WHEN d.forecast_period = %s THEN f.sales_value ELSE 0 END) AS previous_revenue,
+            COUNT(DISTINCT CASE WHEN d.forecast_period = %s THEN f.basket_id END) AS current_baskets,
+            COUNT(DISTINCT CASE WHEN d.forecast_period = %s THEN f.basket_id END) AS previous_baskets
+        {_from(needs)}
+        {_clause(where + ["d.forecast_period IN (%s, %s)"])}
+        GROUP BY {column}
+        ORDER BY SUM(CASE WHEN d.forecast_period = %s THEN f.sales_value ELSE 0 END) DESC
+    """, [current, previous, current, previous] + params + [current, previous, current])
+    for row in rows:
+        prior = float(row["previous_revenue"] or 0)
+        now = float(row["current_revenue"] or 0)
+        row["change"] = now - prior
+        row["change_pct"] = ((now - prior) / prior * 100) if prior > 0 else None
+    rows = [r for r in rows if (r["current_revenue"] or r["previous_revenue"])]
+    rows.sort(key=lambda r: r["change"], reverse=True)
+    return JsonResponse({
+        "success": True,
+        "rows": rows,
+        "current_period": current,
+        "previous_period": previous,
+        "note": (
+            f"Period {current} against period {previous}, each a complete 30-day window."
+        ),
+    })
+
+
+@admin_required
+def api_bi_pareto(request):
+    """How much of revenue the best-selling products account for.
+
+    Products are ranked by revenue and the running share is reported at each
+    rank, so the curve shows what share of the range earns what share of the
+    money.  It is a description of concentration, not an argument for delisting
+    anything: a product can be small and still be why a basket was opened.
+    """
+    where, params, needs = _filters(request, ["p"])
+    revenues = [
+        float(r["revenue"] or 0)
+        for r in _query(f"""
+            SELECT SUM(f.sales_value) AS revenue
+            {_from(needs)}{_clause(where)}
+            GROUP BY f.product_id
+            ORDER BY revenue DESC
+        """, params)
+        if (r["revenue"] or 0) > 0
+    ]
+    products = len(revenues)
+    total = sum(revenues)
+    # One point per product would be a payload nobody can read; the curve is
+    # sampled to about 200 points and always keeps the first and last.
+    stride = max(1, products // 200)
+    points, running, milestones = [], 0.0, {}
+    pending = {50: None, 80: None, 90: None}
+    for index, value in enumerate(revenues, start=1):
+        running += value
+        share = running / total * 100 if total else 0
+        for level in pending:
+            if pending[level] is None and share >= level:
+                pending[level] = (index, index / products * 100)
+        if index == 1 or index == products or index % stride == 0:
+            points.append({
+                "rank_no": index,
+                "product_share": index / products * 100 if products else 0,
+                "revenue_share": share,
+            })
+    for level, hit in pending.items():
+        if hit:
+            milestones[f"count_for_{level}pct"] = hit[0]
+            milestones[f"products_for_{level}pct"] = round(hit[1], 2)
+    return JsonResponse({
+        "success": True,
+        "points": points,
+        "products": products,
+        "total_revenue": total,
+        "milestones": milestones,
+    })
+
+
+@admin_required
+def api_bi_household_value(request):
+    """Revenue share by household spend decile.
+
+    Households are split into ten equal groups by what they spent in the current
+    selection, so each band holds the same number of households and the bars
+    compare their contribution.  Decile 1 is the heaviest.
+    """
+    where, params, needs = _filters(request, ["h"])
+    rows = _query(f"""
+        ;WITH spend AS (
+            SELECT f.household_key, SUM(f.sales_value) AS revenue,
+                   COUNT(DISTINCT f.basket_id) AS baskets
+            {_from(needs)}
+            {_clause(where + ["f.household_key IS NOT NULL"])}
+            GROUP BY f.household_key
+        ), banded AS (
+            SELECT revenue, baskets,
+                   NTILE(10) OVER (ORDER BY revenue DESC) AS decile
+            FROM spend
+        )
+        SELECT decile,
+               COUNT(*)      AS households,
+               SUM(revenue)  AS revenue,
+               SUM(baskets)  AS baskets,
+               AVG(revenue)  AS avg_revenue
+        FROM banded
+        GROUP BY decile
+        ORDER BY decile
+    """, params)
+    total = sum(float(r["revenue"] or 0) for r in rows) or 1.0
+    running = 0.0
+    for row in rows:
+        value = float(row["revenue"] or 0)
+        running += value
+        row["revenue_share"] = value / total * 100
+        row["cumulative_share"] = running / total * 100
+        row["avg_baskets"] = (row["baskets"] / row["households"]) if row["households"] else 0
+    return JsonResponse({"success": True, "rows": rows, "total_revenue": total})
+
+
+@admin_required
+def api_bi_heatmap(request):
+    """Revenue by weekday and hour.
+
+    The separate weekday and hour panels each average over the other, which
+    hides the combinations that actually drive staffing: a busy Saturday
+    afternoon and a quiet Tuesday one land in the same weekday bar.
+    """
+    where, params, needs = _filters(request, ["d"])
+    rows = _query(f"""
+        SELECT d.day_name, d.day_sort, f.trans_hour AS hour,
+               SUM(f.sales_value)          AS revenue,
+               COUNT(DISTINCT f.basket_id) AS baskets
+        {_from(needs)}
+        {_clause(where + ["f.trans_hour IS NOT NULL"])}
+        GROUP BY d.day_name, d.day_sort, f.trans_hour
+        ORDER BY d.day_sort, f.trans_hour
+    """, params)
+    peak = max(rows, key=lambda r: float(r["revenue"] or 0), default=None)
+    return JsonResponse({
+        "success": True,
+        "rows": rows,
+        "peak": ({"day": peak["day_name"], "hour": int(peak["hour"]),
+                  "revenue": float(peak["revenue"])} if peak else None),
+    })
+
+
+@admin_required
+def api_bi_repeat(request):
+    """New against returning households, period by period.
+
+    "New" means the first 30-day period in which a household appears *inside the
+    current selection*, so filtering to a department reports households new to
+    that department.  The data begins at period 1 with no history before it, so
+    every household there counts as new and that period is marked as such rather
+    than being read as a recruitment spike.
+    """
+    where, params, needs = _filters(request, ["d"])
+    rows = _query(f"""
+        ;WITH activity AS (
+            SELECT f.household_key, d.forecast_period AS period,
+                   SUM(f.sales_value) AS revenue,
+                   COUNT(DISTINCT f.basket_id) AS baskets
+            {_from(needs)}
+            {_clause(where + ["f.household_key IS NOT NULL", "d.forecast_period IS NOT NULL"])}
+            GROUP BY f.household_key, d.forecast_period
+        ), first_seen AS (
+            SELECT household_key, MIN(period) AS first_period
+            FROM activity GROUP BY household_key
+        )
+        SELECT a.period,
+               SUM(CASE WHEN a.period = s.first_period THEN 1 ELSE 0 END)             AS new_households,
+               SUM(CASE WHEN a.period > s.first_period THEN 1 ELSE 0 END)             AS returning_households,
+               SUM(CASE WHEN a.period = s.first_period THEN a.revenue ELSE 0 END)     AS new_revenue,
+               SUM(CASE WHEN a.period > s.first_period THEN a.revenue ELSE 0 END)     AS returning_revenue
+        FROM activity a
+        JOIN first_seen s ON s.household_key = a.household_key
+        GROUP BY a.period
+        ORDER BY a.period
+    """, params)
+    for row in rows:
+        total = float(row["new_revenue"] or 0) + float(row["returning_revenue"] or 0)
+        row["revenue"] = total
+        row["returning_share"] = (
+            float(row["returning_revenue"] or 0) / total * 100 if total else 0
+        )
+        row["is_first_period"] = int(row["period"]) == 1
+    return JsonResponse({
+        "success": True,
+        "rows": rows,
+        "note": "Period 1 has no earlier history, so every household in it counts as new.",
+    })
+
+
+@admin_required
+def api_bi_discount_mix(request):
+    """Revenue by discount depth, and how the discount was given.
+
+    Lines are banded by how much of the pre-discount price was taken off.  This
+    describes where the money sits, not what discounting causes: deep-discount
+    lines are not proof that discounting created the demand, because the lines
+    that get discounted are chosen, not drawn at random.
+    """
+    where, params, needs = _filters(request)
+    rows = _query(f"""
+        ;WITH lines AS (
+            SELECT f.sales_value, f.quantity, f.used_coupon,
+                   f.retail_discount, f.coupon_discount,
+                   CASE
+                     WHEN f.gross_before_discount <= 0 THEN -1
+                     ELSE f.total_discount / f.gross_before_discount
+                   END AS depth
+            {_from(needs)}{_clause(where)}
+        )
+        SELECT band, SUM(sales_value) AS revenue, COUNT(*) AS lines,
+               SUM(quantity) AS units,
+               SUM(CASE WHEN used_coupon = 1 THEN 1 ELSE 0 END) AS coupon_lines,
+               SUM(retail_discount) AS retail_discount,
+               SUM(coupon_discount) AS coupon_discount
+        FROM (
+            SELECT sales_value, quantity, used_coupon, retail_discount, coupon_discount,
+                   -- Keyed rather than labelled: a literal per-cent sign in
+                   -- the SQL collides with the parameter placeholders.
+                   CASE
+                     WHEN depth <= 0        THEN 'none'
+                     WHEN depth < 0.10      THEN 'lt10'
+                     WHEN depth < 0.25      THEN 'mid'
+                     WHEN depth < 0.50      THEN 'deep'
+                     ELSE 'deepest'
+                   END AS band
+            FROM lines
+        ) banded
+        GROUP BY band
+    """, params)
+    labels = {
+        "none": "No discount", "lt10": "Under 10%", "mid": "10-25%",
+        "deep": "25-50%", "deepest": "50% or more",
+    }
+    order = list(labels)
+    rows.sort(key=lambda r: order.index(r["band"]) if r["band"] in order else 99)
+    for row in rows:
+        row["band"] = labels.get(row["band"], row["band"])
+    total = sum(float(r["revenue"] or 0) for r in rows) or 1.0
+    for row in rows:
+        row["revenue_share"] = float(row["revenue"] or 0) / total * 100
+    return JsonResponse({"success": True, "rows": rows, "total_revenue": total})
+
+
+@admin_required
+def api_bi_brand_mix(request):
+    """Private-label against national-brand share, department by department.
+
+    The overall brand split hides where own-label actually competes: a chain can
+    sit at a third private label overall while running near zero in one aisle and
+    over half in another.
+    """
+    where, params, needs = _filters(request, ["p"])
+    rows = _query(f"""
+        SELECT TOP 30
+            p.department,
+            SUM(CASE WHEN p.brand = 'Private' THEN f.sales_value ELSE 0 END)  AS private_revenue,
+            SUM(CASE WHEN p.brand = 'National' THEN f.sales_value ELSE 0 END) AS national_revenue,
+            SUM(f.sales_value) AS revenue
+        {_from(needs)}{_clause(where)}
+        GROUP BY p.department
+        ORDER BY SUM(f.sales_value) DESC
+    """, params)
+    for row in rows:
+        total = float(row["revenue"] or 0)
+        row["private_share"] = float(row["private_revenue"] or 0) / total * 100 if total else 0
+        row["national_share"] = float(row["national_revenue"] or 0) / total * 100 if total else 0
+    rows.sort(key=lambda r: r["private_share"], reverse=True)
+    return JsonResponse({"success": True, "rows": rows})
+
+
+# Groups smaller than this are not worth comparing: the estimate moves too much
+# on a handful of baskets.
+SCAN_MIN_BASKETS = 300
+# Per-group sample. The comparison is rank-based, so a few thousand baskets
+# place the groups against each other about as well as the full set would.
+SCAN_SAMPLE = 2000
+# Comparing every group in a dimension against every other grows quadratically;
+# the largest few carry almost all the trade.
+SCAN_MAX_GROUPS = 6
+
+
+def _benjamini_hochberg(p_values):
+    """Expected share of false findings among those called significant.
+
+    A scan of a hundred comparisons at p < 0.05 would turn up several by chance
+    alone, so the raw p-value stops meaning what it does for a single planned
+    test. This rescales them for the number of comparisons actually made.
+    """
+    indexed = sorted(enumerate(p_values), key=lambda pair: pair[1])
+    total = len(p_values)
+    adjusted = [1.0] * total
+    running = 1.0
+    for rank, (position, value) in reversed(list(enumerate(indexed, start=1))):
+        running = min(running, value * total / rank)
+        adjusted[position] = running
+    return adjusted
+
+
+@admin_required
+def api_bi_significance_scan(request):
+    """Rank every pair of groups by how far apart their basket values sit.
+
+    The panel below tests one pair a reader has already picked, which only helps
+    if they guessed a useful pair. This searches the pairs for them and orders
+    the results by effect size, not by p-value: at this many baskets almost
+    everything reaches significance, so a p-value sorts nothing. Cliff's delta
+    asks how often a basket drawn from one group beats one drawn from the other,
+    which is the question a manager is actually asking.
+    """
+    from scipy.stats import chi2_contingency, f_oneway, kruskal, mannwhitneyu
+
+    import numpy as np
+
+    scanned, skipped, dimension_rows = [], [], []
+    for key, (column, alias, label) in COMPARISON_DIMENSIONS.items():
+        where, params, needs = _filters(request, [alias])
+        clause = _clause(where + [column + " IS NOT NULL", column + " <> ''"])
+        rows = _query(f"""
+            ;WITH baskets AS (
+                SELECT {column} AS grp, f.basket_id, SUM(f.sales_value) AS basket_value
+                {_from(needs)}{clause}
+                GROUP BY {column}, f.basket_id
+            ), ranked AS (
+                SELECT grp, basket_value,
+                       ROW_NUMBER() OVER (PARTITION BY grp ORDER BY ABS(CHECKSUM(basket_id))) AS rn,
+                       COUNT(*)     OVER (PARTITION BY grp) AS baskets
+                FROM baskets
+            )
+            SELECT grp, basket_value, baskets FROM ranked WHERE rn <= %s
+        """, params + [SCAN_SAMPLE])
+
+        groups = {}
+        for row in rows:
+            name = (row["grp"] or "").strip()
+            if not name:
+                continue
+            entry = groups.setdefault(name, {
+                "values": [], "baskets": int(row["baskets"] or 0), "median": 0.0,
+            })
+            entry["values"].append(float(row["basket_value"] or 0))
+
+        usable = {n: g for n, g in groups.items() if g["baskets"] >= SCAN_MIN_BASKETS}
+        if len(usable) < 2:
+            skipped.append(label)
+            continue
+        largest = sorted(usable.items(), key=lambda kv: kv[1]["baskets"], reverse=True)[:SCAN_MAX_GROUPS]
+
+        # The median every panel quotes, taken over all the baskets rather than the
+        # sample the test runs on, so the scan and the panel below cannot
+        # disagree about the same group. Picked by rank: PERCENTILE_CONT repeats
+        # its answer on every row and cost more than the whole rest of the scan.
+        for row in _query(f"""
+            ;WITH baskets AS (
+                SELECT {column} AS grp, f.basket_id, SUM(f.sales_value) AS basket_value
+                {_from(needs)}{_clause(where + [column + " IS NOT NULL", column + " <> ''"])}
+                GROUP BY {column}, f.basket_id
+            ), ordered AS (
+                SELECT grp, basket_value,
+                       ROW_NUMBER() OVER (PARTITION BY grp ORDER BY basket_value) AS rn,
+                       COUNT(*)     OVER (PARTITION BY grp) AS n
+                FROM baskets
+            )
+            SELECT grp, AVG(basket_value) AS median_value
+            FROM ordered WHERE rn IN ((n + 1) / 2, (n + 2) / 2)
+            GROUP BY grp
+        """, params):
+            name = (row["grp"] or "").strip()
+            if name in groups:
+                groups[name]["median"] = float(row["median_value"] or 0)
+
+        # Spend is only half the question: two groups can spend alike and still
+        # fill their baskets from different aisles. One query gives the whole
+        # group-by-department grid, and every pair's chi-square is then read off
+        # it in memory rather than costing a query each.
+        mix_where, mix_params, mix_needs = _filters(request, [alias, "p"])
+        mix_rows = _query(f"""
+            SELECT {column} AS grp, p.department AS dept,
+                   COUNT(DISTINCT f.basket_id) AS baskets
+            {_from(mix_needs | {"p"})}
+            {_clause(mix_where + [column + " IS NOT NULL", column + " <> ''"])}
+            GROUP BY {column}, p.department
+        """, mix_params)
+        mix = {}
+        for row in mix_rows:
+            name = (row["grp"] or "").strip()
+            if name:
+                mix.setdefault(name, {})[row["dept"] or "Unknown"] = int(row["baskets"] or 0)
+
+        # One test across every group of this dimension, which is what says
+        # whether the dimension is worth slicing by at all. Kruskal-Wallis is
+        # the rank-based form and ANOVA the mean-based one; on skewed basket
+        # values the first is the one to read.
+        arrays = [np.asarray(g["values"], dtype=float) for _, g in largest]
+        if len(arrays) >= 3 and all(len(x) >= 20 for x in arrays):
+            observations = int(sum(len(x) for x in arrays))
+            h_stat, h_p = kruskal(*arrays)
+            epsilon = max(0.0, float((h_stat - len(arrays) + 1) / (observations - len(arrays))))
+            f_stat, f_p = f_oneway(*arrays)
+            grand = float(np.concatenate(arrays).mean())
+            between = float(sum(len(x) * (x.mean() - grand) ** 2 for x in arrays))
+            total_ss = float(sum(((x - grand) ** 2).sum() for x in arrays))
+            dimension_rows.append({
+                "dimension": key,
+                "dimension_label": label,
+                "groups": len(arrays),
+                "kruskal_h": float(h_stat),
+                "kruskal_p": float(h_p),
+                "epsilon_squared": epsilon,
+                "effect": _delta_label(epsilon ** 0.5),
+                "anova_f": float(f_stat),
+                "anova_p": float(f_p),
+                "eta_squared": (between / total_ss) if total_ss else 0.0,
+            })
+
+        for i in range(len(largest)):
+            for j in range(i + 1, len(largest)):
+                name_a, a = largest[i]
+                name_b, b = largest[j]
+                values_a = np.asarray(a["values"], dtype=float)
+                values_b = np.asarray(b["values"], dtype=float)
+                if len(values_a) < 20 or len(values_b) < 20:
+                    continue
+                statistic, p_value = mannwhitneyu(
+                    values_a, values_b, alternative="two-sided", method="asymptotic")
+                # Cliff's delta follows directly from the same U statistic, so
+                # the effect size costs nothing beyond the test itself.
+                delta = float(2 * statistic / (len(values_a) * len(values_b)) - 1)
+                median_a = float(a["median"])
+                median_b = float(b["median"])
+                leader, trailer = ((name_a, name_b) if delta >= 0 else (name_b, name_a))
+                # Cross-tabulating departments by department is circular: a
+                # basket in the GROCERY group is in GROCERY by definition, which
+                # is why that comparison returned a perfect 1.0.
+                mix_v, mix_label = (None, "n/a") if key == "department" else (0.0, "negligible")
+                mix_a, mix_b = mix.get(name_a, {}), mix.get(name_b, {})
+                columns = [d for d in set(mix_a) | set(mix_b)
+                           if mix_a.get(d, 0) + mix_b.get(d, 0) > 0]
+                if key != "department" and len(columns) >= 2:
+                    table = [[mix_a.get(d, 0) for d in columns], [mix_b.get(d, 0) for d in columns]]
+                    if all(sum(row) > 0 for row in table):
+                        chi2, _, _, _ = chi2_contingency(table)
+                        n = sum(sum(row) for row in table)
+                        # For a 2 x k table Cramer's V is sqrt(chi2 / n).
+                        mix_v = float((chi2 / n) ** 0.5) if n else 0.0
+                        mix_label = _delta_label(mix_v)
+                scanned.append({
+                    "mix_v": mix_v,
+                    "mix_effect": mix_label,
+                    "dimension": key,
+                    "dimension_label": label,
+                    "group_a": name_a,
+                    "group_b": name_b,
+                    "leader": leader,
+                    "trailer": trailer,
+                    "delta": delta,
+                    "abs_delta": abs(delta),
+                    "effect": _delta_label(delta),
+                    "p_value": float(p_value),
+                    "median_a": median_a,
+                    "median_b": median_b,
+                    "median_gap": abs(median_a - median_b),
+                    "baskets_a": a["baskets"],
+                    "baskets_b": b["baskets"],
+                })
+
+    if scanned:
+        for row, q in zip(scanned, _benjamini_hochberg([r["p_value"] for r in scanned])):
+            row["q_value"] = q
+            # Worth acting on only if it is both unlikely to be chance and big
+            # enough to notice; either alone is not enough.
+            row["actionable"] = q < 0.05 and row["abs_delta"] >= 0.147
+    scanned.sort(key=lambda r: r["abs_delta"], reverse=True)
+
+    notable = [r for r in scanned if r["actionable"]] if scanned else []
+    dimension_rows.sort(key=lambda r: r["epsilon_squared"], reverse=True)
+    return JsonResponse({
+        "success": True,
+        # Every comparison is returned, not a slice of them: the headline counts
+        # the ones worth a look, and a table cut short would contradict it.
+        "rows": scanned,
+        "dimensions": dimension_rows,
+        "compared": len(scanned),
+        "actionable": len(notable),
+        "skipped_dimensions": skipped,
+        "sample_per_group": SCAN_SAMPLE,
+        "minimum_baskets": SCAN_MIN_BASKETS,
+        "headline": (
+            f"{len(notable)} of {len(scanned)} comparisons are big enough to be worth a look."
+            if scanned else
+            "Not enough baskets in this selection to compare any pair of groups."
+        ),
+        "method": (
+            "Groups are compared on basket value and ranked by how often one group's "
+            "basket beats the other's. Because many pairs are checked at once, the odds "
+            f"of a fluke are adjusted for that. Each group uses {SCAN_SAMPLE:,} sampled baskets."
         ),
     })
