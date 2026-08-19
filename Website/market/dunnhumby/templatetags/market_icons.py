@@ -153,3 +153,22 @@ def commodity_icon(commodity):
 @register.filter
 def commodity_gradient(commodity):
     return dept_gradient(_commodity_departments().get((commodity or '').strip().upper()))
+
+
+@register.simple_tag
+def favicon(emoji):
+    """A tab icon matching the page's icon in the navigation bar.
+
+    Browsers show a generic globe for a site with no icon, so every tab looked
+    alike once a few were open. An emoji drawn into an inline SVG needs no file
+    and no extra request.
+    """
+    from urllib.parse import quote
+    # Centred rather than sat on a baseline: emoji carry their own metrics, and
+    # a fixed baseline cropped the taller ones at the top of the tab.
+    svg = (
+        "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'>"
+        "<text x='50' y='52' font-size='78' text-anchor='middle' "
+        "dominant-baseline='central'>" + emoji + "</text></svg>"
+    )
+    return mark_safe(f'<link rel="icon" href="data:image/svg+xml,{quote(svg)}">')

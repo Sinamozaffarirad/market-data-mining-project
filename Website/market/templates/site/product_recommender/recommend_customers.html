@@ -1,7 +1,9 @@
 {% extends "site/base.html" %}
+{% load market_icons %}
 {% load static %}
 
-{% block title %}Find Customer Leads{% endblock %}
+{% block title %}Product Recommender{% endblock %}
+{% block favicon %}{% favicon "📝" %}{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -23,6 +25,23 @@
         color: #fff;
         border-color: transparent;
     }
+    .recommender-loading-overlay {
+    display: none; position: fixed; inset: 0; z-index: 2000;
+    align-items: center; justify-content: center; padding: 1.5rem;
+    background: rgba(20, 31, 52, .58); backdrop-filter: blur(3px);
+  }
+  .recommender-loading-overlay.is-visible { display: flex; }
+  .recommender-loading-card {
+    width: min(100%, 430px); padding: 2rem; border-radius: 1rem;
+    background: #fff; box-shadow: 0 1.2rem 3.5rem rgba(0, 0, 0, .25);
+    text-align: center;
+  }
+  .recommender-loading-spinner {
+    width: 3.25rem; height: 3.25rem; margin: 0 auto 1rem;
+    border: .35rem solid #e4e7ff; border-top-color: #6674df;
+    border-radius: 50%; animation: recommender-spin .8s linear infinite;
+  }
+  @keyframes recommender-spin { to { transform: rotate(360deg); } }
 </style>
 {% endblock %}
 
@@ -101,7 +120,7 @@
                     </div>
                     <div class="d-flex gap-2">
                         <a href="{% url 'product_recommender:recommend_customers' %}?level=product&value={{ p.product_id }}"
-                        class="btn btn-sm btn-success">Get Recommendations</a>
+                        class="btn btn-sm btn-success recommendation-action">Get Recommendations</a>
                         <a href="{% url 'product_recommender:product_detail' p.product_id %}"
                         class="btn btn-sm btn-outline-secondary">Product Detail</a>
                     </div>
@@ -119,7 +138,7 @@
                 <li class="list-group-item d-flex justify-content-between align-items-center">
                     <div><strong>{{ c }}</strong></div>
                     <a href="{% url 'product_recommender:recommend_customers' %}?level=commodity&value={{ c|urlencode }}"
-                       class="btn btn-sm btn-success">Get Recommendations</a>
+                       class="btn btn-sm btn-success recommendation-action">Get Recommendations</a>
                 </li>
                 {% endfor %}
             </ul>
@@ -134,7 +153,7 @@
                 <li class="list-group-item d-flex justify-content-between align-items-center">
                     <div><strong>{{ d }}</strong></div>
                     <a href="{% url 'product_recommender:recommend_customers' %}?level=department&value={{ d|urlencode }}"
-                       class="btn btn-sm btn-success">Get Recommendations</a>
+                       class="btn btn-sm btn-success recommendation-action">Get Recommendations</a>
                 </li>
                 {% endfor %}
             </ul>
@@ -144,6 +163,21 @@
     {% endif %}
 
 </div>
+
+<div id="recommenderLoadingOverlay" class="recommender-loading-overlay" role="status" aria-live="polite" aria-label="Preparing recommendations">
+    <div class="recommender-loading-card">
+        <div class="recommender-loading-spinner" aria-hidden="true"></div>
+        <h3 class="h5 fw-bold mb-2">Preparing recommendations</h3>
+        <p class="text-muted mb-0">This can take a moment while the recommender is prepared.</p>
+    </div>
+</div>
+<script>
+    document.querySelectorAll('.recommendation-action').forEach((link) => {
+        link.addEventListener('click', () => {
+            document.getElementById('recommenderLoadingOverlay').classList.add('is-visible');
+        });
+    });
+</script>
 
 <script>
 document.querySelectorAll('.level-select').forEach(function (select) {

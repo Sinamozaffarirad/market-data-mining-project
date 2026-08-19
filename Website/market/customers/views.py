@@ -232,12 +232,12 @@ def generate_hybrid_recommendations(household_key, top_n=20, levels_order=None):
                             "source_level": level,
                         }
 
-            # جدید:
-        cf_list = get_cf_candidates(household_key, level=level, top_n=(top_n * 2))
+        # جدید: هر دو جا top_n*2 -> top_n*6، برای این‌که pool کاندید شخصی‌سازی‌شده هم
+        # به‌اندازه‌ی کافی گسترده باشه (شبیه‌تر به دامنه‌ی جستجوی product_recommender)
+        cf_list = get_cf_candidates(household_key, level=level, top_n=(top_n * 6))
         if cf_list is None:
-            
-            cf_list = get_cf_recommendations_live(household_key, top_n=(top_n * 2), level=level)
-            
+            cf_list = get_cf_recommendations_live(household_key, top_n=(top_n * 6), level=level)   
+        
         for rec in cf_list:
             pid = rec["product"].product_id
             if str(pid) not in purchased_product_ids and pid not in all_cf_recs:
