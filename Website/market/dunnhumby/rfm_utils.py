@@ -7,8 +7,7 @@ the leakage-safe churn-window feature builder.
 import numpy as np
 import pandas as pd
 
-
-RFM_FEATURE_VERSION = "rfm-v2"
+RFM_FEATURE_VERSION = "rfm-v3"
 
 
 def score_rfm_series(series: pd.Series, higher_is_better: bool) -> pd.Series:
@@ -28,8 +27,6 @@ def assign_rfm_segment(r_score: int, f_score: int, m_score: int) -> str:
     # Specific cases must precede broad conditions such as Loyal Customers.
     if r >= 4 and f >= 4 and m >= 4:
         return "Champions"
-    if r <= 2 and f >= 4 and m >= 4:
-        return "Can't Lose Them"
     if r <= 2 and f >= 3 and m >= 3:
         return "Need Attention"
     if r <= 2 and f >= 2 and m >= 2:

@@ -100,7 +100,6 @@
                             {% elif segment.rfm_segment == 'Regular Customers' %} bg-regular-customers
                             {% elif segment.rfm_segment == 'Need Attention' %} bg-need-attention
                             {% elif segment.rfm_segment == 'At Risk' %} bg-at-risk
-                            {% elif segment.rfm_segment == "Can't Lose Them" %} bg-cant-lose-them
                             {% elif segment.rfm_segment == 'Hibernating' %} bg-hibernating
                             {% elif segment.rfm_segment == 'Lost' %} bg-lost
                             {% else %} bg-secondary
@@ -188,6 +187,12 @@
             </form>
             <div class="pt-0">
                     <div class="small text-muted mb-2">{{ history.experiment.observation_window_days }}-day observation · {{ history.experiment.prediction_horizon_days }}-day horizon · {{ history.experiment.step_size_days }}-day step</div>
+                    <div class="small text-muted mb-2">
+                        Classification threshold for this experiment:
+                        <strong>{{ history.experiment.classification_threshold|floatformat:2 }}</strong>.
+                        The Forecast check marks churn when the predicted probability is at or above
+                        this threshold. Risk labels use separate display bands (25%, 50%, and 75%).
+                    </div>
                     <div class="row g-2 mb-3">
                         <div class="col-6 col-md-3"><div class="border rounded p-2 h-100"><div class="text-muted small">Checkpoints</div><div class="fw-bold">{{ history.summary.snapshot_count }}</div></div></div>
                         <div class="col-6 col-md-3"><div class="border rounded p-2 h-100"><div class="text-muted small">Forecast coverage</div><div class="fw-bold">{{ history.summary.scored_count }}/{{ history.summary.snapshot_count }}</div></div></div>
