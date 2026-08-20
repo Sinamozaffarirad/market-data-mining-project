@@ -129,6 +129,11 @@ class TimeWindowTests(TestCase):
         self.assertIn("prediction horizon", metadata["label_definition"])
         self.assertEqual(metadata["threshold_selection"]["primary_metric"], "F1")
         self.assertEqual(metadata["threshold_selection"]["tie_breaker"], "Higher recall")
+        self.assertEqual(
+            metadata["training_protocol_version"],
+            "purged-temporal-v1",
+        )
+        self.assertIn("Purged chronological", metadata["time_split"])
 
 
 def _transactions(rows):

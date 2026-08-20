@@ -14,7 +14,10 @@ from dunnhumby.models import (
     CachedCustomerWindow,
     ChurnExperimentWindowPrediction,
 )
-from dunnhumby.collab_filter import get_cf_recommendations
+from .ml.cf_cache import get_cf_candidates
+from dunnhumby.collab_filter import (
+    get_cf_recommendations as get_cf_recommendations_live,
+)  # fallback
 from django.utils import timezone
 from django.db import models
 from django.db.models import Max
@@ -231,7 +234,14 @@ def generate_hybrid_recommendations(household_key, top_n=20, levels_order=None):
                             "source_level": level,
                         }
 
-        cf_list = get_cf_recommendations(household_key, top_n=(top_n * 2), level=level)
+        # جدید: هر دو جا top_n*2 -> top_n*6، برای این‌که pool کاندید شخصی‌سازی‌شده هم
+        # به‌اندازه‌ی کافی گسترده باشه (شبیه‌تر به دامنه‌ی جستجوی product_recommender)
+        cf_list = get_cf_candidates(household_key, level=level, top_n=(top_n * 6))
+        if cf_list is None:
+            cf_list = get_cf_recommendations_live(
+                household_key, top_n=(top_n * 6), level=level
+            )
+
         for rec in cf_list:
             pid = rec["product"].product_id
             if str(pid) not in purchased_product_ids and pid not in all_cf_recs:
@@ -529,6 +539,7 @@ def customer_churn(request, pk):
     history = None
     if selected_experiment:
         experiment = selected_experiment
+        classification_threshold = experiment.classification_threshold
         rows = []
         previous_health_score = None
         # New experiments read RFM/outcomes from the reusable cache. Older
@@ -587,7 +598,7 @@ def customer_churn(request, pk):
             prediction_is_correct = (
                 None
                 if probability is None
-                else (probability >= 0.50) == bool(record.is_churn)
+                else (probability >= classification_threshold) == bool(record.is_churn)
             )
             rows.append(
                 SimpleNamespace(

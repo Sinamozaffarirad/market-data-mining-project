@@ -10,10 +10,18 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
+import os
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Published dashboardMarket.pbix report. The environment variable can override
+# this URL for another deployment or Power BI workspace.
+POWER_BI_EMBED_URL = os.getenv(
+    "POWER_BI_EMBED_URL",
+    "https://app.powerbi.com/reportEmbed?reportId=f3cf246b-d31e-4b89-b5d2-745e1faf6304&autoAuth=true&ctid=58b8e67e-047a-4104-a2f7-a17767b20f01",
+).strip()
 
 
 # Quick-start development settings - unsuitable for production
@@ -86,8 +94,8 @@ DATABASES = {
     "default": {
         "ENGINE": "mssql",
         "NAME": "marketdb",
-        # "HOST": "localhost",
-        "HOST": "localhost\SQLEXPRESS",
+        "HOST": "localhost",
+        # "HOST": "localhost\SQLEXPRESS",
         "OPTIONS": {
             "driver": "ODBC Driver 17 for SQL Server",
             "Encrypt": "no",
@@ -123,7 +131,10 @@ AUTH_USER_MODEL = "customers.User"
 
 LANGUAGE_CODE = "en-us"
 
-TIME_ZONE = "UTC"
+# Timestamps are stored in UTC, as USE_TZ requires, and rendered in the timezone
+# the site is read in. Left at UTC, saved-rule dates and every other timestamp
+# displayed three and a half hours behind the clock on the wall.
+TIME_ZONE = "Asia/Tehran"
 
 USE_I18N = True
 

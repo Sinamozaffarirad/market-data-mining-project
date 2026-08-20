@@ -1,33 +1,80 @@
 {% extends "site/base.html" %}
+{% load market_icons %}
 {% load static %}
-{% block title %}Customer search{% endblock %}
+{% block title %}Customers{% endblock %}
+{% block favicon %}{% favicon "👤" %}{% endblock %}
 
 {% block content %}
-<div class="container d-flex justify-content-center align-items-center" style="min-height: 70vh;">
-  <div class="card shadow-lg p-4" style="max-width: 400px; width: 100%;">
-    <h3 class="text-center mb-4 fw-bold">Search Customer</h3>
+<div class="analysis-frame">
 
-    {% if messages %}
-      {% for message in messages %}
-        <div class="alert alert-danger">{{ message }}</div>
-      {% endfor %}
-    {% endif %}
+  <!-- Same banner and frame as the other analysis pages, from analysis_shell.css. -->
+  <div class="analysis-banner">
+    <div>
+      <div class="analysis-banner-title"><i class="fa-solid fa-user"></i> Search Customer</div>
+      <div class="analysis-banner-sub">Look a household up by its key to see what it buys, what it
+      is likely to buy next, and how likely it is to leave.</div>
+    </div>
+  </div>
 
+  {% if messages %}
+    {% for message in messages %}
+      <div class="alert alert-danger">{{ message }}</div>
+    {% endfor %}
+  {% endif %}
 
+  <div class="search-card">
     <form method="get" action="">
-      <div class="mb-3">
-        <label for="household_key" class="form-label">Enter Household Key</label>
-        <input 
-          type="text" 
-          class="form-control" 
-          id="household_key" 
-          name="household_key" 
-          placeholder="e.g. 12345"
-          required
-        >
+      <label for="household_key" class="form-label">Enter Household Key</label>
+      <div class="search-row">
+        <span class="search-input">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          <input
+            type="text"
+            class="form-control"
+            id="household_key"
+            name="household_key"
+            placeholder="e.g. 12345"
+            required
+          >
+        </span>
+        <button type="submit" class="btn btn-primary">Search</button>
       </div>
-      <button type="submit" class="btn btn-primary w-100">Search</button>
+      <p class="search-note">Household keys are numeric. There are 2,497 in the dataset.</p>
     </form>
   </div>
 </div>
+
+<style>
+  /* Card, control and button treatment shared with the other analysis pages. */
+  .search-card {
+    max-width: 620px;
+    padding: 1.5rem;
+    background: #fff;
+    border: 1px solid #e6e8f2;
+    border-radius: 14px;
+    box-shadow: 0 2px 12px rgba(102, 126, 234, .05);
+  }
+  .search-card .form-label {
+    font-size: .72rem; font-weight: 700; letter-spacing: .04em;
+    text-transform: uppercase; color: #6b7391; margin-bottom: .4rem;
+  }
+  .search-row { display: flex; gap: .6rem; flex-wrap: wrap; }
+  .search-input { position: relative; flex: 1 1 260px; display: block; }
+  .search-input i {
+    position: absolute; left: .8rem; top: 50%; transform: translateY(-50%);
+    color: #9aa1b4; font-size: .85rem; pointer-events: none;
+  }
+  .search-input .form-control {
+    padding-left: 2.2rem; border-radius: .55rem; border-color: #dfe3f1;
+  }
+  .search-input .form-control:focus {
+    border-color: #667eea; box-shadow: 0 0 0 .18rem rgba(102, 126, 234, .15);
+  }
+  .search-card .btn-primary {
+    background: linear-gradient(135deg, #667eea, #764ba2); border: none;
+    border-radius: 10px; font-weight: 600; padding: .55rem 1.4rem;
+  }
+  .search-card .btn-primary:hover { filter: brightness(1.06); }
+  .search-note { margin: .7rem 0 0; font-size: .78rem; color: #6b7391; }
+</style>
 {% endblock %}

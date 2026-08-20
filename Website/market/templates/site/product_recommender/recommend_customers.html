@@ -1,44 +1,196 @@
 {% extends "site/base.html" %}
+{% load market_icons %}
 {% load static %}
 
-{% block title %}Recommend Customers{% endblock %}
+{% block title %}Product Recommender{% endblock %}
+{% block favicon %}{% favicon "📝" %}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .level-pills {
+        gap: 0.5rem;
+    }
+    .level-pills .nav-link {
+        border-radius: 20px;
+        border: 1px solid #764ba2;
+        color: #764ba2;
+        background: #fff;
+        transition: all 0.3s ease;
+    }
+    .level-pills .nav-link:hover {
+        background: rgba(118, 75, 162, 0.08);
+    }
+    .level-pills .nav-link.active {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: #fff;
+        border-color: transparent;
+    }
+    .recommender-loading-overlay {
+    display: none; position: fixed; inset: 0; z-index: 2000;
+    align-items: center; justify-content: center; padding: 1.5rem;
+    background: rgba(20, 31, 52, .58); backdrop-filter: blur(3px);
+  }
+  .recommender-loading-overlay.is-visible { display: flex; }
+  .recommender-loading-card {
+    width: min(100%, 430px); padding: 2rem; border-radius: 1rem;
+    background: #fff; box-shadow: 0 1.2rem 3.5rem rgba(0, 0, 0, .25);
+    text-align: center;
+  }
+  .recommender-loading-spinner {
+    width: 3.25rem; height: 3.25rem; margin: 0 auto 1rem;
+    border: .35rem solid #e4e7ff; border-top-color: #6674df;
+    border-radius: 50%; animation: recommender-spin .8s linear infinite;
+  }
+  @keyframes recommender-spin { to { transform: rotate(360deg); } }
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="container py-5">
+<div class="analysis-frame">
 
-    <h1 class="fw-bold mb-4">Recommend Customers for Product</h1>
-    <p class="text-muted">Search for a product to find the best customer leads who have not purchased this item yet.</p>
+    <!-- Same banner and frame as the other analysis pages, from
+         analysis_shell.css. The wording is the page's own. -->
+    <div class="analysis-banner">
+        <div>
+            <div class="analysis-banner-title"><i class="fa-solid fa-file-pen"></i> Find Customer Leads</div>
+            <div class="analysis-banner-sub">Pick a level, search, then get an ML-ranked list of
+            households most likely to buy it &mdash; customers who haven't bought it yet.</div>
+        </div>
+    </div>
 
-    <form method="GET" class="mb-4">
+    <!-- سطح -->
+    <ul class="nav nav-pills level-pills mb-3">
+        <li class="nav-item">
+            <a class="nav-link {% if level == 'product' %}active{% endif %}"
+               href="?level=product">🛒 Product{% if level == 'product' %} ✓{% endif %}</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link {% if level == 'commodity' %}active{% endif %}"
+               href="?level=commodity">📦 Commodity{% if level == 'commodity' %} ✓{% endif %}</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link {% if level == 'department' %}active{% endif %}"
+               href="?level=department">🏬 Department{% if level == 'department' %} ✓{% endif %}</a>
+        </li>
+    </ul>
+
+    <div class="alert alert-info py-2 px-3 mb-4 d-inline-block">
+        Currently searching by: <strong>{{ level|title }}</strong>
+    </div>
+
+    <form method="GET" class="mb-3 d-flex gap-2">
+        <input type="hidden" name="level" value="{{ level }}">
         {{ form.query }}
-        <button class="btn btn-primary mt-2" type="submit">Search</button>
+        <button class="btn btn-primary" type="submit">Search</button>
     </form>
 
-    {% if query %}
-        <h5 class="text-muted mb-3">Results for "{{ query }}"</h5>
+    {% if level == "commodity" and all_commodities %}
+    <div class="mb-4">
+        <select class="form-select level-select">
+            <option value="">-- select Commodity --</option>
+            {% for c in all_commodities %}
+            <option value="{{ c }}">{{ c }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    {% elif level == "department" and all_departments %}
+    <div class="mb-4">
+        <select class="form-select level-select">
+            <option value="">-- select Department --</option>
+            {% for d in all_departments %}
+            <option value="{{ d }}">{{ d }}</option>
+            {% endfor %}
+        </select>
+    </div>
     {% endif %}
 
-    {% if products %}
-        <ul class="list-group">
-            {% for p in products %}
-            <li class="list-group-item d-flex justify-content-between align-items-center">
-                <div>
-                    <strong>{{ p.brand }}</strong> — {{ p.commodity_desc }}
-                    <br>
-                    <small class="text-muted">{{ p.sub_commodity_desc }} | {{ p.department }} (ID: {{ p.product_id }})</small>
-                </div>
+    {% if query %}
+        <h5 class="text-muted mb-3">Results for "{{ query }}" ({{ level }})</h5>
+    {% endif %}
 
-                <a href="{% url 'product_recommender:recommend_customers' p.product_id %}"
-                   class="btn btn-sm btn-success">
-                   Get Recommendations
-                </a>
-            </li>
-            {% endfor %}
-        </ul>
-    {% else %}
-        {% if query %}
+    {% if level == "product" %}
+        {% if products %}
+            <ul class="list-group">
+                {% for p in products %}
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong>{{ p.brand }}</strong> — {{ p.commodity_desc }}
+                        <br>
+                        <small class="text-muted">{{ p.sub_commodity_desc }} | {{ p.department }} (ID: {{ p.product_id }})</small>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <a href="{% url 'product_recommender:recommend_customers' %}?level=product&value={{ p.product_id }}"
+                        class="btn btn-sm btn-success recommendation-action">Get Recommendations</a>
+                        <a href="{% url 'product_recommender:product_detail' p.product_id %}"
+                        class="btn btn-sm btn-outline-secondary">Product Detail</a>
+                    </div>
+                </li>
+                {% endfor %}
+            </ul>
+        {% elif query %}
             <p class="text-danger">No products found.</p>
         {% endif %}
+
+    {% elif level == "commodity" %}
+        {% if commodities %}
+            <ul class="list-group">
+                {% for c in commodities %}
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <div><strong>{{ c }}</strong></div>
+                    <a href="{% url 'product_recommender:recommend_customers' %}?level=commodity&value={{ c|urlencode }}"
+                       class="btn btn-sm btn-success recommendation-action">Get Recommendations</a>
+                </li>
+                {% endfor %}
+            </ul>
+        {% elif query %}
+            <p class="text-danger">No commodities found.</p>
+        {% endif %}
+
+    {% else %}
+        {% if departments %}
+            <ul class="list-group">
+                {% for d in departments %}
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <div><strong>{{ d }}</strong></div>
+                    <a href="{% url 'product_recommender:recommend_customers' %}?level=department&value={{ d|urlencode }}"
+                       class="btn btn-sm btn-success recommendation-action">Get Recommendations</a>
+                </li>
+                {% endfor %}
+            </ul>
+        {% elif query %}
+            <p class="text-danger">No departments found.</p>
+        {% endif %}
     {% endif %}
+
 </div>
+
+<div id="recommenderLoadingOverlay" class="recommender-loading-overlay" role="status" aria-live="polite" aria-label="Preparing recommendations">
+    <div class="recommender-loading-card">
+        <div class="recommender-loading-spinner" aria-hidden="true"></div>
+        <h3 class="h5 fw-bold mb-2">Preparing recommendations</h3>
+        <p class="text-muted mb-0">This can take a moment while the recommender is prepared.</p>
+    </div>
+</div>
+<script>
+    document.querySelectorAll('.recommendation-action').forEach((link) => {
+        link.addEventListener('click', () => {
+            document.getElementById('recommenderLoadingOverlay').classList.add('is-visible');
+        });
+    });
+</script>
+
+<script>
+document.querySelectorAll('.level-select').forEach(function (select) {
+    select.addEventListener('change', function () {
+        if (!this.value) {
+            return;
+        }
+        var queryInput = document.getElementById('id_query');
+        if (queryInput) {
+            queryInput.value = this.value;
+            queryInput.focus();
+        }
+    });
+});
+</script>
 {% endblock %}

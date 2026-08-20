@@ -1,123 +1,162 @@
 {% extends "site/base.html" %}
 {% load static %}
+{% load market_icons %}
 {% block title %}Customer Recommendations{% endblock %}
+{% block favicon %}{% favicon "💡" %}{% endblock %}
 
 {% block extra_css %}
 <style>
-  .table-container {
-    overflow-x: auto;
-    width: 100%;
-  }
-  
-  .commodity-card {
-    width: 250px;
-    min-height: 180px;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    transition: all 0.3s ease-in-out;
-    cursor: pointer;
-    border-radius: 10px;
-    border: 1px solid #e0e0e0;
-    background: #fff;
-    position: relative;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.08);
-  }
-
-  .commodity-card::before {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: 0;
-    height: 5px;           
-    width: 100%;
-    background: linear-gradient(90deg, #7f5cff, #9c6dff);
-    border-top-left-radius: 10px;
-    border-top-right-radius: 10px;
-    transform: scaleX(0);
-    transform-origin: center;
-    transition: transform 0.3s ease-in-out;
-  }
-
-  .commodity-card:hover::before {
-    transform: scaleX(1);
-  }
-
-  .commodity-card:hover {
-    transform: translateY(-6px) scale(1.02);
-    box-shadow: 0 15px 30px rgba(0,0,0,0.2);
-  }
-
-  .cards-wrapper {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
+  /* Cards, banner and frame follow the other analysis pages. Each commodity
+     wears its department's colour and icon, the same table the rest of the site
+     reads from, so a card is recognisable before its name is read. */
+  .rec-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(215px, 1fr));
     gap: 1rem;
   }
 
-  .modal-table th, .modal-table td {
-    vertical-align: middle;
+  .commodity-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: .6rem;
+    padding: 1.1rem 1rem;
+    background: #fff;
+    border: 1px solid #e6e8f2;
+    border-radius: 14px;
+    box-shadow: 0 2px 12px rgba(102, 126, 234, .05);
+    cursor: pointer;
+    overflow: hidden;
+    transition: transform .15s ease, box-shadow .15s ease;
   }
 
-  @media (max-width: 576px) {
-    .commodity-card {
-      width: 90%;
-      min-height: auto;
-    }
+  /* The department's colour, always present rather than appearing on hover:
+     it is what tells one card from another at a glance. */
+  .commodity-card::before {
+    content: "";
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 4px;
+    background: var(--card-accent, linear-gradient(135deg, #667eea, #764ba2));
   }
 
-  .table-container {
-    overflow-x: auto;
-    width: 100%;
+  .commodity-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 10px 26px rgba(102, 126, 234, .16);
+  }
+
+  .commodity-icon {
+    width: 42px; height: 42px;
+    display: grid; place-items: center;
+    margin: .2rem auto .1rem;
+    border-radius: 12px;
+    font-size: 1.15rem;
+    background: var(--card-accent, linear-gradient(135deg, #667eea, #764ba2));
+    box-shadow: 0 4px 10px rgba(15, 23, 42, .14);
   }
 
   .commodity-card .card-title {
-    font-size: 0.9rem;  
-    margin-bottom: 0.5rem;
+    font-size: .82rem;
+    font-weight: 700;
+    line-height: 1.35;
+    color: #1e2338;
+    margin: 0;
+    text-align: center;
   }
 
-  .commodity-card .card-text {
-    font-size: 0.9rem;
-    margin-bottom: 0.3rem;
+  .commodity-card .rec-count {
+    display: inline-block;
+    margin: 0 auto;
+    padding: .12rem .55rem;
+    border-radius: 999px;
+    background: #f2f4fb;
+    color: #4a5170;
+    font-size: .72rem;
+    font-weight: 600;
   }
 
-  .commodity-card small {
-    font-size: 0.8rem; 
+  .commodity-card .rec-hint {
+    text-align: center;
+    font-size: .72rem;
+    color: #9aa1b4;
+    border-top: 1px solid #f1f2f8;
+    padding-top: .5rem;
   }
 
+  .rec-back {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    border: none; border-radius: 10px; font-weight: 600;
+    padding: .55rem 1.4rem; color: #fff;
+  }
+  .rec-back:hover { filter: brightness(1.06); color: #fff; }
+
+  /* Modal takes the same table treatment as the rest of the site. */
+  .modal-table th, .modal-table td { vertical-align: middle; }
+  .modal-content { border: none; border-radius: 16px; overflow: hidden; }
+  .modal-header {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: #fff; border-bottom: 0;
+  }
+  .modal-header .btn-close { filter: invert(1) grayscale(1) brightness(2); }
+  .modal-table thead th {
+    font-size: .66rem; letter-spacing: .05em; text-transform: uppercase;
+    color: #fff; font-weight: 700; white-space: nowrap;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+  }
+  .table-container { overflow-x: auto; width: 100%; }
+
+  /* Twelve columns did not fit in modal-xl, so every row had to be scrolled
+     sideways to be read. The dialog takes the width of the window instead. */
+  .modal-xl { max-width: min(1560px, 96vw); }
+  .modal-table { font-size: .82rem; }
+  .modal-table th, .modal-table td { padding: .5rem .6rem; white-space: nowrap; }
+  /* The one column that can be long is allowed to wrap; the rest stay on a line. */
+  .modal-table td:nth-child(5), .modal-table th:nth-child(5) { white-space: normal; min-width: 9rem; }
+  .modal-table td:last-child, .modal-table th:last-child { white-space: normal; min-width: 8rem; }
+
+  @media (max-width: 576px) {
+    .rec-grid { grid-template-columns: 1fr; }
+  }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="container my-5">
-    <div class="text-center mb-4 fw-bold">
-        <h3>Hybrid Recommendations for Customer {{ household.household_key }}</h3>
-    </div>
+<div class="analysis-frame">
 
-    <!-- کارت‌ها -->
+  <div class="analysis-banner">
+    <div>
+      <div class="analysis-banner-title"><i class="fas fa-lightbulb"></i> Hybrid Recommendations for Customer {{ household.household_key }}</div>
+      <div class="analysis-banner-sub">Products this household has not bought yet, grouped by
+      commodity. Open one to see the scores behind each suggestion.</div>
+    </div>
     {% if grouped_recommendations %}
-    <div class="cards-wrapper">
-        {% for commodity, rec_list in grouped_recommendations.items %}
-        <div class="card shadow-sm commodity-card text-center p-3 "
-             data-bs-toggle="modal" data-bs-target="#modal-{{ forloop.counter }}">
-            <div>
-                <i class="fas fa-tag fa-2x text-primary mb-2"></i>
-                <h5 class="card-title"><strong>{{ commodity }}</strong></h5>
-                <p class="card-text text-muted">{{ rec_list|length }} recommended product{{ rec_list|length|pluralize }}</p>
-            </div>
-            <div class="mt-2">
-                <small class="text-muted">Click to view details</small>
-            </div>
-        </div>
-        {% endfor %}
-    </div>
-    {% else %}
-    <p class="text-center text-muted mt-4">No recommendations available for the selected alpha value.</p>
+      <span class="badge bg-success px-3 py-2">{{ grouped_recommendations|length }} commodities</span>
     {% endif %}
+  </div>
 
-    <div class="text-center mt-4">
-        <a href="{% url 'customers:detail' household.household_key %}" class="btn btn-primary">← Back</a>
+  {% if grouped_recommendations %}
+  <div class="rec-grid">
+    {% for commodity, rec_list in grouped_recommendations.items %}
+    <div class="card commodity-card"
+         style="--card-accent: {{ commodity|commodity_gradient }};"
+         data-bs-toggle="modal" data-bs-target="#modal-{{ forloop.counter }}">
+      <div>
+        <div class="commodity-icon">{{ commodity|commodity_icon }}</div>
+        <h5 class="card-title">{{ commodity }}</h5>
+      </div>
+      <span class="rec-count">{{ rec_list|length }} recommended product{{ rec_list|length|pluralize }}</span>
+      <div class="rec-hint">Click to view details</div>
     </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="text-center text-muted mt-4">No recommendations available for the selected alpha value.</p>
+  {% endif %}
+
+  <div class="text-center mt-4">
+    <a href="{% url 'customers:detail' household.household_key %}" class="btn rec-back">← Back</a>
+  </div>
 </div>
 
 <!-- Modal ها -->
@@ -126,7 +165,7 @@
     <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="modalLabel-{{ forloop.counter }}">{{ commodity }} Recommendations</h5>
+                <h5 class="modal-title" id="modalLabel-{{ forloop.counter }}">{{ commodity|commodity_icon }} {{ commodity }} Recommendations</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
@@ -146,7 +185,7 @@
                                 <th>Size</th>
                                 <th>Department</th>
                                 <th>Commodity</th>
-                                <th>ML Score</th>        
+                                <th>ML Score</th>
                                 <th>Popularity</th>
                                 <th>CF Score</th>
                                 <th>Confidence</th>
@@ -163,8 +202,8 @@
                             <td>{{ rec.product.curr_size_of_product|default:"N/A" }}</td>
                             <td>{{ rec.product.department|default:"N/A" }}</td>
                             <td>{{ rec.product.commodity_desc|default:"N/A" }}</td>
-                            <td><strong>{{ rec.ml_score|default:"-" }}</strong></td>       
-                            <td>{{ rec.popularity_score|default:"-" }}</td>             
+                            <td><strong>{{ rec.ml_score|default:"-" }}</strong></td>
+                            <td>{{ rec.popularity_score|default:"-" }}</td>
                             <td>{{ rec.cf_score|default:"-" }}</td>
                             <td>{{ rec.confidence|default:"-" }}</td>
                             <td>{{ rec.lift|default:"-" }}</td>
@@ -177,7 +216,7 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn rec-back" data-bs-dismiss="modal">Close</button>
             </div>
         </div>
     </div>
@@ -203,4 +242,3 @@
 
 
 {% endblock %}
-

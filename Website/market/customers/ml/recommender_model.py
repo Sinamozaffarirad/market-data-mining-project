@@ -1,5 +1,6 @@
 # customers/ml/recommender_model.py
 import pickle
+import logging
 from pathlib import Path
 
 import pandas as pd
@@ -11,6 +12,7 @@ from .feature_engineering import FEATURE_COLUMNS
 
 MODEL_DIR = Path(__file__).resolve().parent.parent.parent / "ml_models_cache" / "hybrid_recommender"
 ARTIFACT_VERSION = 1
+logger = logging.getLogger(__name__)
 
 
 class HybridRecommenderModel:
@@ -76,8 +78,20 @@ class HybridRecommenderModel:
         path = cls._artifact_path()
         if not path.exists():
             return None
-        with path.open("rb") as f:
-            artifact = pickle.load(f)
+        try:
+            with path.open("rb") as f:
+                artifact = pickle.load(f)
+        except (AttributeError, ImportError, ModuleNotFoundError, pickle.UnpicklingError) as exc:
+            # scikit-learn estimators are not portable across every package
+            # version. Keep recommendation pages available with their rule/CF
+            # fallback until this machine retrains a compatible artifact.
+            logger.warning(
+                "Ignoring incompatible hybrid recommender artifact at %s: %s. "
+                "Run `python manage.py train_hybrid_recommender` to rebuild it.",
+                path,
+                exc,
+            )
+            return None
         if artifact.get("artifact_version") != ARTIFACT_VERSION:
             return None
         model = cls()

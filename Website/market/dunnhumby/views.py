@@ -1,8 +1,11 @@
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth import authenticate, login, logout
+from django.conf import settings
 from django.db import models
 from django.http import JsonResponse, HttpResponse
 from django.shortcuts import render, get_object_or_404, redirect
+import math
+
 from django.db import connection
 from django.contrib import messages
 from django.urls import reverse
@@ -11,6 +14,9 @@ from math import sqrt
 import logging
 import gzip
 import pickle
+import hashlib
+from time import perf_counter
+from django.utils import timezone
 from .models import (
     Transaction, DunnhumbyProduct, Household, Campaign, Coupon,
     CouponRedemption, CampaignMember, CausalData, BasketAnalysis,
@@ -60,6 +66,47 @@ def _write_cached_training_dataset(cache, dataset):
         return
     cache.training_dataset_blob = gzip.compress(pickle.dumps(dataset, protocol=pickle.HIGHEST_PROTOCOL))
     cache.save(update_fields=['training_dataset_blob'])
+
+
+def _model_result_signature():
+    """Fingerprint the model and feature settings, not only the transaction data."""
+    metadata = json.dumps(experiment_metadata(), sort_keys=True, separators=(',', ':'))
+    return hashlib.sha256(metadata.encode('utf-8')).hexdigest()
+
+
+def _read_cached_model_result(cache):
+    """Return a finished result only when it matches this code and fixed dataset."""
+    if not cache or not cache.customer_windows.exists():
+        return None
+    if cache.model_result_signature != _model_result_signature():
+        return None
+    if not (cache.current_scores_blob and cache.historical_predictions_blob):
+        return None
+    try:
+        metrics = json.loads(cache.model_metrics_json or '{}')
+        scores = pickle.loads(gzip.decompress(bytes(cache.current_scores_blob)))
+        historical_predictions = pickle.loads(gzip.decompress(bytes(cache.historical_predictions_blob)))
+    except (OSError, EOFError, TypeError, ValueError, pickle.UnpicklingError, json.JSONDecodeError):
+        logger.warning('Ignoring an unreadable churn model-result cache (id=%s).', cache.pk)
+        return None
+    if not metrics or scores.empty:
+        return None
+    return metrics, scores, historical_predictions
+
+
+def _write_cached_model_result(cache, metrics, scores, historical_predictions):
+    """Keep a restoreable result after its visible experiment is deleted."""
+    cache.model_result_signature = _model_result_signature()
+    cache.model_metrics_json = json.dumps(metrics, sort_keys=True)
+    cache.current_scores_blob = gzip.compress(pickle.dumps(scores, protocol=pickle.HIGHEST_PROTOCOL))
+    cache.historical_predictions_blob = gzip.compress(
+        pickle.dumps(historical_predictions, protocol=pickle.HIGHEST_PROTOCOL)
+    )
+    cache.model_result_cached_at = timezone.now()
+    cache.save(update_fields=[
+        'model_result_signature', 'model_metrics_json', 'current_scores_blob',
+        'historical_predictions_blob', 'model_result_cached_at',
+    ])
 
 
 def _get_or_build_window_cache(config, historical_snapshots=None, training_dataset=None):
@@ -300,6 +347,25 @@ def api_refresh_basket_analysis(request):
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
 
+# SQL Server accepts at most 2,100 parameters in one statement, and an IN list
+# built from a page of results runs past that: 1,000 rules reference up to 2,000
+# products, which failed with "COUNT field incorrect or syntax error" -- a
+# message that says nothing about the real cause. Lookups are batched instead.
+SQL_PARAMETER_BATCH = 900
+
+
+def _rows_in_batches(cursor, sql_template, values):
+    """Run an IN-list query in batches small enough for the driver."""
+    collected = []
+    values = list(values)
+    for start in range(0, len(values), SQL_PARAMETER_BATCH):
+        batch = values[start:start + SQL_PARAMETER_BATCH]
+        placeholders = ', '.join(['%s'] * len(batch))
+        cursor.execute(sql_template.format(placeholders=placeholders), batch)
+        collected.extend(cursor.fetchall())
+    return collected
+
+
 def _generate_association_rules(min_support, min_confidence, transaction_period='all', max_results=100):
     """
     Efficient association rules generation using database-level queries
@@ -346,7 +412,10 @@ def _generate_association_rules(min_support, min_confidence, transaction_period=
                 return rules
 
             # Calculate minimum basket count threshold
-            min_basket_count = max(1, int(total_baskets * min_support))
+            # Rounded up, not down: truncating let a rule through at a support
+            # marginally below the one that was asked for, so the threshold on
+            # screen was not quite the threshold applied.
+            min_basket_count = max(1, math.ceil(total_baskets * min_support))
             logger.info(f"Total baskets: {total_baskets}, Min basket count: {min_basket_count}")
 
             # Validate parameters to prevent extremely long queries
@@ -366,8 +435,15 @@ def _generate_association_rules(min_support, min_confidence, transaction_period=
                 date_filter_pairs = ""
                 date_filter_single = ""
 
+            # Candidates are taken by lift, which is what the results are ranked
+            # and read by. Taking the 2,000 most frequent pairs and then sorting
+            # those by lift could not surface the strongest rules: lift is
+            # highest for rare pairs, so the most frequent candidates are the
+            # least likely to hold them. At the default threshold 4.1M pairs
+            # qualify, so which 2,000 were examined decided the answer.
+            candidate_limit = max(int(max_results) * 4, 400)
             pairs_query = f"""
-            SELECT TOP 2000
+            SELECT TOP {candidate_limit}
                 pairs.product_a,
                 pairs.product_b,
                 pairs.pair_count,
@@ -401,7 +477,10 @@ def _generate_association_rules(min_support, min_confidence, transaction_period=
                 {date_filter_single}
                 GROUP BY product_id
             ) counts_b ON pairs.product_b = counts_b.product_id
-            ORDER BY pairs.pair_count DESC
+            ORDER BY
+                (CAST(pairs.pair_count AS float) * {total_baskets})
+                / (CAST(counts_a.product_count AS float) * counts_b.product_count) DESC,
+                pairs.pair_count DESC
             """
 
             logger.info(f"Executing pairs query with min_basket_count: {min_basket_count}")
@@ -417,17 +496,12 @@ def _generate_association_rules(min_support, min_confidence, transaction_period=
                     product_ids.add(pair[0])
                     product_ids.add(pair[1])
 
-                product_ids_list = list(product_ids)
-                placeholders = ','.join(['%s'] * len(product_ids_list))
-
-                cursor.execute(f"""
+                product_details = {}
+                for row in _rows_in_batches(cursor, """
                     SELECT product_id, department, commodity_desc, brand, curr_size_of_product
                     FROM product
                     WHERE product_id IN ({placeholders})
-                """, product_ids_list)
-
-                product_details = {}
-                for row in cursor.fetchall():
+                """, product_ids):
                     product_details[str(row[0])] = {
                         'department': row[1] or 'GENERAL',
                         'commodity': row[2] or 'No Description',
@@ -462,6 +536,7 @@ def _generate_association_rules(min_support, min_confidence, transaction_period=
                     'consequent': [str(product_b)],
                     'antecedent_details': [ant_detail],
                     'consequent_details': [cons_detail],
+                    'baskets_together': pair_count,
                     'support': support,
                     'confidence': confidence_a_to_b,
                     'lift': lift,
@@ -494,6 +569,7 @@ def _generate_association_rules(min_support, min_confidence, transaction_period=
                     'consequent': [str(product_a)],
                     'antecedent_details': [ant_detail],
                     'consequent_details': [cons_detail],
+                    'baskets_together': pair_count,
                     'support': support,
                     'confidence': confidence_b_to_a,
                     'lift': lift,
@@ -510,7 +586,10 @@ def _generate_association_rules(min_support, min_confidence, transaction_period=
 
         # Sort by lift and return top N results
         all_rules = sorted(rules, key=lambda x: x['lift'], reverse=True)
-        logger.info(f"Generated {len(all_rules)} total association rules, returning top {max_results}")
+        logger.info(
+            "Generated %s rules from %s candidate pairs (limit %s, min %s baskets), returning top %s",
+            len(all_rules), len(product_pairs), candidate_limit, min_basket_count, max_results,
+        )
         return all_rules[:max_results]
 
     except Exception as e:
@@ -898,14 +977,17 @@ def site_index(request):
     cust_change = ((recent_customers - prev_customers) / prev_customers * 100) if prev_customers > 0 else 0
     rev_change = ((float(recent_revenue) - float(prev_revenue)) / float(prev_revenue) * 100) if prev_revenue > 0 else 0
 
+    # Each card names the thing it actually opens. A single shared "Launch
+    # Analysis" said nothing, and was plainly wrong on the cards that open a
+    # data table or a search rather than an analysis.
     tools = [
-        { 'title': 'Shopping Basket Analysis', 'description': 'Analyze baskets, top products, and patterns', 'url': 'basket-analysis/', 'icon': '🧺' },
-        { 'title': 'Association Rules', 'description': 'Market basket association rules', 'url': 'association-rules/', 'icon': '🔗' },
-        { 'title': 'Customer Segments', 'description': 'RFM segments & behavior', 'url': 'customer-segments/', 'icon': '👥' },
-        { 'title': 'Data Management', 'description': 'View, edit, import/export data', 'url': 'data-management/', 'icon': '⚙️' },
-        { 'title': 'Customer Insights', 'description': 'Explore and manage your customer data in detail', 'url': reverse('customers:search'), 'icon': '👤' },
-        { 'title': 'Product Recommender','description': 'Find customers most likely to buy selected product', 'url': 'product-recommender/', 'icon': '📝' },
-        { 'title': 'Customer Retention', 'description': 'Identify at-risk customers and predict churn', 'url': 'customer-retention/', 'icon': '🧲' },
+        { 'title': 'Shopping Basket Analysis', 'description': 'Analyze baskets, top products, and patterns', 'url': 'basket-analysis/', 'icon': '<i class="fas fa-shopping-basket"></i>', 'action': 'Explore baskets', 'action_icon': '<i class="fas fa-magnifying-glass-chart"></i>' },
+        { 'title': 'Association Rules', 'description': 'Market basket association rules', 'url': 'association-rules/', 'icon': '<i class="fas fa-project-diagram"></i>', 'action': 'Browse rules', 'action_icon': '<i class="fas fa-diagram-project"></i>' },
+        { 'title': 'Customer Segments', 'description': 'RFM segments & behavior', 'url': 'customer-segments/', 'icon': '<i class="fas fa-users"></i>', 'action': 'View segments', 'action_icon': '<i class="fas fa-chart-pie"></i>' },
+        { 'title': 'Customer Retention', 'description': 'Identify at-risk customers and predict churn', 'url': 'customer-retention/', 'icon': '<i class="fas fa-heart-circle-check"></i>', 'action': 'Find at-risk buyers', 'action_icon': '<i class="fas fa-user-clock"></i>' },
+        { 'title': 'Data Management', 'description': 'View, edit, import/export data', 'url': 'data-management/', 'icon': '<i class="fas fa-database"></i>', 'action': 'Manage data', 'action_icon': '<i class="fas fa-table"></i>' },
+        { 'title': 'Customer Insights', 'description': 'Explore and manage your customer data in detail', 'url': reverse('customers:search'), 'icon': '<i class="fas fa-user"></i>', 'action': 'Search customers', 'action_icon': '<i class="fas fa-magnifying-glass"></i>' },
+        { 'title': 'Product Recommender', 'description': 'Find customers most likely to buy selected product', 'url': 'product-recommender/', 'icon': '<i class="fas fa-file-pen"></i>', 'action': 'Find likely buyers', 'action_icon': '<i class="fas fa-bullseye"></i>' },
     ]
 
     context = {
@@ -1036,11 +1118,27 @@ def api_regenerate_segments(request):
             'error': f'{str(e)} - Check server logs for details'
         }, status=500)
 
+# The lists on the descriptive tab ship 25 rows. A reader who wants more picks
+# from this set rather than typing a number into the URL: the value goes into a
+# TOP clause, so it is chosen from a list and never taken from the request.
+TOP_LIST_SIZES = (25, 50, 100, 200)
+
+
+def _top_list_size(request, name, default=25):
+    try:
+        value = int(request.GET.get(name, default))
+    except (TypeError, ValueError):
+        return default
+    return value if value in TOP_LIST_SIZES else default
+
+
 @admin_required
 def basket_analysis(request):
     """
     Optimized Market Basket Analysis for 2.6M+ transactions
     """
+    top_baskets_size = _top_list_size(request, "top_baskets")
+    top_products_size = _top_list_size(request, "top_products")
     logger.info("Starting basket analysis for 2.6M+ transactions")
 
     try:
@@ -1060,8 +1158,8 @@ def basket_analysis(request):
             overall_stats = cursor.fetchone()
 
             # Top baskets by value (optimized for large dataset)
-            cursor.execute("""
-                SELECT TOP 25
+            cursor.execute(f"""
+                SELECT TOP {top_baskets_size}
                     basket_id,
                     household_key,
                     SUM(quantity) as total_items,
@@ -1098,8 +1196,8 @@ def basket_analysis(request):
             total_quantity=Sum('quantity')
         ).filter(product_id__isnull=False)
 
-        top_products_frequency_raw = list(product_stats.order_by('-frequency')[:25])
-        top_products_sales_raw = list(product_stats.order_by('-total_sales')[:25])
+        top_products_frequency_raw = list(product_stats.order_by('-frequency')[:top_products_size])
+        top_products_sales_raw = list(product_stats.order_by('-total_sales')[:top_products_size])
 
         # Get product details in one efficient query
         all_product_ids = {item['product_id'] for item in top_products_frequency_raw + top_products_sales_raw}
@@ -1167,9 +1265,17 @@ def basket_analysis(request):
                 'avg_basket_size': avg_basket_size
             },
             'basket_stats': formatted_basket_stats,
+            'top_baskets_size': top_baskets_size,
+            'top_products_size': top_products_size,
+            'top_list_sizes': TOP_LIST_SIZES,
             'dept_analysis': formatted_dept_analysis,
             'top_products_frequency': top_products_frequency,
             'top_products_sales': top_products_sales,
+            # Lets the time-series controls flag horizon/lookback combinations
+            # the calendar cannot fully supervise, before a model is trained.
+            'time_series_complete_periods': _complete_period_count(),
+            # Slicer options for the BI dashboard panel embedded in this page.
+            'filter_options': _bi_filter_options(),
         }
 
         logger.info("Basket analysis completed successfully")
@@ -1182,11 +1288,232 @@ def basket_analysis(request):
             'error_message': f'Error loading basket analysis: {str(e)}. Please try again.',
             'overall_stats': None,
             'basket_stats': [],
+            'top_baskets_size': top_baskets_size,
+            'top_products_size': top_products_size,
+            'top_list_sizes': TOP_LIST_SIZES,
             'dept_analysis': [],
             'top_products_frequency': [],
             'top_products_sales': [],
+            'filter_options': {'years': [], 'departments': [], 'segments': []},
         }
         return render(request, 'site/dunnhumby/basket_analysis.html', context)
+
+
+def _bi_filter_options():
+    """Slicer choices for the BI dashboard panel.
+
+    Returns empty lists when the reporting views are absent so the page still
+    renders and the panel can explain what to run.
+    """
+    # Imported here rather than at module scope: bi_views imports from this
+    # module, so a top-level import would close the circle.
+    from .bi_views import _apply_natural_order
+
+    def rows(sql):
+        with connection.cursor() as cursor:
+            cursor.execute(sql)
+            return cursor.fetchall()
+
+    def banded(dimension, sql):
+        """Bands ordered by their number, not alphabetically, and without the
+        blank rows the source leaves for households with no demographics."""
+        values = [{"value": r[0]} for r in rows(sql) if (r[0] or "").strip()]
+        return [r["value"] for r in _apply_natural_order(dimension, values, "value")]
+
+    try:
+        years = [r[0] for r in rows(
+            "SELECT DISTINCT calendar_year FROM vw_dim_date ORDER BY calendar_year")]
+        quarters = [r[0] for r in rows(
+            "SELECT quarter_name FROM vw_dim_date GROUP BY quarter_name, calendar_quarter "
+            "ORDER BY calendar_quarter")]
+        months = [r[0] for r in rows(
+            "SELECT month_name FROM vw_dim_date GROUP BY month_name, month_sort "
+            "ORDER BY month_sort")]
+        weekdays = [r[0] for r in rows(
+            "SELECT day_name FROM vw_dim_date GROUP BY day_name, day_sort ORDER BY day_sort")]
+        hours = [r[0] for r in rows(
+            "SELECT DISTINCT trans_hour FROM vw_fact_sales "
+            "WHERE trans_hour IS NOT NULL ORDER BY trans_hour")]
+        departments = [r[0] for r in rows(
+            "SELECT DISTINCT department FROM vw_dim_product ORDER BY department")]
+        # Carries its department so the commodity list can narrow to whichever
+        # department is chosen instead of listing all three hundred.
+        commodities = [
+            {"name": r[0], "department": r[1]}
+            for r in rows("SELECT DISTINCT commodity, department FROM vw_dim_product "
+                          "WHERE commodity IS NOT NULL ORDER BY commodity")
+        ]
+        brands = [r[0] for r in rows(
+            "SELECT DISTINCT brand FROM vw_dim_product WHERE brand IS NOT NULL ORDER BY brand")]
+        segments = [r[0] for r in rows(
+            "SELECT rfm_segment, COUNT(*) n FROM vw_dim_household "
+            "GROUP BY rfm_segment ORDER BY n DESC") if r[0]]
+        stores = [r[0] for r in rows(
+            "SELECT store_id FROM vw_fact_sales GROUP BY store_id "
+            "ORDER BY SUM(sales_value) DESC")]
+        return {
+            "years": years, "quarters": quarters, "months": months,
+            "weekdays": weekdays, "hours": hours,
+            "departments": departments, "commodities": commodities, "brands": brands,
+            "segments": segments, "stores": stores,
+            "incomes": banded("income", "SELECT DISTINCT income_band FROM vw_dim_household"),
+            "ages": banded("age", "SELECT DISTINCT age_group FROM vw_dim_household"),
+            "household_sizes": banded(
+                "household_size", "SELECT DISTINCT household_size FROM vw_dim_household"),
+        }
+    except Exception:
+        logger.warning("BI reporting views unavailable", exc_info=True)
+        return {
+            "years": [], "quarters": [], "months": [], "weekdays": [], "hours": [],
+            "departments": [], "commodities": [], "brands": [], "segments": [],
+            "stores": [], "incomes": [], "ages": [], "household_sizes": [],
+        }
+
+
+def _complete_period_count():
+    """Complete 30-day periods available to the product revenue forecaster.
+
+    Mirrors ProductRevenueTimeSeriesForecaster.load_product_panels, which
+    anchors backwards from the last transaction day so trailing partial days
+    are excluded.  Returns 0 when the calendar cannot be read, in which case
+    the UI simply skips the feasibility hints.
+    """
+    try:
+        from .time_series_forecasting import PERIOD_DAYS
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT MIN(day), MAX(day) FROM transactions")
+            min_day, max_day = cursor.fetchone()
+        if min_day is None or max_day is None:
+            return 0
+        return int((int(max_day) - int(min_day) + 1) // PERIOD_DAYS)
+    except Exception:
+        logger.warning("Could not determine complete period count", exc_info=True)
+        return 0
+
+
+def _describe_stored_rules(rules):
+    """Attach product, commodity and department names to saved rules.
+
+    Saved rules hold only the ids or names either side of the arrow, so the page
+    that lists them had nothing to label its chips with and every one of them
+    fell back to a grey box. The names are looked up here, in two queries for
+    the whole page rather than one per rule, and returned in the same shape the
+    freshly generated rules use so the template needs no branch.
+    """
+    rules = list(rules)
+    if not rules:
+        return []
+
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT COUNT(DISTINCT basket_id) FROM transactions")
+        total_baskets = cursor.fetchone()[0] or 0
+
+    product_ids, commodities = set(), set()
+    for rule in rules:
+        both = list(rule.antecedent or []) + list(rule.consequent or [])
+        if rule.rule_type == 'product':
+            product_ids.update(str(v) for v in both)
+        elif rule.rule_type == 'commodity':
+            commodities.update(str(v) for v in both)
+
+    products, commodity_departments = {}, {}
+    with connection.cursor() as cursor:
+        if product_ids:
+            ids = [int(v) for v in product_ids if str(v).isdigit()]
+            if ids:
+                for pid, department, commodity, brand in _rows_in_batches(cursor, """
+                    SELECT product_id, department, commodity_desc, brand
+                    FROM product WHERE product_id IN ({placeholders})
+                """, ids):
+                    products[str(pid)] = {
+                        'department': department or 'UNKNOWN',
+                        'commodity': commodity or 'No description',
+                        'brand': brand or 'Generic',
+                    }
+        if commodities:
+            for commodity, department in _rows_in_batches(cursor, """
+                SELECT commodity_desc, MAX(department) AS department
+                FROM product WHERE commodity_desc IN ({placeholders})
+                GROUP BY commodity_desc
+            """, commodities):
+                commodity_departments[str(commodity)] = department or 'UNKNOWN'
+
+    def describe(value, rule_type):
+        text = str(value)
+        if rule_type == 'product':
+            return products.get(text, {
+                'department': 'UNKNOWN', 'commodity': f'Product {text}', 'brand': 'Generic',
+            })
+        if rule_type == 'commodity':
+            return {'department': commodity_departments.get(text, 'UNKNOWN'),
+                    'commodity': text, 'brand': ''}
+        # A department-level rule already names its own department.
+        return {'department': text, 'commodity': text, 'brand': ''}
+
+    described = []
+    for rule in rules:
+        described.append({
+            'antecedent': [str(v) for v in (rule.antecedent or [])],
+            'consequent': [str(v) for v in (rule.consequent or [])],
+            'antecedent_details': [describe(v, rule.rule_type) for v in (rule.antecedent or [])],
+            'consequent_details': [describe(v, rule.rule_type) for v in (rule.consequent or [])],
+            # Saved rules keep only the rate, so the basket count behind it is
+            # recovered from the support it was stored with.
+            'baskets_together': round((rule.support or 0) * total_baskets),
+            # Marks these as rules read back from the table rather than ones the
+            # run on this screen produced, and says when they were put there.
+            'is_saved': True,
+            'created_at': rule.created_at,
+            'source_view': rule.source_view,
+            'support': rule.support,
+            'confidence': rule.confidence,
+            'lift': rule.lift,
+            'rule_type': rule.rule_type,
+        })
+    return described
+
+
+def _mark_saved_state(rules):
+    """Say whether each generated rule is already in the table, and if it moved.
+
+    A run repeats work that may have been saved before. Without this the reader
+    cannot tell a new finding from one they already stored, nor notice that a
+    stored rule's numbers have shifted since -- which is the case worth acting
+    on, because the saved copy is now out of date.
+    """
+    rules = list(rules)
+    if not rules:
+        return rules
+
+    wanted = {r.get('rule_type', 'product') for r in rules}
+    stored = {}
+    for row in AssociationRule.objects.filter(rule_type__in=wanted):
+        def key_part(value):
+            if isinstance(value, (list, tuple)):
+                return tuple(str(v) for v in value)
+            return (str(value),)
+        stored[(key_part(row.antecedent), key_part(row.consequent), row.rule_type)] = row
+
+    for rule in rules:
+        antecedent = tuple(str(v) for v in rule.get('antecedent') or [])
+        consequent = tuple(str(v) for v in rule.get('consequent') or [])
+        match = stored.get((antecedent, consequent, rule.get('rule_type', 'product')))
+        if match is None:
+            rule['saved_state'] = 'new'
+            continue
+        # Compared at the precision the cards print, so a rule is not called
+        # changed over a difference nobody can see.
+        same = (
+            round(float(match.support or 0), 6) == round(float(rule['support']), 6)
+            and round(float(match.confidence or 0), 4) == round(float(rule['confidence']), 4)
+            and round(float(match.lift or 0), 2) == round(float(rule['lift']), 2)
+        )
+        rule['saved_state'] = 'saved' if same else 'changed'
+        rule['saved_at'] = match.created_at
+        rule['saved_support'] = match.support
+        rule['saved_confidence'] = match.confidence
+        rule['saved_lift'] = match.lift
+    return rules
 
 
 @admin_required
@@ -1213,10 +1540,14 @@ def association_rules(request):
                 min_confidence = 0.5
             if transaction_period not in ['all', '1_month', '3_months', '6_months', '12_months']:
                 transaction_period = 'all'
-            if max_results not in [50, 100, 200, 500, 1000]:
+            # Kept in step with the choices the form offers: a value the form
+            # can produce was being silently replaced with 100, so asking for
+            # 2,000 or 3,000 quietly returned a hundred.
+            if max_results not in [50, 100, 200, 500, 1000, 2000, 3000, 5000]:
                 max_results = 100
 
-            rules = _generate_association_rules(min_support, min_confidence, transaction_period, max_results)
+            rules = _mark_saved_state(
+                _generate_association_rules(min_support, min_confidence, transaction_period, max_results))
 
             # Get period display name
             period_names = {
@@ -1265,7 +1596,8 @@ def association_rules(request):
     else:
         ctx = {
             'title': 'Association Rules',
-            'rules': AssociationRule.objects.all().order_by('-lift')[:100],
+            'rules': _describe_stored_rules(
+                AssociationRule.objects.all().order_by('-lift')[:100]),
         }
     return render(request, 'site/dunnhumby/association_rules.html', ctx)
 
@@ -1374,6 +1706,11 @@ def api_insert_association_rule(request):
             metadata=metadata,
         )
         return JsonResponse({'success': True, 'message': 'Rule inserted.'}, status=201)
+
+# One request is sent per record when deleting, so a selection that can be acted
+# on has to stay within reach of that.
+SELECTION_ID_CAP = 5000
+
 
 @login_required(login_url='/admin/login/')
 def api_get_table_data(request):
@@ -1507,6 +1844,22 @@ def api_get_table_data(request):
 
 
         total_count = queryset.count()
+
+        # "Select all matching" asks for the keys alone, so a selection can span
+        # pages without pulling every column of every row. Capped, because the
+        # delete path issues one request per record and the larger tables run to
+        # millions of rows.
+        if request.POST.get('ids_only'):
+            pk_name = model._meta.pk.name
+            cap = SELECTION_ID_CAP
+            ids = list(queryset.values_list(pk_name, flat=True)[:cap + 1])
+            return JsonResponse({
+                'ids': [str(value) for value in ids[:cap]],
+                'total': total_count,
+                'capped': len(ids) > cap,
+                'cap': cap,
+            })
+
         offset = (page - 1) * limit
         
         # Simple slicing now works because queryset is always a ValuesQuerySet
@@ -3315,11 +3668,11 @@ def predictive_analysis_api(request):
         except (TypeError, ValueError):
             time_horizon = None
 
-        valid_horizons = {1, 3, 6, 12}
-        selected_horizon = time_horizon if (time_horizon in valid_horizons) else 3
+        from .repurchase_classifier import VALID_HORIZON_MONTHS, horizon_key as build_horizon_key
+        selected_horizon = time_horizon if (time_horizon in VALID_HORIZON_MONTHS) else 3
 
         department_predictions = ml_analyzer.get_department_predictions(model_type, selected_horizon)
-        horizon_key = {1: '1month', 3: '3months', 6: '6months', 12: '12months'}[selected_horizon]
+        horizon_key = build_horizon_key(selected_horizon)
 
         return JsonResponse({
             'success': True,
@@ -3456,13 +3809,20 @@ def predict_future_api(request):
         except (TypeError, ValueError):
             time_horizon = None
 
-        valid_horizons = {1, 3, 6, 12}
-        selected_horizon = time_horizon if (time_horizon in valid_horizons) else 3
+        from .repurchase_classifier import VALID_HORIZON_MONTHS
+        selected_horizon = time_horizon if (time_horizon in VALID_HORIZON_MONTHS) else 3
+
+        try:
+            training_size = float(request.POST.get('training_size', 0.8))
+        except (TypeError, ValueError):
+            training_size = 0.8
+        training_size = max(0.5, min(training_size, 0.95))
 
         future_predictions = ml_analyzer.predict_future_purchases(
             model_name=model_type,
             time_horizon=selected_horizon,
-            top_n=10
+            top_n=0,
+            training_size=training_size,
         )
 
         return JsonResponse({
@@ -3501,21 +3861,18 @@ def train_ml_models(request):
 
     training_size = max(0.1, min(training_size, 0.95))
 
-    time_horizon_param = request.POST.get('time_horizon')
-    horizon_lookup = {
-        '1': '1month',
-        '3': '3months',
-        '6': '6months',
-        '12': '12months'
-    }
+    from .repurchase_classifier import HORIZON_DAYS, VALID_HORIZON_MONTHS
+    from .repurchase_classifier import horizon_key as build_horizon_key
 
+    time_horizon_param = request.POST.get('time_horizon')
     horizon_key = None
     if time_horizon_param is not None:
         key = str(time_horizon_param).strip()
         try:
-            horizon_key = horizon_lookup[str(int(key))]
-        except (ValueError, KeyError):
-            horizon_key = horizon_lookup.get(key)
+            months = int(key)
+            horizon_key = build_horizon_key(months) if months in VALID_HORIZON_MONTHS else None
+        except ValueError:
+            horizon_key = key if key in HORIZON_DAYS else None
 
     force_value = request.POST.get('force_retrain', request.POST.get('force', 'false'))
     force_retrain = str(force_value).lower() in {'1', 'true', 'yes', 'on'}
@@ -3532,7 +3889,9 @@ def train_ml_models(request):
 
     horizons_to_check = [horizon_key] if horizon_key else None
 
-    if not force_retrain and ml_analyzer.has_cached_models(horizons_to_check, refresh=True):
+    if not force_retrain and ml_analyzer.has_cached_models(
+        horizons_to_check, refresh=True, training_size=training_size
+    ):
         logger.info('Cached models detected for horizon %s; skipping retraining.', horizon_key or 'all')
         ml_analyzer.refresh_cached_models()
         ml_training_status = {
@@ -3631,8 +3990,8 @@ def get_predictions(request):
     except (TypeError, ValueError):
         time_horizon = None
 
-    valid_horizons = {1, 3, 6, 12}
-    selected_horizon = time_horizon if (time_horizon in valid_horizons) else 3
+    from .repurchase_classifier import VALID_HORIZON_MONTHS
+    selected_horizon = time_horizon if (time_horizon in VALID_HORIZON_MONTHS) else 3
 
     try:
         predictions = ml_analyzer.get_department_predictions(model_type, selected_horizon)
@@ -3663,8 +4022,8 @@ def get_recommendations(request):
     except (TypeError, ValueError):
         time_horizon = None
 
-    valid_horizons = {1, 3, 6, 12}
-    selected_horizon = time_horizon if (time_horizon in valid_horizons) else 3
+    from .repurchase_classifier import VALID_HORIZON_MONTHS
+    selected_horizon = time_horizon if (time_horizon in VALID_HORIZON_MONTHS) else 3
 
     try:
         customer_id = request.POST.get('customer_id')
@@ -3734,20 +4093,30 @@ def customer_segments(request):
     segments_list = list(segments_query)
     segments_list.sort(key=lambda s: segment_order.index(s['rfm_segment']) if s['rfm_segment'] in segment_order else len(segment_order))
 
-    recent_customers = CustomerSegment.objects.order_by('-updated_at')[:20]
-
-    for c in recent_customers:
-        prob = getattr(c, 'churn_probability', None)
-        if prob is None:
-            c.churn_risk = "N/A"
-        elif prob > 0.75:
-            c.churn_risk = "Very High Risk"
-        elif prob > 0.50:
-            c.churn_risk = "High Risk"
-        elif prob > 0.25:
-            c.churn_risk = "Medium Risk"
-        else:
-            c.churn_risk = "Low Risk"
+    # Use the active experiment's scores rather than `updated_at`, which does
+    # not change when a different churn rule is activated.  A balanced sample
+    # avoids duplicating the all-high-risk Customer Retention page.
+    active_experiment = ChurnExperiment.objects.filter(is_active=True).first()
+    customer_risk_groups = []
+    if active_experiment:
+        risk_filters = [
+            ('Very High Risk', Q(churn_probability__gt=0.75)),
+            ('High Risk', Q(churn_probability__gt=0.50, churn_probability__lte=0.75)),
+            ('Medium Risk', Q(churn_probability__gt=0.25, churn_probability__lte=0.50)),
+            ('Low Risk', Q(churn_probability__lte=0.25)),
+        ]
+        for risk_label, risk_filter in risk_filters:
+            customers = list(
+                CustomerSegment.objects.filter(risk_filter)
+                .order_by('-churn_probability', '-total_spend', 'household_key')[:5]
+            )
+            if customers:
+                for customer in customers:
+                    customer.churn_risk = risk_label
+                customer_risk_groups.append({
+                    'risk_label': risk_label,
+                    'customers': customers,
+                })
 
     risk_counts = CustomerSegment.objects.aggregate(
         low=Count('id', filter=Q(churn_probability__lte=0.25)),
@@ -3764,7 +4133,6 @@ def customer_segments(request):
     ]
 
     # ۴. ارسال لیست مرتب‌شده به قالب
-    active_experiment = ChurnExperiment.objects.filter(is_active=True).first()
     # Present one row per rule configuration.  Old duplicate runs are retained
     # only until that configuration is trained again, but never clutter the UI.
     visible_experiments = []
@@ -3777,15 +4145,13 @@ def customer_segments(request):
         if rule_key not in seen_rules:
             visible_experiments.append(experiment)
             seen_rules.add(rule_key)
-    experiment_paginator = Paginator(visible_experiments, 5)
-    experiments_page = experiment_paginator.get_page(request.GET.get('experiments_page', 1))
     return render(request, 'site/dunnhumby/customer_segments.html', {
         'title': 'Customer Segmentation',
         'segments': segments_list, # <-- از لیست مرتب‌شده جدید استفاده می‌کنیم
-        'recent_customers': recent_customers,
+        'customer_risk_groups': customer_risk_groups,
         'churn_overview': churn_data_sorted,
         'active_experiment': active_experiment,
-        'experiments_page': experiments_page,
+        'visible_experiments': visible_experiments,
         'lifetime_rfm_cutoff_day': Transaction.objects.aggregate(max_day=Max('day'))['max_day'],
         'dataset_day_bounds': Transaction.objects.aggregate(min_day=Min('day'), max_day=Max('day')),
     })
@@ -3797,6 +4163,7 @@ def customer_segments(request):
 def run_churn_experiment(request):
     """Train a leakage-safe experiment and persist its current-customer scores."""
     try:
+        request_started = perf_counter()
         method = WindowMethod(request.POST.get('method', WindowMethod.SLIDING.value))
         observation = int(request.POST.get('observation_window_days', 90))
         horizon = int(request.POST.get('prediction_horizon_days', 30))
@@ -3806,13 +4173,24 @@ def run_churn_experiment(request):
             raise ValueError('Observation window and prediction horizon must be positive.')
         config = ChurnWindowConfig(method, observation, horizon, step)
         reusable_cache = _find_window_cache(config)
-        cached_training_dataset = _read_cached_training_dataset(reusable_cache)
-        metrics, scores, historical_snapshots, historical_predictions, current_snapshots, training_dataset = train_and_score(
-            config, cached_training_dataset=cached_training_dataset,
-        )
-        window_cache, history_stats = _get_or_build_window_cache(
-            config, historical_snapshots, training_dataset=training_dataset,
-        )
+        cached_model_result = _read_cached_model_result(reusable_cache)
+        restored_from_model_cache = cached_model_result is not None
+        if restored_from_model_cache:
+            metrics, scores, historical_predictions = cached_model_result
+            window_cache = reusable_cache
+            history_stats = {
+                'window_records': window_cache.customer_windows.count(),
+                'cache_reused': True,
+            }
+        else:
+            cached_training_dataset = _read_cached_training_dataset(reusable_cache)
+            metrics, scores, historical_snapshots, historical_predictions, _current_snapshots, training_dataset = train_and_score(
+                config, cached_training_dataset=cached_training_dataset,
+            )
+            window_cache, history_stats = _get_or_build_window_cache(
+                config, historical_snapshots, training_dataset=training_dataset,
+            )
+            _write_cached_model_result(window_cache, metrics, scores, historical_predictions)
         # Saving the experiment, current scores, and history is one operation. If
         # any history row fails, Django rolls everything back instead of leaving a
         # completed-looking experiment with an empty customer history.
@@ -3860,7 +4238,8 @@ def run_churn_experiment(request):
             'id': experiment.id, 'method': experiment.method, 'recall': experiment.recall,
             'f1': experiment.f1, 'roc_auc': experiment.roc_auc, 'samples': experiment.training_samples,
             'classification_threshold': experiment.classification_threshold,
-            'elapsed_seconds': metrics['total_time_seconds'],
+            'elapsed_seconds': perf_counter() - request_started,
+            'restored_from_model_cache': restored_from_model_cache,
         }, 'history': history_stats})
     except (TypeError, ValueError) as exc:
         return JsonResponse({'success': False, 'error': str(exc)}, status=400)

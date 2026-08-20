@@ -1,5 +1,5 @@
 from django.urls import path
-from . import views
+from . import bi_views, views
 
 app_name = "dunnhumby_site"
 
@@ -13,6 +13,30 @@ urlpatterns = [
     path("association-rules/", views.association_rules, name="association_rules"),
     path("customer-segments/", views.customer_segments, name="customer_segments"),
     path("data-management/", views.data_management, name="data_management"),
+    # Business-intelligence dashboard over the star-schema views
+    path("bi-dashboard/", bi_views.bi_dashboard, name="bi_dashboard"),
+    path("api/bi/kpis/", bi_views.api_bi_kpis, name="api_bi_kpis"),
+    path("api/bi/product-drill/", bi_views.api_bi_product_drill, name="api_bi_product_drill"),
+    path("api/bi/time-drill/", bi_views.api_bi_time_drill, name="api_bi_time_drill"),
+    path("api/bi/stores/", bi_views.api_bi_stores, name="api_bi_stores"),
+    path("api/bi/segments/", bi_views.api_bi_segments, name="api_bi_segments"),
+    path("api/bi/basket-distribution/", bi_views.api_bi_basket_distribution, name="api_bi_basket_distribution"),
+    path("api/bi/daypart/", bi_views.api_bi_daypart, name="api_bi_daypart"),
+    path("api/bi/demographics/", bi_views.api_bi_demographics, name="api_bi_demographics"),
+    path("api/bi/brand/", bi_views.api_bi_brand, name="api_bi_brand"),
+    path("api/bi/top-products/", bi_views.api_bi_top_products, name="api_bi_top_products"),
+    path("api/bi/discount-trend/", bi_views.api_bi_discount_trend, name="api_bi_discount_trend"),
+    path("api/bi/significance/", bi_views.api_bi_significance, name="api_bi_significance"),
+    path("api/bi/significance-scan/", bi_views.api_bi_significance_scan,
+         name="api_bi_significance_scan"),
+    path("api/bi/insights/", bi_views.api_bi_insights, name="api_bi_insights"),
+    path("api/bi/growth/", bi_views.api_bi_growth, name="api_bi_growth"),
+    path("api/bi/pareto/", bi_views.api_bi_pareto, name="api_bi_pareto"),
+    path("api/bi/household-value/", bi_views.api_bi_household_value, name="api_bi_household_value"),
+    path("api/bi/heatmap/", bi_views.api_bi_heatmap, name="api_bi_heatmap"),
+    path("api/bi/repeat/", bi_views.api_bi_repeat, name="api_bi_repeat"),
+    path("api/bi/discount-mix/", bi_views.api_bi_discount_mix, name="api_bi_discount_mix"),
+    path("api/bi/brand-mix/", bi_views.api_bi_brand_mix, name="api_bi_brand_mix"),
     # JSON/API endpoints used by front-end JS
     path("api/table/", views.api_get_table_data, name="api_get_table_data"),
     path("api/association-rules/insert/", views.api_insert_association_rule, name="api_insert_association_rule"),

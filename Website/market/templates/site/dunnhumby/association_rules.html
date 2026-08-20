@@ -1,26 +1,104 @@
 {% extends "site/base.html" %}
+{% load market_icons %}
 {% block title %}Association Rules{% endblock %}
+{% block favicon %}{% favicon "🔗" %}{% endblock %}
 {% block content %}
-<div class="module">
-  <h2>Association Rules Mining</h2>
+<style>
+/* The card system the basket-mining tabs use, so the two pages read as one
+   product rather than two. Only what this page draws is restated here. */
+/* Banner and frame come from analysis_shell.css. */
+.ar-page { --rev-1:#667eea; --rev-2:#764ba2; --rev-ink:#1e2338; --rev-muted:#6b7391; --rev-line:#e6e8f2; }
+.ar-page .rev-card {
+  background:#fff; border:1px solid var(--rev-line); border-radius:16px;
+  padding:1.1rem 1.2rem; margin-bottom:1rem; box-shadow:0 2px 14px rgba(102,126,234,.06);
+}
+.ar-page .rev-step { display:flex; gap:.75rem; align-items:flex-start; margin-bottom:.9rem; }
+.ar-page .rev-step-num {
+  flex:0 0 auto; width:26px; height:26px; border-radius:50%;
+  background:linear-gradient(135deg, var(--rev-1), var(--rev-2)); color:#fff;
+  display:grid; place-items:center; font-size:.8rem; font-weight:700;
+}
+.ar-page .rev-step-title { margin:0; font-size:.97rem; font-weight:700; color:var(--rev-ink); }
+.ar-page .rev-step-hint { margin:.1rem 0 0; font-size:.8rem; color:var(--rev-muted); }
+.ar-page .rev-head-sm {
+  display:flex; justify-content:space-between; align-items:flex-start;
+  gap:.75rem; flex-wrap:wrap; margin-bottom:.85rem;
+}
+.ar-page .rev-btn-primary {
+  background:linear-gradient(135deg, var(--rev-1), var(--rev-2)); color:#fff; border:none;
+  border-radius:10px; padding:.55rem 1.1rem; font-weight:600;
+}
+.ar-page .rev-btn-primary:hover { color:#fff; filter:brightness(1.06); }
+.ar-page .form-label { font-size:.72rem; font-weight:700; letter-spacing:.04em;
+  text-transform:uppercase; color:var(--rev-muted); }
+.ar-page .form-select, .ar-page .form-control { border-radius:.55rem; border-color:#dfe3f1; }
+.ar-page .form-text { font-size:.8rem; color:var(--rev-muted); }
+/* The value scale, as chips rather than a stack of one-line paragraphs. */
+.ar-page .ar-scale { display:flex; flex-wrap:wrap; gap:.3rem; margin:.45rem 0 .3rem; }
+.ar-page .ar-scale span {
+  background:#f2f4fb; border:1px solid #e4e7f4; border-radius:999px;
+  padding:.1rem .5rem; font-size:.72rem; color:#4a5170;
+}
+.ar-page .ar-scale b { color:var(--rev-ink); }
+.ar-page .ar-live { display:block; font-size:.78rem; color:#0369a1; }
+.ar-page .ar-live.is-thin { color:#b45309; }
+.ar-page .ar-pager {
+  display:flex; align-items:center; justify-content:center; gap:.75rem;
+  flex-wrap:wrap; margin:.75rem 0;
+}
+.ar-page .ar-pager:empty { display:none; }
+.ar-page .ar-pager-label { font-size:.8rem; color:var(--rev-muted); }
+.ar-page .ar-results-title { font-weight:700; color:var(--rev-ink); }
+.ar-page .ar-results-sub { font-size:.78rem; color:var(--rev-muted); margin-top:.15rem; }
+.ar-page .ar-saved {
+  display:inline-flex; align-items:center; gap:.35rem; margin-bottom:.4rem;
+  font-size:.7rem; font-weight:600; color:#0f766e;
+  background:#ecfdf5; border:1px solid #a7f3d0; border-radius:999px; padding:.15rem .5rem;
+}
+.ar-page .ar-saved-date { font-weight:500; color:#0d9488; }
+.ar-page .ar-changed {
+  display:inline-flex; align-items:center; gap:.35rem; margin-bottom:.4rem;
+  font-size:.7rem; font-weight:600; color:#b45309;
+  background:#fff7ed; border:1px solid #fed7aa; border-radius:999px; padding:.15rem .5rem;
+}
+.ar-page .ar-changed .ar-saved-date { color:#c2761a; font-weight:500; }
+.ar-page .ar-thin {
+  margin-top:.5rem; font-size:.72rem; font-weight:600; color:#b45309;
+  background:#fff7ed; border:1px solid #fed7aa; border-radius:8px; padding:.3rem .5rem;
+}
+/* The chip carried inline padding and radius on every use; it belongs in one rule. */
+.ar-page .department-badge {
+  color:#fff; padding:4px 10px; border-radius:999px; font-size:.75rem; font-weight:600;
+  display:inline-flex; align-items:center; gap:5px; letter-spacing:.01em;
+  box-shadow:0 2px 6px rgba(15,23,42,.14);
+}
+.ar-page .rule-card { border-radius:16px; border:1px solid var(--rev-line); transition:transform .15s ease, box-shadow .15s ease; }
+.ar-page .rule-card:hover { transform:translateY(-3px); box-shadow:0 10px 26px rgba(102,126,234,.16); }
+</style>
+
+<div class="module pred-panel ar-page">
   <div class="p-4">
+    <div class="analysis-banner">
+      <div>
+        <div class="analysis-banner-title"><i class="fas fa-diagram-project"></i> Association Rules Mining</div>
+        <div class="analysis-banner-sub">Which products are bought together, found with Apriori. Lower the
+        support to reach rarer pairs, at the cost of a longer run.</div>
+      </div>
+      <span class="badge bg-success px-3 py-2">2.6M transactions &middot; 276,450 baskets
+      &middot; 92,335 products</span>
+    </div>
     <div class="row g-4">
       <div class="col-12">
-        <div class="alert alert-info">
-          <i class="fas fa-info-circle"></i> <strong>Dataset Info:</strong>
-          Analyzing <strong>2.6M transactions</strong> across <strong>276,450 baskets</strong> with <strong>92,335 unique products</strong>.
-          <br>
-          <small>📊 Ultra-fine support control available - discover patterns appearing in as few as 2-25 transactions!</small>
-          <br>
-          <small>⚡ Performance: Higher support values (0.0005+) for fast results, lower values for rare pattern discovery.</small>
-        </div>
-      </div>
-      <div class="col-12">
-        <div class="card shadow-sm">
-          <div class="card-header" style="background:var(--gradient-primary); color:#fff; font-weight:700;">
-            <i class="fas fa-sliders-h"></i> Algorithm Configuration
+        <div class="rev-card">
+          <div class="rev-step">
+            <span class="rev-step-num">1</span>
+            <div>
+              <h6 class="rev-step-title">Choose the settings</h6>
+              <p class="rev-step-hint">How much history to read, and how strong a pattern has to be
+              before it is reported.</p>
+            </div>
           </div>
-          <div class="card-body">
+          <div>
             <form method="post" id="associationRulesForm">
               {% csrf_token %}
 
@@ -36,8 +114,8 @@
                     <option value="12_months" {% if transaction_period == '12_months' %}selected{% endif %}>Last 12 Months</option>
                   </select>
                   <div class="form-text">
-                    Choose time range for analysis.<br>
-                    <small><strong>Tip:</strong> Recent periods (1-3 months) process faster and may reveal emerging patterns!</small>
+                    How much history to read. Shorter periods run faster and show what is
+                    selling now.
                   </div>
                 </div>
                 <div class="col-12 col-md-6">
@@ -48,8 +126,11 @@
                     <option value="200" {% if max_results == 200 %}selected{% endif %}>200</option>
                     <option value="500" {% if max_results == 500 %}selected{% endif %}>500</option>
                     <option value="1000" {% if max_results == 1000 %}selected{% endif %}>1000</option>
+                    <option value="2000" {% if max_results == 2000 %}selected{% endif %}>2000</option>
+                    <option value="3000" {% if max_results == 3000 %}selected{% endif %}>3000</option>
+                    <option value="5000" {% if max_results == 5000 %}selected{% endif %}>5000</option>
                   </select>
-                  <div class="form-text">Number of top rules to show.</div>
+                  <div class="form-text">How many of the strongest rules to keep, ranked by lift.</div>
                 </div>
               </div>
 
@@ -59,32 +140,44 @@
                   <label for="min_support" class="form-label">Minimum Support (0.0 - 1.0)</label>
                   <input type="number" class="form-control" id="min_support" name="min_support" step="0.00001" min="0" max="1" value="{{ min_support|default:'0.0005' }}" oninput="updateSupportInfo()">
                   <div class="form-text">
-                    <small>For 2.6M transactions - Ultra-fine control:</small><br>
-                    <small><strong>0.001</strong> = Very frequent (2,595+ transactions)</small><br>
-                    <small><strong>0.0005</strong> = Common (1,297+ transactions)</small><br>
-                    <small><strong>0.0001</strong> = Moderate (259+ transactions)</small><br>
-                    <small><strong>0.00005</strong> = Rare (129+ transactions)</small><br>
-                    <small><strong>0.00001</strong> = Very rare (26+ transactions)</small><br>
-                    <small class="text-warning"><strong>⚠️ Values &lt; 0.00001 may be very slow</strong></small><br>
-                    <small id="supportInfo" class="text-info"><strong>Current: </strong><span id="currentSupportCount">1,297+ transactions</span></small>
+                    How often a pair must appear before it counts. Higher is faster and stricter.
+                    <span class="ar-scale">
+                      <span><b>0.001</b> frequent</span>
+                      <span><b>0.0005</b> common</span>
+                      <span><b>0.0001</b> occasional</span>
+                      <span><b>0.00001</b> rare</span>
+                    </span>
+                    <span id="supportInfo" class="ar-live">Needs <b id="currentSupportCount">138</b>
+                    baskets of the <b id="supportBasketTotal">276,450</b> in range.</span>
                   </div>
                 </div>
                 <div class="col-12 col-md-6">
                   <label for="min_confidence" class="form-label">Minimum Confidence (0.0 - 1.0)</label>
                   <input type="number" class="form-control" id="min_confidence" name="min_confidence" step="0.01" min="0" max="1" value="{{ min_confidence|default:'0.3' }}">
                   <div class="form-text">
-                    <small><strong>0.7+</strong> = Very strong rules (70%+ confidence)</small><br>
-                    <small><strong>0.5</strong> = Moderate rules (50%+ confidence)</small><br>
-                    <small><strong>0.3</strong> = Exploratory (30%+ confidence)</small>
+                    How often the second product follows the first. 0.5 means half the time.
+                    <span class="ar-scale">
+                      <span><b>0.7</b> strong</span>
+                      <span><b>0.5</b> moderate</span>
+                      <span><b>0.3</b> exploratory</span>
+                    </span>
                   </div>
                 </div>
               </div>
 
-              <!-- Third row: Submit button -->
+              <!-- Running it is step two, numbered as on the other pages -->
+              <div class="rev-step mt-4">
+                <span class="rev-step-num">2</span>
+                <div>
+                  <h6 class="rev-step-title">Run the analysis</h6>
+                  <p class="rev-step-hint">Apriori scans the baskets for pairs that pass both
+                  thresholds, then ranks them by lift.</p>
+                </div>
+              </div>
               <div class="row">
                 <div class="col-12">
-                  <button type="submit" class="btn btn-primary btn-lg" id="generateBtn">
-                    <i class="fas fa-gears"></i> Generate Association Rules
+                  <button type="submit" class="btn rev-btn-primary" id="generateBtn">
+                    <i class="fas fa-play"></i> Run Apriori algorithm
                   </button>
                 </div>
               </div>
@@ -93,10 +186,17 @@
         </div>
       </div>
       <div class="col-12">
-        <div class="card shadow-sm">
-          <div class="card-header bg-transparent d-flex justify-content-between align-items-center" style="font-weight:700;">
+        <div class="rev-card">
+          <div class="rev-head-sm">
             <div>
-              <i class="fas fa-table"></i> Results (sorted by Lift)
+              <div class="ar-results-title"><i class="fas fa-table"></i> Results, strongest lift first</div>
+              {% if rules.0.is_saved %}
+                <div class="ar-results-sub">Rules saved to the database from earlier runs. Run the
+                algorithm above to replace this list with a fresh one.</div>
+              {% elif rules %}
+                <div class="ar-results-sub">Just generated. Use <b>Insert</b> to save a rule to the
+                database.</div>
+              {% endif %}
             </div>
             <div class="btn-group btn-group-sm" role="group" id="rulesMultiSelectActions" style="display: none;">
               <button class="btn btn-outline-secondary" onclick="selectAllRules(true)" title="Select All">
@@ -138,7 +238,8 @@
             <!-- Results Container -->
             <div id="resultsContainer">
             {% if rules %}
-            <div class="row g-3">
+            <div class="pager" id="rulePagerTop"></div>
+            <div class="row g-3" id="ruleGrid">
               {% for rule in rules %}
               <div class="col-12 col-sm-6 col-md-4 col-lg-3">
                 <div class="card h-100 shadow-sm rule-card selectable-rule"
@@ -166,8 +267,8 @@
                     </div>
                     <!-- Antecedent Product -->
                     <div class="d-flex align-items-center mb-2">
-                      <span class="department-badge" style="background: {% if rule.antecedent_details.0.department == 'GROCERY' %}linear-gradient(135deg, #2E86C1, #3498DB){% elif rule.antecedent_details.0.department == 'DRUG GM' %}linear-gradient(135deg, #A569BD, #BB8FCE){% elif rule.antecedent_details.0.department == 'PRODUCE' %}linear-gradient(135deg, #27AE60, #2ECC71){% elif rule.antecedent_details.0.department == 'DAIRY' %}linear-gradient(135deg, #F39C12, #F8C471){% elif rule.antecedent_details.0.department == 'MEAT-PCKGD' %}linear-gradient(135deg, #E74C3C, #EC7063){% elif rule.antecedent_details.0.department == 'FROZEN GROCERY' %}linear-gradient(135deg, #85C1E9, #AED6F1){% elif rule.antecedent_details.0.department == 'BAKERY' %}linear-gradient(135deg, #D4AC0D, #F1C40F){% elif rule.antecedent_details.0.department == 'BEVERAGE' %}linear-gradient(135deg, #17A2B8, #20C997){% else %}linear-gradient(135deg, #6C757D, #ADB5BD){% endif %}; color: white; padding: 4px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;">
-                        {% if rule.antecedent_details.0.department == 'GROCERY' %}🛒{% elif rule.antecedent_details.0.department == 'DRUG GM' %}🩹{% elif rule.antecedent_details.0.department == 'PRODUCE' %}🥬{% elif rule.antecedent_details.0.department == 'DAIRY' %}🥛{% elif rule.antecedent_details.0.department == 'MEAT-PCKGD' %}🥩{% elif rule.antecedent_details.0.department == 'FROZEN GROCERY' %}❄️{% elif rule.antecedent_details.0.department == 'BAKERY' %}🍞{% elif rule.antecedent_details.0.department == 'BEVERAGE' %}🥤{% else %}📦{% endif %} {{ rule.antecedent_details.0.department }}
+                      <span class="department-badge" style="background: {{ rule.antecedent_details.0.department|dept_gradient }};">
+                        {{ rule.antecedent_details.0.department|dept_icon }} {{ rule.antecedent_details.0.department }}
                       </span>
                     </div>
                     <h6 class="card-title text-truncate mb-1" title="{{ rule.antecedent_details.0.commodity }}">
@@ -182,8 +283,8 @@
 
                     <!-- Consequent Product -->
                     <div class="mb-2">
-                      <span class="department-badge" style="background: {% if rule.consequent_details.0.department == 'GROCERY' %}linear-gradient(135deg, #2E86C1, #3498DB){% elif rule.consequent_details.0.department == 'DRUG GM' %}linear-gradient(135deg, #A569BD, #BB8FCE){% elif rule.consequent_details.0.department == 'PRODUCE' %}linear-gradient(135deg, #27AE60, #2ECC71){% elif rule.consequent_details.0.department == 'DAIRY' %}linear-gradient(135deg, #F39C12, #F8C471){% elif rule.consequent_details.0.department == 'MEAT-PCKGD' %}linear-gradient(135deg, #E74C3C, #EC7063){% elif rule.consequent_details.0.department == 'FROZEN GROCERY' %}linear-gradient(135deg, #85C1E9, #AED6F1){% elif rule.consequent_details.0.department == 'BAKERY' %}linear-gradient(135deg, #D4AC0D, #F1C40F){% elif rule.consequent_details.0.department == 'BEVERAGE' %}linear-gradient(135deg, #17A2B8, #20C997){% else %}linear-gradient(135deg, #6C757D, #ADB5BD){% endif %}; color: white; padding: 4px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;">
-                        {% if rule.consequent_details.0.department == 'GROCERY' %}🛒{% elif rule.consequent_details.0.department == 'DRUG GM' %}🩹{% elif rule.consequent_details.0.department == 'PRODUCE' %}🥬{% elif rule.consequent_details.0.department == 'DAIRY' %}🥛{% elif rule.consequent_details.0.department == 'MEAT-PCKGD' %}🥩{% elif rule.consequent_details.0.department == 'FROZEN GROCERY' %}❄️{% elif rule.consequent_details.0.department == 'BAKERY' %}🍞{% elif rule.consequent_details.0.department == 'BEVERAGE' %}🥤{% else %}📦{% endif %} {{ rule.consequent_details.0.department }}
+                      <span class="department-badge" style="background: {{ rule.consequent_details.0.department|dept_gradient }};">
+                        {{ rule.consequent_details.0.department|dept_icon }} {{ rule.consequent_details.0.department }}
                       </span>
                     </div>
                     <h6 class="card-title text-truncate mb-1" title="{{ rule.consequent_details.0.commodity }}">
@@ -193,6 +294,26 @@
 
                     <!-- Statistics -->
                     <div class="mt-2 pt-2 border-top">
+                      {% if rule.is_saved %}
+                        <div class="ar-saved" title="Read from the saved rules table, not from a run on this screen">
+                          <i class="fas fa-database"></i> Saved
+                          <span class="ar-saved-date">{{ rule.created_at|date:"j M Y, H:i" }}</span>
+                        </div>
+                      {% elif rule.saved_state == 'saved' %}
+                        <div class="ar-saved" title="Already in the table with these same numbers">
+                          <i class="fas fa-database"></i> Saved
+                          <span class="ar-saved-date">{{ rule.saved_at|date:"j M Y" }}</span>
+                        </div>
+                      {% elif rule.saved_state == 'changed' %}
+                        <div class="ar-changed" title="In the table already, but the saved copy reads support {{ rule.saved_support|floatformat:6 }}, confidence {{ rule.saved_confidence|floatformat:4 }}, lift {{ rule.saved_lift|floatformat:2 }}. Insert to bring it up to date.">
+                          <i class="fas fa-rotate"></i> Update available
+                          <span class="ar-saved-date">saved {{ rule.saved_at|date:"j M Y" }}</span>
+                        </div>
+                      {% endif %}
+                      <div class="d-flex justify-content-between small">
+                        <span class="text-muted">Bought together in:</span>
+                        <span class="fw-bold">{{ rule.baskets_together }} basket{{ rule.baskets_together|pluralize }}</span>
+                      </div>
                       <div class="d-flex justify-content-between small">
                         <span class="text-muted">Support:</span>
                         <span class="fw-bold">{{ rule.support|floatformat:6 }}</span>
@@ -201,24 +322,27 @@
                         <span class="text-muted">Confidence:</span>
                         <span class="fw-bold">{{ rule.confidence|floatformat:4 }}</span>
                       </div>
-                      <div class="d-flex justify-content-between">
+                      <div class="d-flex justify-content-between align-items-center">
                         <span class="text-muted small">Lift:</span>
-                        <span class="badge bg-success">{{ rule.lift|floatformat:2 }}</span>
+                        <span class="badge {% if rule.baskets_together < 20 %}bg-warning text-dark{% else %}bg-success{% endif %}">{{ rule.lift|floatformat:2 }}</span>
                       </div>
+                      {% if rule.baskets_together < 20 %}
+                        <div class="ar-thin" title="A high lift on a handful of baskets is arithmetic rather than a pattern: with so few, one coincidence sets the figure.">
+                          <i class="fas fa-triangle-exclamation"></i> Thin evidence &mdash; too few baskets to rely on
+                        </div>
+                      {% endif %}
                     </div>
                     <div class="mt-3">
                       <button type="button" class="btn btn-sm btn-outline-success w-100 insert-rule-btn">
                         <i class="fas fa-database"></i> Insert Rule
                       </button>
                     </div>
-                    <div class="text-muted small mt-2 text-center">
-                      <i class="fas fa-mouse-pointer"></i> Click for details
-                    </div>
                   </div>
                 </div>
               </div>
               {% endfor %}
             </div>
+            <div class="pager" id="rulePagerBottom"></div>
             {% else %}
               <div class="info-box">No association rules found. Try generating new rules with different parameters.</div>
             {% endif %}
@@ -500,51 +624,92 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // Real-time support value calculator
+/* Five thousand rules is a legitimate request, but laying them all out at once
+   made a three-million-pixel page: one scroll to the bottom cost 1.6 seconds.
+   The cards are all here in the document; only a page of them is displayed, so
+   the browser lays out a hundred instead of five thousand. Selection and the
+   insert count still work across the whole set. */
+const RULE_PAGE_SIZE = 100;
+let rulePage = 1;
+
+function ruleCells() {
+  const grid = document.getElementById('ruleGrid');
+  return grid ? Array.from(grid.children) : [];
+}
+
+function renderRulePage() {
+  const cells = ruleCells();
+  if (!cells.length) return;
+  const pages = Math.max(1, Math.ceil(cells.length / RULE_PAGE_SIZE));
+  rulePage = Math.min(Math.max(rulePage, 1), pages);
+  const first = (rulePage - 1) * RULE_PAGE_SIZE;
+  cells.forEach((cell, index) => {
+    cell.style.display = (index >= first && index < first + RULE_PAGE_SIZE) ? '' : 'none';
+  });
+  const shown = `${first + 1}-${Math.min(first + RULE_PAGE_SIZE, cells.length)}`;
+  const controls = `
+    <button type="button" class="pager-btn"
+            onclick="goRulePage(1)" ${rulePage <= 1 ? 'disabled' : ''}>&laquo;&laquo; First</button>
+    <button type="button" class="pager-btn"
+            onclick="changeRulePage(-1)" ${rulePage <= 1 ? 'disabled' : ''}>Previous</button>
+    <span class="pager-status">Showing <b>${shown}</b> of
+      <b>${cells.length.toLocaleString()}</b> rules &middot; page ${rulePage} of ${pages}</span>
+    <button type="button" class="pager-btn"
+            onclick="changeRulePage(1)" ${rulePage >= pages ? 'disabled' : ''}>Next</button>
+    <button type="button" class="pager-btn"
+            onclick="goRulePage(0)" ${rulePage >= pages ? 'disabled' : ''}>Last &raquo;&raquo;</button>`;
+  ['rulePagerTop', 'rulePagerBottom'].forEach(id => {
+    const box = document.getElementById(id);
+    if (box) box.innerHTML = cells.length > RULE_PAGE_SIZE ? controls : '';
+  });
+}
+
+/* 0 means the last page, whatever it turns out to be. */
+function goRulePage(page) {
+  const pages = Math.max(1, Math.ceil(ruleCells().length / RULE_PAGE_SIZE));
+  rulePage = page === 0 ? pages : page;
+  renderRulePage();
+  document.getElementById('rulePagerTop')?.scrollIntoView({behavior: 'smooth', block: 'start'});
+}
+
+function changeRulePage(step) {
+  rulePage += step;
+  renderRulePage();
+  document.getElementById('rulePagerTop')?.scrollIntoView({behavior: 'smooth', block: 'start'});
+}
+
+document.addEventListener('DOMContentLoaded', renderRulePage);
+
 function updateSupportInfo() {
   const supportInput = document.getElementById('min_support');
-  const supportCountSpan = document.getElementById('currentSupportCount');
+  const countSpan = document.getElementById('currentSupportCount');
+  const totalSpan = document.getElementById('supportBasketTotal');
   const periodSelect = document.getElementById('transaction_period');
+  if (!supportInput || !countSpan) return;
 
-  if (supportInput && supportCountSpan) {
-    const supportValue = parseFloat(supportInput.value);
-    const selectedPeriod = periodSelect ? periodSelect.value : 'all';
+  /* Support is measured against baskets, not transaction lines. This read
+     transaction counts and so overstated every threshold about ninefold: 0.00001
+     was labelled "26+ transactions" when the algorithm was in fact accepting
+     pairs seen in 3 baskets. Basket counts for this fixed 711-day dataset. */
+  const basketsInPeriod = {
+    'all': 276450, '12_months': 155352, '6_months': 75236,
+    '3_months': 37109, '1_month': 12121,
+  };
+  const period = periodSelect ? periodSelect.value : 'all';
+  const total = basketsInPeriod[period] || basketsInPeriod['all'];
+  const support = parseFloat(supportInput.value);
+  if (totalSpan) totalSpan.textContent = total.toLocaleString();
+  if (isNaN(support) || support <= 0) { countSpan.textContent = '--'; return; }
 
-    // Transaction counts by period (from your data)
-    const transactionCounts = {
-      'all': 2595277,
-      '12_months': 1477227,
-      '6_months': 732216,
-      '3_months': 373342,
-      '1_month': 126222
-    };
-
-    const totalTransactions = transactionCounts[selectedPeriod] || transactionCounts['all'];
-
-    if (!isNaN(supportValue) && supportValue > 0) {
-      const minTransactions = Math.ceil(totalTransactions * supportValue);
-      const formattedCount = minTransactions.toLocaleString();
-      const periodText = selectedPeriod === 'all' ? '' : ` (${selectedPeriod})`;
-
-      // Add performance warnings
-      let warningText = '';
-      if (supportValue < 0.000005) {
-        warningText = ' ⚠️ EXTREMELY SLOW';
-        supportCountSpan.className = 'text-danger fw-bold';
-      } else if (supportValue < 0.00001) {
-        warningText = ' ⚠️ Very slow';
-        supportCountSpan.className = 'text-warning fw-bold';
-      } else if (supportValue < 0.00005) {
-        warningText = ' ⚠️ Slow';
-        supportCountSpan.className = 'text-warning';
-      } else {
-        supportCountSpan.className = 'text-info';
-      }
-
-      supportCountSpan.textContent = `${formattedCount}+ transactions${periodText}${warningText}`;
-    } else {
-      supportCountSpan.textContent = '1,297+ transactions';
-      supportCountSpan.className = 'text-info';
-    }
+  // Rounded up, matching the threshold the query applies.
+  const needed = Math.max(1, Math.ceil(total * support));
+  countSpan.textContent = needed.toLocaleString();
+  const box = document.getElementById('supportInfo');
+  if (box) {
+    box.classList.toggle('is-thin', needed < 20);
+    box.title = needed < 20
+      ? 'Fewer than 20 baskets is thin evidence: a high lift on a handful of baskets is usually noise.'
+      : '';
   }
 }
 

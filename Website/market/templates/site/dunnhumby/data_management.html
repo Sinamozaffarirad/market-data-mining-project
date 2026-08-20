@@ -1,9 +1,17 @@
 {% extends "site/base.html" %}
+{% load market_icons %}
 {% block title %}Data Management{% endblock %}
+{% block favicon %}{% favicon "🗄️" %}{% endblock %}
 
 {% block extra_css %}
 <style>
-.metric-value { font-size: 1.5rem; font-weight: 700; color: var(--primary); }
+.metric-value {
+    font-size: clamp(1.8rem, 2.6vw, 2.35rem);
+    font-weight: 700;
+    color: var(--primary);
+    white-space: nowrap;
+    line-height: 1.15;
+}
 .metric-label { font-size: 0.8rem; text-transform: uppercase; color: var(--text-secondary); }
 .table-selector, .filter-section {
     background: var(--bg-tertiary, #f8f9fa);
@@ -30,6 +38,7 @@
 .data-table-container {
     overflow-x: auto;
 }
+/* Frame and banner come from analysis_shell.css, shared with the other pages. */
 .table thead th {
     position: sticky;
     top: 0;
@@ -131,6 +140,36 @@
 }
 
 /* Multi-select styling */
+/* Selection notice sits above the table. It began inside the header cell, where
+   it inherited the header's width and wrapped one word per line. */
+.selection-bar {
+    display: none;
+    border-radius: .5rem .5rem 0 0;
+    align-items: center;
+    gap: .5rem;
+    flex-wrap: wrap;
+    padding: .55rem .85rem;
+    margin-bottom: .1rem;
+    font-size: .82rem;
+    color: #1e3a8a;
+    background: #eef2ff;
+    border-bottom: 1px solid #dbe3ff;
+}
+.selection-bar:not(:empty) { display: flex; }
+.selection-bar b { font-weight: 700; }
+/* The site gives buttons a minimum height, which made this inline link 55px
+   tall and the bar three lines deep. Reset it to read as text. */
+.selection-bar .btn-link {
+    font-size: .82rem;
+    padding: 0 !important;
+    min-height: 0 !important;
+    height: auto !important;
+    line-height: inherit !important;
+    border: 0;
+    vertical-align: baseline;
+    box-shadow: none !important;
+}
+
 .table tbody tr:has(.row-checkbox:checked) {
     background-color: rgba(13, 110, 253, 0.1);
     border-left: 3px solid #0d6efd;
@@ -153,25 +192,131 @@
     background-color: #0d6efd;
     border-color: #0d6efd;
 }
+
+
+/* ---- brought in line with the other analysis pages ---------------------
+   Styling only: the controls, labels and handlers on this page are unchanged. */
+
+/* Counters read as tiles rather than four big numbers on plain boxes. */
+.analysis-frame .row.text-center .card {
+    border: 1px solid #e6e8f2;
+    border-radius: 14px;
+    box-shadow: 0 2px 12px rgba(102, 126, 234, .05);
+    transition: transform .15s ease, box-shadow .15s ease;
+}
+.analysis-frame .row.text-center .card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 10px 26px rgba(102, 126, 234, .16);
+}
+/* market_analysis_v2.css marks the counter and button rules !important, so
+   these have to say it too rather than lose quietly. */
+.analysis-frame .metric-value {
+    font-size: clamp(1.4rem, 1.9vw, 1.75rem) !important;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    -webkit-background-clip: text; background-clip: text;
+    color: transparent !important;
+}
+.analysis-frame .metric-label {
+    font-size: .68rem !important; letter-spacing: .06em;
+    font-weight: 700 !important; color: #6b7391 !important;
+}
+
+/* The viewer takes the card frame the other pages use, and its heading the
+   same weight and size as their card titles. */
+.analysis-frame > .card.shadow-sm {
+    border: 1px solid #e6e8f2; border-radius: 16px; overflow: hidden;
+    box-shadow: 0 2px 14px rgba(102, 126, 234, .06);
+}
+.analysis-frame > .card.shadow-sm > .card-header {
+    background: #fff !important; border-bottom: 1px solid #eef0f7;
+    padding: 1rem 1.2rem; font-size: .97rem !important; color: #1e2338;
+}
+
+/* The control strip was a grey slab; it becomes a panel that matches the cards. */
+.table-selector, .filter-section {
+    background: #fbfcff !important;
+    border: 1px solid #eef0f7;
+    border-radius: 14px;
+}
+.analysis-frame .form-label { font-size: .72rem; font-weight: 700 !important;
+    letter-spacing: .04em; text-transform: uppercase; color: #6b7391; }
+.analysis-frame .form-select, .analysis-frame .form-control {
+    border-radius: .55rem; border-color: #dfe3f1;
+}
+.analysis-frame .form-select:focus, .analysis-frame .form-control:focus {
+    border-color: #667eea; box-shadow: 0 0 0 .18rem rgba(102, 126, 234, .15);
+}
+
+/* One button shape across the page; the colours keep saying what they said. */
+.analysis-frame .btn { border-radius: 10px !important; font-weight: 600; }
+/* Three saturated fills -- green, red, orange -- shouted over each other and
+   over the indigo the rest of the site uses. The one action a reader takes most
+   carries the site's gradient; the other two are tinted, keeping their meaning
+   without competing, and fill in on hover. */
+.analysis-frame .btn-success {
+    background: linear-gradient(135deg, #667eea, #764ba2) !important;
+    border: none !important; color: #fff !important;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, .25);
+}
+.analysis-frame .btn-success:hover { filter: brightness(1.06); }
+
+.analysis-frame .btn-danger {
+    background: #fef2f2 !important; color: #b91c1c !important;
+    border: 1px solid #fecaca !important; box-shadow: none;
+}
+.analysis-frame .btn-danger:hover {
+    background: #b91c1c !important; color: #fff !important; border-color: #b91c1c !important;
+    filter: none;
+}
+
+.analysis-frame .btn-warning {
+    background: #fffbeb !important; color: #b45309 !important;
+    border: 1px solid #fde68a !important; box-shadow: none;
+}
+.analysis-frame .btn-warning:hover {
+    background: #b45309 !important; color: #fff !important; border-color: #b45309 !important;
+    filter: none;
+}
+
+.analysis-frame .btn-outline-secondary {
+    border-color: #dfe3f1 !important; color: #4a5170 !important; background: #fff !important;
+}
+.analysis-frame .btn-outline-secondary:hover {
+    border-color: #667eea !important; color: #667eea !important; background: #f5f6ff !important;
+}
+
+.pagination-controls { border-top: 1px solid #eef0f7; padding-top: .9rem; }
+.pagination-info { font-size: .8rem; color: #6b7391; }
+.pagination-buttons .btn { border-radius: 10px !important; }
+
+.analysis-frame .table thead th {
+    font-size: .66rem; letter-spacing: .05em; text-transform: uppercase;
+    color: #fff; font-weight: 700;
+    background: linear-gradient(135deg, #667eea, #764ba2); border-bottom: 0;
+}
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid fade-in">
+<div class="analysis-frame fade-in">
     <!-- Header -->
-    <div class="hero-section text-center mb-4">
-        <h1 class="hero-title"><i class="fas fa-database"></i> Advanced Database Management</h1>
-        <p class="hero-subtitle">View, filter, and manage your datasets in real-time.</p>
+    <div class="analysis-banner">
+        <div>
+            <div class="analysis-banner-title"><i class="fa-solid fa-database"></i> Advanced Database Management</div>
+            <div class="analysis-banner-sub">View, filter, and manage your datasets in real-time.</div>
+        </div>
+        <span class="badge bg-success px-3 py-2">{{ data_stats.total_transactions|default:0 }} transactions
+        &middot; {{ data_stats.total_products|default:0 }} products</span>
     </div>
 
     <!-- Stats Row -->
     <div class="row g-3 mb-4 text-center justify-content-center">
-        <div class="col-6 col-md-4 col-lg-2"><div class="card h-100 shadow-sm"><div class="card-body"><div class="metric-value" id="stat-transactions">{{ data_stats.total_transactions|default:0 }}</div><div class="metric-label">Transactions</div></div></div></div>
-        <div class="col-6 col-md-4 col-lg-2"><div class="card h-100 shadow-sm"><div class="card-body"><div class="metric-value">{{ data_stats.total_products|default:0 }}</div><div class="metric-label">Products</div></div></div></div>
-        <div class="col-6 col-md-4 col-lg-2"><div class="card h-100 shadow-sm"><div class="card-body"><div class="metric-value">{{ data_stats.total_households|default:0 }}</div><div class="metric-label">Households</div></div></div></div>
-        <div class="col-6 col-md-4 col-lg-2"><div class="card h-100 shadow-sm"><div class="card-body"><div class="metric-value">{{ data_stats.total_campaigns|default:0 }}</div><div class="metric-label">Campaigns</div></div></div></div>
+        <div class="col-6 col-md-4 col-lg"><div class="card h-100 shadow-sm"><div class="card-body"><div class="metric-value" id="stat-transactions">{{ data_stats.total_transactions|default:0 }}</div><div class="metric-label">Transactions</div></div></div></div>
+        <div class="col-6 col-md-4 col-lg"><div class="card h-100 shadow-sm"><div class="card-body"><div class="metric-value">{{ data_stats.total_products|default:0 }}</div><div class="metric-label">Products</div></div></div></div>
+        <div class="col-6 col-md-4 col-lg"><div class="card h-100 shadow-sm"><div class="card-body"><div class="metric-value">{{ data_stats.total_households|default:0 }}</div><div class="metric-label">Households</div></div></div></div>
+        <div class="col-6 col-md-4 col-lg"><div class="card h-100 shadow-sm"><div class="card-body"><div class="metric-value">{{ data_stats.total_campaigns|default:0 }}</div><div class="metric-label">Campaigns</div></div></div></div>
         {% comment %} <div class="col-6 col-md-4 col-lg-2"><div class="card h-100 shadow-sm"><div class="card-body"><div class="metric-value">{{ data_stats.basket_analyses|default:0 }}</div><div class="metric-label">Analyses</div></div></div></div> {% endcomment %}
-        <div class="col-6 col-md-4 col-lg-2"><div class="card h-100 shadow-sm"><div class="card-body"><div class="metric-value">{{ data_stats.association_rules|default:0 }}</div><div class="metric-label">Rules</div></div></div></div>
+        <div class="col-6 col-md-4 col-lg"><div class="card h-100 shadow-sm"><div class="card-body"><div class="metric-value">{{ data_stats.association_rules|default:0 }}</div><div class="metric-label">Rules</div></div></div></div>
     </div>
 
     <!-- Data Viewer Card -->
@@ -231,6 +376,7 @@
             </div>
 
             <!-- Data Table -->
+            <div id="selectionBanner" class="selection-bar"></div>
             <div class="data-table-container">
                 <div id="loadingSpinner" class="text-center p-5" style="display:none;">
                     <div class="loading-spinner"></div>
@@ -245,13 +391,11 @@
             <!-- Pagination -->
             <div class="pagination-controls d-flex justify-content-between align-items-center mt-3" id="paginationControls" style="display:none;">
                 <div class="pagination-info" id="paginationInfo"></div>
-                <div class="pagination-buttons btn-group">
-                    <button type="button" class="btn btn-outline-secondary" onclick="previousPage()" id="prevButton">
-                        <i class="fas fa-chevron-left"></i> Previous
-                    </button>
-                    <button type="button" class="btn btn-outline-secondary" onclick="nextPage()" id="nextButton">
-                        Next <i class="fas fa-chevron-right"></i>
-                    </button>
+                <div class="pager" style="margin:0">
+                    <button type="button" class="pager-btn" onclick="firstPage()" id="firstButton">&laquo;&laquo; First</button>
+                    <button type="button" class="pager-btn" onclick="previousPage()" id="prevButton">Previous</button>
+                    <button type="button" class="pager-btn" onclick="nextPage()" id="nextButton">Next</button>
+                    <button type="button" class="pager-btn" onclick="lastPage()" id="lastButton">Last &raquo;&raquo;</button>
                 </div>
             </div>
         </div>
@@ -306,6 +450,7 @@
 // State management
 let currentTable = '';
 let currentPage = 1;
+let lastTableTotal = 0;
 let totalPages = 1;
 const pageSize = 50;
 const schemaCache = {};
@@ -462,7 +607,9 @@ async function loadTableData() {
         if (json.error) throw new Error(json.error);
 
         tableDataCache[currentTable] = json.data; // Store data for easy access
+        lastTableTotal = json.total || 0;
         buildTable(json);
+        restoreSelectionOnPage();
         totalPages = json.pages || 1;
         updatePaginationInfo(json);
         document.getElementById('dataTable').style.display = 'table';
@@ -551,7 +698,7 @@ function buildTable(json) {
             const selectTd = document.createElement('td');
             selectTd.innerHTML = `
                 <div class="form-check">
-                    <input class="form-check-input row-checkbox" type="checkbox" value="${recordId}" onchange="updateSelectedCount()">
+                    <input class="form-check-input row-checkbox" type="checkbox" value="${recordId}" onchange="toggleRowSelection(this)">
                 </div>
             `;
             tr.appendChild(selectTd);
@@ -662,6 +809,7 @@ function editCell(cell, recordId, field) {
 
 function applyFilters() {
     currentPage = 1;
+    selectedIds.clear();
     loadTableData();
 }
 
@@ -674,6 +822,8 @@ function clearFilters() {
     applyFilters();
 }
 
+function firstPage() { if (currentPage !== 1) { currentPage = 1; loadTableData(); } }
+function lastPage() { if (currentPage !== totalPages) { currentPage = totalPages; loadTableData(); } }
 function previousPage() { if (currentPage > 1) { currentPage--; loadTableData(); } }
 function nextPage() { if (currentPage < totalPages) { currentPage++; loadTableData(); } }
 
@@ -686,6 +836,16 @@ function updatePaginationInfo(json) {
 
     document.getElementById('prevButton').disabled = !json.has_prev;
     document.getElementById('nextButton').disabled = !json.has_next;
+
+    // The ends disable with the neighbours rather than staying live at page one.
+    const firstBtn = document.getElementById('firstButton');
+    const lastBtn = document.getElementById('lastButton');
+    const prevBtn = document.getElementById('prevButton');
+    const nextBtn = document.getElementById('nextButton');
+    if (prevBtn) prevBtn.disabled = currentPage <= 1;
+    if (firstBtn) firstBtn.disabled = currentPage <= 1;
+    if (nextBtn) nextBtn.disabled = currentPage >= totalPages;
+    if (lastBtn) lastBtn.disabled = currentPage >= totalPages;
 }
 
 // --- CRUD Functions ---
@@ -880,59 +1040,121 @@ document.getElementById('globalSearch').addEventListener('keyup', (event) => {
 
 // --- Multi-Select Functions ---
 
+/* Selection used to be whatever was ticked in the DOM, so it covered one page
+   and was lost on paging. It lives in this set instead: the boxes are a view of
+   it, and "select all matching" fills it from the server for the whole query. */
+const selectedIds = new Set();
+let selectionCapped = false;
+
 function toggleSelectAll() {
     const selectAllCheckbox = document.getElementById('selectAll');
-    const rowCheckboxes = document.querySelectorAll('.row-checkbox');
-
-    rowCheckboxes.forEach(checkbox => {
+    document.querySelectorAll('.row-checkbox').forEach(checkbox => {
         checkbox.checked = selectAllCheckbox.checked;
+        if (checkbox.checked) selectedIds.add(String(checkbox.value));
+        else selectedIds.delete(String(checkbox.value));
     });
-
     updateSelectedCount();
 }
 
-function updateSelectedCount() {
-    const selectedCheckboxes = document.querySelectorAll('.row-checkbox:checked');
-    const selectedCount = selectedCheckboxes.length;
-    const totalCheckboxes = document.querySelectorAll('.row-checkbox').length;
+function toggleRowSelection(checkbox) {
+    if (checkbox.checked) selectedIds.add(String(checkbox.value));
+    else selectedIds.delete(String(checkbox.value));
+    updateSelectedCount();
+}
 
-    // Update selected count display
-    const countElement = document.getElementById('selectedCount');
-    if (countElement) {
-        countElement.textContent = selectedCount;
-    }
+/* Re-ticks the boxes for rows already chosen, after a page turn or a re-sort. */
+function restoreSelectionOnPage() {
+    document.querySelectorAll('.row-checkbox').forEach(checkbox => {
+        checkbox.checked = selectedIds.has(String(checkbox.value));
+    });
+    updateSelectedCount();
+}
 
-    // Show/hide bulk delete button
-    const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
-    if (bulkDeleteBtn) {
-        if (selectedCount > 0) {
-            bulkDeleteBtn.style.display = 'inline-block';
-            bulkDeleteBtn.disabled = false;
+function clearSelection() {
+    selectedIds.clear();
+    selectionCapped = false;
+    document.querySelectorAll('.row-checkbox').forEach(c => { c.checked = false; });
+    updateSelectedCount();
+}
+
+/* Selects every row the current search and filters match, not just the page. */
+async function selectAllMatching() {
+    const banner = document.getElementById('selectionBanner');
+    if (banner) banner.innerHTML = '<span class="text-muted">Fetching matching rows&hellip;</span>';
+    try {
+        const form = new FormData();
+        form.append('csrfmiddlewaretoken', csrftoken);
+        form.append('table_name', currentTable);
+        form.append('search', document.getElementById('globalSearch').value);
+        form.append('filters', JSON.stringify(collectFilters()));
+        form.append('ids_only', '1');
+        const response = await fetch('/analysis/api/table/', {method: 'POST', body: form});
+        const json = await response.json();
+        if (json.error) throw new Error(json.error);
+        selectionCapped = !!json.capped;
+        json.ids.forEach(id => selectedIds.add(String(id)));
+        restoreSelectionOnPage();
+        if (json.capped) {
+            showNotification(
+                `Selected the first ${json.ids.length.toLocaleString()} of ` +
+                `${json.total.toLocaleString()} matching rows. Deleting sends one request per ` +
+                `record, so the selection stops there. Narrow the filters to reach the rest.`,
+                'warning');
         } else {
-            bulkDeleteBtn.style.display = 'none';
-            bulkDeleteBtn.disabled = true;
+            showNotification(`Selected all ${json.ids.length.toLocaleString()} matching rows.`, 'success');
         }
-    }
-
-    // Update "Select All" checkbox state
-    const selectAllCheckbox = document.getElementById('selectAll');
-    if (selectAllCheckbox) {
-        if (selectedCount === 0) {
-            selectAllCheckbox.checked = false;
-            selectAllCheckbox.indeterminate = false;
-        } else if (selectedCount === totalCheckboxes) {
-            selectAllCheckbox.checked = true;
-            selectAllCheckbox.indeterminate = false;
-        } else {
-            selectAllCheckbox.checked = false;
-            selectAllCheckbox.indeterminate = true;
-        }
+    } catch (error) {
+        showNotification(`Could not select all rows: ${error.message}`, 'error');
+        updateSelectedCount();
     }
 }
 
+function updateSelectedCount() {
+    const selectedCount = selectedIds.size;
+    const pageBoxes = document.querySelectorAll('.row-checkbox');
+    const pageChecked = document.querySelectorAll('.row-checkbox:checked').length;
+
+    const countElement = document.getElementById('selectedCount');
+    if (countElement) countElement.textContent = selectedCount;
+
+    const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
+    if (bulkDeleteBtn) {
+        bulkDeleteBtn.style.display = selectedCount > 0 ? 'inline-block' : 'none';
+        bulkDeleteBtn.disabled = selectedCount === 0;
+    }
+
+    const selectAllCheckbox = document.getElementById('selectAll');
+    if (selectAllCheckbox) {
+        selectAllCheckbox.checked = pageBoxes.length > 0 && pageChecked === pageBoxes.length;
+        selectAllCheckbox.indeterminate = pageChecked > 0 && pageChecked < pageBoxes.length;
+    }
+
+    /* Says plainly whether the selection is this page or the whole result, and
+       offers the other one. */
+    const banner = document.getElementById('selectionBanner');
+    if (!banner) return;
+    const total = lastTableTotal || 0;
+    if (!selectedCount || total <= pageBoxes.length) { banner.innerHTML = ''; return; }
+    if (selectionCapped && selectedCount < total) {
+        banner.innerHTML = `<b>${selectedCount.toLocaleString()}</b> selected &mdash; the most that
+            can be acted on at once, out of <b>${total.toLocaleString()}</b> matching.
+            Narrow the filters to reach the rest.
+            <button type="button" class="btn btn-link btn-sm p-0 align-baseline"
+                    onclick="clearSelection()">Clear selection</button>`;
+        return;
+    }
+    banner.innerHTML = selectedCount >= total
+        ? `All <b>${total.toLocaleString()}</b> matching rows are selected.
+           <button type="button" class="btn btn-link btn-sm p-0 align-baseline"
+                   onclick="clearSelection()">Clear selection</button>`
+        : `<b>${selectedCount.toLocaleString()}</b> selected.
+           <button type="button" class="btn btn-link btn-sm p-0 align-baseline"
+                   onclick="selectAllMatching()">Select all ${total.toLocaleString()} matching rows</button>`;
+}
+
 function getSelectedRecords() {
-    const selectedCheckboxes = document.querySelectorAll('.row-checkbox:checked');
-    return Array.from(selectedCheckboxes).map(checkbox => checkbox.value);
+    // Read from the selection itself, so rows chosen on other pages are included.
+    return Array.from(selectedIds);
 }
 
 function confirmBulkDelete() {
@@ -994,6 +1216,9 @@ async function performBulkDelete(recordIds) {
 
                 if (result.success) {
                     successCount++;
+                    // Deleted rows leave the selection, so a later action cannot
+                    // try to act on them again.
+                    selectedIds.delete(String(recordId));
                 } else {
                     failCount++;
                     errors.push(`Record ${recordId}: ${result.error || 'Unknown error'}`);
@@ -1034,6 +1259,16 @@ async function performBulkDelete(recordIds) {
 
 // Reset multi-select state when table data is loaded
 function resetMultiSelectState() {
+    /* Ids identify rows of one table, so a selection cannot survive a change of
+       table: carrying it over would point a delete at whatever happened to hold
+       the same key elsewhere. */
+    selectedIds.clear();
+    selectionCapped = false;
+    const banner = document.getElementById('selectionBanner');
+    if (banner) banner.innerHTML = '';
+    const headerBox = document.getElementById('selectAll');
+    if (headerBox) { headerBox.checked = false; headerBox.indeterminate = false; }
+
     const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
     if (bulkDeleteBtn) {
         bulkDeleteBtn.style.display = 'none';

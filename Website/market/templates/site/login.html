@@ -307,6 +307,11 @@
             font-weight: 500;
         }
 
+        .university-year a {
+            color: inherit;
+            text-decoration: none;
+        }
+
         .password-toggle {
             position: absolute;
             right: 1rem;
@@ -434,10 +439,12 @@
         </div>
 
         <div class="university-footer">
-            <img src="{% static 'images/kuLogo.png' %}" alt="University of Kashan Logo" class="university-logo">
+            <a href="https://kashanu.ac.ir/en" target="_blank" rel="noopener noreferrer" aria-label="Visit the University of Kashan website">
+                <img src="{% static 'images/kuLogo.png' %}" alt="University of Kashan Logo" class="university-logo">
+            </a>
             <div class="university-name">University of Kashan</div>
             <div class="university-dept">Computer Engineering Department</div>
-            <div class="university-year">© 2025 • Protected by Django Authentication</div>
+            <div class="university-year">© 2026 • <a href="https://www.djangoproject.com/" target="_blank" rel="noopener noreferrer">Protected by Django Authentication</a></div>
         </div>
     </div>
 

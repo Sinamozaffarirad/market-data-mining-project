@@ -1,5 +1,7 @@
 {% extends "site/base.html" %}
-{% block title %}Customer Segmentation{% endblock %}
+{% load market_icons %}
+{% block title %}Customer Segments{% endblock %}
+{% block favicon %}{% favicon "👥" %}{% endblock %}
 {% block content %}
 
 {% comment %} change it!! {% endcomment %}
@@ -124,13 +126,40 @@
   max-height: none;
   overflow-x: auto;
   overflow-y: visible;
+  position: relative;
+}
+#churnExperimentForm ~ .table-responsive table {
+  border-collapse: separate;
+  border-spacing: 0;
 }
 #churnExperimentForm ~ .table-responsive thead {
-  position: static;
+  display: table;
+  width: 100%;
+  table-layout: fixed;
 }
-#churnExperimentForm ~ .table-responsive thead th:first-child::after {
+#churnExperimentForm ~ .table-responsive tbody {
+  display: block;
+  max-height: 500px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: #7650b5 #edf0f4;
+}
+#churnExperimentForm ~ .table-responsive tbody tr {
+  display: table;
+  width: 100%;
+  table-layout: fixed;
+}
+#churnExperimentForm ~ .table-responsive thead th {
+  background: var(--gradient-primary);
+  color: #fff;
+}
+#churnExperimentForm ~ .table-responsive thead th:last-child {
+  border-top-right-radius: .5rem;
+}
+/* #churnExperimentForm ~ .table-responsive thead th:first-child::after {
   content: " (Iran)";
-}
+} */
 #churnExperimentForm ~ .table-responsive table {
   min-width: 1120px;
   width: 100%;
@@ -163,10 +192,18 @@
 }
 .experiment-actions > * { justify-self: center; }
 .experiment-settings {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 28px;
+  align-items: center;
+  width: 100%;
+  box-sizing: border-box;
+  padding-right: 1rem;
+  white-space: nowrap;
+}
+.experiment-setting-chips {
   display: inline-flex;
   align-items: center;
   gap: .3rem;
-  white-space: nowrap;
 }
 .experiment-setting-chip {
   display: inline-block;
@@ -183,21 +220,139 @@
   color: #0d6efd;
   text-decoration: none;
 }
+.segmentation-dashboard-card { overflow: hidden; }
+.segmentation-dashboard-card > .card-header {
+  padding: 1.1rem 1.25rem;
+  font-size: 1.05rem;
+}
+.experiment-confirm-dialog {
+  width: min(calc(100% - 2rem), 470px);
+  padding: 0;
+  border: 0;
+  border-radius: .85rem;
+  box-shadow: 0 1.2rem 3rem rgba(16, 24, 40, .3);
+  overflow: hidden;
+}
+.experiment-confirm-dialog::backdrop { background: rgba(19, 26, 45, .58); backdrop-filter: blur(2px); }
+.experiment-confirm-header { padding: 1rem 1.25rem; background: var(--gradient-primary); color: #fff; font-weight: 700; }
+.experiment-confirm-body { padding: 1.25rem; color: #26364d; }
+.experiment-confirm-actions { display: flex; justify-content: flex-end; gap: .65rem; padding: 0 1.25rem 1.25rem; }
+.experiment-detail-rule {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  background: #f5f7ff;
+  border: 1px solid #dce3ff;
+  border-radius: .7rem;
+}
+.experiment-detail-eyebrow { color: #6674df; font-size: .75rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+.experiment-detail-rule h6 { margin: .2rem 0; font-weight: 700; }
+.experiment-detail-cutoff { min-width: 120px; padding-left: 1rem; border-left: 1px solid #d5dcf3; }
+.experiment-detail-cutoff strong { display: block; color: #314fba; font-size: 1.65rem; line-height: 1.1; }
+.experiment-detail-metric { height: 100%; padding: .8rem; border: 1px solid #e3e7ef; border-radius: .65rem; background: #fff; }
+.experiment-detail-metric .label { color: #64748b; font-size: .75rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.experiment-detail-metric .value { margin-top: .2rem; color: #1e293b; font-size: 1.25rem; font-weight: 700; }
+.experiment-detail-section { margin-top: 1rem; padding: 1rem; border: 1px solid #e3e7ef; border-radius: .7rem; }
+.experiment-detail-section-title { margin-bottom: .75rem; color: #27354b; font-size: .95rem; font-weight: 700; }
+.experiment-detail-check { padding: .65rem .75rem; background: #f8fafc; border-radius: .5rem; }
+.experiment-detail-check .value { display: block; color: #26364d; font-size: 1.15rem; font-weight: 700; }
+.experiment-technical details { margin-top: 1rem; border: 1px solid #e3e7ef; border-radius: .7rem; overflow: hidden; }
+.experiment-technical summary { padding: .85rem 1rem; cursor: pointer; color: #314fba; font-weight: 700; background: #f8f9ff; }
+.experiment-technical-content { padding: 1rem; }
+.experiment-parameter-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .5rem; margin-top: .75rem; }
+.experiment-parameter { padding: .55rem .65rem; color: #44546a; font-size: .85rem; background: #f8fafc; border-radius: .45rem; }
+@media (max-width: 575.98px) { .experiment-detail-rule { display: block; } .experiment-detail-cutoff { margin-top: .85rem; padding: .85rem 0 0; border-top: 1px solid #d5dcf3; border-left: 0; } }
 @media (min-width: 768px) {
   /* Keep the Train button aligned right when Non-overlapping hides the step control. */
   #stepControl.d-none + div {
     margin-left: auto;
   }
 }
+
+/* ---- shared card system -------------------------------------------------
+   Matches the association-rules and basket-mining pages. Styling only: every
+   control, label and figure on this page is left exactly as it was. */
+.cs-page {
+  --rev-1:#667eea; --rev-2:#764ba2; --rev-ink:#1e2338; --rev-muted:#6b7391; --rev-line:#e6e8f2;
+}
+/* Banner comes from analysis_shell.css. */
+.cs-page .cs-title {
+  font-size:1.2rem; font-weight:700; color:#fff;
+  display:flex; align-items:center; gap:.5rem;
+}
+.cs-page .segmentation-dashboard-card {
+  border:1px solid var(--rev-line); border-radius:16px; overflow:hidden;
+  box-shadow:0 2px 14px rgba(102,126,234,.06);
+}
+/* Inner panels take the same border, radius and lift as the cards elsewhere. */
+.cs-page .card:not(.segmentation-dashboard-card) {
+  border:1px solid var(--rev-line); border-radius:14px;
+  box-shadow:0 2px 12px rgba(102,126,234,.05);
+}
+.cs-page .segment-card, .cs-page .churn-card,
+.cs-page .household-card, .cs-page .guide-card {
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+.cs-page .segment-card:hover, .cs-page .churn-card:hover,
+.cs-page .household-card:hover, .cs-page .guide-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 26px rgba(102,126,234,.16);
+}
+.cs-page h5 { font-size:.97rem; font-weight:700; color:var(--rev-ink); }
+.cs-page .form-select, .cs-page .form-control {
+  border-radius:.55rem; border-color:#dfe3f1;
+}
+.cs-page .form-select:focus, .cs-page .form-control:focus {
+  border-color: var(--rev-1); box-shadow: 0 0 0 .18rem rgba(102,126,234,.15);
+}
+.cs-page .btn-primary {
+  background:linear-gradient(135deg, var(--rev-1), var(--rev-2)); border:none;
+  border-radius:10px; font-weight:600;
+}
+.cs-page .btn-primary:hover { filter:brightness(1.06); }
+.cs-page .table thead th {
+  font-size:.66rem; letter-spacing:.05em; text-transform:uppercase;
+  color:#fff; font-weight:700;
+  background:linear-gradient(135deg, var(--rev-1), var(--rev-2));
+  border-bottom:0;
+}
+
+/* The three scores sat in a justify-between row with no gap, so at card width
+   the words ran together as RECENCYFREQUENCYMONETARY. Equal columns with a gap,
+   and a label size that fits the longest of the three. */
+.cs-page .rfm-row { display: flex; gap: .5rem; }
+.cs-page .rfm-row > div { flex: 1 1 0; min-width: 0; }
+.cs-page .rfm-label {
+  font-size: .58rem; font-weight: 700; letter-spacing: .02em;
+  text-transform: uppercase; color: #8b91a7; line-height: 1.2;
+}
+/* "Transactions" was breaking mid-word into "Transactio ns". */
+.cs-page .card-facts > [class^="col"] { font-size: .72rem; line-height: 1.3; }
+.cs-page .card-facts { word-break: keep-all; overflow-wrap: normal; hyphens: none; }
 </style>
 
 
+<!-- The white page frame the other analysis pages sit on. This page put its
+     content straight onto the grey background. -->
+<div class="module cs-page">
+  <div class="p-4">
 <div class="row g-4">
   <div class="col-12">
-    <div class="card shadow-sm">
-      <div class="card-header" style="background:var(--gradient-primary); color:#fff; font-weight:700;">
-        <i class="fas fa-users"></i> Customer Segmentation Dashboard
+    <!-- Same banner the association-rules and basket-mining pages use: a rounded
+         bar standing above the card rather than a header flush inside it. -->
+    <div class="analysis-banner">
+      <div>
+        <div class="analysis-banner-title"><i class="fas fa-users"></i> Customer Segmentation Dashboard</div>
+        <div class="analysis-banner-sub">Who the customers are and who is drifting away, grouped by how
+        recently and how often they buy and how much they spend, with churn risk from the active
+        model.</div>
       </div>
+      {% if segments %}<span class="badge bg-success px-3 py-2">{{ segments|length }} RFM segments
+      &middot; as of day {{ lifetime_rfm_cutoff_day|default:"N/A" }}</span>{% endif %}
+    </div>
+    <div class="card shadow-sm segmentation-dashboard-card">
       <div class="card-body">
         <div class="row g-4">
           <div class="col-12">
@@ -252,7 +407,7 @@
 				<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
 				  <div><h5 class="mb-1"><i class="fa-solid fa-clock-rotate-left me-2 text-primary"></i>Churn Dataset Generation Method</h5>
 				  <small class="text-muted">Historical windows create labels from this fixed dataset. Training creates a model version; it does not add new customer transactions.</small></div>
-				  {% if active_experiment %}<span class="badge bg-success">Active: {{ active_experiment.method|title }} · {{ active_experiment.observation_window_days }}d / {{ active_experiment.prediction_horizon_days }}d</span>{% else %}<span class="badge bg-secondary">No active time-window model</span>{% endif %}
+				  {% if active_experiment %}<span class="badge bg-success">Active Model: {{ active_experiment.method|title }} · {{ active_experiment.observation_window_days }}d / {{ active_experiment.prediction_horizon_days }}d / {{ active_experiment.step_size_days }}d</span>{% else %}<span class="badge bg-secondary">No active time-window model</span>{% endif %}
 				</div>
 				<form id="churnExperimentForm" class="row g-3 align-items-end">
 				  <div class="col-md-3"><label class="form-label">Method</label><select class="form-select" name="method" id="windowMethod"><option value="sliding">Sliding Windows</option><option value="non_overlapping">Non-overlapping Windows</option></select></div>
@@ -265,8 +420,7 @@
 				<div class="small text-muted">Classification cutoff is chosen from validation data for Recall and F1 evaluation; it does not change the prediction horizon or dashboard risk categories.</div>
 				<div id="windowBoundaryStatus" class="alert mt-2 mb-0 py-2 small" data-min-day="{{ dataset_day_bounds.min_day|default:'' }}" data-max-day="{{ dataset_day_bounds.max_day|default:'' }}" role="status"></div>
 				<div class="small text-primary mt-1 d-none" id="trainingProgress"></div>
-					{% if experiments_page %}<div class="table-responsive mt-3"><table class="table table-sm align-middle mb-0"><thead><tr><th>Generated at</th><th>Method</th><th>Settings</th><th>Samples</th><th>Recall</th><th>F1</th><th>ROC-AUC</th><th title="Probability threshold used only to calculate Recall and F1.">Cutoff</th><th></th></tr></thead><tbody>{% for experiment in experiments_page %}<tr><td>{{ experiment.created_at|date:"Y-m-d H:i" }}</td><td>{{ experiment.method|title }}</td><td><div class="experiment-settings"><span class="experiment-setting-chip" title="Observation window">O {{ experiment.observation_window_days }}d</span><span class="experiment-setting-chip" title="Prediction horizon">H {{ experiment.prediction_horizon_days }}d</span><span class="experiment-setting-chip" title="{% if experiment.method == 'non_overlapping' %}Automatic step size{% else %}Sliding step size{% endif %}">S {{ experiment.step_size_days }}d</span><button type="button" class="btn btn-link btn-sm experiment-details" data-id="{{ experiment.id }}" title="View rule details" aria-label="View rule details"><i class="fa-solid fa-circle-info"></i></button></div></td><td>{{ experiment.training_samples }}</td><td>{{ experiment.recall|floatformat:3 }}</td><td>{{ experiment.f1|floatformat:3 }}</td><td>{{ experiment.roc_auc|floatformat:3 }}</td><td>{{ experiment.classification_threshold|floatformat:2 }}</td><td>{% if experiment.is_active %}<span class="badge bg-success">Active</span>{% else %}<button class="btn btn-sm btn-outline-primary activate-experiment" data-id="{{ experiment.id }}">Activate</button>{% endif %}</td></tr>{% empty %}<tr><td colspan="9" class="text-center text-muted">No churn experiments have been generated yet.</td></tr>{% endfor %}</tbody></table></div>
-					{% if experiments_page.paginator.num_pages > 1 %}<nav class="d-flex justify-content-between align-items-center mt-3" aria-label="Churn experiment pages"><span class="small text-muted">Page {{ experiments_page.number }} of {{ experiments_page.paginator.num_pages }} · {{ experiments_page.paginator.count }} experiments</span><div class="btn-group btn-group-sm">{% if experiments_page.has_previous %}<a class="btn btn-outline-secondary" href="?experiments_page={{ experiments_page.previous_page_number }}">Previous</a>{% else %}<button class="btn btn-outline-secondary" disabled>Previous</button>{% endif %}{% if experiments_page.has_next %}<a class="btn btn-outline-secondary" href="?experiments_page={{ experiments_page.next_page_number }}">Next</a>{% else %}<button class="btn btn-outline-secondary" disabled>Next</button>{% endif %}</div></nav>{% endif %}{% endif %}
+					{% if visible_experiments %}<div class="table-responsive mt-3"><table class="table table-sm align-middle mb-0"><thead><tr><th>Generated at</th><th>Method</th><th>Settings</th><th>Samples</th><th>Recall</th><th>F1</th><th>ROC-AUC</th><th title="Probability threshold used only to calculate Recall and F1.">Cutoff</th><th></th></tr></thead><tbody>{% for experiment in visible_experiments %}<tr><td>{{ experiment.created_at|date:"Y-m-d H:i" }}</td><td>{{ experiment.method|title }}</td><td><div class="experiment-settings"><div class="experiment-setting-chips"><span class="experiment-setting-chip" title="Observation window">O {{ experiment.observation_window_days }}d</span><span class="experiment-setting-chip" title="Prediction horizon">H {{ experiment.prediction_horizon_days }}d</span><span class="experiment-setting-chip" title="{% if experiment.method == 'non_overlapping' %}Automatic step size{% else %}Sliding step size{% endif %}">S {{ experiment.step_size_days }}d</span></div><button type="button" class="btn btn-link btn-sm experiment-details" data-id="{{ experiment.id }}" title="View rule details" aria-label="View rule details"><i class="fa-solid fa-circle-info"></i></button></div></td><td>{{ experiment.training_samples }}</td><td>{{ experiment.recall|floatformat:3 }}</td><td>{{ experiment.f1|floatformat:3 }}</td><td>{{ experiment.roc_auc|floatformat:3 }}</td><td>{{ experiment.classification_threshold|floatformat:2 }}</td><td>{% if experiment.is_active %}<span class="badge bg-success">Active</span>{% else %}<button class="btn btn-sm btn-outline-primary activate-experiment" data-id="{{ experiment.id }}">Activate</button>{% endif %}</td></tr>{% empty %}<tr><td colspan="9" class="text-center text-muted">No churn experiments have been generated yet.</td></tr>{% endfor %}</tbody></table></div>{% endif %}
 			  </div>
 			</div>
 		  </div>
@@ -307,12 +461,13 @@
 
           <div class="col-12">
             <div class="d-flex align-items-center justify-content-between mb-2">
-              <h5 class="m-2">Recent Customer Analysis</h5>
-              {% if recent_customers %}<small class="text-muted">Detailed profiles with RFM and spending behavior</small>{% endif %}
+              <h5 class="m-2">Active Model Customer Snapshot</h5>
+              {% if active_experiment %}<small class="text-muted">Up to 5 customers per risk level, ranked by active churn probability and customer total spend</small>{% endif %}
             </div>
-            {% if recent_customers %}
-            <div class="row g-3">
-				{% for c in recent_customers %}
+			{% if customer_risk_groups %}
+			<div class="row g-3">
+			{% for group in customer_risk_groups %}
+				{% for c in group.customers %}
 				<div class="col-12 col-sm-6 col-md-4 col-lg-3">
 				<div class="card h-100 shadow-sm household-card" data-household="{{ c.household_key }}" style="cursor:pointer;">
 					<div class="card-body">
@@ -350,13 +505,13 @@
 						</div>
 					</div>
 
-					<div class="d-flex justify-content-between text-center my-2">
-						<div><div class="text-muted small">RECENCY</div><div class="fw-bold fs-5">{{ c.recency_score }}</div></div>
-						<div><div class="text-muted small">FREQUENCY</div><div class="fw-bold fs-5">{{ c.frequency_score }}</div></div>
-						<div><div class="text-muted small">MONETARY</div><div class="fw-bold fs-5">{{ c.monetary_score }}</div></div>
+					<div class="rfm-row text-center my-2">
+						<div><div class="rfm-label">RECENCY</div><div class="fw-bold fs-5">{{ c.recency_score }}</div></div>
+						<div><div class="rfm-label">FREQUENCY</div><div class="fw-bold fs-5">{{ c.frequency_score }}</div></div>
+						<div><div class="rfm-label">MONETARY</div><div class="fw-bold fs-5">{{ c.monetary_score }}</div></div>
 					</div>
 					<hr class="my-2"/>
-					<div class="row text-center g-2 small text-muted">
+					<div class="row text-center g-2 small text-muted card-facts">
 						<div class="col-4">Total Spend<br><span class="text-body fw-semibold">${{ c.total_spend|floatformat:2 }}</span></div>
 						<div class="col-4">Transactions<br><span class="text-body fw-semibold">{{ c.total_transactions }}</span></div>
 						<div class="col-4">Avg. Basket<br><span class="text-body fw-semibold">${{ c.avg_basket_value|floatformat:2 }}</span></div>
@@ -365,11 +520,14 @@
 					</div>
 				</div>
 				</div>
-				{% endfor %}	
-            </div>
-            {% else %}
-              <div class="info-box">No customer data available.</div>
-            {% endif %}
+				{% endfor %}
+			{% endfor %}
+			</div>
+			{% elif active_experiment %}
+				<div class="info-box">No active-model customer scores are available.</div>
+			{% else %}
+				<div class="info-box">Activate a churn rule to view a balanced customer snapshot.</div>
+			{% endif %}
           </div>
           
           <div class="col-12">
@@ -387,7 +545,6 @@
 						<div class="mb-2"><span class="badge badge-base bg-regular-customers">Regular Customers</span> Consistent shoppers but not exceptional. Upsell opportunities.</div>
 						<div class="mb-2"><span class="badge badge-base bg-need-attention">Need Attention</span> Good customers (high F & M) who haven't purchased recently.</div>
 						<div class="mb-2"><span class="badge badge-base bg-at-risk">At Risk</span> Average customers who haven't shopped recently.</div>
-						<div class="mb-2"><span class="badge badge-base bg-cant-lose-them">Can't Lose Them</span> Your best customers who are on the verge of churning.</div>
 						<div class="mb-2"><span class="badge badge-base bg-hibernating">Hibernating</span> Low activity customers who might be lost.</div>
 						<div class="mb-2"><span class="badge badge-base bg-lost">Lost</span> Lowest scores across all dimensions.</div>
 					</div>
@@ -412,8 +569,18 @@
     </div>
   </div>
 </div>
+  </div>
+</div>
 
-<div id="generatedExperimentData" class="d-none" data-experiments='[{% for experiment in experiments_page %}{"id":{{ experiment.id }},"active":{% if experiment.is_active %}true{% else %}false{% endif %}}{% if not forloop.last %},{% endif %}{% endfor %}]'></div>
+<div id="generatedExperimentData" class="d-none" data-experiments='[{% for experiment in visible_experiments %}{"id":{{ experiment.id }},"active":{% if experiment.is_active %}true{% else %}false{% endif %}}{% if not forloop.last %},{% endif %}{% endfor %}]'></div>
+<dialog id="experimentConfirmDialog" class="experiment-confirm-dialog" aria-labelledby="experimentConfirmTitle">
+  <div class="experiment-confirm-header" id="experimentConfirmTitle">Confirm action</div>
+  <div class="experiment-confirm-body"><p class="mb-0" id="experimentConfirmMessage"></p></div>
+  <div class="experiment-confirm-actions">
+    <button type="button" class="btn btn-outline-secondary" id="experimentConfirmCancel">Cancel</button>
+    <button type="button" class="btn btn-primary" id="experimentConfirmAccept">Confirm</button>
+  </div>
+</dialog>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const csrftoken = (document.cookie.split('; ').find(r => r.startsWith('csrftoken=')) || '').split('=')[1] || '';
@@ -520,9 +687,11 @@ document.addEventListener('DOMContentLoaded', function() {
         const endItem = Math.min(p.current_page * itemsPerPage, p.total_items);
         let footerHtml = `<div class="d-flex justify-content-between w-100 align-items-center">
             <span class="text-muted small">Showing ${startItem}-${endItem} of ${p.total_items} records</span>
-            <div>
-                <a href="#" class="text-decoration-none ${p.has_previous ? '' : 'text-muted disabled'}" data-page="${p.current_page - 1}" id="prev-page-btn">&lt; Previous</a>
-                <a href="#" class="text-decoration-none ms-3 ${p.has_next ? '' : 'text-muted disabled'}" data-page="${p.current_page + 1}" id="next-page-btn">Next &gt;</a>
+            <div class="pager" style="margin:0">
+                <a href="#" class="page-link ${p.has_previous ? '' : 'disabled'}" data-page="1" id="first-page-btn">&laquo;&laquo; First</a>
+                <a href="#" class="page-link ${p.has_previous ? '' : 'disabled'}" data-page="${p.current_page - 1}" id="prev-page-btn">Previous</a>
+                <a href="#" class="page-link ${p.has_next ? '' : 'disabled'}" data-page="${p.current_page + 1}" id="next-page-btn">Next</a>
+                <a href="#" class="page-link ${p.has_next ? '' : 'disabled'}" data-page="${p.total_pages}" id="last-page-btn">Last &raquo;&raquo;</a>
             </div>
         </div>`;
 
@@ -543,7 +712,9 @@ document.addEventListener('DOMContentLoaded', function() {
         const type = detailModalEl.dataset.type;
         const identifier = detailModalEl.dataset.identifier;
 
-        if (target.id === 'next-page-btn' || target.id === 'prev-page-btn') {
+        // Any pager link carrying a page number, so First and Last work like the
+        // two that were here before rather than needing their ids listed.
+        if (target.dataset.page !== undefined) {
             event.preventDefault();
             if (!target.classList.contains('disabled')) {
                 const page = target.dataset.page;
@@ -727,7 +898,6 @@ function refreshDashboard(showNewestExperiment = false) {
     // are rendered from the server rather than an older browser page.
     const nextUrl = new URL(window.location.href);
     nextUrl.searchParams.set('refresh', Date.now().toString());
-    if (showNewestExperiment) nextUrl.searchParams.set('experiments_page', '1');
     window.location.assign(nextUrl.toString());
 }
 
@@ -739,17 +909,20 @@ document.getElementById('churnExperimentForm').addEventListener('submit', async 
     button.disabled = true;
     button.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Training…';
     progress.classList.remove('d-none');
-    progress.textContent = 'Building time windows and training models… 0s elapsed';
+    progress.textContent = 'Checking reusable cache, then training only if needed… 0s elapsed';
     const progressTimer = window.setInterval(() => {
-        progress.textContent = `Building time windows and training models… ${Math.floor((Date.now() - startedAt) / 1000)}s elapsed`;
-    }, 1000);
+        progress.textContent = `Checking reusable cache, then training only if needed… ${Math.floor((Date.now() - startedAt) / 1000)}s elapsed`;    }, 1000);
     try {
         const response = await fetch('/analysis/api/churn/experiments/run/', {method: 'POST', body: new FormData(this)});
         const payload = await response.json();
         if (!payload.success) throw new Error(payload.error || 'Training failed.');
         const history = payload.history || {};
         const elapsed = Number(payload.experiment.elapsed_seconds || 0).toFixed(1);
-        showNotification('Experiment complete', `Finished in ${elapsed}s. Recall ${payload.experiment.recall.toFixed(3)}, F1 ${payload.experiment.f1.toFixed(3)}. Saved ${history.window_records || 0} window-history records, including ${history.scored_records || 0} scored checkpoints. Activate it when you are ready.`, 'success');
+        const restored = Boolean(payload.experiment.restored_from_model_cache);
+        const message = restored
+            ? `Restored the identical saved model result in ${elapsed}s. No model retraining was needed. Recall ${payload.experiment.recall.toFixed(3)}, F1 ${payload.experiment.f1.toFixed(3)}. Activate it when you are ready.`
+            : `Trained in ${elapsed}s. Recall ${payload.experiment.recall.toFixed(3)}, F1 ${payload.experiment.f1.toFixed(3)}. Saved ${history.window_records || 0} window-history records, including ${history.scored_records || 0} scored checkpoints. Future identical rules can restore this result without retraining.`;
+        showNotification(restored ? 'Experiment restored from cache' : 'Experiment complete', message, 'success');
         window.setTimeout(() => refreshDashboard(true), 1200);
     } catch (error) {
         showNotification('Training failed', error.message, 'error');
@@ -761,8 +934,32 @@ document.getElementById('churnExperimentForm').addEventListener('submit', async 
     }
 });
 
+function confirmExperimentAction({title, message, confirmLabel, confirmClass = 'btn-primary'}) {
+    const dialog = document.getElementById('experimentConfirmDialog');
+    if (!dialog || !dialog.showModal) return Promise.resolve(window.confirm(message));
+    return new Promise(resolve => {
+        const titleElement = document.getElementById('experimentConfirmTitle');
+        const messageElement = document.getElementById('experimentConfirmMessage');
+        const cancelButton = document.getElementById('experimentConfirmCancel');
+        const acceptButton = document.getElementById('experimentConfirmAccept');
+        const finish = accepted => { dialog.close(); resolve(accepted); };
+        titleElement.textContent = title;
+        messageElement.textContent = message;
+        acceptButton.textContent = confirmLabel;
+        acceptButton.className = `btn ${confirmClass}`;
+        cancelButton.onclick = () => finish(false);
+        acceptButton.onclick = () => finish(true);
+        dialog.oncancel = event => { event.preventDefault(); finish(false); };
+        dialog.showModal();
+    });
+}
+
 document.querySelectorAll('.activate-experiment').forEach(button => button.addEventListener('click', async function() {
-    if (!window.confirm('Use this experiment to update the dashboard churn-risk scores?')) return;
+    if (!await confirmExperimentAction({
+        title: 'Activate churn rule',
+        message: 'Use this experiment to update the dashboard churn-risk scores?',
+        confirmLabel: 'Activate rule'
+    })) return;
     const response = await fetch(`/analysis/api/churn/experiments/${this.dataset.id}/activate/`, {method: 'POST'});
     const payload = await response.json();
     if (payload.success) {
@@ -805,26 +1002,18 @@ document.querySelectorAll('.experiment-details').forEach(button => button.addEve
         const metadata = experiment.metadata || {};
         const hasMetadata = Object.keys(metadata).length > 0;
         const metadataHtml = hasMetadata
-            ? `<h6>Saved training definition</h6>
-               <p class="small text-muted mb-1">${escapeExperimentText(metadata.label_definition || '')}</p>
-               <p class="small text-muted mb-1">${escapeExperimentText(metadata.time_split || '')}</p>
-               <ul class="small mb-0">${Object.entries(metadata.model_parameters || {})
-                   .map(([key, value]) => `<li><strong>${escapeExperimentText(key)}:</strong> ${escapeExperimentText(value)}</li>`)
-                   .join('')}</ul>`
-            : '<p class="small text-muted mb-0">Detailed metadata was not saved for this older rule. Train it again to save full details.</p>';
+            ? `<div class="experiment-technical"><details><summary><i class="fa-solid fa-sliders me-2"></i>Training definition and technical settings</summary><div class="experiment-technical-content"><p class="small text-muted mb-2">${escapeExperimentText(metadata.label_definition || '')}</p><p class="small text-muted mb-0">${escapeExperimentText(metadata.time_split || '')}</p><div class="experiment-parameter-grid">${Object.entries(metadata.model_parameters || {})
+                   .map(([key, value]) => `<div class="experiment-parameter"><strong>${escapeExperimentText(key)}</strong><br>${escapeExperimentText(value)}</div>`)
+                   .join('')}</div></div></details></div>`
+            : '<div class="experiment-technical"><details><summary><i class="fa-solid fa-sliders me-2"></i>Training definition and technical settings</summary><div class="experiment-technical-content small text-muted">Detailed metadata was not saved for this older rule. Train it again to save full details.</div></details></div>';
         const body = `
-            <div class="row g-2 mb-3">
-                <div class="col-sm-6"><strong>Rule</strong><br>${escapeExperimentText(experiment.method)} · ${experiment.observation_window_days}d observation · ${experiment.prediction_horizon_days}d horizon</div>
-                <div class="col-sm-6"><strong>Classification cutoff</strong><br>${formatExperimentMetric(experiment.classification_threshold, 2)}</div>
-                <div class="col-sm-3"><strong>Recall</strong><br>${formatExperimentMetric(experiment.recall)}</div>
-                <div class="col-sm-3"><strong>F1</strong><br>${formatExperimentMetric(experiment.f1)}</div>
-                <div class="col-sm-3"><strong>PR-AUC</strong><br>${formatExperimentMetric(experiment.pr_auc)}</div>
-                <div class="col-sm-3"><strong>ROC-AUC</strong><br>${formatExperimentMetric(experiment.roc_auc)}</div>
+            <div class="experiment-detail-rule">
+                <div><div class="experiment-detail-eyebrow">Rule configuration</div><h6>${escapeExperimentText(experiment.method)} windows</h6><div class="small text-muted">${experiment.observation_window_days}d observation · ${experiment.prediction_horizon_days}d horizon · ${experiment.step_size_days}d step</div></div>
+                <div class="experiment-detail-cutoff"><div class="experiment-detail-eyebrow">Classification cutoff</div><strong>${formatExperimentMetric(experiment.classification_threshold, 2)}</strong><span class="small text-muted">Used for Recall and F1</span></div>
             </div>
-            <h6>Test-period check</h6>
-            <p class="small text-muted">Correct churn detections (TP): ${experiment.true_positive ?? 'Not saved'} · Missed churners (FN): ${experiment.false_negative ?? 'Not saved'} · False alarms (FP): ${experiment.false_positive ?? 'Not saved'} · Correct non-churn (TN): ${experiment.true_negative ?? 'Not saved'}</p>
-            <h6>Sample split</h6>
-            <p class="small text-muted">Training: ${experiment.training_samples} · Validation: ${experiment.validation_samples} · Test: ${experiment.test_samples}</p>
+            <div class="row g-2">${[['Recall', formatExperimentMetric(experiment.recall)], ['F1', formatExperimentMetric(experiment.f1)], ['PR-AUC', formatExperimentMetric(experiment.pr_auc)], ['ROC-AUC', formatExperimentMetric(experiment.roc_auc)]].map(([label, value]) => `<div class="col-6 col-md-3"><div class="experiment-detail-metric"><div class="label">${label}</div><div class="value">${value}</div></div></div>`).join('')}</div>
+            <div class="experiment-detail-section"><div class="experiment-detail-section-title"><i class="fa-solid fa-clipboard-check me-2 text-primary"></i>Test-period check</div><div class="row g-2"><div class="col-6 col-md-3"><div class="experiment-detail-check"><span class="small text-muted">Correct churn (TP)</span><span class="value">${experiment.true_positive ?? '—'}</span></div></div><div class="col-6 col-md-3"><div class="experiment-detail-check"><span class="small text-muted">Missed churners (FN)</span><span class="value">${experiment.false_negative ?? '—'}</span></div></div><div class="col-6 col-md-3"><div class="experiment-detail-check"><span class="small text-muted">False alarms (FP)</span><span class="value">${experiment.false_positive ?? '—'}</span></div></div><div class="col-6 col-md-3"><div class="experiment-detail-check"><span class="small text-muted">Correct non-churn (TN)</span><span class="value">${experiment.true_negative ?? '—'}</span></div></div></div></div>
+            <div class="experiment-detail-section"><div class="experiment-detail-section-title"><i class="fa-solid fa-chart-pie me-2 text-primary"></i>Sample split</div><div class="row g-2"><div class="col-4"><div class="experiment-detail-check"><span class="small text-muted">Training</span><span class="value">${experiment.training_samples ?? '—'}</span></div></div><div class="col-4"><div class="experiment-detail-check"><span class="small text-muted">Validation</span><span class="value">${experiment.validation_samples ?? '—'}</span></div></div><div class="col-4"><div class="experiment-detail-check"><span class="small text-muted">Test</span><span class="value">${experiment.test_samples ?? '—'}</span></div></div></div></div>
             ${metadataHtml}`;
         showExperimentDetailsModal(body);
     } catch (error) {
@@ -881,7 +1070,12 @@ document.querySelectorAll('#churnExperimentForm ~ .table-responsive tbody tr').f
         const warning = experiment.active
             ? 'This is the active rule. Activate another rule first, then delete it. Continue?'
             : 'Delete this rule? The reusable RFM/history cache will be kept.';
-        if (!window.confirm(warning)) return;
+        if (!await confirmExperimentAction({
+            title: 'Delete churn rule',
+            message: warning,
+            confirmLabel: 'Delete rule',
+            confirmClass: 'btn-danger'
+        })) return;
         const response = await fetch(`/analysis/api/churn/experiments/${experiment.id}/delete/`, {method: 'POST'});
         const payload = await response.json();
         if (!payload.success) {
