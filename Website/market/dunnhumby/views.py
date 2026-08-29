@@ -5305,10 +5305,10 @@ def customer_segments(request):
     customer_risk_groups = []
     if active_experiment:
         risk_filters = [
-            ("Very High Risk", Q(churn_probability__gt=0.75)),
-            ("High Risk", Q(churn_probability__gt=0.50, churn_probability__lte=0.75)),
-            ("Medium Risk", Q(churn_probability__gt=0.25, churn_probability__lte=0.50)),
-            ("Low Risk", Q(churn_probability__lte=0.25)),
+            ("Very High Risk", Q(churn_probability__gte=0.75)),
+            ("High Risk", Q(churn_probability__gte=0.50, churn_probability__lt=0.75)),
+            ("Medium Risk", Q(churn_probability__gte=0.25, churn_probability__lt=0.50)),
+            ("Low Risk", Q(churn_probability__lt=0.25)),
         ]
         for risk_label, risk_filter in risk_filters:
             customers = list(
@@ -5327,14 +5327,14 @@ def customer_segments(request):
                 )
 
     risk_counts = CustomerSegment.objects.aggregate(
-        low=Count("id", filter=Q(churn_probability__lte=0.25)),
+        low=Count("id", filter=Q(churn_probability__lt=0.25)),
         medium=Count(
-            "id", filter=Q(churn_probability__gt=0.25, churn_probability__lte=0.50)
+            "id", filter=Q(churn_probability__gte=0.25, churn_probability__lt=0.50)
         ),
         high=Count(
-            "id", filter=Q(churn_probability__gt=0.50, churn_probability__lte=0.75)
+            "id", filter=Q(churn_probability__gte=0.50, churn_probability__lt=0.75)
         ),
-        very_high=Count("id", filter=Q(churn_probability__gt=0.75)),
+        very_high=Count("id", filter=Q(churn_probability__gte=0.75)),
     )
 
     churn_data_sorted = [
@@ -5712,13 +5712,13 @@ def churn_api(request):
         # فیلتر مشتریان براساس ریسک (بدون تغییر)
         qs = CustomerSegment.objects.all()
         if risk_label == "Very High Risk":
-            qs = qs.filter(churn_probability__gt=0.75)
+            qs = qs.filter(churn_probability__gte=0.75)
         elif risk_label == "High Risk":
-            qs = qs.filter(churn_probability__gt=0.50, churn_probability__lte=0.75)
+            qs = qs.filter(churn_probability__gte=0.50, churn_probability__lt=0.75)
         elif risk_label == "Medium Risk":
-            qs = qs.filter(churn_probability__gt=0.25, churn_probability__lte=0.50)
+            qs = qs.filter(churn_probability__gte=0.25, churn_probability__lt=0.50)
         elif risk_label == "Low Risk":
-            qs = qs.filter(churn_probability__lte=0.25)
+            qs = qs.filter(churn_probability__lt=0.25)
 
         # متریک‌ها (بدون تغییر)
         metrics = {

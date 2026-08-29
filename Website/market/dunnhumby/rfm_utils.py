@@ -21,7 +21,7 @@ def score_rfm_series(series: pd.Series, higher_is_better: bool) -> pd.Series:
 
 
 def assign_rfm_segment(r_score: int, f_score: int, m_score: int) -> str:
-    """Assign one of the project's eleven mutually ordered RFM segments."""
+    """Assign one of the project's ten mutually ordered RFM segments."""
     r, f, m = int(r_score), int(f_score), int(m_score)
 
     # Specific cases must precede broad conditions such as Loyal Customers.

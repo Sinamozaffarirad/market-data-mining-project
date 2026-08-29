@@ -491,11 +491,11 @@ def customer_churn(request, pk):
         segment.churn_probability_percent = prob * 100 if prob is not None else None
         if prob is None:
             segment.churn_risk = "N/A"
-        elif prob > 0.75:
+        elif prob >= 0.75:
             segment.churn_risk = "Very High Risk"
-        elif prob > 0.50:
+        elif prob >= 0.50:
             segment.churn_risk = "High Risk"
-        elif prob > 0.25:
+        elif prob >= 0.25:
             segment.churn_risk = "Medium Risk"
         else:
             segment.churn_risk = "Low Risk"
@@ -577,11 +577,11 @@ def customer_churn(request, pk):
 
             if probability is None:
                 risk_label, risk_class = "Not scored", "secondary"
-            elif probability > 0.75:
+            elif probability >= 0.75:
                 risk_label, risk_class = "Very high", "danger"
-            elif probability > 0.50:
+            elif probability >= 0.50:
                 risk_label, risk_class = "High", "warning"
-            elif probability > 0.25:
+            elif probability >= 0.25:
                 risk_label, risk_class = "Medium", "info"
             else:
                 risk_label, risk_class = "Low", "success"
