@@ -4508,14 +4508,27 @@ async function loadProductDetailReach(productId, frequency, totalSales) {
         + `${perHousehold.toFixed(1)} purchases each`;
     }
 
+    /* Fuel and other metered lines record quantity as a measured amount rather
+       than a count of items: one sale at the pump carries a quantity in the
+       thousands. Printed as a count it reads as millions of units sold at $0.00
+       each, so for those the count is withheld and the reason given instead.
+       The cut is unambiguous -- no product in the data averages between 100 and
+       1000 units a sale, the metered ones all sitting above 1000. */
     const unitLine = document.getElementById('productDetailUnits');
     if (unitLine) {
+      const unitsPerSale = frequency ? units / frequency : 0;
       const perUnit = units ? totalSales / units : 0;
-      unitLine.innerHTML = units
-        ? `<i class="fas fa-cubes text-primary me-2"></i><strong>Units sold:</strong> `
-          + `${units.toLocaleString()} at $${perUnit.toFixed(2)} each`
-        : `<i class="fas fa-cubes text-primary me-2"></i><strong>Units sold:</strong> `
-          + `<span class="text-muted">not recorded for this product</span>`;
+      let detail;
+      if (!units) {
+        detail = '<span class="text-muted">not recorded for this product</span>';
+      } else if (unitsPerSale > 100) {
+        detail = '<span class="text-muted">sold by measure rather than by item, '
+          + 'so a unit count does not apply</span>';
+      } else {
+        detail = `${units.toLocaleString()} at $${perUnit.toFixed(2)} each`;
+      }
+      unitLine.innerHTML = `<i class="fas fa-cubes text-primary me-2"></i>`
+        + `<strong>Units sold:</strong> ${detail}`;
     }
   } catch (error) {
     if (!stillShowing()) return;
