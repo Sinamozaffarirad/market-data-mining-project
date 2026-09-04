@@ -4414,8 +4414,22 @@ function showTopProductDetails(datasetSource) {
   const safeDepartment = escapeHtml(department);
   const safeCommodity = escapeHtml(commodity);
 
+  /* What one sale is worth follows from the two figures already on the card, so
+     it is shown straight away. Households and units sold have to be counted
+     across the whole transaction table and arrive a moment later. */
+  const perSale = frequency ? totalSales / frequency : 0;
+  const perSaleDisplay = perSale.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const tile = (label, value, gradient, id) => `
+    <div class="col-6 col-lg-3">
+      <div class="p-3 text-center text-white h-100"
+           style="background: linear-gradient(135deg, ${gradient}); border-radius: 15px;">
+        <div class="text-uppercase" style="opacity: .82; font-size: .72rem; letter-spacing: .04em;">${label}</div>
+        <div ${id ? `id="${id}"` : ''} style="font-size: 1.75rem; font-weight: 700; line-height: 1.25;">${value}</div>
+      </div>
+    </div>`;
+
   const body = `
-    <div class="top-product-modal">
+    <div class="top-product-modal" data-detail-product="${safeProductId}">
       <div class="text-center mb-4">
         <span class="product-id-badge">ID ${safeProductId}</span>
         <h4 class="mt-3 mb-0" style="font-weight: 700; color: #1a202c;">${safeBrand}</h4>
@@ -4425,20 +4439,18 @@ function showTopProductDetails(datasetSource) {
         </div>
         ${subCommodityLine}
       </div>
-      <div class="row g-3 mb-4">
-        <div class="col-md-6">
-          <div class="p-4 text-center text-white" style="background: linear-gradient(135deg, #f97316, #fb923c); border-radius: 15px;">
-            <div class="text-uppercase small" style="opacity: 0.8;">Transactions</div>
-            <div style="font-size: 2.2rem; font-weight: 700;">${frequencyDisplay}</div>
-          </div>
-        </div>
-        <div class="col-md-6">
-          <div class="p-4 text-center text-white" style="background: linear-gradient(135deg, #22c55e, #16a34a); border-radius: 15px;">
-            <div class="text-uppercase small" style="opacity: 0.8;">Total Sales</div>
-            <div style="font-size: 2.2rem; font-weight: 700;">$${totalSalesDisplay}</div>
-          </div>
-        </div>
+      <div class="row g-3 mb-3">
+        ${tile('Transactions', frequencyDisplay, '#f97316, #fb923c')}
+        ${tile('Total Sales', '$' + totalSalesDisplay, '#22c55e, #16a34a')}
+        ${tile('Buying Households', '<span class="spinner-border spinner-border-sm"></span>',
+               '#667eea, #764ba2', 'productDetailHouseholds')}
+        ${tile('Value per Sale', '$' + perSaleDisplay, '#0ea5e9, #0284c7')}
       </div>
+      <p class="text-muted small mb-4">
+        This view is the link between the aggregate and the detail: from a summary
+        list you arrive at the record of one product, where the reading you took
+        from the list can be checked against what this product actually did.
+      </p>
       <div class="card border-0" style="background: #f8fafc; border-radius: 12px;">
         <div class="card-body">
           <h6 class="card-title" style="font-weight: 600; color: #475569;">Product Insights</h6>
@@ -4446,6 +4458,10 @@ function showTopProductDetails(datasetSource) {
             ${manufacturerLine}
             <li><i class="fas fa-building text-primary me-2"></i><strong>Department:</strong> ${safeDepartment}</li>
             <li><i class="fas fa-box-open text-primary me-2"></i><strong>Commodity:</strong> ${safeCommodity}</li>
+            <li id="productDetailReach"><i class="fas fa-users text-primary me-2"></i><strong>Reach:</strong>
+              <span class="text-muted">counting households&hellip;</span></li>
+            <li id="productDetailUnits"><i class="fas fa-cubes text-primary me-2"></i><strong>Units sold:</strong>
+              <span class="text-muted">&hellip;</span></li>
           </ul>
         </div>
       </div>
@@ -4453,6 +4469,66 @@ function showTopProductDetails(datasetSource) {
   `;
 
   showDetailModal(`⭐ Product ${safeProductId} Performance`, body);
+  loadProductDetailReach(String(productId), frequency, totalSales);
+}
+
+/* Households and units sold are counted over the whole transaction table, so
+   they are fetched after the modal is already on screen rather than holding it
+   shut. The reader can move on before the count lands -- if they have, the
+   fields it would have filled are gone and the answer is dropped. */
+async function loadProductDetailReach(productId, frequency, totalSales) {
+  const stillShowing = () => {
+    const panel = document.querySelector('[data-detail-product]');
+    return panel && panel.dataset.detailProduct === productId;
+  };
+  try {
+    const form = new FormData();
+    form.append('csrfmiddlewaretoken', getCsrfToken());
+    form.append('product_id', productId);
+    const response = await fetch('/analysis/api/product/', {method: 'POST', body: form});
+    const data = await response.json();
+    if (!stillShowing() || data.error) return;
+    const stats = data.stats || {};
+    const households = Number(stats.unique_households || 0);
+    const units = Number(stats.total_quantity || 0);
+
+    const tile = document.getElementById('productDetailHouseholds');
+    if (tile) tile.textContent = households.toLocaleString();
+
+    const reach = document.getElementById('productDetailReach');
+    if (reach) {
+      /* Transactions per household says whether the total came from many
+         households buying once or a few buying repeatedly -- two situations
+         that read the same in a ranking but call for different decisions. */
+      const perHousehold = households ? frequency / households : 0;
+      const share = (households && TOTAL_HOUSEHOLDS)
+        ? ` (${((households / TOTAL_HOUSEHOLDS) * 100).toFixed(1)}% of all households)` : '';
+      reach.innerHTML = `<i class="fas fa-users text-primary me-2"></i><strong>Reach:</strong> `
+        + `${households.toLocaleString()} households${share}, `
+        + `${perHousehold.toFixed(1)} purchases each`;
+    }
+
+    const unitLine = document.getElementById('productDetailUnits');
+    if (unitLine) {
+      const perUnit = units ? totalSales / units : 0;
+      unitLine.innerHTML = units
+        ? `<i class="fas fa-cubes text-primary me-2"></i><strong>Units sold:</strong> `
+          + `${units.toLocaleString()} at $${perUnit.toFixed(2)} each`
+        : `<i class="fas fa-cubes text-primary me-2"></i><strong>Units sold:</strong> `
+          + `<span class="text-muted">not recorded for this product</span>`;
+    }
+  } catch (error) {
+    if (!stillShowing()) return;
+    const tile = document.getElementById('productDetailHouseholds');
+    if (tile) tile.textContent = '\u2014';
+    const reach = document.getElementById('productDetailReach');
+    if (reach) {
+      reach.innerHTML = '<i class="fas fa-users text-primary me-2"></i><strong>Reach:</strong> '
+        + '<span class="text-muted">could not be counted</span>';
+    }
+    const unitLine = document.getElementById('productDetailUnits');
+    if (unitLine) unitLine.remove();
+  }
 }
 
 
@@ -5303,9 +5379,18 @@ function toggleExpandedForecastCards(open) {
   });
 }
 
+/* An expanded list is the start of a trail, never a step within one: nothing
+   sits behind it, so the Back button stays hidden until a card is opened. The
+   trail is cleared after the list is on screen rather than before, because
+   showing it is itself what records the view being replaced. */
+function startExpandedTrail() {
+  if (typeof resetDetailModalHistory === 'function') resetDetailModalHistory();
+}
+
 function expandSection(sectionType) {
   if (sectionType === 'timeSeriesForecast') {
     showExpandedForecastResults();
+    startExpandedTrail();
     return;
   }
   let title, content, container;
@@ -5369,12 +5454,14 @@ function expandSection(sectionType) {
     }
 
     const modalContent = `
-      <div id="expandedContent" style="max-height: 70vh; overflow-y: auto; padding: 1rem; background: #f8f9fa; border-radius: 10px;">
+      <div id="expandedContent" data-modal-restore="${sectionType}"
+           style="max-height: 70vh; overflow-y: auto; padding: 1rem; background: #f8f9fa; border-radius: 10px;">
         ${content}
       </div>
     `;
 
     showDetailModal(title, modalContent);
+    startExpandedTrail();
 
     // Re-attach event listeners after modal is shown
     setTimeout(() => {
@@ -5382,6 +5469,13 @@ function expandSection(sectionType) {
     }, 200);
   }
 }
+
+/* Called by the shared modal helper when Back returns to an expanded list.
+   Only the click handling has to be rebuilt -- the markup and the scroll
+   position are restored by the helper itself. */
+window.onDetailModalRestore = function (sectionType) {
+  attachPopupEventListeners(sectionType);
+};
 
 // Attach event listeners to popup content
 function attachPopupEventListeners(sectionType) {
@@ -6585,6 +6679,9 @@ function setSavedModelStatus(label, className = 'bg-secondary') {
 
 // Complete 30-day periods the calendar provides (0 when unknown).
 const TIME_SERIES_COMPLETE_PERIODS = Number('{{ time_series_complete_periods|default:0 }}') || 0;
+/* Households in the whole dataset, so a product's reach can be stated as a
+   share rather than a bare count nobody can size. */
+const TOTAL_HOUSEHOLDS = Number('{{ overall_stats.total_customers|default:0 }}') || 0;
 
 /* Mirrors ProductRevenueTimeSeriesForecaster._training_origins and
    _build_sequence_samples so the controls can show how many recursive steps a

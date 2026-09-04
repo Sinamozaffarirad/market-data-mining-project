@@ -2616,6 +2616,9 @@ def api_product_details(request):
             total_sales=Sum("sales_value"),
             total_txns=Count("product_id"),
             unique_households=Count("household_key", distinct=True),
+            # Units sold, so the detail view can separate what a sale is worth
+            # from what one unit costs: a multi-buy moves the two apart.
+            total_quantity=Sum("quantity"),
         )
         top_households = list(
             Transaction.objects.filter(product_id=product_id)
