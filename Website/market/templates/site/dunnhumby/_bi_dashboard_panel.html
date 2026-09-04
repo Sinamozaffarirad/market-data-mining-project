@@ -798,9 +798,19 @@ function biParams(extra) {
   return params;
 }
 
+/* A refresh fires about twenty queries at once and they finish out of order.
+   Clicking a second mark before the first refresh has landed used to let the
+   older, slower answers overwrite the newer ones, leaving panels showing a
+   filter that is no longer selected. Each refresh takes a number, and a reply
+   from a superseded one is dropped instead of drawn. */
+let biRun = 0;
+const BI_STALE = Symbol('superseded refresh');
+
 async function biGet(url, extra) {
+  const run = biRun;
   const response = await fetch(`${url}?${biParams(extra).toString()}`);
   const text = await response.text();
+  if (run !== biRun) throw BI_STALE;
   try {
     var payload = JSON.parse(text);
   } catch (error) {
@@ -836,6 +846,22 @@ function biSetFilter(key, value, options) {
   } else {
     BI.filters[key] = clean;
   }
+  biSyncSlicers();
+  biRefresh();
+}
+
+/* Some marks stand for a combination rather than a single value: a bar on the
+   month chart means one month of one year. Setting the parts one at a time
+   would refresh the dashboard twice and, in between, show that month across
+   every year. This applies the whole set in one go and refreshes once. */
+function biSetFilters(pairs, options) {
+  const entries = pairs
+    .map(([key, value]) => [key, (value === null || value === undefined) ? '' : String(value).trim()])
+    .filter(([, value]) => value !== '');
+  if (!entries.length) return;
+  const already = entries.every(([key, value]) => String(BI.filters[key] || '') === value);
+  if (already && (options || {}).toggle) entries.forEach(([key]) => delete BI.filters[key]);
+  else entries.forEach(([key, value]) => { BI.filters[key] = value; });
   biSyncSlicers();
   biRefresh();
 }
@@ -927,6 +953,7 @@ const FILTER_LABELS = {
   weekday: 'Weekday', hour: 'Hour', department: 'Department', commodity: 'Commodity',
   sub_commodity: 'Sub-commodity', product: 'Product', brand: 'Brand', store: 'Store',
   segment: 'Segment', age: 'Age', income: 'Income', household_size: 'Household size',
+  period: '30-day period',
 };
 
 function renderChips() {
@@ -1220,6 +1247,13 @@ async function loadDiscountTrend() {
       ] },
     options: {
       responsive: true, maintainAspectRatio: false,
+      /* A bar is one month of one year, so it sets both halves of the time
+         hierarchy; the chips then read the same way as drilling down to it. */
+      onClick: (e, els) => {
+        if (!els.length) return;
+        const row = data.rows[els[0].index];
+        biSetFilters([['year', row.calendar_year], ['month', row.month_name]], {toggle: true});
+      },
       plugins: { legend: { position: 'bottom' },
         tooltip: { callbacks: { afterLabel: ctx => {
           const row = data.rows[ctx.dataIndex];
@@ -1341,7 +1375,7 @@ async function loadSignificanceScan() {
     biScanLastPayload = data;
     biScanRender(data);
   } catch (error) {
-    if (serial === biScanSerial) {
+    if (error !== BI_STALE && serial === biScanSerial) {
       box.innerHTML = `<div class="alert alert-danger py-2 px-3 small mb-0">Scan failed: ${escapeHtml(error.message)}</div>`;
     }
   } finally {
@@ -1702,9 +1736,12 @@ async function loadPareto() {
   });
 }
 
-/* Growth is the only panel that can legitimately come back empty: it always
-   compares the last two complete periods, so a time filter that excludes them
-   leaves nothing to compare. Say so rather than drawing an empty axis. */
+/* Growth follows the time filter down rather than holding a fixed pair of
+   periods: it compares the two newest whole 30-day periods the filter still
+   contains, or, when the filter cuts across periods and leaves none whole, the
+   newer half of the selected days against the older half. Only a filter too
+   narrow to hold two windows comes back empty. The server says which comparison
+   it drew, so print that rather than guessing at a reason. */
 async function loadGrowth() {
   const canvas = document.getElementById('growthChart');
   if (!canvas) return;
@@ -1712,11 +1749,7 @@ async function loadGrowth() {
   const data = await biGet('/analysis/api/bi/growth/', [['dimension', dimension]]);
   const sub = document.getElementById('growthSub');
   const rows = (data.rows || []).filter(r => Number(r.current_revenue) || Number(r.previous_revenue));
-  if (sub) {
-    sub.textContent = rows.length
-      ? data.note
-      : 'The current time filter excludes the two most recent complete periods, so there is nothing to compare.';
-  }
+  if (sub) sub.textContent = data.note || '';
   biDestroy(BI.growth);
   if (!rows.length) { BI.growth = null; return; }
   const top = rows.slice(0, 8).concat(rows.slice(-8)).filter(
@@ -1782,6 +1815,10 @@ async function loadRepeat() {
     },
     options: {
       responsive: true, maintainAspectRatio: false,
+      onClick: (e, els) => {
+        if (!els.length) return;
+        biSetFilter('period', rows[els[0].index].period, {toggle: true});
+      },
       scales: {
         y: {stacked: true, ticks: {callback: money}, title: {display: true, text: 'Revenue'}},
         y1: {position: 'right', min: 0, max: 100, grid: {drawOnChartArea: false},
@@ -1948,11 +1985,7 @@ async function loadHeatmap() {
 /* One click sets both halves of the pair, so the cell and the filter chips
    always describe the same slice. */
 function biHeatmapPick(day, hour) {
-  const same = BI.filters.weekday === day && String(BI.filters.hour) === String(hour);
-  if (same) { delete BI.filters.weekday; delete BI.filters.hour; }
-  else { BI.filters.weekday = day; BI.filters.hour = String(hour); }
-  biSyncSlicers();
-  biRefresh();
+  biSetFilters([['weekday', day], ['hour', hour]], {toggle: true});
 }
 
 /* ---------- chart sizing -------------------------------------------------- */
@@ -2274,6 +2307,7 @@ function renderBookmarks() {
 /* ---------- orchestration ------------------------------------------------- */
 
 async function biRefresh() {
+  const run = ++biRun;
   renderChips();
   try {
     const kpis = await biGet('/analysis/api/bi/kpis/');
@@ -2294,6 +2328,8 @@ async function biRefresh() {
     }
     renderBookmarks();
   } catch (error) {
+    // A refresh the user has already replaced is not a failure worth reporting.
+    if (error === BI_STALE || run !== biRun) return;
     console.error(error);
     showNotification('Dashboard could not load: ' + error.message, 'danger');
   }

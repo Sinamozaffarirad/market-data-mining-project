@@ -47,6 +47,7 @@ FILTER_COLUMNS = {
     "day": ("d.day_key", int),
     "weekday": ("d.day_name", str),
     "hour": ("f.trans_hour", int),
+    "period": ("d.forecast_period", int),
     "department": ("p.department", str),
     "commodity": ("p.commodity", str),
     "sub_commodity": ("p.sub_commodity", str),
@@ -98,24 +99,32 @@ DEMOGRAPHIC_DIMENSIONS = {
 }
 
 
+def _predicate(request, key, column, cast):
+    """One filter as a predicate and its parameters, or None when unset."""
+    raw = (request.GET.get(key) or "").strip()
+    if not raw or raw.lower() == "all":
+        return None
+    # A slicer may hold several values. They arrive pipe-separated because a
+    # comma appears inside real department and commodity names.
+    values = [v.strip() for v in raw.split("|") if v.strip()]
+    if cast is int:
+        values = [int(v) for v in values if v.lstrip("-").isdigit()]
+    if not values:
+        return None
+    if len(values) == 1:
+        return f"{column} = %s", values
+    return f"{column} IN ({', '.join(['%s'] * len(values))})", values
+
+
 def _filters(request, needs=()):
     """Active filters as predicates, parameters, and the aliases they require."""
     where, params, required = [], [], set(needs)
     for key, (column, cast) in FILTER_COLUMNS.items():
-        raw = (request.GET.get(key) or "").strip()
-        if not raw or raw.lower() == "all":
+        found = _predicate(request, key, column, cast)
+        if not found:
             continue
-        # A slicer may hold several values. They arrive pipe-separated because a
-        # comma appears inside real department and commodity names.
-        values = [v.strip() for v in raw.split("|") if v.strip()]
-        if cast is int:
-            values = [int(v) for v in values if v.lstrip("-").isdigit()]
-        if not values:
-            continue
-        if len(values) == 1:
-            where.append(f"{column} = %s")
-        else:
-            where.append(f"{column} IN ({', '.join(['%s'] * len(values))})")
+        clause, values = found
+        where.append(clause)
         params.extend(values)
         required.add(column.split(".")[0])
     return where, params, required
@@ -550,6 +559,8 @@ def api_bi_discount_trend(request):
     where, params, needs = _filters(request, ["d"])
     rows = _query(f"""
         SELECT d.year_month AS label,
+               MAX(d.calendar_year)         AS calendar_year,
+               MAX(d.month_name)            AS month_name,
                SUM(f.sales_value)           AS revenue,
                SUM(f.total_discount)        AS discount,
                SUM(f.gross_before_discount) AS list_value,
@@ -1252,42 +1263,136 @@ def api_bi_significance(request):
 # narrows them too.
 # ---------------------------------------------------------------------------
 
-# The calendar divides into 23 complete 30-day periods.  Growth compares the
-# last two of them, so both sides of the comparison cover the same number of
-# trading days; comparing against a partial period would read as a collapse.
-COMPLETE_PERIODS = 23
+# Growth compares two whole 30-day periods, so both sides of the comparison
+# cover the same number of trading days; comparing against a partial period
+# would read as a collapse. How many periods exist is read from the calendar,
+# not assumed, because a time filter changes the answer.
+PERIOD_DAYS = 30
+
+
+def _growth_windows(request):
+    """The two equal-length day windows the growth panel compares.
+
+    Only the date predicates decide this.  A product or household filter removes
+    transactions, not days from the calendar, and requiring every day of a window
+    to carry a sale of one niche product would throw away windows that are in
+    fact whole.
+
+    Two whole 30-day periods are preferred, which is what the panel compares when
+    nothing is filtered.  A filter that cuts across periods -- a single month, or
+    one weekday -- leaves none whole, so the qualifying days are split into an
+    older and a newer half instead.  Either way both windows hold the same number
+    of trading days, so a shortfall can never be an artefact of window length.
+
+    Returns ``(current, previous, note)`` where a window is ``(first_day,
+    last_day, days)``, or ``(None, None, note)`` when the filter is too narrow to
+    hold two windows at all.
+    """
+    where, params = [], []
+    for key, (column, cast) in FILTER_COLUMNS.items():
+        if not column.startswith("d."):
+            continue
+        found = _predicate(request, key, column, cast)
+        if not found:
+            continue
+        clause, values = found
+        where.append(clause)
+        params.extend(values)
+    days = _query(f"""
+        SELECT d.day_key AS day_key, d.forecast_period AS period
+        FROM vw_dim_date d{_clause(where)}
+        ORDER BY d.day_key
+    """, params)
+    if len(days) < 2:
+        return None, None, (
+            "The time filter leaves fewer than two trading days, so there is nothing "
+            "to compare. Widen it to cover a longer stretch."
+        )
+
+    held = {}
+    for row in days:
+        if row["period"] is not None:
+            period = int(row["period"])
+            held[period] = held.get(period, 0) + 1
+    whole = sorted(period for period, count in held.items() if count == PERIOD_DAYS)
+    if len(whole) >= 2:
+        current, previous = whole[-1], whole[-2]
+        spans = {}
+        for row in days:
+            if row["period"] is None:
+                continue
+            period = int(row["period"])
+            if period in (current, previous):
+                key = int(row["day_key"])
+                low, high = spans.get(period, (key, key))
+                spans[period] = (min(low, key), max(high, key))
+        return (
+            (spans[current][0], spans[current][1], PERIOD_DAYS),
+            (spans[previous][0], spans[previous][1], PERIOD_DAYS),
+            f"Period {current} against period {previous}, each a complete 30-day "
+            "window inside the current filter.",
+        )
+
+    # No whole period survives the filter, so the selection is halved instead.
+    # An odd day count drops the middle day rather than lengthening one side.
+    keys = [int(row["day_key"]) for row in days]
+    half = len(keys) // 2
+    plural = "" if half == 1 else "s"
+    return (
+        (keys[len(keys) - half], keys[-1], half),
+        (keys[0], keys[half - 1], half),
+        "The filter leaves no whole 30-day period, so this compares the newer half "
+        f"of the selected days against the older half, {half} trading day{plural} "
+        "on each side.",
+    )
 
 
 @admin_required
 def api_bi_growth(request):
-    """Revenue change by department between the last two complete 30-day periods.
+    """Revenue change between the two newest equal windows the filter allows.
 
     This is a like-for-like comparison of two equal windows, not a trend line
     or a forecast.  A department can move because demand moved or because the
     assortment did; the panel says which departments changed, not why.
+
+    The windows follow the time filter rather than being a fixed pair -- see
+    ``_growth_windows`` -- because filtering to a quarter used to leave the panel
+    comparing two periods the filter had excluded, so it drew nothing at all.
+    The note returned alongside the rows says which two windows were compared.
     """
     dimension = (request.GET.get("dimension") or "department").strip()
-    column = {
-        "department": "p.department",
-        "commodity": "p.commodity",
-        "store": "CAST(f.store_id AS varchar(20))",
-        "segment": "COALESCE(h.rfm_segment, 'Unsegmented')",
-    }.get(dimension, "p.department")
-    alias = column.split(".")[0]
+    # The join each dimension needs is declared, not read off the front of the
+    # expression: "COALESCE(h.rfm_segment, ...)" starts with "COALESCE(h", so
+    # deriving it left the household table unjoined and the segment view failing.
+    column, alias = {
+        "department": ("p.department", "p"),
+        "commodity": ("p.commodity", "p"),
+        "store": ("CAST(f.store_id AS varchar(20))", "f"),
+        "segment": ("COALESCE(h.rfm_segment, 'Unsegmented')", "h"),
+    }.get(dimension, ("p.department", "p"))
     where, params, needs = _filters(request, ["d", alias])
-    current, previous = COMPLETE_PERIODS, COMPLETE_PERIODS - 1
+    current, previous, note = _growth_windows(request)
+    if not current:
+        return JsonResponse({"success": True, "rows": [], "note": note, "window_days": 0})
+    # Both windows are contiguous runs of qualifying days, so each is expressed as
+    # a day range rather than a list: a weekday filter can leave hundreds of days,
+    # and repeating them as parameters would run into the driver's 2,100 limit.
+    span_low, span_high = min(current[0], previous[0]), max(current[1], previous[1])
     rows = _query(f"""
         SELECT TOP 40
             {column} AS label,
-            SUM(CASE WHEN d.forecast_period = %s THEN f.sales_value ELSE 0 END) AS current_revenue,
-            SUM(CASE WHEN d.forecast_period = %s THEN f.sales_value ELSE 0 END) AS previous_revenue,
-            COUNT(DISTINCT CASE WHEN d.forecast_period = %s THEN f.basket_id END) AS current_baskets,
-            COUNT(DISTINCT CASE WHEN d.forecast_period = %s THEN f.basket_id END) AS previous_baskets
+            SUM(CASE WHEN d.day_key BETWEEN %s AND %s THEN f.sales_value ELSE 0 END) AS current_revenue,
+            SUM(CASE WHEN d.day_key BETWEEN %s AND %s THEN f.sales_value ELSE 0 END) AS previous_revenue,
+            COUNT(DISTINCT CASE WHEN d.day_key BETWEEN %s AND %s THEN f.basket_id END) AS current_baskets,
+            COUNT(DISTINCT CASE WHEN d.day_key BETWEEN %s AND %s THEN f.basket_id END) AS previous_baskets
         {_from(needs)}
-        {_clause(where + ["d.forecast_period IN (%s, %s)"])}
+        {_clause(where + ["d.day_key BETWEEN %s AND %s"])}
         GROUP BY {column}
-        ORDER BY SUM(CASE WHEN d.forecast_period = %s THEN f.sales_value ELSE 0 END) DESC
-    """, [current, previous, current, previous] + params + [current, previous, current])
+        ORDER BY SUM(CASE WHEN d.day_key BETWEEN %s AND %s THEN f.sales_value ELSE 0 END) DESC
+    """,
+        [current[0], current[1], previous[0], previous[1],
+         current[0], current[1], previous[0], previous[1]]
+        + params + [span_low, span_high, current[0], current[1]])
     for row in rows:
         prior = float(row["previous_revenue"] or 0)
         now = float(row["current_revenue"] or 0)
@@ -1298,11 +1403,10 @@ def api_bi_growth(request):
     return JsonResponse({
         "success": True,
         "rows": rows,
-        "current_period": current,
-        "previous_period": previous,
-        "note": (
-            f"Period {current} against period {previous}, each a complete 30-day window."
-        ),
+        "current_window": {"first_day": current[0], "last_day": current[1], "days": current[2]},
+        "previous_window": {"first_day": previous[0], "last_day": previous[1], "days": previous[2]},
+        "window_days": current[2],
+        "note": note,
     })
 
 
