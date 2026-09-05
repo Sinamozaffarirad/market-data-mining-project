@@ -8451,12 +8451,25 @@ function renderTimeSeriesReportV5(report) {
      A model saved before K=100 and K=200 existed holds only the three shallow
      cutoffs, and asking it for the deep ones would print rows of zeros that
      read as a failed ranking rather than an absent measurement. */
-  const measuredCutoffs = new Set();
-  methods.forEach(([, metrics]) => Object.keys(metrics.ranking_at_k || {})
-    .forEach(key => measuredCutoffs.add(Number(key))));
-  const rankingCutoffs = [...measuredCutoffs].filter(Number.isFinite).sort((a, b) => a - b);
+  /* A depth deeper than the list itself is dropped rather than shown. Once K
+     passes the number of products scored, both top-K sets are the whole list,
+     so precision is 1.00 by construction and every deeper row repeats it --
+     three rows of apparent perfection that measure nothing. */
+  const measuredCutoffs = new Map();
+  methods.forEach(([, metrics]) => Object.entries(metrics.ranking_at_k || {})
+    .forEach(([key, item]) => {
+      const depth = Number(key);
+      const withinList = Number(item.k_used) >= depth;
+      measuredCutoffs.set(depth, (measuredCutoffs.get(depth) ?? true) && withinList);
+    }));
+  const rankingCutoffs = [...measuredCutoffs.entries()]
+    .filter(([depth, withinList]) => Number.isFinite(depth) && withinList)
+    .map(([depth]) => depth)
+    .sort((first, second) => first - second);
   // Mirrors RANKING_CUTOFFS; only reached when a report carries no depths at all.
-  const rankingDepths = rankingCutoffs.length ? rankingCutoffs : [5, 10, 20, 100, 200, 500, 1000, 2000];
+  const rankingDepths = rankingCutoffs.length
+    ? rankingCutoffs
+    : [5, 10, 20, 100, 200, 500, 1000, 2000, 5000, 10000, 20000];
   const rankingRows = rankingDepths.flatMap(k => methods.map(([label, metrics]) => {
     const item = (metrics.ranking_at_k || {})[String(k)] || {};
     return `<tr><td>${k}</td><td>${label}</td><td>${Number(item.overlap_count || 0)} / ${Number(item.k_used || k)}</td><td>${metricCell(item.precision_at_k, true)}</td><td>${metricCell(item.recall_at_k, true)}</td><td>${metricCell(item.jaccard_at_k, true)}</td><td>${metricCell(item.ndcg_at_k, true)}</td><td>${metricCell(item.rank_biased_overlap, true)}</td></tr>`;

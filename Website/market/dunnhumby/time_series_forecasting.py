@@ -54,7 +54,7 @@ VALID_STEPS = {1, 2, 3}
 # because a product's recent takings are a strong guess at its next ones. Both
 # models pull clear of it around K=500 and stay clear, so a comparison that
 # stopped at 20 would report a tie the data does not support either way.
-RANKING_CUTOFFS = (5, 10, 20, 100, 200, 500, 1000, 2000)
+RANKING_CUTOFFS = (5, 10, 20, 100, 200, 500, 1000, 2000, 5000, 10000, 20000)
 AUTO_HIDDEN_UNITS = 16
 AUTO_FEEDBACK_RATE = 0.5
 AUTO_EPOCHS = 10
@@ -685,10 +685,23 @@ class ProductRevenueTimeSeriesForecaster:
         weighted_overlap = 0.0
         first_seen, second_seen = set(), set()
         agreement = 0.0
+        # The shared count is carried rather than recomputed. Intersecting the
+        # two sets at every depth is quadratic, which cost 6.5s at k=20000 and
+        # nothing at k=20; each new pair can only add to the overlap, so the
+        # count is updated in place and the deep cutoffs come almost free.
+        shared = 0
         for index in range(depth):
-            first_seen.add(first_ids[index])
-            second_seen.add(second_ids[index])
-            agreement = len(first_seen & second_seen) / float(index + 1)
+            first_id, second_id = first_ids[index], second_ids[index]
+            if first_id == second_id:
+                shared += 1
+            else:
+                if first_id in second_seen:
+                    shared += 1
+                if second_id in first_seen:
+                    shared += 1
+            first_seen.add(first_id)
+            second_seen.add(second_id)
+            agreement = shared / float(index + 1)
             weighted_overlap += (1.0 - persistence) * agreement * persistence ** index
         return float(weighted_overlap + agreement * persistence ** depth)
 
