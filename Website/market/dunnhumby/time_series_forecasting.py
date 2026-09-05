@@ -993,6 +993,14 @@ class ProductRevenueTimeSeriesForecaster:
                     else "disabled"
                 ),
                 "applied_equally_to_compared_models": True,
+                # Stated plainly because the field above reads, at a glance, as
+                # though every column were treated alike. The recent-average
+                # benchmark is not rescaled: it is a mean of observed periods,
+                # so it has no drift to correct. Whether that flatters the two
+                # models is checkable -- at horizons 4 to 9 the power is 0 and
+                # nothing is rescaled at all, and the ranking result there is
+                # the same as it is here.
+                "applied_to_recent_average_baseline": False,
             },
             "target": f"monthly Product ID revenue for the next {horizon} complete 30-day period(s)",
             "horizon_months": horizon,
