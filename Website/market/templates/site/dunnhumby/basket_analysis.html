@@ -1997,6 +1997,16 @@ html, body {
                   </select>
                 </div>
                 <div class="rev-field">
+                  <label for="timeSeriesTrainingSize">
+                    Training size
+                    <span class="rev-slider-value" id="timeSeriesTrainingSizeValue">80%</span>
+                  </label>
+                  <input type="range" class="form-range rev-range" id="timeSeriesTrainingSize"
+                         min="0.5" max="0.95" step="0.05" value="0.8"
+                         oninput="showTimeSeriesTrainingSize()"
+                         onchange="handleTimeSeriesModelConfigChange()">
+                </div>
+                <div class="rev-field">
                   <label for="timeSeriesParameterMode">Parameter mode</label>
                   <select class="form-select" id="timeSeriesParameterMode" onchange="setTimeSeriesParameterMode()">
                     <option value="auto" selected>Auto (recommended)</option>
@@ -6648,13 +6658,31 @@ function getHorizonLabel(months) {
   return `${value || 3} Months`;
 }
 
+/* The share of leakage-safe origins kept for fitting. The server accepts 0.50
+   to 0.95 and rejects anything outside, so the slider is clamped to the same
+   range rather than trusting the markup. Read as a Number, because the model
+   cache key is built from this value and "0.80" would not match 0.8. */
+function getTimeSeriesTrainingSize() {
+  const slider = document.getElementById('timeSeriesTrainingSize');
+  const value = slider ? parseFloat(slider.value) : 0.8;
+  return Math.max(0.5, Math.min(Number.isFinite(value) ? value : 0.8, 0.95));
+}
+
+function showTimeSeriesTrainingSize() {
+  const label = document.getElementById('timeSeriesTrainingSizeValue');
+  if (label) label.textContent = `${Math.round(getTimeSeriesTrainingSize() * 100)}%`;
+  /* The Data check counts the origins this share leaves behind, so it has to
+     follow the slider as it moves rather than waiting for release. */
+  updateSupervisionHint();
+}
+
 function getTimeSeriesConfig() {
   const parameterMode = document.getElementById('timeSeriesParameterMode')?.value || 'auto';
   return {
     time_horizon: Number(document.getElementById('timeSeriesHorizon')?.value || 3),
     window_size: Number(document.getElementById('timeSeriesWindow')?.value || 6),
     sliding_step: Number(document.getElementById('timeSeriesStep')?.value || 1),
-    training_size: 0.8,
+    training_size: getTimeSeriesTrainingSize(),
     top_n: Number(document.getElementById('timeSeriesTopN')?.value || 20),
     revenue_threshold: document.getElementById('timeSeriesThreshold')?.value || '',
     forecast_method: document.getElementById('timeSeriesMethod')?.value || 'recommended',
@@ -6745,9 +6773,9 @@ function smallestWindowForHorizon(horizon, step, trainingSize = 0.8) {
 
 /* Names both controls exactly as they are labelled in the form, and only
    suggests a change that actually resolves the shortfall. */
-function supervisionRemedy(horizon, windowSize, step) {
-  const bestHorizon = largestSupervisedHorizon(windowSize, step);
-  const bestWindow = smallestWindowForHorizon(horizon, step);
+function supervisionRemedy(horizon, windowSize, step, trainingSize = getTimeSeriesTrainingSize()) {
+  const bestHorizon = largestSupervisedHorizon(windowSize, step, trainingSize);
+  const bestWindow = smallestWindowForHorizon(horizon, step, trainingSize);
   const fixes = [];
   if (bestHorizon) fixes.push(`set <strong>Forecast Horizon</strong> to <strong>${bestHorizon} months</strong>`);
   if (bestWindow && bestWindow !== windowSize) fixes.push(`set <strong>Lookback window</strong> to <strong>${bestWindow} months</strong> to keep ${horizon} months`);
@@ -6764,7 +6792,8 @@ function updateSupervisionHint() {
   const horizon = Number(document.getElementById('timeSeriesHorizon')?.value || 3);
   const windowSize = Number(document.getElementById('timeSeriesWindow')?.value || 6);
   const step = Number(document.getElementById('timeSeriesStep')?.value || 1);
-  const result = supervisedRolloutDepth(horizon, windowSize, step);
+  const trainingSize = getTimeSeriesTrainingSize();
+  const result = supervisedRolloutDepth(horizon, windowSize, step, trainingSize);
   if (!result) { hint.innerHTML = ''; return; }
   if (result.invalid === 'window') {
     hint.innerHTML = `<span class="badge bg-danger text-wrap text-start"><i class="fas fa-times-circle"></i> <strong>Lookback window</strong> ${windowSize} + <strong>Forecast Horizon</strong> ${horizon} exceeds the ${TIME_SERIES_COMPLETE_PERIODS} periods available — reduce either.</span>`;
@@ -6780,7 +6809,7 @@ function updateSupervisionHint() {
   }
   // supervisionRemedy reads mid-sentence in the post-training banners, so it
   // starts lower-case; capitalise it where it opens a sentence.
-  const remedy = supervisionRemedy(horizon, windowSize, step);
+  const remedy = supervisionRemedy(horizon, windowSize, step, trainingSize);
   hint.innerHTML = `<span class="badge bg-warning text-dark text-wrap text-start"><i class="fas fa-exclamation-triangle"></i> Only ${result.depth} of ${horizon} recursive steps can be supervised at <strong>Lookback window</strong> ${windowSize} months. ${remedy.charAt(0).toUpperCase()}${remedy.slice(1)}</span>`;
 }
 
@@ -8384,7 +8413,7 @@ function renderTimeSeriesReportV5(report) {
   const supervisedDepth = Number(training.maximum_supervised_rollout || guard.supervised_rollout || 0);
   const extrapolatedSteps = Math.max(0, Number(report.horizon_months || 0) - supervisedDepth);
   const rolloutWarning = extrapolatedSteps > 0
-    ? `<div class="alert alert-danger py-2 px-3 small mt-2 mb-0"><strong><i class="fas fa-exclamation-triangle"></i> Recursive model not validated at this Forecast Horizon.</strong> At <strong>Lookback window</strong> ${Number(report.window_size_months || 0)} months the dataset supports only <strong>${supervisedDepth} supervised recursive step(s)</strong>, but a <strong>Forecast Horizon</strong> of ${Number(report.horizon_months || 0)} months needs ${Number(report.horizon_months || 0)}. The remaining <strong>${extrapolatedSteps} step(s) receive no training signal</strong>; they are capped at each product's observed peak and damped toward its recent average so the rollout cannot diverge. Treat the recursive column here as damped extrapolation, <strong>not</strong> a validated forecast. For a defensible recursive comparison, ${supervisionRemedy(Number(report.horizon_months || 0), Number(report.window_size_months || 0), Number(report.sliding_step_months || 1))} The independent direct model is unaffected.</div>`
+    ? `<div class="alert alert-danger py-2 px-3 small mt-2 mb-0"><strong><i class="fas fa-exclamation-triangle"></i> Recursive model not validated at this Forecast Horizon.</strong> At <strong>Lookback window</strong> ${Number(report.window_size_months || 0)} months the dataset supports only <strong>${supervisedDepth} supervised recursive step(s)</strong>, but a <strong>Forecast Horizon</strong> of ${Number(report.horizon_months || 0)} months needs ${Number(report.horizon_months || 0)}. The remaining <strong>${extrapolatedSteps} step(s) receive no training signal</strong>; they are capped at each product's observed peak and damped toward its recent average so the rollout cannot diverge. Treat the recursive column here as damped extrapolation, <strong>not</strong> a validated forecast. For a defensible recursive comparison, ${supervisionRemedy(Number(report.horizon_months || 0), Number(report.window_size_months || 0), Number(report.sliding_step_months || 1), Number(report.training_size) || 0.8)} The independent direct model is unaffected.</div>`
     : '';
   const sequenceBias = Number(sequence.bias_percent || 0);
   const independentBias = Number(independent.bias_percent || 0);
@@ -8599,7 +8628,7 @@ function renderRevenueQuickStats(report) {
   const rolloutBanner = document.getElementById('qsRolloutWarning');
   if (rolloutBanner) {
     if (extrapolatedSteps > 0) {
-      rolloutBanner.innerHTML = `<i class="fas fa-exclamation-triangle"></i> <strong>Recursive model not validated at a ${Number(report.horizon_months || 0)}-month Forecast Horizon.</strong> Only ${supervisedDepth} recursive step(s) have training signal at <strong>Lookback window</strong> ${Number(report.window_size_months || 0)}; the other ${extrapolatedSteps} are damped extrapolation. To compare the recursive model fairly, ${supervisionRemedy(Number(report.horizon_months || 0), Number(report.window_size_months || 0), Number(report.sliding_step_months || 1))} The independent direct model is unaffected.`;
+      rolloutBanner.innerHTML = `<i class="fas fa-exclamation-triangle"></i> <strong>Recursive model not validated at a ${Number(report.horizon_months || 0)}-month Forecast Horizon.</strong> Only ${supervisedDepth} recursive step(s) have training signal at <strong>Lookback window</strong> ${Number(report.window_size_months || 0)}; the other ${extrapolatedSteps} are damped extrapolation. To compare the recursive model fairly, ${supervisionRemedy(Number(report.horizon_months || 0), Number(report.window_size_months || 0), Number(report.sliding_step_months || 1), Number(report.training_size) || 0.8)} The independent direct model is unaffected.`;
       rolloutBanner.style.display = '';
     } else {
       rolloutBanner.style.display = 'none';
@@ -8879,6 +8908,9 @@ function downloadTimeSeriesMetrics() {
 document.addEventListener('DOMContentLoaded', () => {
   showPredictiveSubtab('revenue');
   setTimeSeriesParameterMode();
+  /* Firefox restores a slider's position across a reload but not the label
+     beside it, so the two are synchronised once at startup. */
+  showTimeSeriesTrainingSize();
   // Charts created while the benchmarks modal is hidden get a 0-width canvas;
   // resize once Bootstrap actually shows the modal so Chart.js can measure it.
   document.getElementById('modelBenchmarksModal')?.addEventListener('shown.bs.modal', () => {
