@@ -45,7 +45,10 @@ PERIOD_DAYS = 30
 VALID_HORIZONS = {1, 2, 3, 4, 5, 6, 7, 8, 9}
 VALID_WINDOWS = {2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}
 VALID_STEPS = {1, 2, 3}
-RANKING_CUTOFFS = (5, 10, 20)
+# Shallow cutoffs say whether the handful of products a buyer actually reads
+# came out in the right order; the deep ones say whether the ranking still
+# holds once it is used as a shortlist rather than a headline.
+RANKING_CUTOFFS = (5, 10, 20, 100, 200)
 AUTO_HIDDEN_UNITS = 16
 AUTO_FEEDBACK_RATE = 0.5
 AUTO_EPOCHS = 10

@@ -2184,7 +2184,7 @@ html, body {
             <div class="col-md-3"><strong class="text-dark">1. Sliding windows</strong><br>Each sample contains the selected number of earlier 30-day Product ID revenue periods. Windows overlap when the step is smaller than the lookback.</div>
             <div class="col-md-3"><strong class="text-dark">2. Recursive RNN</strong><br>Each predicted period is fed into the next. Joint multi-step loss is propagated backward through the forecast sequence.</div>
             <div class="col-md-3"><strong class="text-dark">3. Independent model</strong><br>The gradient-boosting ensemble predicts each lead from the same observed window without using earlier predictions.</div>
-            <div class="col-md-3"><strong class="text-dark">4. Honest comparison</strong><br>Both models use the same final chronological holdout and are compared on revenue error and Top-5/10/20 ranking quality.</div>
+            <div class="col-md-3"><strong class="text-dark">4. Honest comparison</strong><br>Both models use the same final chronological holdout and are compared on revenue error and ranking quality from Top-5 down to Top-200.</div>
           </div>
         </details>
 
@@ -8447,10 +8447,21 @@ function renderTimeSeriesReportV5(report) {
     ['Recent-average benchmark', baseline, ''],
   ];
   const metricRows = methods.map(([label, metrics, rowClass]) => `<tr class="${rowClass}"><td><strong>${label}</strong></td><td>${metricCell(metrics.wmape, true)}</td><td>${metricCell(metrics.mae)}</td><td>${metricCell(metrics.rmse)}</td><td>${metricCell(metrics.bias_percent, true)}</td><td>${metricCell(metrics.precision_at_k, true)}</td><td>${metricCell(metrics.ndcg_at_k, true)}</td><td>${metricCell(metrics.spearman)}</td></tr>`).join('');
-  const rankingRows = [5, 10, 20].flatMap(k => methods.map(([label, metrics]) => {
+  /* The depths come from what the report actually measured, not a fixed list.
+     A model saved before K=100 and K=200 existed holds only the three shallow
+     cutoffs, and asking it for the deep ones would print rows of zeros that
+     read as a failed ranking rather than an absent measurement. */
+  const measuredCutoffs = new Set();
+  methods.forEach(([, metrics]) => Object.keys(metrics.ranking_at_k || {})
+    .forEach(key => measuredCutoffs.add(Number(key))));
+  const rankingCutoffs = [...measuredCutoffs].filter(Number.isFinite).sort((a, b) => a - b);
+  const rankingDepths = rankingCutoffs.length ? rankingCutoffs : [5, 10, 20, 100, 200];
+  const rankingRows = rankingDepths.flatMap(k => methods.map(([label, metrics]) => {
     const item = (metrics.ranking_at_k || {})[String(k)] || {};
     return `<tr><td>${k}</td><td>${label}</td><td>${Number(item.overlap_count || 0)} / ${Number(item.k_used || k)}</td><td>${metricCell(item.precision_at_k, true)}</td><td>${metricCell(item.recall_at_k, true)}</td><td>${metricCell(item.jaccard_at_k, true)}</td><td>${metricCell(item.ndcg_at_k, true)}</td><td>${metricCell(item.rank_biased_overlap, true)}</td></tr>`;
   })).join('');
+  const rankingDepthLabel = rankingDepths.map(k => `Top-${k}`).join(', ')
+    .replace(/, ([^,]+)$/, ' and $1');
   const topRankRows = (report.top_product_rank_comparison || []).map(row => `<tr><td>${Number(row.actual_rank)}</td><td><strong>${escapeHtml(row.product_id)}</strong></td><td>${Number(row.sequence_rank).toLocaleString()}</td><td>${Number(row.independent_rank).toLocaleString()}</td></tr>`).join('');
   const similarity20 = (similarity.top_k_overlap || {})['20'] || {};
   lastTimeSeriesReport = report;
@@ -8527,7 +8538,7 @@ function renderTimeSeriesReportV5(report) {
     </section>
 
     <details class="bench-fold mb-2">
-      <summary><i class="fas fa-list-ol"></i> Top-5, Top-10 and Top-20 ranking detail</summary>
+      <summary><i class="fas fa-list-ol"></i> ${rankingDepthLabel} ranking detail</summary>
       <div class="table-responsive mt-2">
         <table class="table table-sm align-middle mb-0 bench-table">
           <thead><tr><th>K</th><th>Method vs actual</th><th>Overlap</th><th>Precision</th><th>Recall</th><th>Jaccard</th><th>NDCG</th><th>RBO</th></tr></thead>
