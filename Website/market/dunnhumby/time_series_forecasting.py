@@ -48,7 +48,13 @@ VALID_STEPS = {1, 2, 3}
 # Shallow cutoffs say whether the handful of products a buyer actually reads
 # came out in the right order; the deep ones say whether the ranking still
 # holds once it is used as a shortlist rather than a headline.
-RANKING_CUTOFFS = (5, 10, 20, 100, 200)
+#
+# The deep end is not decoration. Down to a few hundred products the recent
+# average ranks revenue as well as either model and at K=50 it ranks it better,
+# because a product's recent takings are a strong guess at its next ones. Both
+# models pull clear of it around K=500 and stay clear, so a comparison that
+# stopped at 20 would report a tie the data does not support either way.
+RANKING_CUTOFFS = (5, 10, 20, 100, 200, 500, 1000, 2000)
 AUTO_HIDDEN_UNITS = 16
 AUTO_FEEDBACK_RATE = 0.5
 AUTO_EPOCHS = 10

@@ -8455,13 +8455,35 @@ function renderTimeSeriesReportV5(report) {
   methods.forEach(([, metrics]) => Object.keys(metrics.ranking_at_k || {})
     .forEach(key => measuredCutoffs.add(Number(key))));
   const rankingCutoffs = [...measuredCutoffs].filter(Number.isFinite).sort((a, b) => a - b);
-  const rankingDepths = rankingCutoffs.length ? rankingCutoffs : [5, 10, 20, 100, 200];
+  // Mirrors RANKING_CUTOFFS; only reached when a report carries no depths at all.
+  const rankingDepths = rankingCutoffs.length ? rankingCutoffs : [5, 10, 20, 100, 200, 500, 1000, 2000];
   const rankingRows = rankingDepths.flatMap(k => methods.map(([label, metrics]) => {
     const item = (metrics.ranking_at_k || {})[String(k)] || {};
     return `<tr><td>${k}</td><td>${label}</td><td>${Number(item.overlap_count || 0)} / ${Number(item.k_used || k)}</td><td>${metricCell(item.precision_at_k, true)}</td><td>${metricCell(item.recall_at_k, true)}</td><td>${metricCell(item.jaccard_at_k, true)}</td><td>${metricCell(item.ndcg_at_k, true)}</td><td>${metricCell(item.rank_biased_overlap, true)}</td></tr>`;
   })).join('');
   const rankingDepthLabel = rankingDepths.map(k => `Top-${k}`).join(', ')
     .replace(/, ([^,]+)$/, ' and $1');
+
+  /* Where the models actually earn their keep. A product's recent takings are
+     a strong guess at its next ones, so near the top of the list the benchmark
+     ranks as well as either model and sometimes better. A reader who saw only
+     the shallow rows would conclude the models add nothing, so the depth from
+     which both lead on precision and NDCG, and never fall back below it, is
+     named outright. */
+  const leadsBenchmark = k => {
+    const rnn = (sequence.ranking_at_k || {})[String(k)];
+    const direct = (independent.ranking_at_k || {})[String(k)];
+    const bench = (baseline.ranking_at_k || {})[String(k)];
+    if (!rnn || !direct || !bench) return false;
+    return Math.min(Number(rnn.precision_at_k), Number(direct.precision_at_k)) > Number(bench.precision_at_k)
+      && Math.min(Number(rnn.ndcg_at_k), Number(direct.ndcg_at_k)) > Number(bench.ndcg_at_k);
+  };
+  const benchmarkCrossover = rankingDepths.find(
+    (k, index) => rankingDepths.slice(index).every(leadsBenchmark)
+  );
+  const benchmarkNote = benchmarkCrossover
+    ? `Both models lead the recent-average benchmark from <strong>Top-${benchmarkCrossover}</strong> downwards and stay ahead at every deeper cut. Above it the benchmark ranks the head of the list about as well, because a product's recent takings already predict its next ones.`
+    : 'Neither model leads the recent-average benchmark at every depth measured here, so on ranking alone the benchmark is not beaten; the error columns above are where the models separate.';
   const topRankRows = (report.top_product_rank_comparison || []).map(row => `<tr><td>${Number(row.actual_rank)}</td><td><strong>${escapeHtml(row.product_id)}</strong></td><td>${Number(row.sequence_rank).toLocaleString()}</td><td>${Number(row.independent_rank).toLocaleString()}</td></tr>`).join('');
   const similarity20 = (similarity.top_k_overlap || {})['20'] || {};
   lastTimeSeriesReport = report;
@@ -8545,6 +8567,7 @@ function renderTimeSeriesReportV5(report) {
           <tbody>${rankingRows}</tbody>
         </table>
       </div>
+      <p class="bench-note">${benchmarkNote}</p>
       <p class="bench-note">Recursive against independent at Top-20: ${Number(similarity20.overlap_count || 0)} shared products, Jaccard ${metricCell(similarity20.jaccard_at_k, true)}, RBO ${metricCell(similarity20.rank_biased_overlap, true)}.</p>
     </details>
 
