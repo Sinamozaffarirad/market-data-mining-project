@@ -511,7 +511,7 @@ document.addEventListener('DOMContentLoaded', () => {
         event.preventDefault();
         event.stopPropagation();
         const ruleData = buildRuleData(card);
-        openInsertConfirm(ruleData);
+        openInsertConfirm(ruleData, card);
       });
     }
 
@@ -578,7 +578,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (modalInsertBtn) {
           modalInsertBtn.addEventListener('click', (event) => {
             event.preventDefault();
-            openInsertConfirm(ruleData);
+            // The same card the modal was opened from, so inserting here marks
+            // it saved too rather than only the button on the card itself.
+            openInsertConfirm(ruleData, card);
           }, { once: true });
         }
       }, 200);
@@ -637,7 +639,54 @@ function buildRuleData(card) {
   };
 }
 
-function openInsertConfirm(ruleData) {
+/* A card went on offering "Insert Rule" after its rule had been stored, and
+   only a page reload would say otherwise. That made the same rule easy to
+   insert twice and gave no sign the first attempt had worked. The card is
+   brought up to date in place instead, carrying the same badge the server
+   renders for an already-saved rule on the next load. */
+function markRuleCardSaved(card) {
+  if (!card || card.dataset.savedState === 'saved') return;
+  card.dataset.savedState = 'saved';
+
+  const stats = card.querySelector('.border-top');
+  if (stats) {
+    // "Update available" no longer applies once the saved copy matches this one.
+    stats.querySelectorAll('.ar-saved, .ar-changed').forEach(chip => chip.remove());
+    const badge = document.createElement('div');
+    badge.className = 'ar-saved';
+    badge.title = 'Stored from this page a moment ago';
+    /* Written out rather than left to toLocaleDateString, so it matches what
+       Django's "j M Y" renders for this same badge on the next load. The
+       locale versions disagree with it and with each other: the default gives
+       "Sep 6, 2026" and en-GB gives "6 Sept 2026", so the one card would be
+       dated differently before and after a refresh. */
+    const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const now = new Date();
+    const when = `${now.getDate()} ${MONTHS[now.getMonth()]} ${now.getFullYear()}`;
+    badge.innerHTML = `<i class="fas fa-database"></i> Saved `
+      + `<span class="ar-saved-date">${when}</span>`;
+    stats.insertBefore(badge, stats.firstChild);
+  }
+
+  const button = card.querySelector('.insert-rule-btn');
+  if (button) {
+    button.classList.remove('btn-outline-success');
+    button.classList.add('btn-outline-secondary');
+    button.innerHTML = '<i class="fas fa-check"></i> Saved';
+    button.disabled = true;
+  }
+
+  /* Leaving it ticked would send it again with the next bulk insert, for no
+     effect but a wasted request. */
+  const checkbox = card.querySelector('.rule-checkbox');
+  if (checkbox && checkbox.checked) {
+    checkbox.checked = false;
+    if (typeof updateSelectedRulesCount === 'function') updateSelectedRulesCount();
+  }
+}
+
+function openInsertConfirm(ruleData, card) {
   /* Four decimal places suit confidence and lift, but not support, which on
      this data runs into the ten-thousandths: 0.000130 was shown as 0.0001, so
      the figure the reader confirmed was not the figure being stored. Values
@@ -672,12 +721,12 @@ function openInsertConfirm(ruleData) {
   setTimeout(() => {
     const confirmBtn = document.getElementById('confirmInsertRuleBtn');
     if (confirmBtn) {
-      confirmBtn.addEventListener('click', () => performRuleInsert(ruleData), { once: true });
+      confirmBtn.addEventListener('click', () => performRuleInsert(ruleData, card), { once: true });
     }
   }, 200);
 }
 
-function performRuleInsert(ruleData) {
+function performRuleInsert(ruleData, card) {
   const modalEl = document.getElementById('detailModal');
   const modalInstance = modalEl ? bootstrap.Modal.getInstance(modalEl) : null;
   const confirmBtn = document.getElementById('confirmInsertRuleBtn');
@@ -700,6 +749,7 @@ function performRuleInsert(ruleData) {
         if (modalInstance) {
           modalInstance.hide();
         }
+        markRuleCardSaved(card);
         showRuleInsertFeedback(payload.message || 'Rule stored successfully.', 'success');
       } else {
         const errorMessage = payload.error || 'Unable to store the rule.';
@@ -1099,7 +1149,11 @@ function insertSelectedRules() {
       support: parseFloat(card.dataset.sup),
       confidence: parseFloat(card.dataset.conf),
       lift: parseFloat(card.dataset.lift),
-      rule_type: card.dataset.type
+      rule_type: card.dataset.type,
+      /* Carried so each card can be marked saved as its own insert lands.
+         insertSingleRule rebuilds its payload from named fields, so this
+         element never reaches JSON.stringify. */
+      card: card,
     };
 
     // Create unique identifier for duplicate detection
@@ -1194,6 +1248,7 @@ function processBulkRuleInsertion(rules) {
 
     // Enhanced insertion with connection health monitoring
     insertSingleRule(rule).then(() => {
+      markRuleCardSaved(rule.card);
       successCount++;
       currentIndex++;
       consecutiveFailures = 0; // Reset failure counter on success
