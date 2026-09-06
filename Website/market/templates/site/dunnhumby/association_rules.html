@@ -66,6 +66,59 @@
   margin-top:.5rem; font-size:.72rem; font-weight:600; color:#b45309;
   background:#fff7ed; border:1px solid #fed7aa; border-radius:8px; padding:.3rem .5rem;
 }
+/* A grid rather than a flex row, so the three labels sit on one line and the
+   three controls on another. Under flex the department field was taller than
+   its neighbours -- it carries a hint underneath -- and bottom-alignment then
+   lifted its select above the other two. The hint is taken out of the flow and
+   the space it needs is reserved on every field, so adding a hint to another
+   field later cannot pull the row apart again. */
+.ar-page .ar-filterbar {
+  display:grid;
+  grid-template-columns:minmax(190px, 1fr) minmax(190px, 1fr) minmax(185px, 250px) auto;
+  gap:.75rem 1rem; align-items:end;
+  padding:.85rem 1rem; margin-bottom:1rem;
+  background:#f8fafc; border:1px solid var(--rev-line); border-radius:14px;
+}
+.ar-page .ar-filter-field {
+  display:flex; flex-direction:column; gap:.3rem; min-width:0;
+  position:relative; padding-bottom:1.15rem;
+}
+.ar-page .ar-filter-field label {
+  font-size:.72rem; font-weight:700; letter-spacing:.03em; text-transform:uppercase; color:#64748b;
+}
+.ar-page .ar-search-wrap { position:relative; }
+.ar-page .ar-search-wrap i {
+  position:absolute; left:.7rem; top:50%; transform:translateY(-50%);
+  color:#94a3b8; font-size:.8rem; pointer-events:none;
+}
+.ar-page .ar-search-wrap input { padding-left:2rem; }
+/* Matched to the height of a form control so the button sits on the same line
+   as the three inputs rather than standing taller than them. */
+.ar-page .ar-filter-clear {
+  margin-bottom:1.15rem; white-space:nowrap;
+  height:38px; display:inline-flex; align-items:center; gap:.3rem;
+}
+.ar-page .ar-filter-hint {
+  position:absolute; left:0; bottom:0; max-width:100%;
+  font-size:.7rem; color:#94a3b8;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+@media (max-width: 767px) {
+  .ar-page .ar-filterbar { grid-template-columns:1fr; }
+  .ar-page .ar-filter-clear { margin-bottom:0; justify-self:start; }
+}
+.ar-page .ar-no-matches {
+  padding:2rem 1rem; text-align:center; color:#64748b; font-size:.9rem;
+  border:1px dashed #cbd5e1; border-radius:12px; background:#f8fafc;
+}
+/* Lift under 1 is the opposite finding, not a weaker one, so it gets a colour of
+   its own rather than the green every other rule wears. Slate, not red: the pair
+   avoiding each other is a legitimate result, not an error. */
+.ar-page .ar-lift-inverse { background:#475569; color:#fff; }
+.ar-page .ar-inverse {
+  margin-top:.5rem; font-size:.72rem; font-weight:600; color:#334155;
+  background:#f1f5f9; border:1px solid #cbd5e1; border-radius:8px; padding:.3rem .5rem;
+}
 /* The chip carried inline padding and radius on every use; it belongs in one rule. */
 .ar-page .department-badge {
   color:#fff; padding:4px 10px; border-radius:999px; font-size:.75rem; font-weight:600;
@@ -84,8 +137,17 @@
         <div class="analysis-banner-sub">Which products are bought together, found with Apriori. Lower the
         support to reach rarer pairs, at the cost of a longer run.</div>
       </div>
-      <span class="badge bg-success px-3 py-2">2.6M transactions &middot; 276,450 baskets
-      &middot; 92,335 products</span>
+      {% comment %}
+        Counted from the transaction table on each load rather than written in.
+        The three figures were literals, correct only while the data stood
+        still and silently wrong the moment anything was loaded.
+      {% endcomment %}
+      <span class="badge bg-success px-3 py-2"
+            id="datasetScaleBadge"
+            data-baskets="{{ dataset_scale.baskets|default:0 }}">
+        {{ dataset_scale.transactions_display }} transactions &middot;
+        {{ dataset_scale.baskets_display }} baskets &middot;
+        {{ dataset_scale.products_display }} products</span>
     </div>
     <div class="row g-4">
       <div class="col-12">
@@ -136,7 +198,7 @@
 
               <!-- Second row: Algorithm parameters -->
               <div class="row g-3 mb-4">
-                <div class="col-12 col-md-6">
+                <div class="col-12 col-md-4">
                   <label for="min_support" class="form-label">Minimum Support (0.0 - 1.0)</label>
                   <input type="number" class="form-control" id="min_support" name="min_support" step="0.00001" min="0" max="1" value="{{ min_support|default:'0.0005' }}" oninput="updateSupportInfo()">
                   <div class="form-text">
@@ -151,7 +213,7 @@
                     baskets of the <b id="supportBasketTotal">276,450</b> in range.</span>
                   </div>
                 </div>
-                <div class="col-12 col-md-6">
+                <div class="col-12 col-md-4">
                   <label for="min_confidence" class="form-label">Minimum Confidence (0.0 - 1.0)</label>
                   <input type="number" class="form-control" id="min_confidence" name="min_confidence" step="0.01" min="0" max="1" value="{{ min_confidence|default:'0.3' }}">
                   <div class="form-text">
@@ -160,6 +222,20 @@
                       <span><b>0.7</b> strong</span>
                       <span><b>0.5</b> moderate</span>
                       <span><b>0.3</b> exploratory</span>
+                    </span>
+                  </div>
+                </div>
+                <div class="col-12 col-md-4">
+                  <label for="min_lift" class="form-label">Minimum Lift (0 = no floor)</label>
+                  <input type="number" class="form-control" id="min_lift" name="min_lift" step="0.1" min="0" value="{{ min_lift|default:'0' }}">
+                  <div class="form-text">
+                    How much more often than chance. <b>1.0</b> is the dividing line: below it the
+                    two products appear together <em>less</em> than chance and avoid one another.
+                    <span class="ar-scale">
+                      <span><b>3.0</b> strong pull</span>
+                      <span><b>1.5</b> mild pull</span>
+                      <span><b>1.0</b> chance</span>
+                      <span><b>0</b> keep all</span>
                     </span>
                   </div>
                 </div>
@@ -238,6 +314,42 @@
             <!-- Results Container -->
             <div id="resultsContainer">
             {% if rules %}
+            {% comment %}
+              Searching and filtering happen in the browser over the cards already
+              rendered, the same set the pager walks. With a few thousand rules
+              that is immediate, and it avoids re-running Apriori to answer a
+              question about results that are already on the page.
+            {% endcomment %}
+            <div class="ar-filterbar">
+              <div class="ar-filter-field">
+                <label for="ruleSearch">Search rules</label>
+                <div class="ar-search-wrap">
+                  <i class="fas fa-magnifying-glass"></i>
+                  <input type="search" id="ruleSearch" class="form-control" autocomplete="off"
+                         placeholder="Product id, commodity, brand&hellip;"
+                         oninput="applyRuleFilter()">
+                </div>
+              </div>
+              <div class="ar-filter-field">
+                <label for="ruleDepartmentFilter">Department</label>
+                <select id="ruleDepartmentFilter" class="form-select" onchange="applyRuleFilter()">
+                  <option value="">All departments</option>
+                </select>
+                <span class="ar-filter-hint" id="ruleDepartmentHint"></span>
+              </div>
+              <div class="ar-filter-field ar-filter-field-narrow">
+                <label for="ruleLiftFilter">Lift</label>
+                <select id="ruleLiftFilter" class="form-select" onchange="applyRuleFilter()">
+                  <option value="">Any lift</option>
+                  <option value="above">Above 1 &mdash; bought together</option>
+                  <option value="below">Below 1 &mdash; avoid each other</option>
+                </select>
+              </div>
+              <button type="button" class="btn btn-outline-secondary btn-sm ar-filter-clear"
+                      id="ruleFilterClear" onclick="clearRuleFilter()" hidden>
+                <i class="fas fa-xmark"></i> Clear
+              </button>
+            </div>
             <div class="pager" id="rulePagerTop"></div>
             <div class="row g-3" id="ruleGrid">
               {% for rule in rules %}
@@ -246,7 +358,14 @@
                      style="border-left: 4px solid {% if rule.antecedent_details.0.department == 'GROCERY' %}#2E86C1{% elif rule.antecedent_details.0.department == 'DRUG GM' %}#A569BD{% elif rule.antecedent_details.0.department == 'PRODUCE' %}#27AE60{% elif rule.antecedent_details.0.department == 'DAIRY' %}#F39C12{% elif rule.antecedent_details.0.department == 'MEAT-PCKGD' %}#E74C3C{% elif rule.antecedent_details.0.department == 'FROZEN GROCERY' %}#85C1E9{% elif rule.antecedent_details.0.department == 'BAKERY' %}#D4AC0D{% elif rule.antecedent_details.0.department == 'BEVERAGE' %}#17A2B8{% else %}#6C757D{% endif %}; cursor: pointer; transition: all 0.3s ease;"
                      data-ant="{{ rule.antecedent|join:', ' }}"
                      data-con="{{ rule.consequent|join:', ' }}"
-                     data-sup="{{ rule.support|floatformat:6 }}"
+                     {% comment %}
+                       This attribute is what the insert actually stores, so it
+                       carries more places than the card prints. The rarest pair
+                       possible here is one basket in 276,450, a support of
+                       0.0000036, which six places would have rounded to
+                       0.000004 before it ever reached the database.
+                     {% endcomment %}
+                     data-sup="{{ rule.support|floatformat:9 }}"
                      data-conf="{{ rule.confidence|floatformat:4 }}"
                      data-lift="{{ rule.lift|floatformat:4 }}"
                      data-ant-list="{{ rule.antecedent|join:'|' }}"
@@ -256,6 +375,15 @@
                      data-min-lift="{{ rule.min_lift_threshold|default:'' }}"
                      data-source="{{ rule.source_view|default:'analysis.association_rules' }}"
                      data-type="{{ rule.rule_type|default:'product' }}"
+                     {% comment %}
+                       Everything the card shows, flattened into one lower-case
+                       string so the search box can match on what the reader can
+                       actually see: product ids, departments, commodities and
+                       brands. Filtering reads these attributes rather than the
+                       rendered text, which is faster and survives re-rendering.
+                     {% endcomment %}
+                     data-departments="{% for d in rule.antecedent_details %}{{ d.department|lower }}|{% endfor %}{% for d in rule.consequent_details %}{{ d.department|lower }}|{% endfor %}"
+                     data-search="{{ rule.antecedent|join:' '|lower }} {{ rule.consequent|join:' '|lower }}{% for d in rule.antecedent_details %} {{ d.department|lower }} {{ d.commodity|lower }} {{ d.brand|lower }}{% endfor %}{% for d in rule.consequent_details %} {{ d.department|lower }} {{ d.commodity|lower }} {{ d.brand|lower }}{% endfor %}"
                      onmouseover="this.style.transform='translateY(-3px)'; this.style.boxShadow='0 12px 30px rgba(0,0,0,0.2)'"
                      onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow=''">
                   <div class="card-body">
@@ -324,8 +452,20 @@
                       </div>
                       <div class="d-flex justify-content-between align-items-center">
                         <span class="text-muted small">Lift:</span>
-                        <span class="badge {% if rule.baskets_together < 20 %}bg-warning text-dark{% else %}bg-success{% endif %}">{{ rule.lift|floatformat:2 }}</span>
+                        {% comment %}
+                          Lift below 1 is not a weak rule but an inverted one, and it
+                          used to wear the same green badge as a lift of 5. Direction
+                          is decided first; thin evidence keeps its own warning colour
+                          and its own note underneath.
+                        {% endcomment %}
+                        <span class="badge {% if rule.lift < 1 %}ar-lift-inverse{% elif rule.baskets_together < 20 %}bg-warning text-dark{% else %}bg-success{% endif %}">
+                          {% if rule.lift < 1 %}<i class="fas fa-arrow-down-long me-1"></i>{% endif %}{{ rule.lift|floatformat:2 }}</span>
                       </div>
+                      {% if rule.lift < 1 %}
+                        <div class="ar-inverse" title="Lift below 1 means the pair shows up together less often than their individual rates would predict. Read as avoidance, not attraction: it is evidence against cross-selling these two, and may point to substitutes competing for the same slot in the basket.">
+                          <i class="fas fa-right-left"></i> Bought together <strong>less</strong> than chance &mdash; these two avoid each other
+                        </div>
+                      {% endif %}
                       {% if rule.baskets_together < 20 %}
                         <div class="ar-thin" title="A high lift on a handful of baskets is arithmetic rather than a pattern: with so few, one coincidence sets the figure.">
                           <i class="fas fa-triangle-exclamation"></i> Thin evidence &mdash; too few baskets to rely on
@@ -341,6 +481,13 @@
                 </div>
               </div>
               {% endfor %}
+            </div>
+            <div class="ar-no-matches" id="ruleNoMatches" hidden>
+              <i class="fas fa-magnifying-glass mb-2 d-block" style="font-size:1.4rem;"></i>
+              No rule on this page matches the search or filters.
+              <button type="button" class="btn btn-link btn-sm p-0 align-baseline"
+                      onclick="clearRuleFilter()">Clear them</button>
+              to see all of them again.
             </div>
             <div class="pager" id="rulePagerBottom"></div>
             {% else %}
@@ -491,7 +638,18 @@ function buildRuleData(card) {
 }
 
 function openInsertConfirm(ruleData) {
-  const formatMetric = (value) => (Number.isFinite(value) ? value.toFixed(4) : 'N/A');
+  /* Four decimal places suit confidence and lift, but not support, which on
+     this data runs into the ten-thousandths: 0.000130 was shown as 0.0001, so
+     the figure the reader confirmed was not the figure being stored. Values
+     below 0.001 are given three significant figures instead, in plain notation
+     rather than an exponent. */
+  const formatMetric = (value) => {
+    if (!Number.isFinite(value)) return 'N/A';
+    if (value === 0) return '0';
+    if (Math.abs(value) >= 0.001) return value.toFixed(4);
+    const places = 2 - Math.floor(Math.log10(Math.abs(value)));
+    return value.toFixed(Math.min(places, 100));
+  };
 
   const body = `
     <div class="alert alert-warning">
@@ -637,9 +795,107 @@ function ruleCells() {
   return grid ? Array.from(grid.children) : [];
 }
 
+/* The pager walks the cards that match the current search and filters, not
+   every card in the grid, so "Showing 1-100 of 2,000" keeps telling the truth
+   once a filter is on. A cell that does not match is hidden outright and never
+   enters the page arithmetic. */
+function ruleFilterState() {
+  const term = (document.getElementById('ruleSearch')?.value || '').trim().toLowerCase();
+  return {
+    term,
+    department: (document.getElementById('ruleDepartmentFilter')?.value || '').toLowerCase(),
+    lift: document.getElementById('ruleLiftFilter')?.value || '',
+    active: Boolean(term) || Boolean(document.getElementById('ruleDepartmentFilter')?.value)
+      || Boolean(document.getElementById('ruleLiftFilter')?.value),
+  };
+}
+
+function ruleCellMatches(cell, state) {
+  const card = cell.querySelector('.rule-card');
+  if (!card) return true;
+  if (state.term && !(card.dataset.search || '').includes(state.term)) return false;
+  if (state.department && !(card.dataset.departments || '').includes(state.department + '|')) return false;
+  if (state.lift) {
+    const lift = Number(card.dataset.lift);
+    if (!Number.isFinite(lift)) return false;
+    if (state.lift === 'above' && !(lift >= 1)) return false;
+    if (state.lift === 'below' && !(lift < 1)) return false;
+  }
+  return true;
+}
+
+function matchingRuleCells() {
+  const state = ruleFilterState();
+  if (!state.active) return ruleCells();
+  return ruleCells().filter(cell => ruleCellMatches(cell, state));
+}
+
+function applyRuleFilter() {
+  rulePage = 1;
+  const state = ruleFilterState();
+  const clear = document.getElementById('ruleFilterClear');
+  if (clear) clear.hidden = !state.active;
+  renderRulePage();
+}
+
+function clearRuleFilter() {
+  const search = document.getElementById('ruleSearch');
+  const department = document.getElementById('ruleDepartmentFilter');
+  const lift = document.getElementById('ruleLiftFilter');
+  if (search) search.value = '';
+  if (department) department.value = '';
+  if (lift) lift.value = '';
+  applyRuleFilter();
+}
+
+/* The list of departments comes from the rules on the page rather than the 43
+   in the product table, so it never offers a department that would return
+   nothing. The count beside each name says so plainly: without it the list
+   looks like it ought to be the whole catalogue and its shortness reads as a
+   bug rather than as the point. */
+function buildDepartmentFilter() {
+  const select = document.getElementById('ruleDepartmentFilter');
+  if (!select) return;
+  const seen = new Map();
+  ruleCells().forEach(cell => {
+    const card = cell.querySelector('.rule-card');
+    if (!card) return;
+    (card.dataset.departments || '').split('|').forEach(name => {
+      const trimmed = name.trim();
+      if (trimmed) seen.set(trimmed, (seen.get(trimmed) || 0) + 1);
+    });
+  });
+  [...seen.entries()].sort((first, second) => first[0].localeCompare(second[0]))
+    .forEach(([name, count]) => {
+      const option = document.createElement('option');
+      option.value = name;
+      option.textContent = `${name.toUpperCase()} (${count})`;
+      select.appendChild(option);
+    });
+  const label = document.getElementById('ruleDepartmentHint');
+  if (label) {
+    label.textContent = `${seen.size} of 43 departments appear in these rules`;
+  }
+}
+
 function renderRulePage() {
-  const cells = ruleCells();
-  if (!cells.length) return;
+  const all = ruleCells();
+  const cells = matchingRuleCells();
+  const empty = document.getElementById('ruleNoMatches');
+  if (empty) empty.hidden = cells.length > 0;
+  if (!cells.length) {
+    all.forEach(cell => { cell.style.display = 'none'; });
+    ['rulePagerTop', 'rulePagerBottom'].forEach(id => {
+      const box = document.getElementById(id);
+      if (box) box.innerHTML = '';
+    });
+    return;
+  }
+  // Anything filtered out is hidden before the page window is applied.
+  const matching = new Set(cells);
+  all.forEach(cell => {
+    if (!matching.has(cell)) cell.style.display = 'none';
+  });
   const pages = Math.max(1, Math.ceil(cells.length / RULE_PAGE_SIZE));
   rulePage = Math.min(Math.max(rulePage, 1), pages);
   const first = (rulePage - 1) * RULE_PAGE_SIZE;
@@ -666,7 +922,7 @@ function renderRulePage() {
 
 /* 0 means the last page, whatever it turns out to be. */
 function goRulePage(page) {
-  const pages = Math.max(1, Math.ceil(ruleCells().length / RULE_PAGE_SIZE));
+  const pages = Math.max(1, Math.ceil(matchingRuleCells().length / RULE_PAGE_SIZE));
   rulePage = page === 0 ? pages : page;
   renderRulePage();
   document.getElementById('rulePagerTop')?.scrollIntoView({behavior: 'smooth', block: 'start'});
@@ -678,7 +934,48 @@ function changeRulePage(step) {
   document.getElementById('rulePagerTop')?.scrollIntoView({behavior: 'smooth', block: 'start'});
 }
 
-document.addEventListener('DOMContentLoaded', renderRulePage);
+document.addEventListener('DOMContentLoaded', () => {
+  buildDepartmentFilter();
+  renderRulePage();
+});
+
+/* Basket counts per period, read from the database rather than written in.
+   null means "not fetched yet"; the request is fired once and the answer kept. */
+const basketCountCache = {};
+const basketCountPending = {};
+
+function seedBasketCountCache() {
+  const badge = document.getElementById('datasetScaleBadge');
+  const allTime = badge ? Number(badge.dataset.baskets) : 0;
+  if (Number.isFinite(allTime) && allTime > 0) basketCountCache['all'] = allTime;
+}
+
+function basketsForPeriod(period) {
+  if (basketCountCache[period] != null) return basketCountCache[period];
+  if (!basketCountPending[period]) {
+    basketCountPending[period] = true;
+    const body = new URLSearchParams({transaction_period: period});
+    fetch('/analysis/api/period-metrics/', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': getCsrfToken()},
+      body: body.toString(),
+    })
+      .then(response => response.json())
+      .then(payload => {
+        const baskets = payload && payload.metrics && payload.metrics.total_baskets;
+        if (Number.isFinite(Number(baskets))) basketCountCache[period] = Number(baskets);
+        updateSupportInfo();
+      })
+      .catch(error => {
+        console.error('Could not read basket counts for', period, error);
+        // Falling back to the all-time figure is better than leaving the hint
+        // blank; it is the same order of magnitude and the label says so.
+        if (basketCountCache['all'] != null) basketCountCache[period] = basketCountCache['all'];
+        updateSupportInfo();
+      });
+  }
+  return null;
+}
 
 function updateSupportInfo() {
   const supportInput = document.getElementById('min_support');
@@ -690,13 +987,20 @@ function updateSupportInfo() {
   /* Support is measured against baskets, not transaction lines. This read
      transaction counts and so overstated every threshold about ninefold: 0.00001
      was labelled "26+ transactions" when the algorithm was in fact accepting
-     pairs seen in 3 baskets. Basket counts for this fixed 711-day dataset. */
-  const basketsInPeriod = {
-    'all': 276450, '12_months': 155352, '6_months': 75236,
-    '3_months': 37109, '1_month': 12121,
-  };
+     pairs seen in 3 baskets.
+
+     The five basket counts used to be written in here, correct only while the
+     table did not change. They are fetched from the period-metrics endpoint
+     instead and remembered per period, so typing in the support box does not
+     put a request on the wire for every keystroke. The all-time count rendered
+     into the banner seeds the cache, so the first paint needs no request. */
   const period = periodSelect ? periodSelect.value : 'all';
-  const total = basketsInPeriod[period] || basketsInPeriod['all'];
+  const total = basketsForPeriod(period);
+  if (total === null) {
+    if (totalSpan) totalSpan.textContent = '…';
+    countSpan.textContent = '…';
+    return;
+  }
   const support = parseFloat(supportInput.value);
   if (totalSpan) totalSpan.textContent = total.toLocaleString();
   if (isNaN(support) || support <= 0) { countSpan.textContent = '--'; return; }
@@ -715,6 +1019,7 @@ function updateSupportInfo() {
 
 // Initialize when page loads
 document.addEventListener('DOMContentLoaded', function() {
+  seedBasketCountCache();
   updateSupportInfo();
 
   // Also update when period changes

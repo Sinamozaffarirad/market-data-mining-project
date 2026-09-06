@@ -548,7 +548,8 @@ def _rows_in_batches(cursor, sql_template, values):
 
 
 def _generate_association_rules(
-    min_support, min_confidence, transaction_period="all", max_results=100
+    min_support, min_confidence, transaction_period="all", max_results=100,
+    min_lift=0.0,
 ):
     """
     Efficient association rules generation using database-level queries
@@ -637,6 +638,15 @@ def _generate_association_rules(
             # least likely to hold them. At the default threshold 4.1M pairs
             # qualify, so which 2,000 were examined decided the answer.
             candidate_limit = max(int(max_results) * 4, 400)
+            # Lift is filtered in the query rather than after it. Filtering the
+            # rows afterwards would thin the candidate set that TOP has already
+            # cut, so asking for 100 rules above a lift floor would return
+            # fewer than 100 even where more qualify.
+            lift_expression = (
+                f"(CAST(pairs.pair_count AS float) * {total_baskets}) "
+                "/ (CAST(counts_a.product_count AS float) * counts_b.product_count)"
+            )
+            lift_filter = f"WHERE {lift_expression} >= %s" if min_lift > 0 else ""
             pairs_query = f"""
             SELECT TOP {candidate_limit}
                 pairs.product_a,
@@ -672,16 +682,20 @@ def _generate_association_rules(
                 {date_filter_single}
                 GROUP BY product_id
             ) counts_b ON pairs.product_b = counts_b.product_id
+            {lift_filter}
             ORDER BY
-                (CAST(pairs.pair_count AS float) * {total_baskets})
-                / (CAST(counts_a.product_count AS float) * counts_b.product_count) DESC,
+                {lift_expression} DESC,
                 pairs.pair_count DESC
             """
 
             logger.info(
-                f"Executing pairs query with min_basket_count: {min_basket_count}"
+                f"Executing pairs query with min_basket_count: {min_basket_count}, "
+                f"min_lift: {min_lift}"
             )
-            cursor.execute(pairs_query, [min_basket_count])
+            query_params = [min_basket_count]
+            if min_lift > 0:
+                query_params.append(min_lift)
+            cursor.execute(pairs_query, query_params)
 
             product_pairs = cursor.fetchall()
             logger.info(f"Found {len(product_pairs)} product pairs")
@@ -757,7 +771,7 @@ def _generate_association_rules(
                         "rule_type": "product",
                         "min_support_threshold": min_support,
                         "min_confidence_threshold": min_confidence,
-                        "min_lift_threshold": None,
+                        "min_lift_threshold": min_lift or None,
                         "source_view": "analysis.association_rules",
                         "metadata": {
                             "antecedent_details": [ant_detail],
@@ -807,7 +821,7 @@ def _generate_association_rules(
                         "rule_type": "product",
                         "min_support_threshold": min_support,
                         "min_confidence_threshold": min_confidence,
-                        "min_lift_threshold": None,
+                        "min_lift_threshold": min_lift or None,
                         "source_view": "analysis.association_rules",
                         "metadata": {
                             "antecedent_details": [ant_detail],
@@ -2047,12 +2061,45 @@ def _mark_saved_state(rules):
     return rules
 
 
+def _dataset_scale():
+    """Size of the transaction table, for the banner and the support helper.
+
+    The page used to carry these three figures as literals, which were correct
+    only for as long as the table did not change. They are counted here instead
+    so that loading new data updates the page rather than silently dating it.
+    """
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT COUNT_BIG(*) AS transactions,
+                   COUNT(DISTINCT basket_id) AS baskets,
+                   COUNT(DISTINCT product_id) AS products
+            FROM transactions
+            """
+        )
+        transactions, baskets, products = cursor.fetchone()
+    transactions, baskets, products = (
+        int(transactions or 0), int(baskets or 0), int(products or 0)
+    )
+    return {
+        "transactions": transactions,
+        "baskets": baskets,
+        "products": products,
+        # humanize is not installed, so the thousands separators are added here
+        # rather than pulling in an app for three numbers.
+        "transactions_display": f"{transactions:,}",
+        "baskets_display": f"{baskets:,}",
+        "products_display": f"{products:,}",
+    }
+
+
 @admin_required
 def association_rules(request):
     if request.method == "POST":
         try:
             min_support = float(request.POST.get("min_support", 0.0001))
             min_confidence = float(request.POST.get("min_confidence", 0.5))
+            min_lift = float(request.POST.get("min_lift", 0) or 0)
             transaction_period = request.POST.get("transaction_period", "all")
             max_results = int(request.POST.get("max_results", 100))
 
@@ -2075,6 +2122,11 @@ def association_rules(request):
                 )
             if min_confidence <= 0 or min_confidence > 1:
                 min_confidence = 0.5
+            # A floor of 1 keeps only pairs that appear together more often than
+            # chance. Below 1 the two products avoid one another, which is a
+            # real finding but the opposite of the one a cross-sell rule claims.
+            if min_lift < 0:
+                min_lift = 0.0
             if transaction_period not in [
                 "all",
                 "1_month",
@@ -2091,7 +2143,8 @@ def association_rules(request):
 
             rules = _mark_saved_state(
                 _generate_association_rules(
-                    min_support, min_confidence, transaction_period, max_results
+                    min_support, min_confidence, transaction_period, max_results,
+                    min_lift,
                 )
             )
 
@@ -2110,6 +2163,8 @@ def association_rules(request):
                 "rules": rules,
                 "min_support": min_support,
                 "min_confidence": min_confidence,
+                "min_lift": min_lift,
+                "dataset_scale": _dataset_scale(),
                 "transaction_period": transaction_period,
                 "max_results": max_results,
                 "success_message": f"Generated {len(rules)} association rules from {period_display} successfully!",
@@ -2139,12 +2194,15 @@ def association_rules(request):
                 "error_message": f"Error generating rules: {error_msg}. {suggestion}",
                 "min_support": request.POST.get("min_support", 0.00005),
                 "min_confidence": request.POST.get("min_confidence", 0.5),
+                "min_lift": request.POST.get("min_lift", 0),
+                "dataset_scale": _dataset_scale(),
                 "transaction_period": request.POST.get("transaction_period", "all"),
                 "max_results": request.POST.get("max_results", 100),
             }
     else:
         ctx = {
             "title": "Association Rules",
+            "dataset_scale": _dataset_scale(),
             "rules": _describe_stored_rules(
                 AssociationRule.objects.all().order_by("-lift")[:100]
             ),
