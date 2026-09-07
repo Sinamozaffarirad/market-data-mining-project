@@ -693,7 +693,7 @@ one over several lines renders it onto the page as visible text.
   <div class="bi-page" id="biPage-stores">
     <div class="bi-card" style="--panel-accent:var(--bi-rose)">
       <div class="bi-head"><div><h5><i class="fas fa-store"></i> Store performance</h5>
-        <p class="sub">Baskets against average basket value, bubble size is revenue &mdash; click a store to filter</p></div></div>
+        <p class="sub">Baskets against average basket value, bubble area is revenue &mdash; click a store to filter</p></div></div>
       <div class="chart-box tall"><canvas id="storeChart"></canvas></div>
     </div>
   </div>
@@ -1150,7 +1150,16 @@ async function loadStores() {
   BI.store = new Chart(document.getElementById('storeChart'), {
     type: 'bubble',
     data: { datasets: [{ label: 'Store',
-      data: data.rows.map(r => ({ x: r.baskets, y: r.avg_basket, r: 4 + 16 * (r.revenue / maxRevenue),
+      /* The radius used to rise linearly with revenue share, but a circle is
+         read by its area, and area grows with the square of the radius. Two
+         stores 1.2x apart in revenue were drawn 1.4x apart to the eye. Solving
+         for area instead -- area = min + (max - min) * share -- gives
+         r = sqrt(rMin^2 + (rMax^2 - rMin^2) * share), which keeps the same 4px
+         floor and 20px ceiling while making the area, not the radius, carry
+         the number. The floor is still a floor: stores near zero revenue are
+         drawn larger than truth so they stay clickable. */
+      data: data.rows.map(r => ({ x: r.baskets, y: r.avg_basket,
+        r: Math.sqrt(16 + 384 * (r.revenue / maxRevenue)),
         store: r.store_id, revenue: r.revenue })),
       backgroundColor: 'rgba(244,63,94,.42)', borderColor: T.rose }] },
     options: {
