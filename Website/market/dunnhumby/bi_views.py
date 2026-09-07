@@ -882,6 +882,7 @@ MEASURES = {
         # Money carries its own symbol; a count needs a word after it or a
         # headline reads "higher by about 55.0".
         "unit_word": "",
+        "discrete": False,
         # A group needs enough observations for a rank test to mean anything.
         # Baskets run to tens of thousands per group; households to hundreds,
         # so one threshold cannot serve both.
@@ -899,6 +900,10 @@ MEASURES = {
         "rfm_component": "frequency",
         "tail_noun": "households that shop far more often than the rest",
         "unit_word": " trips",
+        # Visit counts are whole numbers that repeat heavily: three quarters of
+        # households share a count with another. Only Kolmogorov-Smirnov cares,
+        # and it errs safe -- measured at 4.0% rejection where 5% is nominal.
+        "discrete": True,
         "scan_minimum": 30,
     },
 }
@@ -1132,6 +1137,15 @@ def api_bi_significance(request):
             "why": (
                 "A different question from the rank test: two groups can share a "
                 f"median while one has a far longer tail of {spec['tail_noun']}."
+                + (
+                    " D itself is exact here, but its p-value assumes no two "
+                    "observations are equal, and whole numbers repeat: about three "
+                    "quarters of households share a count with another. That makes "
+                    "the test reject less often than its p-value claims, never more, "
+                    "so a significant result stands and a borderline one is better "
+                    "read from the rank test above."
+                    if spec.get("discrete") else ""
+                )
             ),
             "headline": (
                 f"The two distributions of {spec['noun']} differ in shape by "
@@ -1181,6 +1195,9 @@ def api_bi_significance(request):
                 "effect_label": _delta_label(cramers_v),
                 "detail": f"Basket counts across {len(keep)} departments, {total:,} baskets in total.",
                 "why": (
+                    "This one does not follow the measure above: it always counts "
+                    "baskets across departments, because what a group buys is the "
+                    "same question however its spend or its visits are counted. "
                     "Chi-square suits counts in categories. Cramer's V rescales it to "
                     "0-1 so the strength does not simply grow with the sample size."
                 ),
