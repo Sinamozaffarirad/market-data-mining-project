@@ -824,20 +824,62 @@ COMPARISON_DIMENSIONS = {
 }
 
 
-def _dimension_samples(column, where, params, needs, per_group=1200, minimum=100):
-    """A reproducible basket-value sample for every group of one dimension.
+"""How a group is summarised before it is tested.
+
+Basket value was the only answer the panel could give, so every question had
+to be phrased as one about spend. Segments that differ mainly in how often
+they come back read as barely different on basket value, because the
+difference is not in the baskets but in their number. Visits give the tests a
+second response, measured one row per household rather than one per basket:
+changing the response changes the unit of observation with it.
+"""
+MEASURES = {
+    "basket_value": {
+        "label": "Basket value",
+        "unit": "money",
+        "observation": "basket",
+        "observations": "baskets",
+        "expression": "SUM(f.sales_value)",
+        "group_by": "f.basket_id",
+        "key": "f.basket_id",
+        "noun": "spend per basket",
+    },
+    "visits": {
+        "label": "Visits per household",
+        "unit": "count",
+        "observation": "household",
+        "observations": "households",
+        "expression": "COUNT(DISTINCT f.basket_id)",
+        "group_by": "f.household_key",
+        "key": "f.household_key",
+        "noun": "shopping trips per household",
+    },
+}
+
+
+def _measure(request):
+    name = (request.GET.get("measure") or "basket_value").strip()
+    return name if name in MEASURES else "basket_value", MEASURES.get(
+        name, MEASURES["basket_value"])
+
+
+def _dimension_samples(column, where, params, needs, per_group=1200, minimum=100,
+                       measure=None):
+    """A reproducible per-group sample of the chosen response variable.
 
     ANOVA and Kruskal-Wallis need all the groups at once, not the chosen pair,
     and one windowed query is far cheaper than a query per group.
     """
+    spec = measure or MEASURES["basket_value"]
     rows = _query(f"""
         ;WITH baskets AS (
-            SELECT {column} AS grp, f.basket_id, SUM(f.sales_value) AS basket_value
+            SELECT {column} AS grp, {spec['group_by']} AS unit_id,
+                   {spec['expression']} AS basket_value
             {_from(needs)}{_clause(where + [column + " IS NOT NULL", column + " <> ''"])}
-            GROUP BY {column}, f.basket_id
+            GROUP BY {column}, {spec['group_by']}
         ), ranked AS (
             SELECT grp, basket_value,
-                   ROW_NUMBER() OVER (PARTITION BY grp ORDER BY ABS(CHECKSUM(basket_id))) AS rn,
+                   ROW_NUMBER() OVER (PARTITION BY grp ORDER BY ABS(CHECKSUM(unit_id))) AS rn,
                    COUNT(*)     OVER (PARTITION BY grp) AS baskets
             FROM baskets
         )
@@ -905,6 +947,7 @@ def api_bi_significance(request):
     column, alias, label = COMPARISON_DIMENSIONS.get(
         dimension, COMPARISON_DIMENSIONS["segment"]
     )
+    measure, spec = _measure(request)
     group_a = (request.GET.get("group_a") or "").strip()
     group_b = (request.GET.get("group_b") or "").strip()
 
@@ -941,21 +984,21 @@ def api_bi_significance(request):
 
     def basket_values(group):
         rows = _query(f"""
-            SELECT TOP {sample_cap} SUM(f.sales_value) AS basket_value
+            SELECT TOP {sample_cap} {spec['expression']} AS basket_value
             {_from(needs)}{_clause(where + [column + " = %s"])}
-            GROUP BY f.basket_id
-            ORDER BY ABS(CHECKSUM(f.basket_id))
+            GROUP BY {spec['group_by']}
+            ORDER BY ABS(CHECKSUM({spec['key']}))
         """, params + [group])
         return [float(r["basket_value"] or 0) for r in rows]
 
     def basket_total(group):
         return int(_scalar_row(f"""
-            SELECT COUNT(DISTINCT f.basket_id) AS baskets
+            SELECT COUNT(DISTINCT {spec['key']}) AS baskets
             {_from(needs)}{_clause(where + [column + " = %s"])}
         """, params + [group]).get("baskets") or 0)
 
     def basket_median(group):
-        """Median over every basket in the group, not over the sample.
+        """Median over every observation in the group, not over the sample.
 
         The tests run on a sample, which is sound, but the median is quoted to
         the reader and also appears in the scan above. Computing it over all the
@@ -963,9 +1006,9 @@ def api_bi_significance(request):
         """
         row = _scalar_row(f"""
             ;WITH baskets AS (
-                SELECT f.basket_id, SUM(f.sales_value) AS basket_value
+                SELECT {spec['group_by']} AS unit_id, {spec['expression']} AS basket_value
                 {_from(needs)}{_clause(where + [column + " = %s"])}
-                GROUP BY f.basket_id
+                GROUP BY {spec['group_by']}
             ), ordered AS (
                 SELECT basket_value,
                        ROW_NUMBER() OVER (ORDER BY basket_value) AS rn,
@@ -977,6 +1020,11 @@ def api_bi_significance(request):
         """, params + [group])
         return float(row.get("median_value") or 0)
 
+    def amount(value):
+        """Money or a plain count, whichever the chosen response is measured in."""
+        return f"${value:,.2f}" if spec["unit"] == "money" else f"{value:,.1f}"
+
+    units = spec["observations"]
     values_a, values_b = basket_values(group_a), basket_values(group_b)
     total_a, total_b = basket_total(group_a), basket_total(group_b)
     sampled = len(values_a) < total_a or len(values_b) < total_b
@@ -991,24 +1039,25 @@ def api_bi_significance(request):
         matters = _delta_label(delta) not in ("negligible", "small")
         tests.append({
             "name": "Mann-Whitney U",
-            "question": "Do the two groups spend differently per basket?",
+            "question": f"Do the two groups differ in {spec['noun']}?",
             "statistic": float(statistic),
             "p_value": float(p_value),
             "effect_name": "Cliff's delta",
             "effect": delta,
             "effect_label": _delta_label(delta),
             "detail": (
-                f"{group_a}: median ${median_a:,.2f} across {total_a:,} baskets. "
-                f"{group_b}: median ${median_b:,.2f} across {total_b:,} baskets."
+                f"{group_a}: median {amount(median_a)} across {total_a:,} {units}. "
+                f"{group_b}: median {amount(median_b)} across {total_b:,} {units}."
             ),
             "why": (
-                "Basket value is right-skewed, so a rank test is used instead of a "
-                "t-test, which assumes a normal distribution this data does not have."
+                f"The distribution of {spec['noun']} is right-skewed, so a rank test is "
+                "used instead of a t-test, which assumes a normal distribution this data "
+                "does not have."
             ),
             "headline": (
-                f"{higher} baskets are worth about ${gap:,.2f} more than {lower}"
+                f"{higher} is higher than {lower} by about {amount(gap)}"
                 if gap >= 0.005 else
-                f"{group_a} and {group_b} baskets are worth about the same"
+                f"{group_a} and {group_b} sit at about the same level"
             ),
             "verdict": "acted-on" if matters else "too-small",
             "plain": (
@@ -1035,14 +1084,15 @@ def api_bi_significance(request):
             ),
             "why": (
                 "A different question from the rank test: two groups can share a "
-                "median while one has a far longer tail of large baskets."
+                f"median while one has a far longer tail of high {spec['observations']}."
             ),
             "headline": (
-                f"The two spending patterns differ in shape by {float(ks_statistic):.0%}"
+                f"The two distributions of {spec['noun']} differ in shape by "
+                f"{float(ks_statistic):.0%}"
             ),
             "verdict": "acted-on" if _delta_label(float(ks_statistic)) not in ("negligible", "small") else "too-small",
             "plain": (
-                "D is the widest gap between the two groups' spending curves. "
+                f"D is the widest gap between the two groups' curves for {spec['noun']}. "
                 f"At {float(ks_statistic):.0%} the shapes are "
                 + ("clearly different." if float(ks_statistic) >= 0.33 else "broadly similar.")
             ),
@@ -1125,7 +1175,7 @@ def api_bi_significance(request):
                    "medium" if abs(cohens_d) < 0.8 else "large")
         tests.append({
             "name": "Welch's t-test",
-            "question": "Do the two groups differ in average basket value?",
+            "question": f"Do the two groups differ in average {spec['noun']}?",
             "statistic": float(t_stat),
             "p_value": float(t_p),
             "effect_name": "Cohen's d",
@@ -1134,9 +1184,9 @@ def api_bi_significance(request):
             "confidence_interval": [mean_gap - margin, mean_gap + margin],
             "confidence_level": 95,
             "detail": (
-                f"Mean {group_a} ${a.mean():,.2f} against {group_b} ${b.mean():,.2f}. "
-                f"95% confident the true gap lies between ${mean_gap - margin:,.2f} and "
-                f"${mean_gap + margin:,.2f}."
+                f"Mean {group_a} {amount(a.mean())} against {group_b} {amount(b.mean())}. "
+                f"95% confident the true gap lies between {amount(mean_gap - margin)} and "
+                f"{amount(mean_gap + margin)}."
             ),
             "why": (
                 "Welch's form is used because the two groups differ in size and spread. "
@@ -1145,7 +1195,7 @@ def api_bi_significance(request):
                 "confidence interval, which is the figure to budget with."
             ),
             "headline": (
-                f"Mean baskets differ by ${abs(mean_gap):,.2f}, "
+                f"Means differ by {amount(abs(mean_gap))}, "
                 f"{'higher' if mean_gap > 0 else 'lower'} for {group_a}"
             ),
             "verdict": "acted-on" if d_label not in ("negligible", "small") else "too-small",
@@ -1159,7 +1209,7 @@ def api_bi_significance(request):
     # dimension as a whole separates the groups, which is what the professor's
     # ANOVA / Kruskal-Wallis pairing is for: the same question, one assuming
     # normality and one not.
-    group_samples = _dimension_samples(column, where, params, needs)
+    group_samples = _dimension_samples(column, where, params, needs, measure=spec)
     if len(group_samples) >= 3:
         import numpy as np
 
@@ -1177,7 +1227,7 @@ def api_bi_significance(request):
                      "medium" if eta_squared < 0.14 else "large")
         tests.append({
             "name": "One-way ANOVA",
-            "question": f"Does basket value differ across all {len(names)} {label.lower()} groups?",
+            "question": f"Does {spec['noun']} differ across all {len(names)} {label.lower()} groups?",
             "statistic": float(f_stat),
             "p_value": float(f_p),
             "effect_name": "Eta squared",
@@ -1185,7 +1235,7 @@ def api_bi_significance(request):
             "effect_label": eta_label,
             "detail": (
                 f"All {len(names)} groups at once ({', '.join(names[:4])}"
-                f"{'...' if len(names) > 4 else ''}), {observations:,} sampled baskets."
+                f"{'...' if len(names) > 4 else ''}), {observations:,} sampled {units}."
             ),
             "why": (
                 "ANOVA compares more than two groups in one test, avoiding the inflated "
@@ -1193,11 +1243,11 @@ def api_bi_significance(request):
                 "so Kruskal-Wallis below is the safer read on this data."
             ),
             "headline": (
-                f"{label} explains {eta_squared:.1%} of the variation in basket value"
+                f"{label} explains {eta_squared:.1%} of the variation in {spec['noun']}"
             ),
             "verdict": "acted-on" if eta_label not in ("negligible", "small") else "too-small",
             "plain": (
-                "Eta squared is the share of the variation in basket value that group "
+                f"Eta squared is the share of the variation in {spec['noun']} that group "
                 f"membership accounts for. This is {eta_squared:.1%}; the rest is everything else."
             ),
         })
@@ -1216,16 +1266,16 @@ def api_bi_significance(request):
             "effect_name": "Epsilon squared",
             "effect": epsilon,
             "effect_label": eps_label,
-            "detail": f"Rank-based across all {len(names)} groups, {observations:,} sampled baskets.",
+            "detail": f"Rank-based across all {len(names)} groups, {observations:,} sampled {units}.",
             "why": (
-                "The non-parametric counterpart of ANOVA. It ranks the baskets instead of "
-                "averaging them, so the skew in basket value does not distort it. Where the "
-                "two disagree, this is the one to trust here."
+                f"The non-parametric counterpart of ANOVA. It ranks the {units} instead of "
+                f"averaging them, so the skew in {spec['noun']} does not distort it. Where "
+                "the two disagree, this is the one to trust here."
             ),
             "headline": (
                 f"The {len(names)} {label.lower()} groups "
-                + ("do not separate on basket value" if eps_label == "negligible"
-                   else "separate on basket value")
+                + (f"do not separate on {spec['noun']}" if eps_label == "negligible"
+                   else f"separate on {spec['noun']}")
             ),
             "verdict": "acted-on" if eps_label not in ("negligible", "small") else "too-small",
             "plain": (
@@ -1259,6 +1309,11 @@ def api_bi_significance(request):
         "success": True,
         "dimension": dimension,
         "dimension_label": label,
+        "measure": measure,
+        "measure_label": spec["label"],
+        "measure_unit": spec["unit"],
+        "measures": [{"key": k, "label": v["label"]} for k, v in MEASURES.items()],
+        "observation_noun": spec["observations"],
         "options": options[:40],
         "group_a": group_a,
         "group_b": group_b,

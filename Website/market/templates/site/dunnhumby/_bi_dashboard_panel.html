@@ -759,6 +759,19 @@ one over several lines renders it onto the page as visible text.
           <p class="sub">Compare two groups head to head. Tests respect the filters above.</p>
         </div>
         <div class="d-flex flex-wrap gap-2">
+          {% comment %}
+            Basket value was the only response the tests could take, so a pair of
+            segments that differ mainly in how often they return read as barely
+            different: the difference is not inside the baskets but in their
+            number. Visits move the unit of observation from the basket to the
+            household and ask that question directly.
+          {% endcomment %}
+          <select id="sigMeasure" class="form-select form-select-sm" style="width:auto"
+                  onchange="loadSignificance()"
+                  title="What each test measures. Basket value is one row per basket; visits are one row per household.">
+            <option value="basket_value">Measure: basket value</option>
+            <option value="visits">Measure: visits per household</option>
+          </select>
           <select id="sigDim" class="form-select form-select-sm" style="width:auto" onchange="loadSignificance(true)">
             <option value="segment">Customer segment</option>
             <option value="brand">Brand type</option>
@@ -1587,7 +1600,8 @@ function biOpenComparison(dimension, groupA, groupB) {
 
 async function loadSignificance(reset) {
   const dimension = document.getElementById('sigDim')?.value || 'segment';
-  const extra = [['dimension', dimension]];
+  const measure = document.getElementById('sigMeasure')?.value || 'basket_value';
+  const extra = [['dimension', dimension], ['measure', measure]];
   if (!reset) {
     const a = document.getElementById('sigA')?.value;
     const b = document.getElementById('sigB')?.value;
@@ -1657,10 +1671,16 @@ function renderSignificanceTable(data) {
   const pairFor = t => (/ANOVA|Kruskal/i.test(t.name)
     ? `all ${escapeHtml(data.dimension_label.toLowerCase())} groups`
     : `${escapeHtml(data.group_a)} vs ${escapeHtml(data.group_b)}`);
+  /* A confidence interval on visits is a count of trips, not a sum of money,
+     so the formatter follows the response the tests were run on. */
+  const sigAmount = value => data.measure_unit === 'count'
+    ? Number(value).toLocaleString(undefined, {maximumFractionDigits: 1})
+    : money2(value);
   lastSignificanceTable = tests.map(t => ({
     group_a: /ANOVA|Kruskal/i.test(t.name) ? 'all groups' : data.group_a,
     group_b: /ANOVA|Kruskal/i.test(t.name) ? 'all groups' : data.group_b,
     dimension: data.dimension_label,
+    response_variable: data.measure_label,
     test: t.name,
     statistic: t.statistic,
     p_value: t.p_value,
@@ -1679,7 +1699,9 @@ function renderSignificanceTable(data) {
     <details class="rev-advanced sig-table-fold">
     <summary><i class="fas fa-table-list"></i> All ${tests.length} tests side by side</summary>
     <div class="d-flex justify-content-between align-items-end flex-wrap gap-2 mb-2 mt-2">
-      <span class="bi-stamp">One row per test, with its statistic, p-value and effect size.</span>
+      <span class="bi-stamp">One row per test, with its statistic, p-value and effect size.
+      Response variable: <strong>${escapeHtml(data.measure_label || 'Basket value')}</strong>,
+      one row per ${escapeHtml((data.observation_noun || 'baskets').replace(/s$/, ''))}.</span>
       <button class="btn btn-sm btn-outline-secondary" type="button" onclick="exportSignificanceTable()">
         <i class="fas fa-download"></i> Export CSV
       </button>
@@ -1701,7 +1723,7 @@ function renderSignificanceTable(data) {
         <td>${escapeHtml(t.effect_name)} ${Number(t.effect).toFixed(4)}
             <span class="sig-tag ${t.effect_label}">${t.effect_label}</span></td>
         <td class="text-end">${t.confidence_interval
-            ? money2(t.confidence_interval[0]) + ' to ' + money2(t.confidence_interval[1]) : '--'}</td>
+            ? sigAmount(t.confidence_interval[0]) + ' to ' + sigAmount(t.confidence_interval[1]) : '--'}</td>
         <td>${(t.q_value === undefined ? t.p_value : t.q_value) < 0.05 ? 'yes' : 'no'}</td>
         <td>${t.verdict === 'acted-on' ? 'yes' : 'no'}</td>
       </tr>`).join('')}</tbody>
