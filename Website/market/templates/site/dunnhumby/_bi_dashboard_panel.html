@@ -740,9 +740,26 @@ one over several lines renders it onto the page as visible text.
           <h5><i class="fas fa-magnifying-glass-chart"></i> Where the biggest differences are</h5>
           <p class="sub">Checks every pair of groups for you and puts the largest gaps first</p>
         </div>
-        <button class="btn btn-sm btn-primary" type="button" id="sigScanBtn" onclick="loadSignificanceScan()">
-          <i class="fas fa-magnifying-glass"></i> Find them
-        </button>
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+          {% comment %}
+            One control for the whole tab. Basket value was the only response
+            either panel could take, so a pair of groups that differ mainly in
+            how often they return read as barely different: the difference is
+            not inside the baskets but in their number. Choosing visits moves
+            the unit of observation from the basket to the household, and the
+            scan and the tests below must agree on it or they would be
+            answering different questions about the same pair.
+          {% endcomment %}
+          <select id="sigMeasure" class="form-select form-select-sm" style="width:auto"
+                  onchange="biMeasureChanged()"
+                  title="What both panels on this tab measure. Basket value is one row per basket; visits are one row per household.">
+            <option value="basket_value">Measure: basket value</option>
+            <option value="visits">Measure: visits per household</option>
+          </select>
+          <button class="btn btn-sm btn-primary" type="button" id="sigScanBtn" onclick="loadSignificanceScan()">
+            <i class="fas fa-magnifying-glass"></i> Find them
+          </button>
+        </div>
       </div>
       <div class="sig-legend">
         <span>Size of difference:</span>
@@ -768,19 +785,6 @@ one over several lines renders it onto the page as visible text.
           <p class="sub">Compare two groups head to head. Tests respect the filters above.</p>
         </div>
         <div class="d-flex flex-wrap gap-2">
-          {% comment %}
-            Basket value was the only response the tests could take, so a pair of
-            segments that differ mainly in how often they return read as barely
-            different: the difference is not inside the baskets but in their
-            number. Visits move the unit of observation from the basket to the
-            household and ask that question directly.
-          {% endcomment %}
-          <select id="sigMeasure" class="form-select form-select-sm" style="width:auto"
-                  onchange="loadSignificance()"
-                  title="What each test measures. Basket value is one row per basket; visits are one row per household.">
-            <option value="basket_value">Measure: basket value</option>
-            <option value="visits">Measure: visits per household</option>
-          </select>
           <select id="sigDim" class="form-select form-select-sm" style="width:auto" onchange="loadSignificance(true)">
             <option value="segment">Customer segment</option>
             <option value="brand">Brand type</option>
@@ -1427,6 +1431,16 @@ function biScanToggleAll(showAll) {
   if (biScanLastPayload) biScanRender(biScanLastPayload);
 }
 
+/* Both panels have to move together. Leaving the scan on basket value while
+   the tests below switched to visits would put two answers to different
+   questions on one screen, and the scan's rows link straight into those tests.
+   The scan is only re-run if it has already been run once, because it is the
+   expensive half and is behind a button for that reason. */
+function biMeasureChanged() {
+  loadSignificance();
+  if (biScanRequested) loadSignificanceScan();
+}
+
 async function loadSignificanceScan() {
   biScanRequested = true;
   const serial = ++biScanSerial;
@@ -1437,7 +1451,8 @@ async function loadSignificanceScan() {
   box.innerHTML = '<div class="bi-loading"><div class="spinner-border spinner-border-sm text-primary" role="status"></div> Checking every pair&hellip;</div>';
   if (button) { button.disabled = true; }
   try {
-    const data = await biGet('/analysis/api/bi/significance-scan/');
+    const data = await biGet('/analysis/api/bi/significance-scan/',
+      [['measure', document.getElementById('sigMeasure')?.value || 'basket_value']]);
     if (serial !== biScanSerial) return;
     biScanLastPayload = data;
     biScanRender(data);
@@ -1525,13 +1540,26 @@ function biScanRender(data) {
   {
     const rows = data.rows || [];
     if (summary) {
+      const circular = (data.rows || []).find(r => r.circular);
       summary.innerHTML = `<strong>${escapeHtml(data.headline)}</strong>
-        <span class="d-block mt-1">${escapeHtml(data.method)}</span>`;
+        <span class="d-block mt-1">${escapeHtml(data.method)}</span>`
+        + (circular ? `<span class="d-block mt-1 text-warning-emphasis">
+            <i class="fas fa-circle-exclamation"></i> ${escapeHtml(circular.circular_note)}</span>` : '');
     }
     if (!rows.length) {
-      box.innerHTML = '<div class="bi-loading">No pair of groups has enough baskets in this selection to compare.</div>';
+      box.innerHTML = `<div class="bi-loading">No pair of groups has enough
+        ${escapeHtml(data.observation_noun || 'baskets')} in this selection to compare.</div>`;
       return;
     }
+    /* Medians here are trips when the tab is measuring visits, so the money
+       formatter cannot be assumed, and the column headings have to say which
+       response the scan was run on. */
+    const isCount = data.measure_unit === 'count';
+    const scanAmount = value => isCount
+      ? Number(value).toLocaleString(undefined, {maximumFractionDigits: 1})
+      : money2(value);
+    const measureName = data.measure_label || 'Basket value';
+    const unitPlural = data.observation_noun || 'baskets';
     const top = Math.max(...rows.map(r => Math.abs(Number(r.delta)))) || 1;
     /* The headline counts the comparisons worth a look, so those are the ones
        laid out. The smaller ones stay one click away rather than padding the
@@ -1542,7 +1570,8 @@ function biScanRender(data) {
     box.innerHTML = `<div class="table-responsive"><table class="sig-scan">
       <thead><tr>
         <th>#</th><th>Comparison</th><th>Which is bigger</th>
-        <th>Difference in basket value</th><th>Typical baskets</th>
+        <th>Difference in ${escapeHtml(measureName.toLowerCase())}</th>
+        <th>Typical ${escapeHtml(unitPlural)}</th>
         <th>What they buy</th><th>Chance of a fluke</th>
       </tr></thead><tbody>${shown.map((row, index) => {
         const delta = Math.abs(Number(row.delta));
@@ -1555,10 +1584,11 @@ function biScanRender(data) {
           <td><strong>${escapeHtml(row.dimension_label)}</strong>
               <small class="d-block text-muted">${escapeHtml(row.group_a)} vs ${escapeHtml(row.group_b)}</small></td>
           <td><strong>${escapeHtml(row.leader)}</strong>
-              <small class="d-block text-muted">over ${escapeHtml(row.trailer)}</small></td>
+              <small class="d-block text-muted">over ${escapeHtml(row.trailer)}</small>
+              ${row.circular ? `<small class="d-block text-muted" title="${escapeHtml(row.circular_note)}"><i class="fas fa-circle-exclamation"></i> partly by definition</small>` : ''}</td>
           <td><div class="gap"><span class="sig-bar"><i style="width:${(delta / top * 100).toFixed(1)}%"></i></span>
               <span class="sig-tag ${row.effect}">${row.effect}</span></div></td>
-          <td>${money2(leaderMedian)} <span class="text-muted">vs</span> ${money2(trailerMedian)}</td>
+          <td>${scanAmount(leaderMedian)} <span class="text-muted">vs</span> ${scanAmount(trailerMedian)}</td>
           <td>${row.mix_v === null
               ? '<span class="text-muted" title="Comparing departments by department is circular">--</span>'
               : `<span class="sig-tag ${row.mix_effect}"
@@ -1567,9 +1597,11 @@ function biScanRender(data) {
           <td>${row.actionable ? '' : '<span class="text-muted">'}${biFormatQ(row.q_value)}${row.actionable ? '' : '</span>'}</td>
         </tr>`;
       }).join('')}</tbody></table></div>
-      <p class="bi-foot"><strong>Basket value</strong> is how much they spend.
-      <strong>What they buy</strong> is which departments they spend it in. A group can spend far
-      more per basket and still shop the same aisles, so the two columns often disagree.
+      <p class="bi-foot">Measured on <strong>${escapeHtml(measureName.toLowerCase())}</strong>,
+      one row per ${escapeHtml(unitPlural.replace(/s$/, ''))}; the tests below use the same choice.
+      <strong>What they buy</strong> is which departments they shop, which is asked the same way
+      whichever measure is chosen. A group can differ sharply on one and not the other, so the
+      two columns often disagree.
       Biggest gaps first. Click any row to test that pair in full below.
       ${hidden > 0
         ? `Another <strong>${hidden}</strong> comparison${hidden === 1 ? ' is' : 's are'} real but
@@ -1641,8 +1673,11 @@ async function loadSignificance(reset) {
 
   document.getElementById('sigCaveat').innerHTML =
     `<i class="fas fa-triangle-exclamation"></i> ${escapeHtml(data.caveat)}` +
-    (data.sampled ? ` Spend tests use a reproducible sample of up to ${num(data.sample_size)}
-       baskets per group. The medians and counts quoted are from all of them.` : '');
+    (data.sampled ? ` Tests use a reproducible sample of up to ${num(data.sample_size)}
+       ${escapeHtml(data.observation_noun || 'baskets')} per group. The medians and counts
+       quoted are from all of them.` : '')
+    + (data.circular ? `<span class="d-block mt-1">
+       <i class="fas fa-circle-exclamation"></i> ${escapeHtml(data.circular_note)}</span>` : '');
 
   /* The card answers the question. The numbers behind it stay folded away, so a
      reader who wants the finding is not made to read the statistics first. */

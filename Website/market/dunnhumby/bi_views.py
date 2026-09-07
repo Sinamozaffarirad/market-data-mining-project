@@ -871,6 +871,15 @@ MEASURES = {
         "group_by": "f.basket_id",
         "key": "f.basket_id",
         "noun": "spend per basket",
+        # RFM segments are cut on recency, frequency and monetary value, so a
+        # segment label already encodes the answer to some of what is asked of
+        # it here: Big Spenders is defined by m >= 4. Naming the component lets
+        # the panels say so rather than reporting a tautology as a discovery.
+        "rfm_component": "monetary value",
+        # A group needs enough observations for a rank test to mean anything.
+        # Baskets run to tens of thousands per group; households to hundreds,
+        # so one threshold cannot serve both.
+        "scan_minimum": 300,
     },
     "visits": {
         "label": "Visits per household",
@@ -881,6 +890,8 @@ MEASURES = {
         "group_by": "f.household_key",
         "key": "f.household_key",
         "noun": "shopping trips per household",
+        "rfm_component": "frequency",
+        "scan_minimum": 30,
     },
 }
 
@@ -1342,6 +1353,13 @@ def api_bi_significance(request):
         "measure_unit": spec["unit"],
         "measures": [{"key": k, "label": v["label"]} for k, v in MEASURES.items()],
         "observation_noun": spec["observations"],
+        "circular": dimension == "segment",
+        "circular_note": (
+            f"RFM segments are cut partly on {spec['rfm_component']}, so a gap in "
+            f"{spec['noun']} between two segments is partly true by definition. "
+            "The size is still worth reading; it is not independent evidence that "
+            "the segments differ."
+        ) if dimension == "segment" else "",
         "options": options[:40],
         "group_a": group_a,
         "group_b": group_b,
@@ -1849,18 +1867,21 @@ def api_bi_significance_scan(request):
 
     import numpy as np
 
+    measure, spec = _measure(request)
+    minimum = spec.get("scan_minimum", SCAN_MIN_BASKETS)
     scanned, skipped, dimension_rows = [], [], []
     for key, (column, alias, label) in COMPARISON_DIMENSIONS.items():
         where, params, needs = _filters(request, [alias])
         clause = _clause(where + [column + " IS NOT NULL", column + " <> ''"])
         rows = _query(f"""
             ;WITH baskets AS (
-                SELECT {column} AS grp, f.basket_id, SUM(f.sales_value) AS basket_value
+                SELECT {column} AS grp, {spec['group_by']} AS unit_id,
+                       {spec['expression']} AS basket_value
                 {_from(needs)}{clause}
-                GROUP BY {column}, f.basket_id
+                GROUP BY {column}, {spec['group_by']}
             ), ranked AS (
                 SELECT grp, basket_value,
-                       ROW_NUMBER() OVER (PARTITION BY grp ORDER BY ABS(CHECKSUM(basket_id))) AS rn,
+                       ROW_NUMBER() OVER (PARTITION BY grp ORDER BY ABS(CHECKSUM(unit_id))) AS rn,
                        COUNT(*)     OVER (PARTITION BY grp) AS baskets
                 FROM baskets
             )
@@ -1877,7 +1898,7 @@ def api_bi_significance_scan(request):
             })
             entry["values"].append(float(row["basket_value"] or 0))
 
-        usable = {n: g for n, g in groups.items() if g["baskets"] >= SCAN_MIN_BASKETS}
+        usable = {n: g for n, g in groups.items() if g["baskets"] >= minimum}
         if len(usable) < 2:
             skipped.append(label)
             continue
@@ -1889,9 +1910,9 @@ def api_bi_significance_scan(request):
         # its answer on every row and cost more than the whole rest of the scan.
         for row in _query(f"""
             ;WITH baskets AS (
-                SELECT {column} AS grp, f.basket_id, SUM(f.sales_value) AS basket_value
+                SELECT {column} AS grp, {spec['expression']} AS basket_value
                 {_from(needs)}{_clause(where + [column + " IS NOT NULL", column + " <> ''"])}
-                GROUP BY {column}, f.basket_id
+                GROUP BY {column}, {spec['group_by']}
             ), ordered AS (
                 SELECT grp, basket_value,
                        ROW_NUMBER() OVER (PARTITION BY grp ORDER BY basket_value) AS rn,
@@ -1940,6 +1961,7 @@ def api_bi_significance_scan(request):
             dimension_rows.append({
                 "dimension": key,
                 "dimension_label": label,
+                "circular": key == "segment",
                 "groups": len(arrays),
                 "kruskal_h": float(h_stat),
                 "kruskal_p": float(h_p),
@@ -1982,6 +2004,17 @@ def api_bi_significance_scan(request):
                         mix_v = float((chi2 / n) ** 0.5) if n else 0.0
                         mix_label = _delta_label(mix_v)
                 scanned.append({
+                    # Champions require f >= 4 and Hibernating f <= 2, so a
+                    # segment leading on visits is partly true by construction.
+                    # The same holds for basket value through the monetary
+                    # score. It is reported, not hidden: the size of the gap is
+                    # still informative, but it is not independent evidence.
+                    "circular": key == "segment",
+                    "circular_note": (
+                        f"RFM segments are cut partly on {spec['rfm_component']}, "
+                        f"so a gap in {spec['noun']} between two segments is partly "
+                        "true by definition."
+                    ) if key == "segment" else "",
                     "mix_v": mix_v,
                     "mix_effect": mix_label,
                     "dimension": key,
@@ -2021,15 +2054,21 @@ def api_bi_significance_scan(request):
         "actionable": len(notable),
         "skipped_dimensions": skipped,
         "sample_per_group": SCAN_SAMPLE,
-        "minimum_baskets": SCAN_MIN_BASKETS,
+        "minimum_baskets": minimum,
+        "measure": measure,
+        "measure_label": spec["label"],
+        "measure_unit": spec["unit"],
+        "observation_noun": spec["observations"],
         "headline": (
             f"{len(notable)} of {len(scanned)} comparisons are big enough to be worth a look."
             if scanned else
-            "Not enough baskets in this selection to compare any pair of groups."
+            f"Not enough {spec['observations']} in this selection to compare any pair of groups."
         ),
         "method": (
-            "Groups are compared on basket value and ranked by how often one group's "
-            "basket beats the other's. Because many pairs are checked at once, the odds "
-            f"of a fluke are adjusted for that. Each group uses {SCAN_SAMPLE:,} sampled baskets."
+            f"Groups are compared on {spec['noun']} and ranked by how often one group's "
+            f"{spec['observation']} beats the other's. Because many pairs are checked at "
+            "once, the odds of a fluke are adjusted for that. Each group uses up to "
+            f"{SCAN_SAMPLE:,} sampled {spec['observations']}, and needs at least "
+            f"{minimum:,} to be compared at all."
         ),
     })
