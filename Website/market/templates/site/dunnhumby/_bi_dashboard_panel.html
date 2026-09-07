@@ -1628,6 +1628,9 @@ async function loadSignificance(reset) {
         <div class="test-metrics">
           <div class="m"><div class="mv">${escapeHtml(t.name)}</div><div class="ml">test used</div></div>
           <div class="m"><div class="mv">${t.p_value < 0.001 ? '&lt; 0.001' : t.p_value.toFixed(4)}</div><div class="ml">p-value</div></div>
+          ${t.q_value === undefined ? '' : `<div class="m" title="Benjamini-Hochberg across the ${t.comparisons} tests run together here. Three of them read the identical two samples of basket value and two more read those values again across every group, so the raw p-values are not independent and each one alone overstates the evidence.">
+            <div class="mv">${t.q_value < 0.001 ? '&lt; 0.001' : Number(t.q_value).toFixed(4)}</div>
+            <div class="ml">q-value (of ${t.comparisons})</div></div>`}
           <div class="m"><div class="mv">${Number(t.effect).toFixed(4)}</div><div class="ml">${escapeHtml(t.effect_name)}</div></div>
           <div class="m"><div class="mv">${Number(t.statistic).toLocaleString(undefined,{maximumFractionDigits:3})}</div><div class="ml">statistic</div></div>
         </div>
@@ -1661,13 +1664,15 @@ function renderSignificanceTable(data) {
     test: t.name,
     statistic: t.statistic,
     p_value: t.p_value,
+    q_value: t.q_value,
+    comparisons_corrected_across: t.comparisons,
     effect_name: t.effect_name,
     effect_size: t.effect,
     effect_label: t.effect_label,
     confidence_interval: t.confidence_interval
       ? `${t.confidence_interval[0].toFixed(2)} to ${t.confidence_interval[1].toFixed(2)}`
       : '',
-    significant: t.p_value < 0.05 ? 'yes' : 'no',
+    significant: (t.q_value === undefined ? t.p_value : t.q_value) < 0.05 ? 'yes' : 'no',
     worth_acting_on: t.verdict === 'acted-on' ? 'yes' : 'no',
   }));
   box.innerHTML = `
@@ -1682,7 +1687,8 @@ function renderSignificanceTable(data) {
     <div class="table-responsive"><table class="sig-scan">
       <thead><tr>
         <th>Groups compared</th><th>Test</th><th class="text-end">Statistic</th>
-        <th class="text-end">P-value</th><th>Effect size</th><th class="text-end">95% CI</th>
+        <th class="text-end">P-value</th><th class="text-end">Q-value</th>
+        <th>Effect size</th><th class="text-end">95% CI</th>
         <th>Significant</th><th>Worth acting on</th>
       </tr></thead>
       <tbody>${tests.map(t => `<tr>
@@ -1690,17 +1696,22 @@ function renderSignificanceTable(data) {
         <td>${escapeHtml(t.name)}</td>
         <td class="text-end">${Number(t.statistic).toLocaleString(undefined, {maximumFractionDigits: 3})}</td>
         <td class="text-end">${t.p_value < 0.001 ? '&lt; 0.001' : Number(t.p_value).toFixed(4)}</td>
+        <td class="text-end">${t.q_value === undefined ? '--'
+            : (t.q_value < 0.001 ? '&lt; 0.001' : Number(t.q_value).toFixed(4))}</td>
         <td>${escapeHtml(t.effect_name)} ${Number(t.effect).toFixed(4)}
             <span class="sig-tag ${t.effect_label}">${t.effect_label}</span></td>
         <td class="text-end">${t.confidence_interval
             ? money2(t.confidence_interval[0]) + ' to ' + money2(t.confidence_interval[1]) : '--'}</td>
-        <td>${t.p_value < 0.05 ? 'yes' : 'no'}</td>
+        <td>${(t.q_value === undefined ? t.p_value : t.q_value) < 0.05 ? 'yes' : 'no'}</td>
         <td>${t.verdict === 'acted-on' ? 'yes' : 'no'}</td>
       </tr>`).join('')}</tbody>
     </table></div>
-    <p class="bi-foot"><strong>Significant</strong> means the difference is unlikely to be chance.
-    <strong>Worth acting on</strong> means it is also big enough to notice. With this many baskets
-    almost everything is significant, so the second column is the one to read.</p></details>`;
+    <p class="bi-foot"><strong>Q-value</strong> is the p-value corrected for running these tests
+    together: three of them read the identical two samples of basket value and two more read those
+    values again across every group, so each raw p-value on its own counts the same evidence. <strong>Significant</strong> reads the q-value, not the p.
+    <strong>Worth acting on</strong> means the difference is also big enough to notice. With this
+    many baskets almost everything is significant either way, so the last column is the one to
+    read.</p></details>`;
 }
 
 function exportSignificanceTable() {

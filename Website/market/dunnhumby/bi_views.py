@@ -1234,6 +1234,27 @@ def api_bi_significance(request):
             ),
         })
 
+    # The automatic scan corrects for the number of comparisons it makes; this
+    # panel did not, though it runs six tests at once and they are far from
+    # independent. Three of them -- Mann-Whitney, Kolmogorov-Smirnov and Welch's
+    # t -- read the identical two samples of basket value, differing only in
+    # what they ask of them. ANOVA and Kruskal-Wallis read the same basket
+    # values again across every group, and are themselves a matched pair, one
+    # assuming normality and one not. Only chi-square looks at other data.
+    # Reading six such p-values each against 0.05 counts the same evidence
+    # repeatedly. Benjamini-Hochberg is conservative under this kind of positive
+    # dependence rather than wrong, which is the safe direction to err in.
+    #
+    # It changes little in practice: the verdict on each card comes from the
+    # effect size, not from the p-value, and at these sample sizes the p-values
+    # are small enough that correcting them rarely moves one across a threshold.
+    # It is recorded because a reader comparing this panel with the scan should
+    # not find one corrected and the other not.
+    if tests:
+        for test, q in zip(tests, _benjamini_hochberg([t["p_value"] for t in tests])):
+            test["q_value"] = q
+            test["comparisons"] = len(tests)
+
     return JsonResponse({
         "success": True,
         "dimension": dimension,
