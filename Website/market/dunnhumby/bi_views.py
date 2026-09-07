@@ -876,6 +876,12 @@ MEASURES = {
         # it here: Big Spenders is defined by m >= 4. Naming the component lets
         # the panels say so rather than reporting a tautology as a discovery.
         "rfm_component": "monetary value",
+        # What a long right tail is made of, for the wording that explains why a
+        # shape test asks something the rank test does not.
+        "tail_noun": "unusually large baskets",
+        # Money carries its own symbol; a count needs a word after it or a
+        # headline reads "higher by about 55.0".
+        "unit_word": "",
         # A group needs enough observations for a rank test to mean anything.
         # Baskets run to tens of thousands per group; households to hundreds,
         # so one threshold cannot serve both.
@@ -891,6 +897,8 @@ MEASURES = {
         "key": "f.household_key",
         "noun": "shopping trips per household",
         "rfm_component": "frequency",
+        "tail_noun": "households that shop far more often than the rest",
+        "unit_word": " trips",
         "scan_minimum": 30,
     },
 }
@@ -1094,7 +1102,7 @@ def api_bi_significance(request):
                 "does not have."
             ),
             "headline": (
-                f"{higher} is higher than {lower} by about {amount(gap)}"
+                f"{higher} is higher than {lower} by about {amount(gap)}{spec['unit_word']}"
                 if gap >= 0.005 else
                 f"{group_a} and {group_b} sit at about the same level"
             ),
@@ -1111,7 +1119,7 @@ def api_bi_significance(request):
         ks_statistic, ks_p = ks_2samp(values_a, values_b)
         tests.append({
             "name": "Kolmogorov-Smirnov",
-            "question": "Do the two spend distributions have different shapes?",
+            "question": f"Do the two distributions of {spec['noun']} have different shapes?",
             "statistic": float(ks_statistic),
             "p_value": float(ks_p),
             "effect_name": "D statistic",
@@ -1123,7 +1131,7 @@ def api_bi_significance(request):
             ),
             "why": (
                 "A different question from the rank test: two groups can share a "
-                f"median while one has a far longer tail of high {spec['observations']}."
+                f"median while one has a far longer tail of {spec['tail_noun']}."
             ),
             "headline": (
                 f"The two distributions of {spec['noun']} differ in shape by "
@@ -1234,7 +1242,7 @@ def api_bi_significance(request):
                 "confidence interval, which is the figure to budget with."
             ),
             "headline": (
-                f"Means differ by {amount(abs(mean_gap))}, "
+                f"Means differ by {amount(abs(mean_gap))}{spec['unit_word']}, "
                 f"{'higher' if mean_gap > 0 else 'lower'} for {group_a}"
             ),
             "verdict": "acted-on" if d_label not in ("negligible", "small") else "too-small",
@@ -1266,7 +1274,9 @@ def api_bi_significance(request):
                      "medium" if eta_squared < 0.14 else "large")
         tests.append({
             "name": "One-way ANOVA",
-            "question": f"Does {spec['noun']} differ across all {len(names)} {label.lower()} groups?",
+            "question": (
+                f"Do all {len(names)} {label.lower()} groups differ in {spec['noun']}?"
+            ),
             "statistic": float(f_stat),
             "p_value": float(f_p),
             "effect_name": "Eta squared",
@@ -1369,9 +1379,9 @@ def api_bi_significance(request):
         "sampled": sampled,
         "sample_size": sample_cap,
         "caveat": (
-            "With this many baskets a low p-value is almost guaranteed, so it only "
-            "tells you a difference exists. The size of the difference tells you "
-            "whether it is worth doing anything about."
+            f"With this many {spec['observations']} a low p-value is almost guaranteed, "
+            "so it only tells you a difference exists. The size of the difference tells "
+            "you whether it is worth doing anything about."
         ),
     })
 
