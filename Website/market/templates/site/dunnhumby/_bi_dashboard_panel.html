@@ -637,17 +637,42 @@ one over several lines renders it onto the page as visible text.
       <div class="bi-head">
         <div><h5><i class="fas fa-arrow-trend-up"></i> What grew, what shrank</h5>
           <p class="sub" id="growthSub">Last complete 30-day period against the one before it</p></div>
-        <select id="growthDim" class="form-select form-select-sm" style="width:auto" onchange="loadGrowth()">
-          <option value="department">By department</option>
-          <option value="commodity">By commodity</option>
-          <option value="store">By store</option>
-          <option value="segment">By customer segment</option>
-        </select>
+        <div class="d-flex gap-2 flex-wrap align-items-center">
+          <select id="growthDim" class="form-select form-select-sm" style="width:auto" onchange="loadGrowth()">
+            <option value="department">By department</option>
+            <option value="commodity">By commodity</option>
+            <option value="store">By store</option>
+            <option value="segment">By customer segment</option>
+          </select>
+          {% comment %}
+            Ranked by amount, a large group holds both ends of the chart whatever
+            it did, and a small one that doubled cannot appear. The percentage
+            view answers the other question, and needs the floor beside it to
+            keep a line that went from nothing to almost nothing off the top.
+          {% endcomment %}
+          <select id="growthSort" class="form-select form-select-sm" style="width:auto" onchange="loadGrowth()"
+                  title="Rank by the size of the change, or by how far it moved relative to itself">
+            <option value="absolute">Rank by amount</option>
+            <option value="percent">Rank by percent</option>
+          </select>
+          <select id="growthFloor" class="form-select form-select-sm" style="width:auto" onchange="loadGrowth()"
+                  title="Groups below this revenue in both windows are left out">
+            <option value="0">No minimum</option>
+            <option value="500">Min $500</option>
+            <option value="2000">Min $2,000</option>
+            <option value="10000">Min $10,000</option>
+            <option value="50000">Min $50,000</option>
+          </select>
+        </div>
       </div>
       <div class="chart-box tall"><canvas id="growthChart"></canvas></div>
       <p class="bi-foot">Both windows are a full 30 days, so the comparison is like for like.
       It reports which lines moved, not why: a change can come from demand or from the range
-      that was on sale.</p>
+      that was on sale. Rank by amount to see where the most money moved, which is the figure
+      to plan stock against; rank by percent to find a line that moved sharply relative to its
+      own size, which is where something new usually shows first. Percent needs the minimum
+      beside it, or the top of the chart fills with lines that went from almost nothing to a
+      little more.</p>
     </div>
     <div class="bi-card" style="--panel-accent:var(--bi-cyan)">
       <div class="bi-head"><div><h5><i class="fas fa-user-plus"></i> New against returning households</h5>
@@ -1755,21 +1780,42 @@ async function loadGrowth() {
   const canvas = document.getElementById('growthChart');
   if (!canvas) return;
   const dimension = document.getElementById('growthDim')?.value || 'department';
-  const data = await biGet('/analysis/api/bi/growth/', [['dimension', dimension]]);
+  const sort = document.getElementById('growthSort')?.value || 'absolute';
+  const floor = document.getElementById('growthFloor')?.value || '0';
+  const data = await biGet('/analysis/api/bi/growth/',
+    [['dimension', dimension], ['sort', sort], ['min_revenue', floor]]);
   const sub = document.getElementById('growthSub');
   const rows = (data.rows || []).filter(r => Number(r.current_revenue) || Number(r.previous_revenue));
-  if (sub) sub.textContent = data.note || '';
+  if (sub) {
+    const left = Number(data.excluded || 0);
+    sub.textContent = (data.note || '')
+      + (left ? ` · ${left} group${left === 1 ? '' : 's'} below the minimum left out` : '');
+  }
   biDestroy(BI.growth);
   if (!rows.length) { BI.growth = null; return; }
   const top = rows.slice(0, 8).concat(rows.slice(-8)).filter(
     (row, index, all) => all.indexOf(row) === index);
+
+  /* The bars have to carry whatever the ranking used. Plotting money while
+     ranking by percentage would put the longest bar in the middle of the
+     chart and read as a sorting fault. A line with no earlier revenue has no
+     finite percentage, so it is drawn at the tallest percentage present
+     rather than as a gap; the tooltip still says it had none. */
+  const byPercent = (data.sort || sort) === 'percent';
+  const finitePct = top.map(r => r.change_pct).filter(v => v !== null).map(Number);
+  const pctCeiling = finitePct.length ? Math.max(...finitePct.map(Math.abs)) : 100;
+  const measure = row => {
+    if (!byPercent) return Number(row.change);
+    if (row.change_pct !== null) return Number(row.change_pct);
+    return Number(row.current_revenue) > 0 ? pctCeiling : 0;
+  };
   BI.growth = new Chart(canvas, {
     type: 'bar',
     data: {
       labels: top.map(r => r.label),
       datasets: [{
-        label: 'Revenue change',
-        data: top.map(r => Number(r.change)),
+        label: byPercent ? 'Percent change' : 'Revenue change',
+        data: top.map(measure),
         backgroundColor: top.map(r => Number(r.change) >= 0 ? T.emerald : T.rose),
         borderRadius: 4,
       }],
@@ -1782,7 +1828,10 @@ async function loadGrowth() {
         const key = dimension === 'segment' ? 'segment' : dimension;
         biSetFilter(key, row.label, {toggle: true});
       },
-      scales: {x: {ticks: {callback: money}, title: {display: true, text: 'Change in revenue'}}},
+      scales: {x: {
+        ticks: {callback: v => byPercent ? `${Number(v).toFixed(0)}%` : money(v)},
+        title: {display: true, text: byPercent ? 'Change in revenue (%)' : 'Change in revenue'},
+      }},
       plugins: {
         legend: {display: false},
         tooltip: {callbacks: {label: c => {

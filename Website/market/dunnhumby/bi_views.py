@@ -1370,16 +1370,32 @@ def api_bi_growth(request):
         "store": ("CAST(f.store_id AS varchar(20))", "f"),
         "segment": ("COALESCE(h.rfm_segment, 'Unsegmented')", "h"),
     }.get(dimension, ("p.department", "p"))
+    # Ranking by money alone answers only half the question. A small line that
+    # trebles is the more interesting news for anyone looking for something
+    # emerging, and it can never reach either end of a chart sorted by amount.
+    sort = "percent" if (request.GET.get("sort") or "").strip() == "percent" else "absolute"
+    try:
+        min_revenue = max(0.0, float(request.GET.get("min_revenue") or 0))
+    except (TypeError, ValueError):
+        min_revenue = 0.0
+
     where, params, needs = _filters(request, ["d", alias])
     current, previous, note = _growth_windows(request)
     if not current:
-        return JsonResponse({"success": True, "rows": [], "note": note, "window_days": 0})
+        return JsonResponse({"success": True, "rows": [], "note": note, "window_days": 0,
+                             "sort": sort, "min_revenue": min_revenue, "excluded": 0})
     # Both windows are contiguous runs of qualifying days, so each is expressed as
     # a day range rather than a list: a weekday filter can leave hundreds of days,
     # and repeating them as parameters would run into the driver's 2,100 limit.
     span_low, span_high = min(current[0], previous[0]), max(current[1], previous[1])
+    # Taking the 40 largest by current revenue decided the answer before any
+    # sorting ran: a group could not be shown as the fastest riser unless it was
+    # already among the biggest, and one that collapsed to nothing dropped out
+    # of the ranking that was meant to report it. The cut is wider now and made
+    # on both windows together, so a line qualifies on the revenue it had or the
+    # revenue it has.
     rows = _query(f"""
-        SELECT TOP 40
+        SELECT TOP 200
             {column} AS label,
             SUM(CASE WHEN d.day_key BETWEEN %s AND %s THEN f.sales_value ELSE 0 END) AS current_revenue,
             SUM(CASE WHEN d.day_key BETWEEN %s AND %s THEN f.sales_value ELSE 0 END) AS previous_revenue,
@@ -1388,21 +1404,49 @@ def api_bi_growth(request):
         {_from(needs)}
         {_clause(where + ["d.day_key BETWEEN %s AND %s"])}
         GROUP BY {column}
-        ORDER BY SUM(CASE WHEN d.day_key BETWEEN %s AND %s THEN f.sales_value ELSE 0 END) DESC
+        ORDER BY SUM(CASE WHEN d.day_key BETWEEN %s AND %s THEN f.sales_value ELSE 0 END)
+               + SUM(CASE WHEN d.day_key BETWEEN %s AND %s THEN f.sales_value ELSE 0 END) DESC
     """,
         [current[0], current[1], previous[0], previous[1],
          current[0], current[1], previous[0], previous[1]]
-        + params + [span_low, span_high, current[0], current[1]])
+        + params + [span_low, span_high,
+                    current[0], current[1], previous[0], previous[1]])
     for row in rows:
         prior = float(row["previous_revenue"] or 0)
         now = float(row["current_revenue"] or 0)
         row["change"] = now - prior
         row["change_pct"] = ((now - prior) / prior * 100) if prior > 0 else None
     rows = [r for r in rows if (r["current_revenue"] or r["previous_revenue"])]
-    rows.sort(key=lambda r: r["change"], reverse=True)
+
+    # The floor is measured on the larger of the two windows, so a line that
+    # collapsed is still judged on what it used to be worth rather than being
+    # dropped for what is left of it.
+    def peak(row):
+        return max(float(row["current_revenue"] or 0), float(row["previous_revenue"] or 0))
+
+    kept = [r for r in rows if peak(r) >= min_revenue]
+    excluded = len(rows) - len(kept)
+    rows = kept
+
+    def percent_key(row):
+        """Order for the percentage view, with the undefined cases pinned.
+
+        A line with no earlier revenue has grown by no finite percentage. It is
+        the strongest possible rise and sorts above everything, but only the
+        revenue floor keeps that from being a shelf that sold one extra item.
+        """
+        if row["change_pct"] is not None:
+            return float(row["change_pct"])
+        return float("inf") if float(row["current_revenue"] or 0) > 0 else float("-inf")
+
+    rows.sort(key=percent_key if sort == "percent" else (lambda r: r["change"]),
+              reverse=True)
     return JsonResponse({
         "success": True,
         "rows": rows,
+        "sort": sort,
+        "min_revenue": min_revenue,
+        "excluded": excluded,
         "current_window": {"first_day": current[0], "last_day": current[1], "days": current[2]},
         "previous_window": {"first_day": previous[0], "last_day": previous[1], "days": previous[2]},
         "window_days": current[2],
