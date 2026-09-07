@@ -536,9 +536,14 @@ one over several lines renders it onto the page as visible text.
         <table class="table table-sm table-hover bi-table mb-0">
           <thead><tr>
             <th>#</th><th>Product</th><th>Department</th><th>Commodity</th><th>Brand</th>
-            <th class="text-end">Revenue</th><th class="text-end">Share</th><th class="text-end">Baskets</th>
+            <th class="text-end">Revenue</th>
+            <th class="text-end" id="topShareShownHead"
+                title="Each row against the sum of the rows in this table only, so the column adds to 100%. It is not this product's share of the business.">Share of these 25</th>
+            <th class="text-end"
+                title="Each row against revenue across everything the current filters allow.">Share of all</th>
+            <th class="text-end">Baskets</th>
           </tr></thead>
-          <tbody id="topProductRows"><tr><td colspan="8" class="bi-loading">Loading&hellip;</td></tr></tbody>
+          <tbody id="topProductRows"><tr><td colspan="9" class="bi-loading">Loading&hellip;</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -549,9 +554,13 @@ one over several lines renders it onto the page as visible text.
         <table class="table table-sm table-hover bi-table mb-0">
           <thead><tr>
             <th id="detailLevelHead">Level</th><th class="text-end">Revenue</th>
-            <th class="text-end">Share</th><th class="text-end">Baskets</th>
+            <th class="text-end" id="detailShareShownHead"
+                title="Each row against the sum of the rows listed here only, so the column adds to 100%.">Share of shown</th>
+            <th class="text-end"
+                title="Each row against revenue across everything the current filters allow.">Share of all</th>
+            <th class="text-end">Baskets</th>
           </tr></thead>
-          <tbody id="detailRows"><tr><td colspan="4" class="bi-loading">Loading&hellip;</td></tr></tbody>
+          <tbody id="detailRows"><tr><td colspan="5" class="bi-loading">Loading&hellip;</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -1075,13 +1084,17 @@ function renderCrumbs(containerId, breadcrumb, rootLabel, onJump) {
 
 function renderDetailTable(rows, levelLabel, levelKey) {
   const body = document.getElementById('detailRows');
+  const shownHead = document.getElementById('detailShareShownHead');
+  if (shownHead) shownHead.textContent = `Share of these ${rows.length}`;
   document.getElementById('detailSub').textContent = `${levelLabel} breakdown, ranked by revenue`;
   document.getElementById('detailLevelHead').textContent = levelLabel;
-  if (!rows.length) { body.innerHTML = '<tr><td colspan="4" class="bi-loading">No rows.</td></tr>'; return; }
+  if (!rows.length) { body.innerHTML = '<tr><td colspan="5" class="bi-loading">No rows.</td></tr>'; return; }
   const max = Math.max(...rows.map(r => r.revenue));
   body.innerHTML = rows.map(r => `<tr onclick="biSetFilter('${levelKey}', ${JSON.stringify(String(r.value ?? r.label)).replace(/"/g, '&quot;')}, {toggle:true})">
     <td class="bar-cell"><div class="fill" style="width:${max ? (r.revenue / max * 100) : 0}%"></div><span>${escapeHtml(r.label)}</span></td>
-    <td class="n">${money(r.revenue)}</td><td class="n">${pct(r.share)}</td><td class="n">${num(r.baskets)}</td>
+    <td class="n">${money(r.revenue)}</td><td class="n">${pct(r.share)}</td>
+    <td class="n">${r.share_of_total === undefined ? '--' : pct(r.share_of_total)}</td>
+    <td class="n">${num(r.baskets)}</td>
   </tr>`).join('');
 }
 
@@ -1367,11 +1380,18 @@ async function loadDemographics() {
 async function loadTopProducts() {
   const data = await biGet('/analysis/api/bi/top-products/');
   const body = document.getElementById('topProductRows');
+  /* The count is read back rather than written into the header: a filter can
+     leave fewer than 25 rows, and a header that still said 25 would be naming
+     the wrong base for the column beneath it. */
+  const shownHead = document.getElementById('topShareShownHead');
+  if (shownHead) shownHead.textContent = `Share of these ${Number(data.shown || data.rows.length)}`;
   body.innerHTML = data.rows.length ? data.rows.map(r => `<tr onclick="biSetFilter('product', '${r.product_id}', {toggle:true})">
     <td>${r.rank}</td><td><strong>${r.product_id}</strong></td>
     <td>${escapeHtml(r.department)}</td><td>${escapeHtml(r.commodity)}</td><td>${escapeHtml(r.brand)}</td>
-    <td class="n">${money(r.revenue)}</td><td class="n">${pct(r.share)}</td><td class="n">${num(r.baskets)}</td>
-  </tr>`).join('') : '<tr><td colspan="8" class="bi-loading">No products match these filters.</td></tr>';
+    <td class="n">${money(r.revenue)}</td><td class="n">${pct(r.share)}</td>
+    <td class="n">${r.share_of_total === undefined ? '--' : pct(r.share_of_total)}</td>
+    <td class="n">${num(r.baskets)}</td>
+  </tr>`).join('') : '<tr><td colspan="9" class="bi-loading">No products match these filters.</td></tr>';
 }
 
 async function loadInsights() {

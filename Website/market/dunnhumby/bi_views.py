@@ -146,14 +146,33 @@ def _scalar_row(sql, params):
     return rows[0] if rows else {}
 
 
-def _rank_rows(rows, value_key="revenue"):
-    """Attach float values and each row's share of the visible total."""
+def _rank_rows(rows, value_key="revenue", total=None):
+    """Attach float values and each row's share of the rows returned.
+
+    A table that keeps its top 25 divides by the sum of those 25, so the shares
+    down the column add to 100% and the largest product appears to hold a tenth
+    of the business when it holds a fraction of a per cent. The figure is not
+    wrong, but it answers "share of what is on screen", and nothing on screen
+    said so. Pass ``total`` -- the value across everything the filters allow --
+    and each row also carries ``share_of_total``, which is the reading most
+    people take the column for.
+    """
     for row in rows:
         row[value_key] = float(row.get(value_key) or 0)
-    total = sum(row[value_key] for row in rows)
+    shown = sum(row[value_key] for row in rows)
     for row in rows:
-        row["share"] = (row[value_key] / total) if total else 0
+        row["share"] = (row[value_key] / shown) if shown else 0
+        if total:
+            row["share_of_total"] = row[value_key] / total
     return rows
+
+
+def _filtered_revenue(where, params, needs):
+    """Revenue across everything the current filters allow, for share-of-total."""
+    return float(_scalar_row(f"""
+        SELECT SUM(f.sales_value) AS revenue
+        {_from(needs)}{_clause(where)}
+    """, params).get("revenue") or 0)
 
 
 @admin_required
@@ -282,7 +301,8 @@ def _drill(request, levels, is_product):
         ORDER BY {order_sql}
     """, params)
 
-    _rank_rows(rows)
+    grand_total = _filtered_revenue(where, params, needs)
+    _rank_rows(rows, total=grand_total)
     full = max((int(r["days"] or 0) for r in rows), default=0)
     for row in rows:
         row["days"] = int(row["days"] or 0)
@@ -301,6 +321,8 @@ def _drill(request, levels, is_product):
         "can_drill": depth < len(levels) - 1,
         "next_label": levels[depth + 1]["label"] if depth < len(levels) - 1 else None,
         "rows": rows,
+        "shown": len(rows),
+        "filtered_revenue": grand_total,
     })
 
 
@@ -547,10 +569,16 @@ def api_bi_top_products(request):
         GROUP BY r.product_id
         ORDER BY MIN(r.revenue) DESC
     """, params)
-    _rank_rows(rows)
+    grand_total = _filtered_revenue(where, params, needs)
+    _rank_rows(rows, total=grand_total)
     for index, row in enumerate(rows, start=1):
         row["rank"] = index
-    return JsonResponse({"success": True, "rows": rows})
+    return JsonResponse({
+        "success": True,
+        "rows": rows,
+        "shown": len(rows),
+        "filtered_revenue": grand_total,
+    })
 
 
 @admin_required
