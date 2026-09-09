@@ -1,18 +1,15 @@
-/* Market Analysis Admin Panel - Django Theme Compatible */
-
-/* Enhanced Theme Variables with Django Compatibility */
 :root {
-    /* Django Admin Compatible Colors */
-    --primary-color: #417690;      /* Django Admin Blue */
-    --primary-light: #79aec8;      /* Light Blue */
-    --primary-dark: #205067;       /* Dark Blue */
-    --secondary-color: #059669;     /* Emerald Green */
-    --accent-color: #f59e0b;       /* Amber */
-    --danger-color: #ba2121;       /* Django Red */
-    --warning-color: #ffc107;      /* Bootstrap Warning */
-    --success-color: #28a745;      /* Bootstrap Success */
     
-    /* Neutral Colors - Adaptive */
+    --primary-color: #417690;      
+    --primary-light: #79aec8;      
+    --primary-dark: #205067;       
+    --secondary-color: #059669;     
+    --accent-color: #f59e0b;       
+    --danger-color: #ba2121;       
+    --warning-color: #ffc107;      
+    --success-color: #28a745;      
+    
+    
     --bg-primary: #f8f9fa;
     --bg-secondary: #ffffff;
     --bg-tertiary: #e9ecef;
@@ -22,25 +19,25 @@
     --border-color: #dee2e6;
     --shadow-color: rgba(0, 0, 0, 0.1);
     
-    /* Gradients */
+    
     --gradient-primary: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
     --gradient-secondary: linear-gradient(135deg, var(--secondary-color) 0%, #047857 100%);
     --gradient-success: linear-gradient(135deg, var(--success-color) 0%, #1e7e34 100%);
     --gradient-analytics: linear-gradient(135deg, rgba(65, 118, 144, 0.1) 0%, rgba(121, 174, 200, 0.1) 100%);
     
-    /* Shadows with adaptive opacity */
+    
     --shadow-sm: 0 1px 2px 0 var(--shadow-color);
     --shadow-md: 0 4px 6px -1px var(--shadow-color), 0 2px 4px -1px var(--shadow-color);
     --shadow-lg: 0 10px 15px -3px var(--shadow-color), 0 4px 6px -2px var(--shadow-color);
     --shadow-xl: 0 20px 25px -5px var(--shadow-color), 0 10px 10px -5px var(--shadow-color);
     
-    /* Border Radius */
+    
     --radius-sm: 0.25rem;
     --radius-md: 0.5rem;
     --radius-lg: 0.75rem;
     --radius-xl: 1rem;
     
-    /* Spacing */
+    
     --space-xs: 0.25rem;
     --space-sm: 0.5rem;
     --space-md: 1rem;
@@ -49,7 +46,6 @@
     --space-2xl: 3rem;
 }
 
-/* Dark theme support - Override Django's theme system */
 :root[data-theme='dark'],
 body.theme-dark {
     --primary-color: #79aec8;
@@ -69,7 +65,6 @@ body.theme-dark {
     --shadow-color: rgba(0, 0, 0, 0.45);
 }
 
-/* Force light theme */
 :root[data-theme='light'],
 body.theme-light {
     --primary-color: #417690;
@@ -89,7 +84,6 @@ body.theme-light {
     --shadow-color: rgba(0, 0, 0, 0.1);
 }
 
-/* Override any Django auto theme - force it to light */
 :root[data-theme='auto'],
 body.theme-auto {
     --primary-color: #417690 !important;
@@ -109,20 +103,17 @@ body.theme-auto {
     --shadow-color: rgba(0, 0, 0, 0.1) !important;
 }
 
-/* Hide Django's native theme toggle - we only want our custom one */
 .admin .theme-toggle:not(#theme-toggle),
 .admin [class*="django-admin-theme"],
 .admin button[title*="Toggle theme"]:not(#theme-toggle) {
     display: none !important;
 }
 
-/* Django admin body theme detection */
 body.admin {
     font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
     line-height: 1.6;
 }
 
-/* Override Django's default colors when our theme is active */
 .admin #header {
     background: var(--gradient-primary) !important;
     border-bottom: none !important;
@@ -150,13 +141,11 @@ body.admin {
     color: white !important;
 }
 
-/* Content area styling */
 .admin #content {
     background: var(--bg-primary) !important;
     padding: var(--space-xl) !important;
 }
 
-/* Module styling with theme compatibility */
 .admin .module {
     background: var(--bg-secondary) !important;
     border: 1px solid var(--border-color) !important;
@@ -183,12 +172,10 @@ body.admin {
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2) !important;
 }
 
-/* Improve readability of text inside modules in dark mode */
 :root[data-theme='dark'] .admin .module, 
 :root[data-theme='dark'] .module { color: var(--text-primary) !important; }
 .admin .module label, .admin .module p, .admin .module li { color: var(--text-primary) !important; }
 
-/* Enhanced form styling */
 .admin .form-section {
     background: linear-gradient(135deg, rgba(65, 118, 144, 0.05) 0%, rgba(121, 174, 200, 0.05) 100%) !important;
     border: 1px solid rgba(65, 118, 144, 0.2) !important;
@@ -226,7 +213,6 @@ body.admin {
     box-shadow: 0 0 0 3px rgba(65, 118, 144, 0.1) !important;
 }
 
-/* Button styling with theme compatibility */
 .admin .btn {
     font-family: inherit !important;
     font-size: 0.9rem !important;
@@ -272,7 +258,6 @@ body.admin {
     box-shadow: var(--shadow-md) !important;
 }
 
-/* Enhanced table styling */
 .admin .table, .table {
     width: 100% !important;
     border-collapse: separate !important;
@@ -310,7 +295,6 @@ body.admin {
     background-color: rgba(65, 118, 144, 0.05) !important;
 }
 
-/* Dashboard components */
 .admin .analysis-tools-grid {
     display: grid !important;
     grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)) !important;
@@ -356,7 +340,6 @@ body.admin {
     margin: 0 !important;
 }
 
-/* Stats and metrics */
 .admin .stats-grid {
     display: grid !important;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)) !important;
@@ -406,7 +389,6 @@ body.admin {
     letter-spacing: 0.5px !important;
 }
 
-/* Alert and info boxes */
 .admin .alert {
     border: none !important;
     border-radius: var(--radius-md) !important;
@@ -439,7 +421,6 @@ body.admin {
     margin-bottom: var(--space-md) !important;
 }
 
-/* Chart containers */
 .admin .dashboard-chart {
     background: var(--bg-secondary) !important;
     border: 1px solid var(--border-color) !important;
@@ -461,7 +442,6 @@ body.admin {
     max-height: none !important;
 }
 
-/* Breadcrumbs */
 .admin .breadcrumbs {
     background: rgba(255, 255, 255, 0.9) !important;
     backdrop-filter: blur(10px) !important;
@@ -479,7 +459,6 @@ body.admin {
     transition: color 0.3s ease !important;
 }
 
-/* Responsive adjustments */
 @media (max-width: 768px) {
     .admin .analysis-tools-grid {
         grid-template-columns: 1fr !important;
@@ -501,7 +480,6 @@ body.admin {
     }
 }
 
-/* Animation keyframes */
 @keyframes fadeInUp {
     from {
         opacity: 0;
