@@ -323,6 +323,25 @@ one over several lines renders it onto the page as visible text.
   font-size: .76rem; color: var(--bi-muted); border-top: 1px dashed var(--bi-line);
   padding-top: .5rem; margin-top: .3rem;
 }
+@media (max-width: 768px) {
+  .bi-card { padding: .9rem 1rem; }
+  .bi-head { flex-direction: column; align-items: stretch; gap: .6rem; }
+  .bi-head > div { flex-wrap: wrap; }
+  .bi-head h5 { font-size: 1rem; }
+  .bi-head .form-select { width: 100% !important; }
+  .bi-head .btn { width: 100%; }
+
+  .chart-box { height: 240px; }
+  .chart-box.tall { height: 280px; }
+  .chart-box.short { height: 200px; }
+
+  .bi-filters { grid-template-columns: 1fr; }
+  .bi-pages { overflow-x: auto; flex-wrap: nowrap; }
+  .bi-page-btn { white-space: nowrap; }
+
+  .sig-legend { font-size: .72rem; }
+  .bi-datatable { max-height: 260px; }
+}
 </style>
 
 <div class="bi-module">

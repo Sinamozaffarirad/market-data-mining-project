@@ -129,3 +129,38 @@
     border-radius: 10px;
     white-space: nowrap;
 }
+
+
+@media (max-width: 768px) {
+    .analysis-frame { padding: 1rem; border-radius: .75rem; }
+
+    .analysis-banner {
+        margin-bottom: 1rem;
+        padding: .85rem 1rem;
+    }
+
+    .analysis-banner .analysis-banner-title { font-size: 1.05rem; }
+
+    .analysis-banner .analysis-banner-sub {
+        font-size: .82rem;
+        line-height: 1.45;
+    }
+
+    .analysis-banner .badge { align-self: flex-start; }
+
+    .pager {
+        gap: .35rem;
+        padding: .5rem;
+    }
+
+    .pager-btn {
+        padding: .3rem .55rem;
+        font-size: .78rem;
+    }
+
+    .pager-status {
+        order: -1;
+        width: 100%;
+        text-align: center;
+    }
+}

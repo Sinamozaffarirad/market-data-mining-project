@@ -852,6 +852,42 @@
     padding: 1rem;
   }
   
+  .pred-panel .rev-head-sm,
+  .rev-head-sm {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .pred-panel .rev-card-title,
+  .rev-card-title {
+    min-width: 0;
+    font-size: .9rem;
+    overflow-wrap: anywhere;
+  }
+
+  .rev-head-sm .d-flex,
+  .head-actions {
+    flex-wrap: wrap;
+    width: 100%;
+  }
+
+  .rev-head-sm .btn-group {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .rev-head-sm .btn-group .btn {
+    flex: 1 1 auto;
+    padding: .35rem .5rem;
+    font-size: .78rem;
+    white-space: normal;
+  }
+
+  .rev-head-sm .top-size,
+  .rev-head-sm .form-select {
+    width: 100%;
+  }
+
   .analysis-type-card {
     padding: 1rem;
     margin-bottom: 0.75rem;
@@ -1235,6 +1271,18 @@ html, body {
   align-items: center;
   justify-content: center;
 }
+.hero-title {
+  font-size: 2.5rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+}
+
+.hero-subtitle {
+  font-size: 1.1rem;
+  color: #fff !important;
+  margin: 0;
+}
+
 </style>
 {% endblock %}
 
@@ -1244,10 +1292,10 @@ html, body {
   <!-- Hero Section -->
   <div class="hero-section fade-in">
     <div class="text-center">
-      <h1 style="font-size: 2.5rem; font-weight: 700; margin-bottom: 1rem;">
+      <h1 class="hero-title">
         🛒 Advanced Market Basket Analysis
       </h1>
-      <p style="font-size: 1.1rem; color: white !important; margin: 0;">
+      <p class="hero-subtitle">
         Comprehensive data mining with Descriptive, Predictive & Differential Analysis
       </p>
     </div>
