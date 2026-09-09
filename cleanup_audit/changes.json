@@ -1,0 +1,318 @@
+[
+  {
+    "path": "Website/market/catalog/models.py",
+    "reason": "Remove redundant file labels and editing/scaffolding comments",
+    "lines": [
+      1
+    ]
+  },
+  {
+    "path": "Website/market/catalog/tests.py",
+    "reason": "Remove redundant file labels and editing/scaffolding comments",
+    "lines": [
+      3
+    ]
+  },
+  {
+    "path": "Website/market/catalog/views.py",
+    "reason": "Remove redundant file labels and editing/scaffolding comments",
+    "lines": [
+      3
+    ]
+  },
+  {
+    "path": "Website/market/check_schema.py",
+    "reason": "Remove redundant file labels and editing/scaffolding comments",
+    "lines": [
+      5,
+      8
+    ]
+  },
+  {
+    "path": "Website/market/core/admin.py",
+    "reason": "Remove redundant file labels and editing/scaffolding comments",
+    "lines": [
+      3
+    ]
+  },
+  {
+    "path": "Website/market/core/models.py",
+    "reason": "Remove redundant file labels and editing/scaffolding comments",
+    "lines": [
+      3
+    ]
+  },
+  {
+    "path": "Website/market/core/tests.py",
+    "reason": "Remove redundant file labels and editing/scaffolding comments",
+    "lines": [
+      3
+    ]
+  },
+  {
+    "path": "Website/market/customers/admin.py",
+    "reason": "Remove redundant file labels and editing/scaffolding comments",
+    "lines": [
+      1
+    ]
+  },
+  {
+    "path": "Website/market/customers/management/commands/build_cf_cache.py",
+    "reason": "Remove redundant file labels and editing/scaffolding comments",
+    "lines": [
+      1
+    ]
+  },
+  {
+    "path": "Website/market/customers/management/commands/train_hybrid_recommender.py",
+    "reason": "Remove redundant file labels and editing/scaffolding comments",
+    "lines": [
+      1
+    ]
+  },
+  {
+    "path": "Website/market/customers/ml/cf_cache.py",
+    "reason": "Remove redundant file labels and editing/scaffolding comments",
+    "lines": [
+      1
+    ]
+  },
+  {
+    "path": "Website/market/customers/ml/feature_engineering.py",
+    "reason": "Remove redundant file labels and editing/scaffolding comments",
+    "lines": [
+      1
+    ]
+  },
+  {
+    "path": "Website/market/customers/ml/recommender_model.py",
+    "reason": "Remove redundant file labels and editing/scaffolding comments",
+    "lines": [
+      1
+    ]
+  },
+  {
+    "path": "Website/market/customers/models.py",
+    "reason": "Remove redundant file labels and editing/scaffolding comments",
+    "lines": [
+      1
+    ]
+  },
+  {
+    "path": "Website/market/customers/templatetags/custom_filters.py",
+    "reason": "Remove redundant file labels and editing/scaffolding comments",
+    "lines": [
+      1
+    ]
+  },
+  {
+    "path": "Website/market/customers/urls.py",
+    "reason": "Remove redundant file labels and editing/scaffolding comments",
+    "lines": [
+      1
+    ]
+  },
+  {
+    "path": "Website/market/customers/views.py",
+    "reason": "Remove redundant file labels and editing/scaffolding comments",
+    "lines": [
+      1,
+      69,
+      71,
+      418,
+      420
+    ]
+  },
+  {
+    "path": "Website/market/dunnhumby/admin.py",
+    "reason": "Remove redundant file labels and editing/scaffolding comments",
+    "lines": [
+      163,
+      174
+    ]
+  },
+  {
+    "path": "Website/market/dunnhumby/bi_views.py",
+    "reason": "Remove redundant file labels and editing/scaffolding comments",
+    "lines": [
+      1406,
+      1413
+    ]
+  },
+  {
+    "path": "Website/market/dunnhumby/collab_filter.py",
+    "reason": "Remove redundant file labels and editing/scaffolding comments",
+    "lines": [
+      1
+    ]
+  },
+  {
+    "path": "Website/market/product_recommender/models.py",
+    "reason": "Remove redundant file labels and editing/scaffolding comments",
+    "lines": [
+      1
+    ]
+  },
+  {
+    "path": "Website/market/product_recommender/urls.py",
+    "reason": "Remove redundant file labels and editing/scaffolding comments",
+    "lines": [
+      1
+    ]
+  },
+  {
+    "path": "Website/market/product_recommender/views.py",
+    "reason": "Remove redundant file labels and editing/scaffolding comments",
+    "lines": [
+      1,
+      41,
+      43,
+      124,
+      126
+    ]
+  },
+  {
+    "path": "Website/market/test_connection.py",
+    "reason": "Remove redundant file labels and editing/scaffolding comments",
+    "lines": [
+      6,
+      9
+    ]
+  },
+  {
+    "path": "Website/market/customers/ml/cf_cache.py",
+    "reason": "Document cache lifecycle concisely"
+  },
+  {
+    "path": "Website/market/dunnhumby/bi_views.py",
+    "reason": "Replace conversational comment with the statistical purpose"
+  },
+  {
+    "path": "Website/market/dunnhumby/admin.py",
+    "reason": "Use a factual docstring"
+  },
+  {
+    "path": "Website/market/dunnhumby/admin.py",
+    "reason": "Use a factual docstring"
+  },
+  {
+    "path": "Website/market/dunnhumby/management/commands/import_transactions.py",
+    "reason": "Require an explicit CSV path instead of a stale machine-specific default"
+  },
+  {
+    "path": "Website/market/dunnhumby/tests.py",
+    "reason": "Update regression fixture to the existing per-lead model bundle; preserve forecast assertions"
+  },
+  {
+    "path": "Website/market/core/views.py",
+    "reason": "Preserve legacy routes with redirects to existing pages instead of missing templates"
+  },
+  {
+    "path": "Website/market/catalog/views.py",
+    "reason": "Remove unused scaffold imports; retain Django module"
+  },
+  {
+    "path": "Website/market/catalog/tests.py",
+    "reason": "Remove unused scaffold imports; retain Django module"
+  },
+  {
+    "path": "Website/market/core/admin.py",
+    "reason": "Remove unused scaffold imports; retain Django module"
+  },
+  {
+    "path": "Website/market/core/models.py",
+    "reason": "Remove unused scaffold imports; retain Django module"
+  },
+  {
+    "path": "Website/market/core/tests.py",
+    "reason": "Remove unused scaffold imports; retain Django module"
+  },
+  {
+    "path": "Website/market/market/settings.py",
+    "reason": "Replace generic setup tutorial with a module description"
+  },
+  {
+    "path": "Website/market/market/urls.py",
+    "reason": "Replace generic setup tutorial with a module description"
+  },
+  {
+    "path": "Website/market/market/settings.py",
+    "reason": "Do not distribute a hardcoded application signing key; allow a stable environment key"
+  },
+  {
+    "path": "Website/market/market/settings.py",
+    "reason": "Support local secret-key generation"
+  },
+  {
+    "path": "Website/market/market/settings.py",
+    "reason": "Make local debug mode configurable"
+  },
+  {
+    "path": "Website/market/market/settings.py",
+    "reason": "Allow explicit hosts while keeping local defaults"
+  },
+  {
+    "path": "Website/market/market/settings.py",
+    "reason": "Make database name portable"
+  },
+  {
+    "path": "Website/market/market/settings.py",
+    "reason": "Make SQL Server instance portable"
+  },
+  {
+    "path": "Website/market/market/settings.py",
+    "reason": "Make ODBC driver configurable"
+  },
+  {
+    "path": "Website/market/market/settings.py",
+    "reason": "Remove commented-out unused application"
+  },
+  {
+    "path": "Website/market/dunnhumby/analytics.py",
+    "reason": "Remove unreferenced historical churn implementation; retain explicit deprecation guards and tests"
+  },
+  {
+    "path": "Website/market/customers/urls.py",
+    "reason": "Comment cleanup: remove an obsolete editing note"
+  },
+  {
+    "path": "Website/market/dunnhumby/views.py",
+    "reason": "Comment cleanup: describe the query instead of editing history"
+  },
+  {
+    "path": "Website/market/dunnhumby/views.py",
+    "reason": "Comment cleanup: remove an obsolete editing note"
+  },
+  {
+    "path": "Website/market/dunnhumby/templatetags/market_icons.py",
+    "reason": "Use a concise favicon docstring"
+  },
+  {
+    "path": "Website/market/templates/site/base.html",
+    "reason": "Comment cleanup: describe the component directly"
+  },
+  {
+    "path": "Website/market/templates/site/base.html",
+    "reason": "Comment cleanup: describe the component directly"
+  },
+  {
+    "path": "Website/market/templates/site/base.html",
+    "reason": "Comment cleanup: describe the component directly"
+  },
+  {
+    "path": "README.md",
+    "reason": "Replace stale feature claims, paths and version information with verified local setup instructions"
+  },
+  {
+    "path": ".gitignore",
+    "reason": "Reduce generic rules to this project and omit local assistant-specific configuration"
+  },
+  {
+    "path": "Website/market/dunnhumby/views.py",
+    "reason": "Use functional recommendation labels instead of promotional wording; preserve machine-learning behaviour"
+  },
+  {
+    "path": "Website/market/templates/site/dunnhumby/basket_analysis.html",
+    "reason": "Use functional recommendation labels instead of promotional wording; preserve machine-learning behaviour"
+  }
+]

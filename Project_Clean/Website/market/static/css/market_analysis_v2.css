@@ -1,0 +1,499 @@
+:root {
+    
+    --primary-color: #417690;      
+    --primary-light: #79aec8;      
+    --primary-dark: #205067;       
+    --secondary-color: #059669;     
+    --accent-color: #f59e0b;       
+    --danger-color: #ba2121;       
+    --warning-color: #ffc107;      
+    --success-color: #28a745;      
+    
+    
+    --bg-primary: #f8f9fa;
+    --bg-secondary: #ffffff;
+    --bg-tertiary: #e9ecef;
+    --text-primary: #212529;
+    --text-secondary: #6c757d;
+    --text-light: #adb5bd;
+    --border-color: #dee2e6;
+    --shadow-color: rgba(0, 0, 0, 0.1);
+    
+    
+    --gradient-primary: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+    --gradient-secondary: linear-gradient(135deg, var(--secondary-color) 0%, #047857 100%);
+    --gradient-success: linear-gradient(135deg, var(--success-color) 0%, #1e7e34 100%);
+    --gradient-analytics: linear-gradient(135deg, rgba(65, 118, 144, 0.1) 0%, rgba(121, 174, 200, 0.1) 100%);
+    
+    
+    --shadow-sm: 0 1px 2px 0 var(--shadow-color);
+    --shadow-md: 0 4px 6px -1px var(--shadow-color), 0 2px 4px -1px var(--shadow-color);
+    --shadow-lg: 0 10px 15px -3px var(--shadow-color), 0 4px 6px -2px var(--shadow-color);
+    --shadow-xl: 0 20px 25px -5px var(--shadow-color), 0 10px 10px -5px var(--shadow-color);
+    
+    
+    --radius-sm: 0.25rem;
+    --radius-md: 0.5rem;
+    --radius-lg: 0.75rem;
+    --radius-xl: 1rem;
+    
+    
+    --space-xs: 0.25rem;
+    --space-sm: 0.5rem;
+    --space-md: 1rem;
+    --space-lg: 1.5rem;
+    --space-xl: 2rem;
+    --space-2xl: 3rem;
+}
+
+:root[data-theme='dark'],
+body.theme-dark {
+    --primary-color: #79aec8;
+    --primary-light: #a8c8e1;
+    --primary-dark: #417690;
+    --secondary-color: #20c997;
+    --accent-color: #ffc107;
+    --danger-color: #dc3545;
+    
+    --bg-primary: #0f172a;
+    --bg-secondary: #111827;
+    --bg-tertiary: #1f2937;
+    --text-primary: #e5e7eb;
+    --text-secondary: #cbd5e1;
+    --text-light: #94a3b8;
+    --border-color: #1f2937;
+    --shadow-color: rgba(0, 0, 0, 0.45);
+}
+
+:root[data-theme='light'],
+body.theme-light {
+    --primary-color: #417690;
+    --primary-light: #79aec8;
+    --primary-dark: #205067;
+    --secondary-color: #059669;
+    --accent-color: #f59e0b;
+    --danger-color: #ba2121;
+    
+    --bg-primary: #f8f9fa;
+    --bg-secondary: #ffffff;
+    --bg-tertiary: #e9ecef;
+    --text-primary: #212529;
+    --text-secondary: #6c757d;
+    --text-light: #adb5bd;
+    --border-color: #dee2e6;
+    --shadow-color: rgba(0, 0, 0, 0.1);
+}
+
+:root[data-theme='auto'],
+body.theme-auto {
+    --primary-color: #417690 !important;
+    --primary-light: #79aec8 !important;
+    --primary-dark: #205067 !important;
+    --secondary-color: #059669 !important;
+    --accent-color: #f59e0b !important;
+    --danger-color: #ba2121 !important;
+    
+    --bg-primary: #f8f9fa !important;
+    --bg-secondary: #ffffff !important;
+    --bg-tertiary: #e9ecef !important;
+    --text-primary: #212529 !important;
+    --text-secondary: #6c757d !important;
+    --text-light: #adb5bd !important;
+    --border-color: #dee2e6 !important;
+    --shadow-color: rgba(0, 0, 0, 0.1) !important;
+}
+
+.admin .theme-toggle:not(#theme-toggle),
+.admin [class*="django-admin-theme"],
+.admin button[title*="Toggle theme"]:not(#theme-toggle) {
+    display: none !important;
+}
+
+body.admin {
+    font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
+    line-height: 1.6;
+}
+
+.admin #header {
+    background: var(--gradient-primary) !important;
+    border-bottom: none !important;
+    box-shadow: var(--shadow-lg) !important;
+}
+
+.admin #branding h1, 
+.admin #branding h1 a:link, 
+.admin #branding h1 a:visited {
+    color: white !important;
+    font-weight: 700 !important;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3) !important;
+}
+
+.admin #user-tools {
+    color: rgba(255, 255, 255, 0.9) !important;
+}
+
+.admin #user-tools a {
+    color: rgba(255, 255, 255, 0.9) !important;
+    transition: color 0.3s ease !important;
+}
+
+.admin #user-tools a:hover {
+    color: white !important;
+}
+
+.admin #content {
+    background: var(--bg-primary) !important;
+    padding: var(--space-xl) !important;
+}
+
+.admin .module {
+    background: var(--bg-secondary) !important;
+    border: 1px solid var(--border-color) !important;
+    border-radius: var(--radius-lg) !important;
+    box-shadow: var(--shadow-md) !important;
+    margin-bottom: var(--space-xl) !important;
+    overflow: hidden !important;
+    transition: all 0.3s ease !important;
+}
+
+.admin .module:hover {
+    box-shadow: var(--shadow-xl) !important;
+    transform: translateY(-2px) !important;
+}
+
+.admin .module h2 {
+    background: var(--gradient-primary) !important;
+    color: white !important;
+    font-size: 1.25rem !important;
+    font-weight: 600 !important;
+    margin: 0 !important;
+    padding: var(--space-lg) var(--space-xl) !important;
+    border-bottom: none !important;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2) !important;
+}
+
+:root[data-theme='dark'] .admin .module, 
+:root[data-theme='dark'] .module { color: var(--text-primary) !important; }
+.admin .module label, .admin .module p, .admin .module li { color: var(--text-primary) !important; }
+
+.admin .form-section {
+    background: linear-gradient(135deg, rgba(65, 118, 144, 0.05) 0%, rgba(121, 174, 200, 0.05) 100%) !important;
+    border: 1px solid rgba(65, 118, 144, 0.2) !important;
+    border-radius: var(--radius-lg) !important;
+    padding: var(--space-xl) !important;
+    margin-bottom: var(--space-xl) !important;
+}
+
+.admin .form-row {
+    display: flex !important;
+    align-items: center !important;
+    gap: var(--space-md) !important;
+    margin-bottom: var(--space-lg) !important;
+}
+
+.admin .form-row label {
+    font-weight: 500 !important;
+    color: var(--text-primary) !important;
+    min-width: 150px !important;
+    font-size: 0.9rem !important;
+}
+
+.admin .form-row input {
+    padding: var(--space-md) !important;
+    border: 1px solid var(--border-color) !important;
+    border-radius: var(--radius-md) !important;
+    background: var(--bg-secondary) !important;
+    color: var(--text-primary) !important;
+    transition: all 0.3s ease !important;
+}
+
+.admin .form-row input:focus {
+    outline: none !important;
+    border-color: var(--primary-light) !important;
+    box-shadow: 0 0 0 3px rgba(65, 118, 144, 0.1) !important;
+}
+
+.admin .btn {
+    font-family: inherit !important;
+    font-size: 0.9rem !important;
+    font-weight: 500 !important;
+    padding: var(--space-md) var(--space-lg) !important;
+    border: none !important;
+    border-radius: var(--radius-md) !important;
+    cursor: pointer !important;
+    transition: all 0.3s ease !important;
+    text-decoration: none !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: var(--space-sm) !important;
+}
+
+.admin .btn-primary {
+    background: var(--gradient-primary) !important;
+    color: white !important;
+    box-shadow: var(--shadow-md) !important;
+}
+
+.admin .btn-primary:hover {
+    transform: translateY(-1px) !important;
+    box-shadow: var(--shadow-lg) !important;
+}
+
+.admin .btn-success {
+    background: var(--gradient-success) !important;
+    color: white !important;
+    box-shadow: var(--shadow-md) !important;
+}
+
+.admin .btn-warning {
+    background: linear-gradient(135deg, var(--warning-color) 0%, #fd7e14 100%) !important;
+    color: var(--text-primary) !important;
+    box-shadow: var(--shadow-md) !important;
+}
+
+.admin .btn-danger {
+    background: linear-gradient(135deg, var(--danger-color) 0%, #a71d2a 100%) !important;
+    color: white !important;
+    box-shadow: var(--shadow-md) !important;
+}
+
+.admin .table, .table {
+    width: 100% !important;
+    border-collapse: separate !important;
+    border-spacing: 0 !important;
+    background: var(--bg-secondary) !important;
+    border-radius: var(--radius-md) !important;
+    overflow: hidden !important;
+    box-shadow: var(--shadow-sm) !important;
+}
+
+.admin .table thead {
+    background: var(--gradient-primary) !important;
+}
+
+.admin .table th {
+    background: transparent !important;
+    color: white !important;
+    font-weight: 600 !important;
+    padding: var(--space-lg) var(--space-md) !important;
+    text-align: left !important;
+    border: none !important;
+    font-size: 0.85rem !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.5px !important;
+}
+
+.admin .table td {
+    padding: var(--space-lg) var(--space-md) !important;
+    border-bottom: 1px solid var(--border-color) !important;
+    color: var(--text-primary) !important;
+    transition: background-color 0.2s ease !important;
+}
+
+.admin .table tbody tr:hover td {
+    background-color: rgba(65, 118, 144, 0.05) !important;
+}
+
+.admin .analysis-tools-grid {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)) !important;
+    gap: var(--space-xl) !important;
+    padding: var(--space-xl) !important;
+}
+
+.admin .analysis-tool-card {
+    background: var(--bg-secondary) !important;
+    border: 1px solid var(--border-color) !important;
+    border-radius: var(--radius-lg) !important;
+    padding: var(--space-xl) !important;
+    text-align: center !important;
+    transition: all 0.3s ease !important;
+    cursor: pointer !important;
+    position: relative !important;
+    overflow: hidden !important;
+}
+
+.admin .analysis-tool-card:hover {
+    border-color: var(--primary-light) !important;
+    box-shadow: var(--shadow-xl) !important;
+    transform: translateY(-4px) scale(1.02) !important;
+}
+
+.admin .tool-icon {
+    font-size: 3rem !important;
+    margin-bottom: var(--space-lg) !important;
+    color: var(--primary-color) !important;
+}
+
+.admin .analysis-tool-card h3 {
+    color: var(--primary-color) !important;
+    font-size: 1.25rem !important;
+    font-weight: 600 !important;
+    margin: var(--space-lg) 0 var(--space-md) 0 !important;
+}
+
+.admin .analysis-tool-card p {
+    color: var(--text-secondary) !important;
+    font-size: 0.95rem !important;
+    line-height: 1.6 !important;
+    margin: 0 !important;
+}
+
+.admin .stats-grid {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)) !important;
+    gap: var(--space-lg) !important;
+}
+
+.admin .metric-card, .admin .stat-card {
+    background: var(--bg-secondary) !important;
+    border: 1px solid var(--border-color) !important;
+    border-radius: var(--radius-lg) !important;
+    padding: var(--space-xl) !important;
+    text-align: center !important;
+    transition: all 0.3s ease !important;
+    position: relative !important;
+    overflow: hidden !important;
+}
+
+.admin .metric-card::before, .admin .stat-card::before {
+    content: '' !important;
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    height: 4px !important;
+    background: var(--gradient-primary) !important;
+}
+
+.admin .metric-card:hover, .admin .stat-card:hover {
+    border-color: var(--primary-light) !important;
+    box-shadow: var(--shadow-lg) !important;
+    transform: translateY(-2px) !important;
+}
+
+.admin .metric-value, .admin .stat-card h4 {
+    font-size: 2.5rem !important;
+    font-weight: 700 !important;
+    color: var(--primary-color) !important;
+    margin: 0 0 var(--space-sm) 0 !important;
+}
+
+.admin .metric-label, .admin .stat-card p {
+    color: var(--text-secondary) !important;
+    font-size: 0.9rem !important;
+    font-weight: 500 !important;
+    margin: 0 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.5px !important;
+}
+
+.admin .alert {
+    border: none !important;
+    border-radius: var(--radius-md) !important;
+    padding: var(--space-lg) !important;
+    margin-bottom: var(--space-xl) !important;
+    font-weight: 500 !important;
+    box-shadow: var(--shadow-md) !important;
+}
+
+.admin .alert-success {
+    background: linear-gradient(135deg, rgba(40, 167, 69, 0.1) 0%, rgba(32, 201, 151, 0.1) 100%) !important;
+    border-left: 4px solid var(--success-color) !important;
+    color: var(--success-color) !important;
+}
+
+.admin .info-box {
+    background: var(--gradient-analytics) !important;
+    border: 1px solid rgba(65, 118, 144, 0.2) !important;
+    border-left: 4px solid var(--primary-light) !important;
+    border-radius: var(--radius-md) !important;
+    padding: var(--space-xl) !important;
+    margin-top: var(--space-xl) !important;
+}
+
+.admin .info-box h4 {
+    color: var(--primary-color) !important;
+    font-size: 1.125rem !important;
+    font-weight: 600 !important;
+    margin-top: 0 !important;
+    margin-bottom: var(--space-md) !important;
+}
+
+.admin .dashboard-chart {
+    background: var(--bg-secondary) !important;
+    border: 1px solid var(--border-color) !important;
+    border-radius: var(--radius-lg) !important;
+    padding: var(--space-xl) !important;
+    margin-bottom: var(--space-xl) !important;
+    box-shadow: var(--shadow-md) !important;
+}
+
+.admin .chart-container {
+    position: relative !important;
+    height: 400px !important;
+    margin-top: var(--space-lg) !important;
+}
+
+.admin .chart-container.association-rules-block {
+    height: auto !important;
+    min-height: 650px !important;
+    max-height: none !important;
+}
+
+.admin .breadcrumbs {
+    background: rgba(255, 255, 255, 0.9) !important;
+    backdrop-filter: blur(10px) !important;
+    border-radius: var(--radius-md) !important;
+    padding: var(--space-md) var(--space-lg) !important;
+    margin-bottom: var(--space-xl) !important;
+    box-shadow: var(--shadow-sm) !important;
+    border: 1px solid var(--border-color) !important;
+}
+
+.admin .breadcrumbs a {
+    color: var(--primary-color) !important;
+    text-decoration: none !important;
+    font-weight: 500 !important;
+    transition: color 0.3s ease !important;
+}
+
+@media (max-width: 768px) {
+    .admin .analysis-tools-grid {
+        grid-template-columns: 1fr !important;
+        gap: var(--space-lg) !important;
+        padding: var(--space-lg) !important;
+    }
+    
+    .admin .stats-grid {
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)) !important;
+    }
+    
+    .admin .form-row {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+    }
+    
+    .admin .form-row label {
+        min-width: auto !important;
+    }
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.admin .module, 
+.admin .analysis-tool-card, 
+.admin .stat-card, 
+.admin .metric-card {
+    animation: fadeInUp 0.6s ease-out forwards !important;
+}

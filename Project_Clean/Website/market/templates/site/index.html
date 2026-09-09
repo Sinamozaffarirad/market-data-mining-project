@@ -1,0 +1,820 @@
+{% extends "site/base.html" %}
+{% load market_icons %}
+{% block title %}Dashboard{% endblock %}
+{% block favicon %}{% favicon "🏠" %}{% endblock %}
+
+{% block extra_css %}
+<style>
+:root {
+  --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  --gradient-secondary: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  --gradient-success: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  --gradient-warning: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+  --shadow-soft: 0 10px 30px rgba(0,0,0,0.1);
+  --shadow-hover: 0 20px 60px rgba(0,0,0,0.15);
+  --border-radius: 20px;
+  --animation-speed: 0.3s;
+}
+
+.hero-section {
+  background: var(--gradient-primary);
+  color: white;
+  padding: 4rem 2rem 2rem;
+  border-radius: var(--border-radius);
+  margin-bottom: 3rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.hero-section::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" opacity="0.1"><circle cx="200" cy="200" r="3" fill="white"/><circle cx="800" cy="300" r="2" fill="white"/><circle cx="400" cy="600" r="2.5" fill="white"/><circle cx="700" cy="700" r="2" fill="white"/><circle cx="100" cy="800" r="3" fill="white"/></svg>');
+  pointer-events: none;
+}
+
+.hero-content {
+  position: relative;
+  z-index: 1;
+}
+
+.hero-title {
+  font-size: 3rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  justify-content: center;
+}
+
+.hero-subtitle {
+  font-size: 1.3rem;
+  opacity: 0.9;
+  margin: 0;
+}
+
+.metric-card {
+  background: white;
+  border-radius: var(--border-radius);
+  padding: 2rem;
+  height: 100%;
+  box-shadow: var(--shadow-soft);
+  transition: all var(--animation-speed) ease;
+  border: none;
+  position: relative;
+  overflow: hidden;
+}
+
+.metric-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: var(--gradient-primary);
+  transform: scaleX(0);
+  transition: transform var(--animation-speed) ease;
+}
+
+.metric-card:hover {
+  transform: translateY(-10px);
+  box-shadow: var(--shadow-hover);
+}
+
+.metric-card:hover::before {
+  transform: scaleX(1);
+}
+
+.metric-value {
+  font-size: 2.5rem;
+  font-weight: 800;
+  color: #2d3748;
+  margin-bottom: 0.5rem;
+  background: var(--gradient-primary);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.metric-label {
+  font-size: 1rem;
+  color: #718096;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 1rem;
+}
+
+.metric-change {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 50px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  background: var(--gradient-success);
+  color: white;
+}
+
+.metric-icon {
+  font-size: 3rem;
+  opacity: 0.1;
+  position: absolute;
+  right: 1rem;
+  top: 1rem;
+  color: #667eea;
+}
+
+.tools-grid {
+  margin: 3rem 0;
+}
+
+.tool-card {
+  background: linear-gradient(145deg, #ffffff 0%, #f8f9ff 100%);
+  border: 1px solid rgba(102, 126, 234, 0.12);
+  border-radius: 18px;
+  padding: 2rem 1.75rem;
+  height: 100%;
+  box-shadow: 0 12px 30px rgba(69, 82, 138, 0.10);
+  transition: all var(--animation-speed) ease;
+  border: none;
+  text-decoration: none;
+  color: inherit;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.tool-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--gradient-primary);
+  opacity: 0;
+  transition: opacity var(--animation-speed) ease;
+  z-index: 0;
+}
+
+.tool-card:hover {
+  transform: translateY(-10px);
+  box-shadow: 0 22px 42px rgba(90, 79, 170, 0.25);
+  color: white;
+  text-decoration: none;
+}
+
+.tool-card:hover::before {
+  opacity: 0.9;
+}
+
+.tool-card:hover .tool-content {
+  color: white;
+}
+
+.tool-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.tool-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 4.75rem;
+  height: 4.75rem;
+  margin: 0 auto 1.25rem;
+  border-radius: 1.35rem;
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.14), rgba(118, 75, 162, 0.14));
+  color: #667eea;
+  font-size: 2.15rem;
+  line-height: 1;
+  transition: all var(--animation-speed) ease;
+}
+
+.tool-icon i {
+  background: var(--gradient-primary);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.tool-card:hover .tool-icon {
+  background: rgba(255, 255, 255, 0.18);
+  color: white;
+  transform: scale(1.06);
+}
+
+.tool-card:hover .tool-icon i {
+  -webkit-text-fill-color: white;
+}
+
+.tool-title {
+  font-size: 1.35rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  color: #2d3748;
+}
+
+.tool-card:hover .tool-title {
+  color: white;
+}
+
+.tool-description {
+  font-size: 0.96rem;
+  color: #718096;
+  margin-bottom: 2rem;
+  line-height: 1.6;
+  flex: 1;
+}
+
+.tool-card:hover .tool-description {
+  color: rgba(255,255,255,0.9);
+}
+
+.tool-launch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.65rem 1.05rem;
+  background: var(--gradient-primary);
+  box-shadow: 0 7px 16px rgba(102, 126, 234, 0.24);
+  color: white;
+  border-radius: 50px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: all var(--animation-speed) ease;
+  border: none;
+  white-space: nowrap;
+  flex-shrink: 0;
+  /* The longest label sets the size: the pills sit in a five-across grid, so
+     the type has to stay small enough that the widest one is not clipped. */
+  font-size: clamp(0.68rem, 0.8vw, 0.82rem);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tool-card:hover .tool-launch {
+  background: white;
+  color: #625fd3;
+  box-shadow: none;
+}
+
+.chart-section {
+  background: white;
+  border-radius: var(--border-radius);
+  padding: 2.5rem;
+  box-shadow: var(--shadow-soft);
+  margin-top: 3rem;
+}
+
+.chart-title {
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: #2d3748;
+  margin-bottom: 2rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.chart-container {
+  position: relative;
+  height: 400px;
+  background: linear-gradient(45deg, #f8fafc 0%, #edf2f7 100%);
+  border-radius: 15px;
+  padding: 2rem;
+}
+
+.animate-counter {
+  transition: all 0.3s ease;
+}
+
+.fade-in {
+  animation: fadeInUp 0.8s ease-out;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.stagger-animation {
+  animation-delay: calc(var(--animation-order) * 0.1s);
+}
+
+@media (max-width: 992px) {
+  .p-2[style*="flex: 0 0 20%"] {
+    flex: 0 0 33.333% !important;
+    max-width: 33.333% !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .hero-title {
+    font-size: 2rem !important;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .hero-section {
+    padding: 2rem 1rem;
+  }
+
+  .metric-value {
+    font-size: 2rem;
+  }
+
+  .tool-card {
+    padding: 2rem;
+  }
+
+  .p-2[style*="flex: 0 0 20%"] {
+    flex: 0 0 50% !important;
+    max-width: 50% !important;
+  }
+}
+
+@media (max-width: 576px) {
+  .hero-title {
+    font-size: 1.5rem !important;
+  }
+
+  .hero-subtitle {
+    font-size: 1rem !important;
+  }
+
+  .metric-value {
+    font-size: 1.5rem !important;
+  }
+
+  .p-2[style*="flex: 0 0 20%"] {
+    flex: 0 0 100% !important;
+    max-width: 100% !important;
+  }
+
+  .chart-section {
+    padding: 1.5rem !important;
+  }
+}
+
+.pulse {
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<div class="hero-section fade-in">
+  <div class="hero-content text-center">
+    <h1 class="hero-title">
+      <i class="fas fa-chart-line"></i>
+      Market Intelligence Dashboard
+    </h1>
+    <p class="hero-subtitle">
+      Advanced analytics and insights for data-driven business decisions
+    </p>
+  </div>
+</div>
+
+<!-- Metrics Cards -->
+<div class="row g-4 mb-4">
+  <div class="col-12 col-md-6 col-lg-3">
+    <div class="metric-card fade-in stagger-animation" style="--animation-order: 1;">
+      <div class="metric-icon">
+        <i class="fas fa-shopping-cart"></i>
+      </div>
+      <div class="text-center">
+        <div class="metric-value animate-counter" data-target="{{ total_transactions }}">0</div>
+        <div class="metric-label">Total Transactions</div>
+        <div class="metric-change">
+          <i class="fas fa-arrow-{% if trans_change >= 0 %}up{% else %}down{% endif %}"></i>
+          {% if trans_change >= 0 %}+{% endif %}{{ trans_change|floatformat:1 }}%
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="col-12 col-md-6 col-lg-3">
+    <div class="metric-card fade-in stagger-animation" style="--animation-order: 2;">
+      <div class="metric-icon">
+        <i class="fas fa-cube"></i>
+      </div>
+      <div class="text-center">
+        <div class="metric-value animate-counter" data-target="{{ unique_products }}">0</div>
+        <div class="metric-label">Unique Products</div>
+        <div class="metric-change">
+          <i class="fas fa-arrow-{% if prod_change >= 0 %}up{% else %}down{% endif %}"></i>
+          {% if prod_change >= 0 %}+{% endif %}{{ prod_change|floatformat:1 }}%
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="col-12 col-md-6 col-lg-3">
+    <div class="metric-card fade-in stagger-animation" style="--animation-order: 3;">
+      <div class="metric-icon">
+        <i class="fas fa-users"></i>
+      </div>
+      <div class="text-center">
+        <div class="metric-value animate-counter" data-target="{{ active_customers }}">0</div>
+        <div class="metric-label">Active Customers</div>
+        <div class="metric-change">
+          <i class="fas fa-arrow-{% if cust_change >= 0 %}up{% else %}down{% endif %}"></i>
+          {% if cust_change >= 0 %}+{% endif %}{{ cust_change|floatformat:1 }}%
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="col-12 col-md-6 col-lg-3">
+    <div class="metric-card fade-in stagger-animation" style="--animation-order: 4;">
+      <div class="metric-icon">
+        <i class="fas fa-dollar-sign"></i>
+      </div>
+      <div class="text-center">
+        <div class="metric-value animate-counter" data-target="{{ total_revenue }}">0</div>
+        <div class="metric-label">Total Revenue</div>
+        <div class="metric-change">
+          <i class="fas fa-arrow-{% if rev_change >= 0 %}up{% else %}down{% endif %}"></i>
+          {% if rev_change >= 0 %}+{% endif %}{{ rev_change|floatformat:1 }}%
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Analysis Tools Grid -->
+<div class="tools-grid">
+  <div class="d-flex flex-wrap g-4 justify-content-start">
+    {% for tool in analysis_tools %}
+    <div class="p-2" style="flex: 0 0 20%; max-width: 20%;">
+      <a href="{{ tool.url }}" class="tool-card fade-in stagger-animation" style="--animation-order: {{ forloop.counter|add:4 }};">
+        <div class="tool-content text-center">
+          <div class="tool-icon">{{ tool.icon|safe }}</div>
+          <h5 class="tool-title">{{ tool.title }}</h5>
+          <p class="tool-description">{{ tool.description }}</p>
+          <span class="tool-launch">
+            {{ tool.action_icon|default:'<i class="fas fa-rocket"></i>'|safe }}
+            {{ tool.action|default:"Open" }}
+          </span>
+        </div>
+      </a>
+    </div>
+    {% endfor %}
+    </div>
+</div>
+
+
+
+<!-- Chart Section -->
+<div class="chart-section fade-in">
+  <h3 class="chart-title">
+    <i class="fas fa-chart-area"></i>
+    Market Trends Overview
+  </h3>
+  <div class="chart-container">
+    <canvas id="trendsChart"></canvas>
+  </div>
+</div>
+
+<script>
+// Modern Dashboard JavaScript
+class DashboardController {
+  constructor() {
+    this.init();
+  }
+  
+  init() {
+    this.animateCounters();
+    this.initChart();
+    this.addInteractivity();
+    this.setupIntersectionObserver();
+  }
+  
+  animateCounters() {
+    const counters = document.querySelectorAll('.animate-counter');
+    
+    counters.forEach(counter => {
+      const target = parseInt(counter.dataset.target);
+      const increment = target / 100;
+      let current = 0;
+      
+      const updateCounter = () => {
+        if (current < target) {
+          current += increment;
+          if (target >= 1000000) {
+            counter.textContent = (current / 1000000).toFixed(2) + 'M';
+          } else if (target >= 1000) {
+            counter.textContent = (current / 1000).toFixed(1) + 'K';
+          } else {
+            counter.textContent = Math.floor(current);
+          }
+          requestAnimationFrame(updateCounter);
+        } else {
+          if (target >= 1000000) {
+            counter.textContent = (target / 1000000).toFixed(2) + 'M';
+          } else if (target >= 1000) {
+            counter.textContent = (target / 1000).toFixed(1) + 'K';
+          } else {
+            counter.textContent = target;
+          }
+        }
+      };
+      
+      setTimeout(() => updateCounter(), 500);
+    });
+  }
+  
+  async initChart() {
+    const ctx = document.getElementById('trendsChart');
+    if (!ctx) return;
+
+    // Fetch real market trends data
+    let chartData;
+    try {
+      const response = await fetch('/analysis/api/market-trends/');
+      const data = await response.json();
+
+      // Convert revenue to K dollars (divide by 1000)
+      const revenueInK = data.datasets.revenue.map(val => (val / 1000).toFixed(1));
+
+      chartData = {
+        labels: data.labels,
+        datasets: [
+          {
+            label: 'Sales Volume ($K)',
+            data: revenueInK,
+            borderColor: '#667eea',
+            backgroundColor: 'rgba(102, 126, 234, 0.1)',
+            borderWidth: 3,
+            tension: 0.4,
+            fill: true,
+            pointBackgroundColor: '#667eea',
+            pointBorderColor: '#ffffff',
+            pointBorderWidth: 3,
+            pointRadius: 6,
+            pointHoverRadius: 8,
+            yAxisID: 'y'
+          },
+          {
+            label: 'Unique Customers',
+            data: data.datasets.customers,
+            borderColor: '#764ba2',
+            backgroundColor: 'rgba(118, 75, 162, 0.1)',
+            borderWidth: 3,
+            tension: 0.4,
+            fill: true,
+            pointBackgroundColor: '#764ba2',
+            pointBorderColor: '#ffffff',
+            pointBorderWidth: 3,
+            pointRadius: 6,
+            pointHoverRadius: 8,
+            yAxisID: 'y1'
+          }
+        ]
+      };
+    } catch (error) {
+      console.error('Failed to load market trends:', error);
+      // Fallback to static data if API fails
+      chartData = {
+        labels: ['Month 1', 'Month 2', 'Month 3', 'Month 4', 'Month 5', 'Month 6'],
+        datasets: [
+          {
+            label: 'Sales Volume',
+            data: [65, 78, 90, 81, 95, 108],
+            borderColor: '#667eea',
+            backgroundColor: 'rgba(102, 126, 234, 0.1)',
+            borderWidth: 3,
+            tension: 0.4,
+            fill: true,
+            pointBackgroundColor: '#667eea',
+            pointBorderColor: '#ffffff',
+            pointBorderWidth: 3,
+            pointRadius: 6,
+            pointHoverRadius: 8,
+            yAxisID: 'y'
+          },
+          {
+            label: 'Customer Acquisition',
+            data: [28, 35, 42, 48, 52, 61],
+            borderColor: '#764ba2',
+            backgroundColor: 'rgba(118, 75, 162, 0.1)',
+            borderWidth: 3,
+            tension: 0.4,
+            fill: true,
+            pointBackgroundColor: '#764ba2',
+            pointBorderColor: '#ffffff',
+            pointBorderWidth: 3,
+            pointRadius: 6,
+            pointHoverRadius: 8,
+            yAxisID: 'y1'
+          }
+        ]
+      };
+    }
+
+    new Chart(ctx, {
+      type: 'line',
+      data: chartData,
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: 'top',
+            labels: {
+              usePointStyle: true,
+              font: {
+                size: 14,
+                weight: '600'
+              },
+              padding: 20
+            }
+          },
+          tooltip: {
+            backgroundColor: 'rgba(0,0,0,0.8)',
+            titleColor: '#ffffff',
+            bodyColor: '#ffffff',
+            borderColor: '#667eea',
+            borderWidth: 1,
+            cornerRadius: 10,
+            displayColors: false
+          }
+        },
+        scales: {
+          x: {
+            grid: {
+              display: false
+            },
+            ticks: {
+              font: {
+                size: 12,
+                weight: '500'
+              },
+              color: '#718096'
+            }
+          },
+          y: {
+            type: 'linear',
+            display: true,
+            position: 'left',
+            title: {
+              display: true,
+              text: 'Sales Volume ($K)',
+              color: '#667eea',
+              font: {
+                size: 13,
+                weight: '600'
+              }
+            },
+            grid: {
+              color: 'rgba(0,0,0,0.1)'
+            },
+            ticks: {
+              font: {
+                size: 12,
+                weight: '500'
+              },
+              color: '#718096'
+            }
+          },
+          y1: {
+            type: 'linear',
+            display: true,
+            position: 'right',
+            title: {
+              display: true,
+              text: 'Unique Customers',
+              color: '#764ba2',
+              font: {
+                size: 13,
+                weight: '600'
+              }
+            },
+            grid: {
+              drawOnChartArea: false
+            },
+            ticks: {
+              font: {
+                size: 12,
+                weight: '500'
+              },
+              color: '#718096'
+            }
+          }
+        },
+        interaction: {
+          intersect: false,
+          mode: 'index'
+        },
+        animation: {
+          duration: 2000,
+          easing: 'easeOutQuart'
+        }
+      }
+    });
+  }
+  
+  addInteractivity() {
+    // Add hover effects to metric cards
+    const metricCards = document.querySelectorAll('.metric-card');
+    metricCards.forEach(card => {
+      card.addEventListener('mouseenter', () => {
+        card.style.transform = 'translateY(-10px) scale(1.02)';
+      });
+      
+      card.addEventListener('mouseleave', () => {
+        card.style.transform = 'translateY(0) scale(1)';
+      });
+    });
+    
+    // Add click animations to tool cards
+    const toolCards = document.querySelectorAll('.tool-card');
+    toolCards.forEach(card => {
+      card.addEventListener('click', (e) => {
+        e.preventDefault();
+        
+        // Add click animation
+        card.style.transform = 'scale(0.95)';
+        setTimeout(() => {
+          card.style.transform = '';
+          // Navigate after animation
+          setTimeout(() => {
+            window.location.href = card.href;
+          }, 100);
+        }, 150);
+      });
+    });
+  }
+  
+  setupIntersectionObserver() {
+    const observerOptions = {
+      threshold: 0.1,
+      rootMargin: '0px 0px -50px 0px'
+    };
+    
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.style.opacity = '1';
+          entry.target.style.transform = 'translateY(0)';
+        }
+      });
+    }, observerOptions);
+    
+    // Observe all fade-in elements
+    document.querySelectorAll('.fade-in').forEach(el => {
+      el.style.opacity = '0';
+      el.style.transform = 'translateY(30px)';
+      el.style.transition = 'all 0.8s ease-out';
+      observer.observe(el);
+    });
+  }
+}
+
+// Initialize dashboard when DOM is loaded
+document.addEventListener('DOMContentLoaded', function() {
+  new DashboardController();
+  
+  // Add some sparkle effects
+  setTimeout(() => {
+    const heroSection = document.querySelector('.hero-section');
+    if (heroSection) {
+      heroSection.classList.add('pulse');
+      
+      setTimeout(() => {
+        heroSection.classList.remove('pulse');
+      }, 2000);
+    }
+  }, 1000);
+});
+</script>
+{% endblock %}

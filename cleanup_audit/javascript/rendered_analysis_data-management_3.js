@@ -1,0 +1,835 @@
+
+// State management
+let currentTable = '';
+let currentPage = 1;
+let lastTableTotal = 0;
+let totalPages = 1;
+const pageSize = 50;
+const schemaCache = {};
+const tableDataCache = {}; // Cache to hold current page data
+const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+let crudModal, confirmModal;
+const READ_ONLY_TABLES = ['basket_analysis', 'customer_segments'];
+let currentSortColumn = null;
+let currentSortDirection = 'asc';
+
+document.addEventListener("DOMContentLoaded", function() {
+    crudModal = new bootstrap.Modal(document.getElementById('crudModal'));
+    confirmModal = new bootstrap.Modal(document.getElementById('confirmModal'));
+});
+
+
+function openDataExporter() {
+    if (!currentTable) {
+        showNotification('Please select a table to export.', 'warning');
+        return;
+    }
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '/analysis/api/export/';
+    form.style.display = 'none';
+    form.innerHTML = `<input type="hidden" name="csrfmiddlewaretoken" value="${csrftoken}">
+                      <input type="hidden" name="table_name" value="${currentTable}">
+                      <input type="hidden" name="filters" value="${JSON.stringify(collectFilters())}">`;
+    document.body.appendChild(form);
+    form.submit();
+    document.body.removeChild(form);
+}
+
+async function selectTable() {
+    currentTable = document.getElementById('viewTableSelect').value;
+    currentPage = 1;
+    const addBtn = document.getElementById('addRecordBtn');
+    if (addBtn) {
+        const isReadOnly = READ_ONLY_TABLES.includes(currentTable);
+        addBtn.disabled = !currentTable || isReadOnly;
+    }
+
+    // Reset multi-select state when changing tables
+    resetMultiSelectState();
+
+    await loadSchemaAndFilters();
+    await loadTableData();
+}
+
+async function loadSchemaAndFilters(purpose = 'filter') {
+    const filterSection = document.getElementById('filterSection');
+    const filterGrid = document.getElementById('filterGrid');
+    
+    if (!currentTable) {
+        filterSection.style.display = 'none';
+        return;
+    }
+    
+    const cacheKey = `${currentTable}-${purpose}`;
+    if (!schemaCache[cacheKey]) {
+        try {
+            const res = await fetch(`/analysis/api/schema/?table=${encodeURIComponent(currentTable)}&purpose=${purpose}`);
+            const json = await res.json();
+            if (json.error) throw new Error(json.error);
+            schemaCache[cacheKey] = json.fields || [];
+        } catch (e) {
+            showNotification(`Error fetching schema: ${e.message}`, 'error');
+            schemaCache[cacheKey] = [];
+        }
+    }
+    
+    const fields = schemaCache[cacheKey];
+    
+    if (purpose === 'filter') {
+        filterGrid.innerHTML = ''; // Clear previous filters
+        if (fields.length > 0) {
+            fields.forEach(f => {
+                let filterHtml = '';
+                if (f.type === 'number') {
+                    filterHtml = `
+                        <div class="col">
+                            <label class="form-label" for="${f.name}_min">${f.label} (Min)</label>
+                            <input class="form-control form-control-sm" type="number" id="${f.name}_min">
+                        </div>
+                        <div class="col">
+                            <label class="form-label" for="${f.name}_max">${f.label} (Max)</label>
+                            <input class="form-control form-control-sm" type="number" id="${f.name}_max">
+                        </div>
+                    `;
+                } else {
+                    filterHtml = `
+                        <div class="col">
+                            <label class="form-label" for="${f.name}">${f.label}</label>
+                            <input class="form-control form-control-sm" type="text" id="${f.name}" placeholder="Contains...">
+                        </div>
+                    `;
+                }
+                filterGrid.innerHTML += filterHtml;
+            });
+            filterSection.style.display = 'block';
+        } else {
+            filterSection.style.display = 'none';
+        }
+    }
+    return fields;
+}
+
+function collectFilters() {
+    const fields = schemaCache[`${currentTable}-filter`] || [];
+    const filters = {};
+    fields.forEach(f => {
+        if (f.type === 'number') {
+            const minVal = document.getElementById(`${f.name}_min`)?.value;
+            if (minVal) filters[`${f.name}_min`] = minVal;
+            const maxVal = document.getElementById(`${f.name}_max`)?.value;
+            if (maxVal) filters[`${f.name}_max`] = maxVal;
+        } else {
+            const val = document.getElementById(f.name)?.value;
+            if (val) filters[f.name] = val;
+        }
+    });
+    return filters;
+}
+
+async function loadTableData() {
+    if (!currentTable) {
+        document.getElementById('dataTable').style.display = 'none';
+        document.getElementById('paginationControls').style.display = 'none';
+        return;
+    }
+
+    document.getElementById('loadingSpinner').style.display = 'block';
+    document.getElementById('dataTable').style.display = 'none';
+    document.getElementById('paginationControls').style.display = 'none';
+
+    try {
+        const form = new FormData();
+        form.append('csrfmiddlewaretoken', csrftoken);
+        form.append('table_name', currentTable);
+        form.append('page', String(currentPage));
+        form.append('limit', String(pageSize));
+        form.append('search', document.getElementById('globalSearch').value);
+        form.append('filters', JSON.stringify(collectFilters()));
+
+        // Add sorting parameters
+        if (currentSortColumn) {
+            form.append('sort_column', currentSortColumn);
+            form.append('sort_direction', currentSortDirection);
+        }
+
+        const res = await fetch('/analysis/api/table/', { method: 'POST', body: form });
+        const json = await res.json();
+
+        if (json.error) throw new Error(json.error);
+
+        tableDataCache[currentTable] = json.data; // Store data for easy access
+        lastTableTotal = json.total || 0;
+        buildTable(json);
+        restoreSelectionOnPage();
+        totalPages = json.pages || 1;
+        updatePaginationInfo(json);
+        document.getElementById('dataTable').style.display = 'table';
+        document.getElementById('paginationControls').style.display = 'flex';
+
+    } catch (e) {
+        showNotification(`Error loading data: ${e.message}`, 'error');
+        document.getElementById('tableBody').innerHTML = `<tr><td colspan="100%" class="text-center text-danger">Failed to load data.</td></tr>`;
+        document.getElementById('dataTable').style.display = 'table';
+    } finally {
+        document.getElementById('loadingSpinner').style.display = 'none';
+    }
+}
+
+
+function buildTable(json) {
+    const header = document.getElementById('tableHeader');
+    const body = document.getElementById('tableBody');
+    header.innerHTML = '';
+    body.innerHTML = '';
+
+    if (!json.data || json.data.length === 0) {
+        body.innerHTML = '<tr><td colspan="100%" class="text-center p-4 text-muted">No records found.</td></tr>';
+        return;
+    }
+    
+    const pk_field_map = {
+        'products': 'product_id',
+        'households': 'household_key',
+        'campaigns': 'campaign',
+        'transactions': 'id' 
+    };
+    const pk_field = pk_field_map[currentTable] || 'id';
+
+    const keys = Object.keys(json.data[0]);
+    const headerRow = document.createElement('tr');
+
+    // Add checkbox header for multi-select
+    if (currentTable && !READ_ONLY_TABLES.includes(currentTable)) {
+        const selectTh = document.createElement('th');
+        selectTh.innerHTML = `
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="selectAll" onchange="toggleSelectAll()">
+                <label class="form-check-label" for="selectAll">Select All</label>
+            </div>
+        `;
+        selectTh.style.width = '120px';
+        headerRow.appendChild(selectTh);
+    }
+
+    keys.forEach(k => {
+        const th = document.createElement('th');
+        const displayName = k.replace(/_/g, ' ').toUpperCase();
+
+        // Add sorting for numeric columns (id, support, confidence, lift)
+        if (['id', 'support', 'confidence', 'lift'].includes(k.toLowerCase())) {
+            th.innerHTML = `
+                <div style="cursor: pointer; user-select: none;" onclick="sortTable('${k.toLowerCase()}')">
+                    ${displayName} <i class="fas fa-sort" id="sort-icon-${k.toLowerCase()}"></i>
+                </div>
+            `;
+            th.style.cursor = 'pointer';
+        } else {
+            th.textContent = displayName;
+        }
+        headerRow.appendChild(th);
+    });
+
+    // Always show ACTIONS header if a table is selected
+    if (currentTable) {
+        const th = document.createElement('th');
+        th.textContent = 'ACTIONS';
+        headerRow.appendChild(th);
+    }
+    header.appendChild(headerRow);
+
+    json.data.forEach((row, index) => {
+        const tr = document.createElement('tr');
+        const recordId = row[pk_field];
+        if (recordId !== undefined) {
+            tr.dataset.recordId = recordId;
+        }
+
+        // Add checkbox cell for multi-select
+        if (currentTable && !READ_ONLY_TABLES.includes(currentTable)) {
+            const selectTd = document.createElement('td');
+            selectTd.innerHTML = `
+                <div class="form-check">
+                    <input class="form-check-input row-checkbox" type="checkbox" value="${recordId}" onchange="toggleRowSelection(this)">
+                </div>
+            `;
+            tr.appendChild(selectTd);
+        }
+
+        keys.forEach(k => {
+            const td = document.createElement('td');
+            td.textContent = row[k];
+            tr.appendChild(td);
+        });
+
+        // Add Actions cell based on table type
+        if (currentTable && recordId !== undefined) {
+            const td = document.createElement('td');
+            const isReadOnly = READ_ONLY_TABLES.includes(currentTable);
+
+            if (isReadOnly) {
+                // For read-only tables, only show the Delete button
+                td.innerHTML = `<button class="btn btn-sm btn-outline-danger" onclick="confirmDelete('${recordId}')">Delete</button>`;
+            } else if (currentTable === 'transactions' || currentTable === 'association_rules') {
+                // For transactions, ONLY show the Delete button
+                td.innerHTML = `<button class="btn btn-sm btn-outline-danger" onclick="confirmDelete('${recordId}')">Delete</button>`;
+            } else {
+                // For all other tables, show both Edit and Delete buttons
+                td.innerHTML = `
+                    <button class="btn btn-sm btn-outline-primary" onclick="openEditModal('${recordId}')">Edit</button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="confirmDelete('${recordId}')">Delete</button>
+                `;
+            }
+            tr.appendChild(td);
+        }
+        body.appendChild(tr);
+    });
+
+    // Reset multi-select state after building the table
+    resetMultiSelectState();
+}
+
+function sortTable(column) {
+    // Toggle sort direction
+    if (currentSortColumn === column) {
+        currentSortDirection = currentSortDirection === 'asc' ? 'desc' : 'asc';
+    } else {
+        currentSortColumn = column;
+        currentSortDirection = 'asc';
+    }
+
+    // Update sort icons
+    document.querySelectorAll('[id^="sort-icon-"]').forEach(icon => {
+        icon.className = 'fas fa-sort';
+    });
+
+    const icon = document.getElementById(`sort-icon-${column}`);
+    if (icon) {
+        icon.className = currentSortDirection === 'asc' ? 'fas fa-sort-up' : 'fas fa-sort-down';
+    }
+
+    // Reload data from server with sorting
+    loadTableData();
+}
+
+function editCell(cell, recordId, field) {
+    const originalValue = cell.textContent;
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = originalValue;
+    input.className = 'form-control form-control-sm';
+    
+    const saveChanges = async () => {
+        const newValue = input.value;
+        cell.textContent = newValue; // Optimistically update UI
+
+        const payload = new FormData();
+        payload.append('csrfmiddlewaretoken', csrftoken);
+        payload.append('table_name', currentTable);
+        payload.append('record_id', String(recordId));
+        payload.append('field_data', JSON.stringify({ [field]: newValue }));
+        
+        try {
+            const response = await fetch('/analysis/api/update/', { method: 'POST', body: payload });
+            const result = await response.json();
+            if (!result.success) {
+                cell.textContent = originalValue; // Revert on failure
+                showNotification(`Update failed: ${result.error}`, 'error');
+            } else {
+                showNotification('Record updated successfully!', 'success');
+            }
+        } catch (e) {
+            cell.textContent = originalValue; // Revert on network error
+            showNotification(`Update failed: ${e.message}`, 'error');
+        }
+    };
+    
+    input.addEventListener('blur', saveChanges);
+    input.addEventListener('keypress', e => {
+        if (e.key === 'Enter') input.blur();
+        if (e.key === 'Escape') {
+            cell.textContent = originalValue;
+            input.removeEventListener('blur', saveChanges);
+        }
+    });
+
+    cell.innerHTML = '';
+    cell.appendChild(input);
+    input.focus();
+}
+
+
+function applyFilters() {
+    currentPage = 1;
+    selectedIds.clear();
+    loadTableData();
+}
+
+function clearFilters() {
+    const filterGrid = document.getElementById('filterGrid');
+    if (filterGrid) {
+        filterGrid.querySelectorAll('input').forEach(i => i.value = '');
+    }
+    document.getElementById('globalSearch').value = '';
+    applyFilters();
+}
+
+function firstPage() { if (currentPage !== 1) { currentPage = 1; loadTableData(); } }
+function lastPage() { if (currentPage !== totalPages) { currentPage = totalPages; loadTableData(); } }
+function previousPage() { if (currentPage > 1) { currentPage--; loadTableData(); } }
+function nextPage() { if (currentPage < totalPages) { currentPage++; loadTableData(); } }
+
+function updatePaginationInfo(json) {
+    const info = document.getElementById('paginationInfo');
+    const total = json.total || 0;
+    const start = total > 0 ? (currentPage - 1) * pageSize + 1 : 0;
+    const end = Math.min(currentPage * pageSize, total);
+    info.textContent = `Showing ${start}-${end} of ${total} records`;
+
+    document.getElementById('prevButton').disabled = !json.has_prev;
+    document.getElementById('nextButton').disabled = !json.has_next;
+
+    // The ends disable with the neighbours rather than staying live at page one.
+    const firstBtn = document.getElementById('firstButton');
+    const lastBtn = document.getElementById('lastButton');
+    const prevBtn = document.getElementById('prevButton');
+    const nextBtn = document.getElementById('nextButton');
+    if (prevBtn) prevBtn.disabled = currentPage <= 1;
+    if (firstBtn) firstBtn.disabled = currentPage <= 1;
+    if (nextBtn) nextBtn.disabled = currentPage >= totalPages;
+    if (lastBtn) lastBtn.disabled = currentPage >= totalPages;
+}
+
+// --- CRUD Functions ---
+
+async function openAddModal() {
+    document.getElementById('crudModalLabel').textContent = `Add New Record to ${currentTable}`;
+    const form = document.getElementById('crudForm');
+    form.innerHTML = '<div class="text-center"><div class="loading-spinner"></div></div>';
+    form.dataset.recordId = ''; // Clear record ID for "add" mode
+
+    crudModal.show();
+    
+    const fields = await loadSchemaAndFilters('form');
+    form.innerHTML = ''; // Clear spinner
+    
+    const pk_field_map = {
+        'products': 'product_id',
+        'households': 'household_key',
+        'campaigns': 'campaign',
+    };
+    const pk_field = pk_field_map[currentTable] || 'id';
+
+    fields.forEach(field => {
+        // Do not show the primary key field in the "Add" modal
+        if (field.name !== pk_field) {
+            form.innerHTML += `
+                <div class="mb-3">
+                    <label for="form_${field.name}" class="form-label">${field.label}</label>
+                    <input type="${field.type}" class="form-control" id="form_${field.name}" data-field-name="${field.name}">
+                </div>
+            `;
+        }
+    });
+
+    document.getElementById('saveCrudBtn').onclick = saveCrudForm;
+}
+
+async function openEditModal(recordId) {
+    document.getElementById('crudModalLabel').textContent = `Edit Record ${recordId} in ${currentTable}`;
+    const form = document.getElementById('crudForm');
+    form.innerHTML = '<div class="text-center"><div class="loading-spinner"></div></div>';
+    form.dataset.recordId = recordId;
+
+    crudModal.show();
+
+    // Find the table row element that corresponds to the recordId
+    const rowElement = document.querySelector(`tr[data-record-id='${recordId}']`);
+    if (!rowElement) {
+        showNotification('Could not find the row in the table.', 'error');
+        crudModal.hide();
+        return;
+    }
+
+    // Extract data directly from the table row's cells
+    const recordData = {};
+    const headers = Array.from(document.getElementById('tableHeader').querySelectorAll('th')).map(th => th.textContent.toLowerCase().replace(/ /g, '_'));
+    const cells = rowElement.querySelectorAll('td');
+    headers.forEach((header, index) => {
+        // Stop before the "actions" column
+        if (header.toLowerCase() !== 'actions' && cells[index]) {
+            recordData[header] = cells[index].textContent;
+        }
+    });
+
+    const fields = await loadSchemaAndFilters('form');
+    
+    if (!recordData) {
+        showNotification('Could not find record data to edit.', 'error');
+        crudModal.hide();
+        return;
+    }
+
+    form.innerHTML = '';
+    const pk_field_map = {
+        'products': 'product_id',
+        'households': 'household_key',
+        'campaigns': 'campaign',
+    };
+    const pk_field = pk_field_map[currentTable] || 'id';
+
+    fields.forEach(field => {
+        const value = recordData[field.name.toLowerCase().replace(/ /g, '_')] || '';
+        // Disable the primary key field to prevent editing
+        const isDisabled = field.name === pk_field ? 'disabled' : '';
+        form.innerHTML += `
+            <div class="mb-3">
+                <label for="form_${field.name}" class="form-label">${field.label}</label>
+                <input type="${field.type}" class="form-control" id="form_${field.name}" data-field-name="${field.name}" value="${value}" ${isDisabled}>
+            </div>
+        `;
+    });
+
+    document.getElementById('saveCrudBtn').onclick = saveCrudForm;
+}
+
+async function saveCrudForm() {
+    const form = document.getElementById('crudForm');
+    const recordId = form.dataset.recordId;
+    const isEditing = !!recordId;
+
+    const fieldData = {};
+    form.querySelectorAll('input').forEach(input => {
+        // Do not include disabled fields (like the primary key) in the payload
+        if (!input.disabled) {
+            fieldData[input.dataset.fieldName] = input.value;
+        }
+    });
+
+    const url = isEditing ? '/analysis/api/update/' : '/analysis/api/create/';
+    const payload = new FormData();
+    payload.append('csrfmiddlewaretoken', csrftoken);
+    payload.append('table_name', currentTable);
+    if (isEditing) {
+        payload.append('record_id', recordId);
+    }
+    payload.append('field_data', JSON.stringify(fieldData));
+    
+    try {
+        const response = await fetch(url, { method: 'POST', body: payload });
+        const result = await response.json();
+        if (response.ok && result.success) {
+            showNotification(isEditing ? 'Record updated successfully!' : 'Record created successfully!', 'success');
+            crudModal.hide();
+            loadTableData(); // Refresh table
+        } else {
+            throw new Error(result.error || 'An unknown error occurred.');
+        }
+    } catch (e) {
+        showNotification(`Save failed: ${e.message}`, 'error');
+    }
+}
+
+function confirmDelete(recordId) {
+    const confirmBtn = document.getElementById('confirmDeleteBtn');
+    confirmBtn.onclick = () => deleteRecord(recordId);
+    confirmModal.show();
+}
+
+async function deleteRecord(recordId) {
+    confirmModal.hide();
+
+    const payload = new FormData();
+    payload.append('csrfmiddlewaretoken', csrftoken);
+    payload.append('table_name', currentTable);
+    payload.append('record_id', recordId);
+
+    try {
+        const response = await fetch('/analysis/api/delete/', { method: 'POST', body: payload });
+        const result = await response.json();
+
+        if (result.success) {
+            showNotification('Record deleted successfully!', 'success');
+            loadTableData(); // Refresh table
+        } else {
+            throw new Error(result.error);
+        }
+    } catch(e) {
+        showNotification(`Deletion failed: ${e.message}`, 'error');
+    }
+}
+
+
+// Global notification helper from base.html
+function showNotification(message, type = 'info', duration = 3000) {
+  const container = document.querySelector('.toast-container') || document.body;
+  const notificationId = 'toast-' + Date.now();
+  const notification = document.createElement('div');
+  const alertClass = `alert-${type}`;
+  notification.className = `alert ${alertClass} alert-dismissible fade show`;
+  notification.id = notificationId;
+  notification.style.position = 'fixed';
+  notification.style.top = '80px';
+  notification.style.right = '20px';
+  notification.style.zIndex = '1056';
+  notification.innerHTML = `${message}<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>`;
+  container.appendChild(notification);
+  setTimeout(() => {
+    // Bootstrap 5.1+ uses a static method to get instance
+    const toastEl = document.getElementById(notificationId);
+    if(toastEl) {
+        const toast = bootstrap.Toast.getOrCreateInstance(toastEl);
+        toast.hide();
+    }
+  }, duration);
+}
+
+document.getElementById('globalSearch').addEventListener('keyup', (event) => {
+    if (event.key === 'Enter') {
+        applyFilters();
+    }
+});
+
+// --- Multi-Select Functions ---
+
+/* Selection used to be whatever was ticked in the DOM, so it covered one page
+   and was lost on paging. It lives in this set instead: the boxes are a view of
+   it, and "select all matching" fills it from the server for the whole query. */
+const selectedIds = new Set();
+let selectionCapped = false;
+
+function toggleSelectAll() {
+    const selectAllCheckbox = document.getElementById('selectAll');
+    document.querySelectorAll('.row-checkbox').forEach(checkbox => {
+        checkbox.checked = selectAllCheckbox.checked;
+        if (checkbox.checked) selectedIds.add(String(checkbox.value));
+        else selectedIds.delete(String(checkbox.value));
+    });
+    updateSelectedCount();
+}
+
+function toggleRowSelection(checkbox) {
+    if (checkbox.checked) selectedIds.add(String(checkbox.value));
+    else selectedIds.delete(String(checkbox.value));
+    updateSelectedCount();
+}
+
+/* Re-ticks the boxes for rows already chosen, after a page turn or a re-sort. */
+function restoreSelectionOnPage() {
+    document.querySelectorAll('.row-checkbox').forEach(checkbox => {
+        checkbox.checked = selectedIds.has(String(checkbox.value));
+    });
+    updateSelectedCount();
+}
+
+function clearSelection() {
+    selectedIds.clear();
+    selectionCapped = false;
+    document.querySelectorAll('.row-checkbox').forEach(c => { c.checked = false; });
+    updateSelectedCount();
+}
+
+/* Selects every row the current search and filters match, not just the page. */
+async function selectAllMatching() {
+    const banner = document.getElementById('selectionBanner');
+    if (banner) banner.innerHTML = '<span class="text-muted">Fetching matching rows&hellip;</span>';
+    try {
+        const form = new FormData();
+        form.append('csrfmiddlewaretoken', csrftoken);
+        form.append('table_name', currentTable);
+        form.append('search', document.getElementById('globalSearch').value);
+        form.append('filters', JSON.stringify(collectFilters()));
+        form.append('ids_only', '1');
+        const response = await fetch('/analysis/api/table/', {method: 'POST', body: form});
+        const json = await response.json();
+        if (json.error) throw new Error(json.error);
+        selectionCapped = !!json.capped;
+        json.ids.forEach(id => selectedIds.add(String(id)));
+        restoreSelectionOnPage();
+        if (json.capped) {
+            showNotification(
+                `Selected the first ${json.ids.length.toLocaleString()} of ` +
+                `${json.total.toLocaleString()} matching rows. Deleting sends one request per ` +
+                `record, so the selection stops there. Narrow the filters to reach the rest.`,
+                'warning');
+        } else {
+            showNotification(`Selected all ${json.ids.length.toLocaleString()} matching rows.`, 'success');
+        }
+    } catch (error) {
+        showNotification(`Could not select all rows: ${error.message}`, 'error');
+        updateSelectedCount();
+    }
+}
+
+function updateSelectedCount() {
+    const selectedCount = selectedIds.size;
+    const pageBoxes = document.querySelectorAll('.row-checkbox');
+    const pageChecked = document.querySelectorAll('.row-checkbox:checked').length;
+
+    const countElement = document.getElementById('selectedCount');
+    if (countElement) countElement.textContent = selectedCount;
+
+    const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
+    if (bulkDeleteBtn) {
+        bulkDeleteBtn.style.display = selectedCount > 0 ? 'inline-block' : 'none';
+        bulkDeleteBtn.disabled = selectedCount === 0;
+    }
+
+    const selectAllCheckbox = document.getElementById('selectAll');
+    if (selectAllCheckbox) {
+        selectAllCheckbox.checked = pageBoxes.length > 0 && pageChecked === pageBoxes.length;
+        selectAllCheckbox.indeterminate = pageChecked > 0 && pageChecked < pageBoxes.length;
+    }
+
+    /* Says plainly whether the selection is this page or the whole result, and
+       offers the other one. */
+    const banner = document.getElementById('selectionBanner');
+    if (!banner) return;
+    const total = lastTableTotal || 0;
+    if (!selectedCount || total <= pageBoxes.length) { banner.innerHTML = ''; return; }
+    if (selectionCapped && selectedCount < total) {
+        banner.innerHTML = `<b>${selectedCount.toLocaleString()}</b> selected &mdash; the most that
+            can be acted on at once, out of <b>${total.toLocaleString()}</b> matching.
+            Narrow the filters to reach the rest.
+            <button type="button" class="btn btn-link btn-sm p-0 align-baseline"
+                    onclick="clearSelection()">Clear selection</button>`;
+        return;
+    }
+    banner.innerHTML = selectedCount >= total
+        ? `All <b>${total.toLocaleString()}</b> matching rows are selected.
+           <button type="button" class="btn btn-link btn-sm p-0 align-baseline"
+                   onclick="clearSelection()">Clear selection</button>`
+        : `<b>${selectedCount.toLocaleString()}</b> selected.
+           <button type="button" class="btn btn-link btn-sm p-0 align-baseline"
+                   onclick="selectAllMatching()">Select all ${total.toLocaleString()} matching rows</button>`;
+}
+
+function getSelectedRecords() {
+    // Read from the selection itself, so rows chosen on other pages are included.
+    return Array.from(selectedIds);
+}
+
+function confirmBulkDelete() {
+    const selectedRecords = getSelectedRecords();
+    if (selectedRecords.length === 0) {
+        showNotification('Please select at least one record to delete.', 'warning');
+        return;
+    }
+
+    const modalBody = document.getElementById('confirmModalBody');
+    const deleteButton = document.getElementById('confirmDeleteBtn');
+
+    modalBody.innerHTML = `
+        <div class="alert alert-warning">
+            <i class="fas fa-exclamation-triangle"></i>
+            <strong>Warning:</strong> You are about to delete <strong>${selectedRecords.length}</strong> record(s).
+        </div>
+        <p>This action cannot be undone. Are you sure you want to proceed?</p>
+        <div class="small text-muted">
+            <strong>Selected records:</strong> ${selectedRecords.slice(0, 5).join(', ')}
+            ${selectedRecords.length > 5 ? `... and ${selectedRecords.length - 5} more` : ''}
+        </div>
+    `;
+
+    // Update delete button to handle bulk deletion
+    deleteButton.onclick = () => performBulkDelete(selectedRecords);
+
+    // Show modal
+    const confirmModal = new bootstrap.Modal(document.getElementById('confirmModal'));
+    confirmModal.show();
+}
+
+async function performBulkDelete(recordIds) {
+    const deleteButton = document.getElementById('confirmDeleteBtn');
+    const originalText = deleteButton.innerHTML;
+
+    deleteButton.disabled = true;
+    deleteButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Deleting...';
+
+    try {
+        let successCount = 0;
+        let failCount = 0;
+        const errors = [];
+
+        // Process deletions in batches for better performance
+        for (const recordId of recordIds) {
+            try {
+                const form = new FormData();
+                form.append('csrfmiddlewaretoken', csrftoken);
+                form.append('table_name', currentTable);
+                form.append('record_id', recordId);
+
+                const response = await fetch('/analysis/api/delete/', {
+                    method: 'POST',
+                    body: form
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    successCount++;
+                    // Deleted rows leave the selection, so a later action cannot
+                    // try to act on them again.
+                    selectedIds.delete(String(recordId));
+                } else {
+                    failCount++;
+                    errors.push(`Record ${recordId}: ${result.error || 'Unknown error'}`);
+                }
+            } catch (error) {
+                failCount++;
+                errors.push(`Record ${recordId}: ${error.message}`);
+            }
+        }
+
+        // Hide modal
+        const confirmModal = bootstrap.Modal.getInstance(document.getElementById('confirmModal'));
+        confirmModal.hide();
+
+        // Show results
+        if (successCount > 0 && failCount === 0) {
+            showNotification(`Successfully deleted ${successCount} record(s).`, 'success');
+        } else if (successCount > 0 && failCount > 0) {
+            showNotification(`Deleted ${successCount} record(s) successfully. ${failCount} failed.`, 'warning');
+            if (errors.length > 0) {
+                console.error('Deletion errors:', errors);
+            }
+        } else {
+            showNotification(`Failed to delete records. ${errors[0] || 'Unknown error'}`, 'error');
+        }
+
+        // Reload the table data
+        loadTableData();
+
+    } catch (error) {
+        console.error('Bulk delete error:', error);
+        showNotification(`Error during bulk deletion: ${error.message}`, 'error');
+    } finally {
+        deleteButton.disabled = false;
+        deleteButton.innerHTML = originalText;
+    }
+}
+
+// Reset multi-select state when table data is loaded
+function resetMultiSelectState() {
+    /* Ids identify rows of one table, so a selection cannot survive a change of
+       table: carrying it over would point a delete at whatever happened to hold
+       the same key elsewhere. */
+    selectedIds.clear();
+    selectionCapped = false;
+    const banner = document.getElementById('selectionBanner');
+    if (banner) banner.innerHTML = '';
+    const headerBox = document.getElementById('selectAll');
+    if (headerBox) { headerBox.checked = false; headerBox.indeterminate = false; }
+
+    const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
+    if (bulkDeleteBtn) {
+        bulkDeleteBtn.style.display = 'none';
+        bulkDeleteBtn.disabled = true;
+    }
+
+    const selectedCount = document.getElementById('selectedCount');
+    if (selectedCount) {
+        selectedCount.textContent = '0';
+    }
+}
+

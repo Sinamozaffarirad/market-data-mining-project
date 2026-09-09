@@ -1,0 +1,2939 @@
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Customer Segments</title>
+  
+  <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20viewBox%3D%270%200%20100%20100%27%3E%3Ctext%20x%3D%2750%27%20y%3D%2752%27%20font-size%3D%2778%27%20text-anchor%3D%27middle%27%20dominant-baseline%3D%27central%27%3E%F0%9F%91%A5%3C/text%3E%3C/svg%3E">
+  <script>
+    (function(){
+      try{
+        var t = localStorage.getItem('market.theme') || 'light';
+        document.documentElement.setAttribute('data-theme', t);
+        localStorage.setItem('theme', t); // keep django key aligned even outside admin
+      }catch(e){}
+    })();
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+  <!-- Tailwind CDN (utilities only) -->
+  <script>
+    window.tailwind = {
+      config: {
+        corePlugins: { preflight: false } // keep Bootstrap defaults
+      }
+    };
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Bootstrap 5 for faster iteration -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="/static/js/chart_quality.js"></script>
+  <link rel="stylesheet" href="/static/css/market_theme.css" />
+  <link rel="stylesheet" href="/static/css/market_analysis_v2.css" />
+  <link rel="stylesheet" href="/static/css/analysis_shell.css" />
+  <!-- Bootstrap Icons is not loaded. Its stylesheet styles every class beginning
+       "bi-", and the BI dashboard's layout classes use that prefix, so bi-table and
+       bi-bookmark were being given icon glyphs. The one icon the site took from it
+       is drawn with Font Awesome, which everything else already uses. -->
+  <style>
+    /* market_analysis_v2.css forces `.admin .table th { text-align: left !important }`,
+       which outranks Bootstrap's alignment utilities. Every right-aligned number
+       column therefore sat under a left-aligned heading. Restated here, after that
+       file and specific enough to win, so a heading sits over its own column. */
+    .admin .table th.text-end,    .table th.text-end,    th.text-end    { text-align: right !important; }
+    .admin .table th.text-center, .table th.text-center, th.text-center { text-align: center !important; }
+    .admin .table th.text-start,  .table th.text-start,  th.text-start  { text-align: left !important; }
+
+    :root {
+      --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      --gradient-nav: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+      --shadow-nav: 0 4px 20px rgba(102, 126, 234, 0.3);
+      --nav-height: 70px;
+    }
+
+    .modern-nav {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      height: var(--nav-height);
+      background: var(--gradient-nav);
+      backdrop-filter: blur(10px);
+      box-shadow: var(--shadow-nav);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .nav-container {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 100%;
+      /*padding: 0 1.5rem 0 1rem;*/
+      padding:0 0.8rem;
+      max-width: 1500px;
+      margin: 0 auto;
+      flex-wrap: nowrap;
+      overflow: visible;
+    }
+
+    .nav-middle {
+      display: flex;
+      align-items: center;
+      flex: 1;
+      min-width: 0;
+      overflow-x: auto;
+      overflow-y: hidden;
+      -webkit-overflow-scrolling: touch;
+      margin-left: 1rem;
+      scrollbar-width: none; /* Hide scrollbar completely */
+    }
+
+    /* Hide scrollbar for webkit browsers */
+    .nav-middle::-webkit-scrollbar {
+      display: none;
+    }
+
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      /*gap: 1rem;*/
+      gap: 0.5rem;
+      color: white;
+      text-decoration: none;
+      font-weight: 800;
+      /*font-size: 1.5rem;*/
+      font-size: 1.2rem;
+      letter-spacing: -0.025em;
+      transition: all 0.3s ease;
+      flex-shrink: 0;
+      /*margin-right: 2rem;*/
+      margin-right: 0.8rem;
+    }
+
+    .nav-brand:hover {
+      color: rgba(255, 255, 255, 0.9);
+      transform: scale(1.05);
+    }
+
+    .nav-brand-icon {
+      /*font-size: 2rem;*/
+      font-size: 1.35rem;
+      background: white;
+      color: #667eea;
+      border-radius: 12px;
+      /*width: 40px;
+      height: 40px;*/
+      width: 35px;
+      height: 35px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      /*gap: 0.3rem;*/
+      gap: 0.15rem;
+      list-style: none;
+      margin: 0;
+      padding: 0.5rem 1rem;
+      flex-wrap: nowrap;
+      flex-shrink: 0;
+      min-width: max-content;
+    }
+
+    .nav-link {
+      position: relative;
+      /*padding: 0.75rem 1rem;*/
+      padding: 0.45rem 0.5rem;
+      color: rgba(255, 255, 255, 0.9);
+      text-decoration: none;
+      font-weight: 600;
+      /*font-size: 0.85rem;
+      border-radius: 12px;*/
+      font-size: 0.75rem;
+      border-radius: 10px;
+      transition: all 0.3s ease;
+      white-space: nowrap;
+    }
+
+    .nav-link i {
+      font-size: 0.85rem;
+    }
+
+    .nav-link::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .nav-link:hover {
+      color: white;
+      transform: translateY(-2px);
+    }
+
+    .nav-link:hover::before {
+      opacity: 1;
+    }
+
+    .nav-link.active {
+      color: white;
+      background: rgba(255, 255, 255, 0.15);
+      backdrop-filter: blur(10px);
+    }
+
+    .theme-toggle {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: white;
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      margin-left: 1rem;
+    }
+
+    .theme-toggle:hover {
+      background: rgba(255, 255, 255, 0.2);
+      transform: scale(1.1);
+      color: white;
+    }
+
+    .content {
+      min-height: calc(100vh - var(--nav-height));
+      padding: 2rem;
+      background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+    }
+
+    .mobile-nav-toggle {
+      display: none;
+      background: none;
+      border: none;
+      color: white;
+      font-size: 1.5rem;
+      cursor: pointer;
+      padding: 0.5rem;
+    }
+
+    @media (max-width: 1200px) {
+      .nav-middle {
+        /*margin-left: 2rem;*/
+        overflow: visible;
+        flex-wrap: nowrap;
+      }
+
+      .nav-brand {
+        margin-right: 1.5rem;
+      }
+
+      .nav-links {
+        gap: 0.2rem;
+        padding-right: 1rem;
+      }
+
+      .nav-link {
+        padding: 0.75rem 0.8rem;
+        font-size: 0.8rem;
+      }
+    }
+
+    @media (max-width: 1540px) {
+      .nav-container {
+        padding: 0 1rem 0 0.5rem;
+      }
+
+      .nav-middle {
+        display: none;
+      }
+
+      .nav-middle.show {
+        display: flex;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: rgba(102, 126, 234, 0.98);
+        backdrop-filter: blur(10px);
+        flex-direction: column;
+        padding: 1rem;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        overflow-x: visible;
+        z-index: 1000;
+        margin-left: 0;
+      }
+
+      .nav-middle.show .nav-links {
+        flex-direction: column;
+        width: 100%;
+        padding: 0;
+      }
+
+      .nav-middle.show .nav-link {
+        width: 100%;
+        text-align: center;
+        margin: 0.25rem 0;
+        padding: 1rem;
+      }
+
+      .nav-brand {
+        font-size: 1.3rem;
+        margin-right: 1rem;
+      }
+
+      .mobile-nav-toggle {
+        display: block;
+      }
+
+      .theme-toggle {
+        margin-left: 0.5rem;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .nav-middle {
+        display: none;
+      }
+
+      .nav-middle.show {
+        display: flex;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: rgba(102, 126, 234, 0.98);
+        backdrop-filter: blur(10px);
+        flex-direction: column;
+        padding: 1rem;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        overflow-x: visible;
+        z-index: 1000;
+      }
+
+      .nav-middle.show .nav-links {
+        flex-direction: column;
+        width: 100%;
+        padding: 0;
+      }
+
+      .nav-middle.show .nav-link {
+        width: 100%;
+        text-align: center;
+        margin: 0.25rem 0;
+        padding: 1rem;
+      }
+
+      .mobile-nav-toggle {
+        display: block;
+      }
+    }
+
+    @media (max-width: 768px) {
+      .nav-brand {
+        font-size: 1.2rem;
+      }
+
+      .nav-brand-icon {
+        width: 35px;
+        height: 35px;
+        font-size: 1.5rem;
+      }
+
+      .content {
+        padding: 1rem;
+      }
+
+      footer .row {
+        text-align: center !important;
+      }
+
+      footer .col-md-4 {
+        margin-bottom: 2rem;
+      }
+
+      footer .col-md-4 > div {
+        justify-content: center !important;
+      }
+
+      footer img {
+        width: 60px !important;
+        height: 60px !important;
+      }
+    }
+
+    @media (max-width: 576px) {
+      .nav-brand {
+        font-size: 1rem;
+      }
+
+      footer {
+        padding: 2rem 1rem !important;
+      }
+
+      footer img {
+        width: 50px !important;
+        height: 50px !important;
+      }
+
+      footer div[style*="font-size: 1.1rem"] {
+        font-size: 0.95rem !important;
+      }
+
+      footer div[style*="font-size: 1.5rem"] {
+        font-size: 1.2rem !important;
+      }
+    }
+
+    body {
+      background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+      font-family: 'Inter', sans-serif;
+      overflow-x: hidden;
+      width: 100%;
+      max-width: 100vw;
+    }
+
+    html {
+      overflow-x: hidden;
+      width: 100%;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    .container-fluid {
+      width: 100%;
+      max-width: 100%;
+      padding-right: 15px;
+      padding-left: 15px;
+      margin-right: auto;
+      margin-left: auto;
+    }
+
+    .fade-up {
+      animation: fadeUp 0.6s ease-out;
+    }
+
+    @keyframes fadeUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+  </style>
+  
+  
+</head>
+<body class="admin">
+  <nav class="modern-nav fade-up">
+    <div class="nav-container">
+      <a href="/analysis/" class="nav-brand">
+        <div class="nav-brand-icon">
+          <i class="fas fa-chart-line"></i>
+        </div>
+        <span>Market Analytics</span>
+      </a>
+
+      <div class="nav-middle" id="navMiddle">
+        <div class="nav-links">
+          <a href="/analysis/" class="nav-link">
+            <i class="fas fa-home me-1"></i>
+            Dashboard
+          </a>
+          <a href="/analysis/basket-analysis/" class="nav-link">
+            <i class="fas fa-shopping-basket me-1"></i>
+            Basket Analysis
+          </a>
+          <a href="/analysis/association-rules/" class="nav-link">
+            <i class="fas fa-project-diagram me-1"></i>
+            Association Rules
+          </a>
+          <a href="/analysis/customer-segments/" class="nav-link">
+            <i class="fas fa-users me-1"></i>
+            Customer Segments
+          </a>
+          <a href="/analysis/customer-retention/" class="nav-link">
+            <i class="fas fa-heart-circle-check me-1"></i>
+            Customer Retention
+          </a>
+          <a href="/analysis/data-management/" class="nav-link">
+            <i class="fas fa-database me-1"></i>
+            Data Management
+          </a>
+          <a href="/customers/search/" class="nav-link">
+            <i class="fas fa-user me-1"></i>
+            Customers
+          </a>
+          <a href="/analysis/product-recommender/" class="nav-link">
+              <i class="fas fa-file-pen me-1"></i>
+              Product Recommender
+          </a>
+        </div>
+      </div>
+
+      <div class="d-flex align-items-center">
+        
+        <a href="/analysis/logout/" class="nav-link" style="background: rgba(255,255,255,0.1); padding: 0.5rem 1rem; border-radius: 10px; margin-right: 1rem;">
+          <i class="fas fa-sign-out-alt me-2"></i>
+          Logout
+        </a>
+        
+        <button class="mobile-nav-toggle" id="mobileNavToggle" aria-label="Toggle navigation">
+          <i class="fas fa-bars"></i>
+        </button>
+        <button id="site-theme-toggle" class="theme-toggle" title="Toggle theme">
+          <i class="icon fa-solid fa-moon"></i>
+        </button>
+      </div>
+    </div>
+  </nav>
+  <main class="content">
+    <div class="container-fluid" style="max-width: 1400px;">
+      
+
+
+<style>
+	.segment-card, .churn-card, .household-card {
+		background: var(--card-bg);
+		border: 1px solid var(--border-color);
+		border-radius: 1rem;
+		padding: 1.5rem;
+		height: 100%;
+		transition: all 0.3s ease;
+		position: relative;
+		overflow: hidden;
+		cursor: pointer;
+	}
+	.segment-card::before,
+	.churn-card::before,
+	.household-card::before {
+		content: '';
+		position: absolute;
+		top: 0;
+		left: 0;
+		right: 0;
+		height: 4px;
+		background: var(--gradient-primary);
+		transform: scaleX(0);
+		transition: transform 0.3s ease;
+	}
+	.segment-card:hover,
+	.churn-card:hover,
+	.household-card:hover {
+		transform: translateY(-5px);
+		box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+	}
+	.segment-card:hover::before,
+	.churn-card:hover::before,
+	.household-card:hover::before {
+		transform: scaleX(1);
+	}
+
+	.guide-card {
+		background: var(--card-bg);
+		border: 1px solid var(--border-color);
+		border-radius: 1rem;
+		padding: 1rem;
+		height: 100%;
+		transition: all 0.3s ease;
+		position: relative;
+		overflow: hidden;
+	}
+	.guide-card::before {
+		content: '';
+		position: absolute;
+		top: 0;
+		left: 0;
+		right: 0;
+		height: 4px;
+		background: var(--gradient-primary);
+		transform: scaleX(0);
+		transition: transform 0.3s ease;
+	}
+	/* .guide-card:hover {
+		transform: translateY(-5px);
+		box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+	}
+	.guide-card:hover::before {
+		transform: scaleX(1);
+	} */
+
+
+	.profile-link {
+		display: inline-block;
+		padding: 0.25rem 0.5rem;
+		border-radius: 0.5rem;
+		transition: background-color 0.2s ease-in-out;
+	}
+
+	.profile-link:hover {
+		background-color: rgba(0, 0, 0, 0.05);
+	}
+
+	.bg-purple {
+		background-color: purple;
+		color: white;
+		padding: 5px 6px;
+		border-radius: 5px;
+	}
+	.bg-gray {
+		background-color: #8f8f8f;
+		color: white;
+		padding: 5px 6px;
+		border-radius: 5px;
+	}
+	.bg-lpurple {
+		background-color: #a8a3d1;
+		color: white;
+		padding: 5px 6px;
+		border-radius: 5px;
+	}
+
+
+	    /* ----- بخش جدید: تعریف رنگ‌های منحصر به فرد برای هر سگمنت ----- */
+    .badge-base {
+        color: white;
+        padding: 5px 8px;
+        border-radius: 5px;
+        font-weight: 600;
+        font-size: 0.75rem;
+    }
+    .bg-champions { background-color: #28a745; }
+    .bg-loyal-customers { background-color: #007bff; }
+    .bg-potential-loyalists { background-color: #17a2b8; color: white !important; } /* Teal */
+    .bg-new-customers { background-color: #340696; color: white !important; } /* purple */
+    .bg-big-spenders { background-color: #6d74bd; color: white !important; } /* Gray */
+    .bg-regular-customers { background-color: #de5fc5; color: #212529 !important; } /* Light Pink */
+    .bg-need-attention { background-color: #fd7e14; color: #212529 !important;} /* Orange */
+    .bg-at-risk { background-color: #ffc107; color: #212529 !important; } /* Yellow */
+    .bg-cant-lose-them { background-color: #dc3545; } /* Red */
+    .bg-hibernating { background-color: #adb5bd; color: #212529 !important; } /* Light Gray */
+    .bg-lost { background-color: #343a40; } /* Dark */
+#churnExperimentForm ~ .table-responsive {
+  max-height: none;
+  overflow-x: auto;
+  overflow-y: visible;
+  position: relative;
+}
+#churnExperimentForm ~ .table-responsive table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+#churnExperimentForm ~ .table-responsive thead {
+  display: table;
+  width: 100%;
+  table-layout: fixed;
+}
+#churnExperimentForm ~ .table-responsive tbody {
+  display: block;
+  max-height: 500px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: #7650b5 #edf0f4;
+}
+#churnExperimentForm ~ .table-responsive tbody tr {
+  display: table;
+  width: 100%;
+  table-layout: fixed;
+}
+#churnExperimentForm ~ .table-responsive thead th {
+  background: var(--gradient-primary);
+  color: #fff;
+}
+#churnExperimentForm ~ .table-responsive thead th:last-child {
+  border-top-right-radius: .5rem;
+}
+/* #churnExperimentForm ~ .table-responsive thead th:first-child::after {
+  content: " (Iran)";
+} */
+#churnExperimentForm ~ .table-responsive table {
+  min-width: 1120px;
+  width: 100%;
+  table-layout: fixed;
+}
+#churnExperimentForm ~ .table-responsive th,
+#churnExperimentForm ~ .table-responsive td {
+  vertical-align: middle;
+  white-space: nowrap;
+}
+#churnExperimentForm ~ .table-responsive th:nth-child(1), #churnExperimentForm ~ .table-responsive td:nth-child(1) { width: 14%; }
+#churnExperimentForm ~ .table-responsive th:nth-child(2), #churnExperimentForm ~ .table-responsive td:nth-child(2) { width: 14%; }
+#churnExperimentForm ~ .table-responsive th:nth-child(3), #churnExperimentForm ~ .table-responsive td:nth-child(3) {
+  width: 20%;
+  white-space: normal;
+}
+#churnExperimentForm ~ .table-responsive th:nth-child(4), #churnExperimentForm ~ .table-responsive td:nth-child(4) { width: 8%; }
+#churnExperimentForm ~ .table-responsive th:nth-child(5), #churnExperimentForm ~ .table-responsive td:nth-child(5) { width: 7%; }
+#churnExperimentForm ~ .table-responsive th:nth-child(6), #churnExperimentForm ~ .table-responsive td:nth-child(6) { width: 6%; }
+#churnExperimentForm ~ .table-responsive th:nth-child(7), #churnExperimentForm ~ .table-responsive td:nth-child(7) { width: 8%; }
+#churnExperimentForm ~ .table-responsive th:nth-child(8), #churnExperimentForm ~ .table-responsive td:nth-child(8) { width: 7%; }
+#churnExperimentForm ~ .table-responsive th:nth-child(9), #churnExperimentForm ~ .table-responsive td:nth-child(9) { width: 16%; }
+/* The status/activate control and Delete always occupy the same two slots. */
+.experiment-actions {
+  display: inline-grid;
+  grid-template-columns: 84px 64px;
+  column-gap: 1rem;
+  align-items: center;
+  white-space: nowrap;
+}
+.experiment-actions > * { justify-self: center; }
+.experiment-settings {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 28px;
+  align-items: center;
+  width: 100%;
+  box-sizing: border-box;
+  padding-right: 1rem;
+  white-space: nowrap;
+}
+.experiment-setting-chips {
+  display: inline-flex;
+  align-items: center;
+  gap: .3rem;
+}
+.experiment-setting-chip {
+  display: inline-block;
+  padding: .2rem .38rem;
+  border: 1px solid #d9def5;
+  border-radius: .35rem;
+  background: #f6f7ff;
+  color: #394b8f;
+  font-size: .75rem;
+  font-weight: 600;
+}
+.experiment-details {
+  padding: .15rem .25rem;
+  color: #0d6efd;
+  text-decoration: none;
+}
+.segmentation-dashboard-card { overflow: hidden; }
+.segmentation-dashboard-card > .card-header {
+  padding: 1.1rem 1.25rem;
+  font-size: 1.05rem;
+}
+.experiment-confirm-dialog {
+  width: min(calc(100% - 2rem), 470px);
+  padding: 0;
+  border: 0;
+  border-radius: .85rem;
+  box-shadow: 0 1.2rem 3rem rgba(16, 24, 40, .3);
+  overflow: hidden;
+}
+.experiment-confirm-dialog::backdrop { background: rgba(19, 26, 45, .58); backdrop-filter: blur(2px); }
+.experiment-confirm-header { padding: 1rem 1.25rem; background: var(--gradient-primary); color: #fff; font-weight: 700; }
+.experiment-confirm-body { padding: 1.25rem; color: #26364d; }
+.experiment-confirm-actions { display: flex; justify-content: flex-end; gap: .65rem; padding: 0 1.25rem 1.25rem; }
+.experiment-detail-rule {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  background: #f5f7ff;
+  border: 1px solid #dce3ff;
+  border-radius: .7rem;
+}
+.experiment-detail-eyebrow { color: #6674df; font-size: .75rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+.experiment-detail-rule h6 { margin: .2rem 0; font-weight: 700; }
+.experiment-detail-cutoff { min-width: 120px; padding-left: 1rem; border-left: 1px solid #d5dcf3; }
+.experiment-detail-cutoff strong { display: block; color: #314fba; font-size: 1.65rem; line-height: 1.1; }
+.experiment-detail-metric { height: 100%; padding: .8rem; border: 1px solid #e3e7ef; border-radius: .65rem; background: #fff; }
+.experiment-detail-metric .label { color: #64748b; font-size: .75rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.experiment-detail-metric .value { margin-top: .2rem; color: #1e293b; font-size: 1.25rem; font-weight: 700; }
+.experiment-detail-section { margin-top: 1rem; padding: 1rem; border: 1px solid #e3e7ef; border-radius: .7rem; }
+.experiment-detail-section-title { margin-bottom: .75rem; color: #27354b; font-size: .95rem; font-weight: 700; }
+.experiment-detail-check { padding: .65rem .75rem; background: #f8fafc; border-radius: .5rem; }
+.experiment-detail-check .value { display: block; color: #26364d; font-size: 1.15rem; font-weight: 700; }
+.experiment-technical details { margin-top: 1rem; border: 1px solid #e3e7ef; border-radius: .7rem; overflow: hidden; }
+.experiment-technical summary { padding: .85rem 1rem; cursor: pointer; color: #314fba; font-weight: 700; background: #f8f9ff; }
+.experiment-technical-content { padding: 1rem; }
+.experiment-parameter-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .5rem; margin-top: .75rem; }
+.experiment-parameter { padding: .55rem .65rem; color: #44546a; font-size: .85rem; background: #f8fafc; border-radius: .45rem; }
+@media (max-width: 575.98px) { .experiment-detail-rule { display: block; } .experiment-detail-cutoff { margin-top: .85rem; padding: .85rem 0 0; border-top: 1px solid #d5dcf3; border-left: 0; } }
+@media (min-width: 768px) {
+  /* Keep the Train button aligned right when Non-overlapping hides the step control. */
+  #stepControl.d-none + div {
+    margin-left: auto;
+  }
+}
+
+/* ---- shared card system -------------------------------------------------
+   Matches the association-rules and basket-mining pages. Styling only: every
+   control, label and figure on this page is left exactly as it was. */
+.cs-page {
+  --rev-1:#667eea; --rev-2:#764ba2; --rev-ink:#1e2338; --rev-muted:#6b7391; --rev-line:#e6e8f2;
+}
+/* Banner comes from analysis_shell.css. */
+.cs-page .cs-title {
+  font-size:1.2rem; font-weight:700; color:#fff;
+  display:flex; align-items:center; gap:.5rem;
+}
+.cs-page .segmentation-dashboard-card {
+  border:1px solid var(--rev-line); border-radius:16px; overflow:hidden;
+  box-shadow:0 2px 14px rgba(102,126,234,.06);
+}
+/* Inner panels take the same border, radius and lift as the cards elsewhere. */
+.cs-page .card:not(.segmentation-dashboard-card) {
+  border:1px solid var(--rev-line); border-radius:14px;
+  box-shadow:0 2px 12px rgba(102,126,234,.05);
+}
+.cs-page .segment-card, .cs-page .churn-card,
+.cs-page .household-card, .cs-page .guide-card {
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+.cs-page .segment-card:hover, .cs-page .churn-card:hover,
+.cs-page .household-card:hover, .cs-page .guide-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 26px rgba(102,126,234,.16);
+}
+.cs-page h5 { font-size:.97rem; font-weight:700; color:var(--rev-ink); }
+.cs-page .form-select, .cs-page .form-control {
+  border-radius:.55rem; border-color:#dfe3f1;
+}
+.cs-page .form-select:focus, .cs-page .form-control:focus {
+  border-color: var(--rev-1); box-shadow: 0 0 0 .18rem rgba(102,126,234,.15);
+}
+.cs-page .btn-primary {
+  background:linear-gradient(135deg, var(--rev-1), var(--rev-2)); border:none;
+  border-radius:10px; font-weight:600;
+}
+.cs-page .btn-primary:hover { filter:brightness(1.06); }
+.cs-page .table thead th {
+  font-size:.66rem; letter-spacing:.05em; text-transform:uppercase;
+  color:#fff; font-weight:700;
+  background:linear-gradient(135deg, var(--rev-1), var(--rev-2));
+  border-bottom:0;
+}
+
+/* The three scores sat in a justify-between row with no gap, so at card width
+   the words ran together as RECENCYFREQUENCYMONETARY. Equal columns with a gap,
+   and a label size that fits the longest of the three. */
+.cs-page .rfm-row { display: flex; gap: .5rem; }
+.cs-page .rfm-row > div { flex: 1 1 0; min-width: 0; }
+.cs-page .rfm-label {
+  font-size: .58rem; font-weight: 700; letter-spacing: .02em;
+  text-transform: uppercase; color: #8b91a7; line-height: 1.2;
+}
+/* "Transactions" was breaking mid-word into "Transactio ns". */
+.cs-page .card-facts > [class^="col"] { font-size: .72rem; line-height: 1.3; }
+.cs-page .card-facts { word-break: keep-all; overflow-wrap: normal; hyphens: none; }
+</style>
+
+
+<!-- The white page frame the other analysis pages sit on. This page put its
+     content straight onto the grey background. -->
+<div class="module cs-page">
+  <div class="p-4">
+<div class="row g-4">
+  <div class="col-12">
+    <!-- Same banner the association-rules and basket-mining pages use: a rounded
+         bar standing above the card rather than a header flush inside it. -->
+    <div class="analysis-banner">
+      <div>
+        <div class="analysis-banner-title"><i class="fas fa-users"></i> Customer Segmentation Dashboard</div>
+        <div class="analysis-banner-sub">Who the customers are and who is drifting away, grouped by how
+        recently and how often they buy and how much they spend, with churn risk from the active
+        model.</div>
+      </div>
+      <span class="badge bg-success px-3 py-2">10 RFM segments
+      &middot; as of day 711</span>
+    </div>
+    <div class="card shadow-sm segmentation-dashboard-card">
+      <div class="card-body">
+        <div class="row g-4">
+          <div class="col-12">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+              <div><h5 class="m-2 mb-0">Current Lifetime RFM Segments</h5><small class="text-muted ms-2">All available purchases, as of dataset day 711.</small></div>
+              <div class="d-flex gap-2 align-items-center">
+                <span class="badge bg-lpurple">10 RFM segments</span>
+              </div>
+            </div>
+            
+            <div class="row g-3">
+              
+              <div class="col-12 col-sm-6 col-md-4 col-lg-3">
+                <div class="card h-100 shadow-sm segment-card" data-seg="Champions" style="cursor:pointer;">
+                  <div class="card-body">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+						<span class="badge badge-base
+							bg-champions
+							
+						">Champions</span>
+
+                      <i class="fa-solid fa-layer-group text-muted"></i>
+                    </div>
+                    <div class="fw-bold fs-5">537</div>
+                    <div class="text-muted small mb-2">Customers</div>
+                    <div class="d-flex justify-content-between text-muted small">
+                      <div>Avg. Spend<br><span class="fw-semibold text-body">$7195.92</span></div>
+                      <div>Avg. Txns<br><span class="fw-semibold text-body">243.8</span></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="col-12 col-sm-6 col-md-4 col-lg-3">
+                <div class="card h-100 shadow-sm segment-card" data-seg="Loyal Customers" style="cursor:pointer;">
+                  <div class="card-body">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+						<span class="badge badge-base
+							bg-loyal-customers
+							
+						">Loyal Customers</span>
+
+                      <i class="fa-solid fa-layer-group text-muted"></i>
+                    </div>
+                    <div class="fw-bold fs-5">419</div>
+                    <div class="text-muted small mb-2">Customers</div>
+                    <div class="d-flex justify-content-between text-muted small">
+                      <div>Avg. Spend<br><span class="fw-semibold text-body">$4261.25</span></div>
+                      <div>Avg. Txns<br><span class="fw-semibold text-body">162.8</span></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="col-12 col-sm-6 col-md-4 col-lg-3">
+                <div class="card h-100 shadow-sm segment-card" data-seg="Big Spenders" style="cursor:pointer;">
+                  <div class="card-body">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+						<span class="badge badge-base
+							bg-big-spenders
+							
+						">Big Spenders</span>
+
+                      <i class="fa-solid fa-layer-group text-muted"></i>
+                    </div>
+                    <div class="fw-bold fs-5">128</div>
+                    <div class="text-muted small mb-2">Customers</div>
+                    <div class="d-flex justify-content-between text-muted small">
+                      <div>Avg. Spend<br><span class="fw-semibold text-body">$4185.28</span></div>
+                      <div>Avg. Txns<br><span class="fw-semibold text-body">73.6</span></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="col-12 col-sm-6 col-md-4 col-lg-3">
+                <div class="card h-100 shadow-sm segment-card" data-seg="Potential Loyalists" style="cursor:pointer;">
+                  <div class="card-body">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+						<span class="badge badge-base
+							bg-potential-loyalists
+							
+						">Potential Loyalists</span>
+
+                      <i class="fa-solid fa-layer-group text-muted"></i>
+                    </div>
+                    <div class="fw-bold fs-5">234</div>
+                    <div class="text-muted small mb-2">Customers</div>
+                    <div class="d-flex justify-content-between text-muted small">
+                      <div>Avg. Spend<br><span class="fw-semibold text-body">$2567.35</span></div>
+                      <div>Avg. Txns<br><span class="fw-semibold text-body">89.0</span></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="col-12 col-sm-6 col-md-4 col-lg-3">
+                <div class="card h-100 shadow-sm segment-card" data-seg="New Customers" style="cursor:pointer;">
+                  <div class="card-body">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+						<span class="badge badge-base
+							bg-new-customers
+							
+						">New Customers</span>
+
+                      <i class="fa-solid fa-layer-group text-muted"></i>
+                    </div>
+                    <div class="fw-bold fs-5">211</div>
+                    <div class="text-muted small mb-2">Customers</div>
+                    <div class="d-flex justify-content-between text-muted small">
+                      <div>Avg. Spend<br><span class="fw-semibold text-body">$1227.18</span></div>
+                      <div>Avg. Txns<br><span class="fw-semibold text-body">37.3</span></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="col-12 col-sm-6 col-md-4 col-lg-3">
+                <div class="card h-100 shadow-sm segment-card" data-seg="Regular Customers" style="cursor:pointer;">
+                  <div class="card-body">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+						<span class="badge badge-base
+							bg-regular-customers
+							
+						">Regular Customers</span>
+
+                      <i class="fa-solid fa-layer-group text-muted"></i>
+                    </div>
+                    <div class="fw-bold fs-5">80</div>
+                    <div class="text-muted small mb-2">Customers</div>
+                    <div class="d-flex justify-content-between text-muted small">
+                      <div>Avg. Spend<br><span class="fw-semibold text-body">$1706.41</span></div>
+                      <div>Avg. Txns<br><span class="fw-semibold text-body">81.3</span></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="col-12 col-sm-6 col-md-4 col-lg-3">
+                <div class="card h-100 shadow-sm segment-card" data-seg="Need Attention" style="cursor:pointer;">
+                  <div class="card-body">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+						<span class="badge badge-base
+							bg-need-attention
+							
+						">Need Attention</span>
+
+                      <i class="fa-solid fa-layer-group text-muted"></i>
+                    </div>
+                    <div class="fw-bold fs-5">66</div>
+                    <div class="text-muted small mb-2">Customers</div>
+                    <div class="d-flex justify-content-between text-muted small">
+                      <div>Avg. Spend<br><span class="fw-semibold text-body">$2170.62</span></div>
+                      <div>Avg. Txns<br><span class="fw-semibold text-body">77.0</span></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="col-12 col-sm-6 col-md-4 col-lg-3">
+                <div class="card h-100 shadow-sm segment-card" data-seg="At Risk" style="cursor:pointer;">
+                  <div class="card-body">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+						<span class="badge badge-base
+							bg-at-risk
+							
+						">At Risk</span>
+
+                      <i class="fa-solid fa-layer-group text-muted"></i>
+                    </div>
+                    <div class="fw-bold fs-5">230</div>
+                    <div class="text-muted small mb-2">Customers</div>
+                    <div class="d-flex justify-content-between text-muted small">
+                      <div>Avg. Spend<br><span class="fw-semibold text-body">$1407.43</span></div>
+                      <div>Avg. Txns<br><span class="fw-semibold text-body">52.5</span></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="col-12 col-sm-6 col-md-4 col-lg-3">
+                <div class="card h-100 shadow-sm segment-card" data-seg="Hibernating" style="cursor:pointer;">
+                  <div class="card-body">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+						<span class="badge badge-base
+							bg-hibernating
+							
+						">Hibernating</span>
+
+                      <i class="fa-solid fa-layer-group text-muted"></i>
+                    </div>
+                    <div class="fw-bold fs-5">456</div>
+                    <div class="text-muted small mb-2">Customers</div>
+                    <div class="d-flex justify-content-between text-muted small">
+                      <div>Avg. Spend<br><span class="fw-semibold text-body">$559.84</span></div>
+                      <div>Avg. Txns<br><span class="fw-semibold text-body">23.1</span></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="col-12 col-sm-6 col-md-4 col-lg-3">
+                <div class="card h-100 shadow-sm segment-card" data-seg="Lost" style="cursor:pointer;">
+                  <div class="card-body">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+						<span class="badge badge-base
+							bg-lost
+							
+						">Lost</span>
+
+                      <i class="fa-solid fa-layer-group text-muted"></i>
+                    </div>
+                    <div class="fw-bold fs-5">136</div>
+                    <div class="text-muted small mb-2">Customers</div>
+                    <div class="d-flex justify-content-between text-muted small">
+                      <div>Avg. Spend<br><span class="fw-semibold text-body">$1119.20</span></div>
+                      <div>Avg. Txns<br><span class="fw-semibold text-body">37.0</span></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+            </div>
+            
+          </div>
+		  <div class="col-12 mt-4">
+			<div class="card shadow-sm border-0">
+			  <div class="card-body">
+				<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+				  <div><h5 class="mb-1"><i class="fa-solid fa-clock-rotate-left me-2 text-primary"></i>Churn Dataset Generation Method</h5>
+				  <small class="text-muted">Historical windows create labels from this fixed dataset. Training creates a model version; it does not add new customer transactions.</small></div>
+				  <span class="badge bg-success">Active Model: Non_Overlapping · 180d / 30d / 210d</span>
+				</div>
+				<form id="churnExperimentForm" class="row g-3 align-items-end">
+				  <div class="col-md-3"><label class="form-label">Method</label><select class="form-select" name="method" id="windowMethod"><option value="sliding">Sliding Windows</option><option value="non_overlapping">Non-overlapping Windows</option></select></div>
+				  <div class="col-md-2"><label class="form-label">Observation</label><select class="form-select" name="observation_window_days"><option value="30">30 days</option><option value="90" selected>90 days</option><option value="180">180 days</option></select></div>
+				  <div class="col-md-2"><label class="form-label">Prediction horizon</label><select class="form-select" name="prediction_horizon_days"><option value="14">14 days</option><option value="30" selected>30 days</option><option value="60">60 days</option><option value="90">90 days</option></select></div>
+				  <div class="col-md-2" id="stepControl"><label class="form-label">Sliding step</label><select class="form-select" name="sliding_step_days"><option value="7">7 days</option><option value="14">14 days</option><option value="30" selected>30 days</option></select></div>
+				  <div class="col-md-3"><button class="btn btn-primary w-100" type="submit" id="runExperimentButton"><i class="fa-solid fa-play me-2"></i>Train experiment</button></div>
+				</form>
+				<div class="small text-muted mt-2" id="stepHelp">Sliding windows overlap. Labels always begin after each cutoff day.</div>
+				<div class="small text-muted">Classification cutoff is chosen from validation data for Recall and F1 evaluation; it does not change the prediction horizon or dashboard risk categories.</div>
+				<div id="windowBoundaryStatus" class="alert mt-2 mb-0 py-2 small" data-min-day="1" data-max-day="711" role="status"></div>
+				<div class="small text-primary mt-1 d-none" id="trainingProgress"></div>
+					<div class="table-responsive mt-3"><table class="table table-sm align-middle mb-0"><thead><tr><th>Generated at</th><th>Method</th><th>Settings</th><th>Samples</th><th>Recall</th><th>F1</th><th>ROC-AUC</th><th title="Probability threshold used only to calculate Recall and F1.">Cutoff</th><th></th></tr></thead><tbody><tr><td>2026-08-11 19:18</td><td>Sliding</td><td><div class="experiment-settings"><div class="experiment-setting-chips"><span class="experiment-setting-chip" title="Observation window">O 90d</span><span class="experiment-setting-chip" title="Prediction horizon">H 30d</span><span class="experiment-setting-chip" title="Sliding step size">S 30d</span></div><button type="button" class="btn btn-link btn-sm experiment-details" data-id="13" title="View rule details" aria-label="View rule details"><i class="fa-solid fa-circle-info"></i></button></div></td><td>34205</td><td>0.667</td><td>0.599</td><td>0.882</td><td>0.30</td><td><button class="btn btn-sm btn-outline-primary activate-experiment" data-id="13">Activate</button></td></tr><tr><td>2026-08-11 19:15</td><td>Non_Overlapping</td><td><div class="experiment-settings"><div class="experiment-setting-chips"><span class="experiment-setting-chip" title="Observation window">O 180d</span><span class="experiment-setting-chip" title="Prediction horizon">H 14d</span><span class="experiment-setting-chip" title="Automatic step size">S 194d</span></div><button type="button" class="btn btn-link btn-sm experiment-details" data-id="11" title="View rule details" aria-label="View rule details"><i class="fa-solid fa-circle-info"></i></button></div></td><td>4991</td><td>0.593</td><td>0.647</td><td>0.868</td><td>0.50</td><td><button class="btn btn-sm btn-outline-primary activate-experiment" data-id="11">Activate</button></td></tr><tr><td>2026-08-11 19:13</td><td>Non_Overlapping</td><td><div class="experiment-settings"><div class="experiment-setting-chips"><span class="experiment-setting-chip" title="Observation window">O 180d</span><span class="experiment-setting-chip" title="Prediction horizon">H 30d</span><span class="experiment-setting-chip" title="Automatic step size">S 210d</span></div><button type="button" class="btn btn-link btn-sm experiment-details" data-id="10" title="View rule details" aria-label="View rule details"><i class="fa-solid fa-circle-info"></i></button></div></td><td>4991</td><td>0.463</td><td>0.533</td><td>0.882</td><td>0.50</td><td><span class="badge bg-success">Active</span></td></tr><tr><td>2026-08-11 17:29</td><td>Sliding</td><td><div class="experiment-settings"><div class="experiment-setting-chips"><span class="experiment-setting-chip" title="Observation window">O 180d</span><span class="experiment-setting-chip" title="Prediction horizon">H 14d</span><span class="experiment-setting-chip" title="Sliding step size">S 30d</span></div><button type="button" class="btn btn-link btn-sm experiment-details" data-id="6" title="View rule details" aria-label="View rule details"><i class="fa-solid fa-circle-info"></i></button></div></td><td>29956</td><td>0.808</td><td>0.684</td><td>0.859</td><td>0.30</td><td><button class="btn btn-sm btn-outline-primary activate-experiment" data-id="6">Activate</button></td></tr><tr><td>2026-08-11 16:37</td><td>Sliding</td><td><div class="experiment-settings"><div class="experiment-setting-chips"><span class="experiment-setting-chip" title="Observation window">O 30d</span><span class="experiment-setting-chip" title="Prediction horizon">H 30d</span><span class="experiment-setting-chip" title="Sliding step size">S 30d</span></div><button type="button" class="btn btn-link btn-sm experiment-details" data-id="5" title="View rule details" aria-label="View rule details"><i class="fa-solid fa-circle-info"></i></button></div></td><td>33312</td><td>0.597</td><td>0.578</td><td>0.876</td><td>0.35</td><td><button class="btn btn-sm btn-outline-primary activate-experiment" data-id="5">Activate</button></td></tr><tr><td>2026-08-11 16:31</td><td>Sliding</td><td><div class="experiment-settings"><div class="experiment-setting-chips"><span class="experiment-setting-chip" title="Observation window">O 30d</span><span class="experiment-setting-chip" title="Prediction horizon">H 14d</span><span class="experiment-setting-chip" title="Sliding step size">S 7d</span></div><button type="button" class="btn btn-link btn-sm experiment-details" data-id="4" title="View rule details" aria-label="View rule details"><i class="fa-solid fa-circle-info"></i></button></div></td><td>152735</td><td>0.698</td><td>0.669</td><td>0.855</td><td>0.35</td><td><button class="btn btn-sm btn-outline-primary activate-experiment" data-id="4">Activate</button></td></tr><tr><td>2026-08-11 16:19</td><td>Sliding</td><td><div class="experiment-settings"><div class="experiment-setting-chips"><span class="experiment-setting-chip" title="Observation window">O 180d</span><span class="experiment-setting-chip" title="Prediction horizon">H 90d</span><span class="experiment-setting-chip" title="Sliding step size">S 30d</span></div><button type="button" class="btn btn-link btn-sm experiment-details" data-id="3" title="View rule details" aria-label="View rule details"><i class="fa-solid fa-circle-info"></i></button></div></td><td>24962</td><td>0.401</td><td>0.424</td><td>0.908</td><td>0.30</td><td><button class="btn btn-sm btn-outline-primary activate-experiment" data-id="3">Activate</button></td></tr></tbody></table></div>
+			  </div>
+			</div>
+		  </div>
+		  <div class="col-12 mt-4">
+			<div class="d-flex align-items-center justify-content-between mb-2">
+				<h5 class="m-0">Churn Risk Overview</h5>
+				<span class="badge bg-lpurple">4 risk levels</span>
+			</div>
+			
+			<div class="row g-3">
+				
+				<div class="col-12 col-sm-6 col-md-4 col-lg-3">
+					<div class="card h-100 shadow-sm churn-card" data-risk="Low Risk" style="cursor:pointer;">
+						<div class="card-body">
+						<div class="d-flex align-items-center justify-content-between mb-2">
+							<span class="badge
+							 bg-success
+							
+							">Low Risk</span>
+							<i class="fa-solid fa-layer-group text-muted"></i>
+						</div>
+						<div class="fw-bold fs-5">1788</div>
+						<div class="text-muted small">Customers</div>
+						</div>
+					</div>
+					</div>
+
+				
+				<div class="col-12 col-sm-6 col-md-4 col-lg-3">
+					<div class="card h-100 shadow-sm churn-card" data-risk="Medium Risk" style="cursor:pointer;">
+						<div class="card-body">
+						<div class="d-flex align-items-center justify-content-between mb-2">
+							<span class="badge
+							 bg-info text-dark
+							
+							">Medium Risk</span>
+							<i class="fa-solid fa-layer-group text-muted"></i>
+						</div>
+						<div class="fw-bold fs-5">402</div>
+						<div class="text-muted small">Customers</div>
+						</div>
+					</div>
+					</div>
+
+				
+				<div class="col-12 col-sm-6 col-md-4 col-lg-3">
+					<div class="card h-100 shadow-sm churn-card" data-risk="High Risk" style="cursor:pointer;">
+						<div class="card-body">
+						<div class="d-flex align-items-center justify-content-between mb-2">
+							<span class="badge
+							 bg-warning text-dark
+							
+							">High Risk</span>
+							<i class="fa-solid fa-layer-group text-muted"></i>
+						</div>
+						<div class="fw-bold fs-5">247</div>
+						<div class="text-muted small">Customers</div>
+						</div>
+					</div>
+					</div>
+
+				
+				<div class="col-12 col-sm-6 col-md-4 col-lg-3">
+					<div class="card h-100 shadow-sm churn-card" data-risk="Very High Risk" style="cursor:pointer;">
+						<div class="card-body">
+						<div class="d-flex align-items-center justify-content-between mb-2">
+							<span class="badge
+							 bg-danger
+							
+							">Very High Risk</span>
+							<i class="fa-solid fa-layer-group text-muted"></i>
+						</div>
+						<div class="fw-bold fs-5">60</div>
+						<div class="text-muted small">Customers</div>
+						</div>
+					</div>
+					</div>
+
+				
+			</div>
+			
+			</div>
+
+          <div class="col-12">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+              <h5 class="m-2">Active Model Customer Snapshot</h5>
+              <small class="text-muted">Up to 5 customers per risk level, ranked by active churn probability and customer total spend</small>
+            </div>
+			
+			<div class="row g-3">
+			
+				
+				<div class="col-12 col-sm-6 col-md-4 col-lg-3">
+				<div class="card h-100 shadow-sm household-card" data-household="1035" style="cursor:pointer;">
+					<div class="card-body">
+					<div class="d-flex justify-content-between align-items-center mb-1">
+						<a href="/customers/detail/1035/" class="text-decoration-none text-dark profile-link">
+							<div class="d-flex align-items-center gap-2">
+								<i class="fa-solid fa-user text-muted"></i>
+								<span class="fw-semibold">1035</span>
+							</div>
+						</a>
+						<div class="d-flex flex-column text-end">
+							<span class="badge mb-1 badge-base
+								bg-hibernating
+								
+							">Hibernating</span>
+
+						<span class="badge 
+							 bg-danger
+							
+						">Very High Risk</span>
+						</div>
+					</div>
+
+					<div class="rfm-row text-center my-2">
+						<div><div class="rfm-label">RECENCY</div><div class="fw-bold fs-5">1</div></div>
+						<div><div class="rfm-label">FREQUENCY</div><div class="fw-bold fs-5">1</div></div>
+						<div><div class="rfm-label">MONETARY</div><div class="fw-bold fs-5">1</div></div>
+					</div>
+					<hr class="my-2"/>
+					<div class="row text-center g-2 small text-muted card-facts">
+						<div class="col-4">Total Spend<br><span class="text-body fw-semibold">$183.04</span></div>
+						<div class="col-4">Transactions<br><span class="text-body fw-semibold">4</span></div>
+						<div class="col-4">Avg. Basket<br><span class="text-body fw-semibold">$45.76</span></div>
+					</div>
+					<div class="text-end small text-muted mt-2">Oct 05, 2025</div>
+					</div>
+				</div>
+				</div>
+				
+				<div class="col-12 col-sm-6 col-md-4 col-lg-3">
+				<div class="card h-100 shadow-sm household-card" data-household="1482" style="cursor:pointer;">
+					<div class="card-body">
+					<div class="d-flex justify-content-between align-items-center mb-1">
+						<a href="/customers/detail/1482/" class="text-decoration-none text-dark profile-link">
+							<div class="d-flex align-items-center gap-2">
+								<i class="fa-solid fa-user text-muted"></i>
+								<span class="fw-semibold">1482</span>
+							</div>
+						</a>
+						<div class="d-flex flex-column text-end">
+							<span class="badge mb-1 badge-base
+								bg-hibernating
+								
+							">Hibernating</span>
+
+						<span class="badge 
+							 bg-danger
+							
+						">Very High Risk</span>
+						</div>
+					</div>
+
+					<div class="rfm-row text-center my-2">
+						<div><div class="rfm-label">RECENCY</div><div class="fw-bold fs-5">1</div></div>
+						<div><div class="rfm-label">FREQUENCY</div><div class="fw-bold fs-5">1</div></div>
+						<div><div class="rfm-label">MONETARY</div><div class="fw-bold fs-5">2</div></div>
+					</div>
+					<hr class="my-2"/>
+					<div class="row text-center g-2 small text-muted card-facts">
+						<div class="col-4">Total Spend<br><span class="text-body fw-semibold">$1042.35</span></div>
+						<div class="col-4">Transactions<br><span class="text-body fw-semibold">18</span></div>
+						<div class="col-4">Avg. Basket<br><span class="text-body fw-semibold">$57.91</span></div>
+					</div>
+					<div class="text-end small text-muted mt-2">Oct 05, 2025</div>
+					</div>
+				</div>
+				</div>
+				
+				<div class="col-12 col-sm-6 col-md-4 col-lg-3">
+				<div class="card h-100 shadow-sm household-card" data-household="359" style="cursor:pointer;">
+					<div class="card-body">
+					<div class="d-flex justify-content-between align-items-center mb-1">
+						<a href="/customers/detail/359/" class="text-decoration-none text-dark profile-link">
+							<div class="d-flex align-items-center gap-2">
+								<i class="fa-solid fa-user text-muted"></i>
+								<span class="fw-semibold">359</span>
+							</div>
+						</a>
+						<div class="d-flex flex-column text-end">
+							<span class="badge mb-1 badge-base
+								bg-hibernating
+								
+							">Hibernating</span>
+
+						<span class="badge 
+							 bg-danger
+							
+						">Very High Risk</span>
+						</div>
+					</div>
+
+					<div class="rfm-row text-center my-2">
+						<div><div class="rfm-label">RECENCY</div><div class="fw-bold fs-5">1</div></div>
+						<div><div class="rfm-label">FREQUENCY</div><div class="fw-bold fs-5">1</div></div>
+						<div><div class="rfm-label">MONETARY</div><div class="fw-bold fs-5">1</div></div>
+					</div>
+					<hr class="my-2"/>
+					<div class="row text-center g-2 small text-muted card-facts">
+						<div class="col-4">Total Spend<br><span class="text-body fw-semibold">$172.85</span></div>
+						<div class="col-4">Transactions<br><span class="text-body fw-semibold">2</span></div>
+						<div class="col-4">Avg. Basket<br><span class="text-body fw-semibold">$86.43</span></div>
+					</div>
+					<div class="text-end small text-muted mt-2">Oct 05, 2025</div>
+					</div>
+				</div>
+				</div>
+				
+				<div class="col-12 col-sm-6 col-md-4 col-lg-3">
+				<div class="card h-100 shadow-sm household-card" data-household="948" style="cursor:pointer;">
+					<div class="card-body">
+					<div class="d-flex justify-content-between align-items-center mb-1">
+						<a href="/customers/detail/948/" class="text-decoration-none text-dark profile-link">
+							<div class="d-flex align-items-center gap-2">
+								<i class="fa-solid fa-user text-muted"></i>
+								<span class="fw-semibold">948</span>
+							</div>
+						</a>
+						<div class="d-flex flex-column text-end">
+							<span class="badge mb-1 badge-base
+								bg-hibernating
+								
+							">Hibernating</span>
+
+						<span class="badge 
+							 bg-danger
+							
+						">Very High Risk</span>
+						</div>
+					</div>
+
+					<div class="rfm-row text-center my-2">
+						<div><div class="rfm-label">RECENCY</div><div class="fw-bold fs-5">1</div></div>
+						<div><div class="rfm-label">FREQUENCY</div><div class="fw-bold fs-5">1</div></div>
+						<div><div class="rfm-label">MONETARY</div><div class="fw-bold fs-5">1</div></div>
+					</div>
+					<hr class="my-2"/>
+					<div class="row text-center g-2 small text-muted card-facts">
+						<div class="col-4">Total Spend<br><span class="text-body fw-semibold">$304.85</span></div>
+						<div class="col-4">Transactions<br><span class="text-body fw-semibold">4</span></div>
+						<div class="col-4">Avg. Basket<br><span class="text-body fw-semibold">$76.21</span></div>
+					</div>
+					<div class="text-end small text-muted mt-2">Oct 05, 2025</div>
+					</div>
+				</div>
+				</div>
+				
+				<div class="col-12 col-sm-6 col-md-4 col-lg-3">
+				<div class="card h-100 shadow-sm household-card" data-household="1727" style="cursor:pointer;">
+					<div class="card-body">
+					<div class="d-flex justify-content-between align-items-center mb-1">
+						<a href="/customers/detail/1727/" class="text-decoration-none text-dark profile-link">
+							<div class="d-flex align-items-center gap-2">
+								<i class="fa-solid fa-user text-muted"></i>
+								<span class="fw-semibold">1727</span>
+							</div>
+						</a>
+						<div class="d-flex flex-column text-end">
+							<span class="badge mb-1 badge-base
+								bg-hibernating
+								
+							">Hibernating</span>
+
+						<span class="badge 
+							 bg-danger
+							
+						">Very High Risk</span>
+						</div>
+					</div>
+
+					<div class="rfm-row text-center my-2">
+						<div><div class="rfm-label">RECENCY</div><div class="fw-bold fs-5">1</div></div>
+						<div><div class="rfm-label">FREQUENCY</div><div class="fw-bold fs-5">1</div></div>
+						<div><div class="rfm-label">MONETARY</div><div class="fw-bold fs-5">1</div></div>
+					</div>
+					<hr class="my-2"/>
+					<div class="row text-center g-2 small text-muted card-facts">
+						<div class="col-4">Total Spend<br><span class="text-body fw-semibold">$149.01</span></div>
+						<div class="col-4">Transactions<br><span class="text-body fw-semibold">2</span></div>
+						<div class="col-4">Avg. Basket<br><span class="text-body fw-semibold">$74.51</span></div>
+					</div>
+					<div class="text-end small text-muted mt-2">Oct 05, 2025</div>
+					</div>
+				</div>
+				</div>
+				
+			
+				
+				<div class="col-12 col-sm-6 col-md-4 col-lg-3">
+				<div class="card h-100 shadow-sm household-card" data-household="1561" style="cursor:pointer;">
+					<div class="card-body">
+					<div class="d-flex justify-content-between align-items-center mb-1">
+						<a href="/customers/detail/1561/" class="text-decoration-none text-dark profile-link">
+							<div class="d-flex align-items-center gap-2">
+								<i class="fa-solid fa-user text-muted"></i>
+								<span class="fw-semibold">1561</span>
+							</div>
+						</a>
+						<div class="d-flex flex-column text-end">
+							<span class="badge mb-1 badge-base
+								bg-hibernating
+								
+							">Hibernating</span>
+
+						<span class="badge 
+							 bg-warning text-dark
+							
+						">High Risk</span>
+						</div>
+					</div>
+
+					<div class="rfm-row text-center my-2">
+						<div><div class="rfm-label">RECENCY</div><div class="fw-bold fs-5">1</div></div>
+						<div><div class="rfm-label">FREQUENCY</div><div class="fw-bold fs-5">1</div></div>
+						<div><div class="rfm-label">MONETARY</div><div class="fw-bold fs-5">1</div></div>
+					</div>
+					<hr class="my-2"/>
+					<div class="row text-center g-2 small text-muted card-facts">
+						<div class="col-4">Total Spend<br><span class="text-body fw-semibold">$401.41</span></div>
+						<div class="col-4">Transactions<br><span class="text-body fw-semibold">6</span></div>
+						<div class="col-4">Avg. Basket<br><span class="text-body fw-semibold">$66.90</span></div>
+					</div>
+					<div class="text-end small text-muted mt-2">Oct 05, 2025</div>
+					</div>
+				</div>
+				</div>
+				
+				<div class="col-12 col-sm-6 col-md-4 col-lg-3">
+				<div class="card h-100 shadow-sm household-card" data-household="2463" style="cursor:pointer;">
+					<div class="card-body">
+					<div class="d-flex justify-content-between align-items-center mb-1">
+						<a href="/customers/detail/2463/" class="text-decoration-none text-dark profile-link">
+							<div class="d-flex align-items-center gap-2">
+								<i class="fa-solid fa-user text-muted"></i>
+								<span class="fw-semibold">2463</span>
+							</div>
+						</a>
+						<div class="d-flex flex-column text-end">
+							<span class="badge mb-1 badge-base
+								bg-hibernating
+								
+							">Hibernating</span>
+
+						<span class="badge 
+							 bg-warning text-dark
+							
+						">High Risk</span>
+						</div>
+					</div>
+
+					<div class="rfm-row text-center my-2">
+						<div><div class="rfm-label">RECENCY</div><div class="fw-bold fs-5">1</div></div>
+						<div><div class="rfm-label">FREQUENCY</div><div class="fw-bold fs-5">1</div></div>
+						<div><div class="rfm-label">MONETARY</div><div class="fw-bold fs-5">1</div></div>
+					</div>
+					<hr class="my-2"/>
+					<div class="row text-center g-2 small text-muted card-facts">
+						<div class="col-4">Total Spend<br><span class="text-body fw-semibold">$158.42</span></div>
+						<div class="col-4">Transactions<br><span class="text-body fw-semibold">12</span></div>
+						<div class="col-4">Avg. Basket<br><span class="text-body fw-semibold">$13.20</span></div>
+					</div>
+					<div class="text-end small text-muted mt-2">Oct 05, 2025</div>
+					</div>
+				</div>
+				</div>
+				
+				<div class="col-12 col-sm-6 col-md-4 col-lg-3">
+				<div class="card h-100 shadow-sm household-card" data-household="1757" style="cursor:pointer;">
+					<div class="card-body">
+					<div class="d-flex justify-content-between align-items-center mb-1">
+						<a href="/customers/detail/1757/" class="text-decoration-none text-dark profile-link">
+							<div class="d-flex align-items-center gap-2">
+								<i class="fa-solid fa-user text-muted"></i>
+								<span class="fw-semibold">1757</span>
+							</div>
+						</a>
+						<div class="d-flex flex-column text-end">
+							<span class="badge mb-1 badge-base
+								bg-hibernating
+								
+							">Hibernating</span>
+
+						<span class="badge 
+							 bg-warning text-dark
+							
+						">High Risk</span>
+						</div>
+					</div>
+
+					<div class="rfm-row text-center my-2">
+						<div><div class="rfm-label">RECENCY</div><div class="fw-bold fs-5">1</div></div>
+						<div><div class="rfm-label">FREQUENCY</div><div class="fw-bold fs-5">1</div></div>
+						<div><div class="rfm-label">MONETARY</div><div class="fw-bold fs-5">1</div></div>
+					</div>
+					<hr class="my-2"/>
+					<div class="row text-center g-2 small text-muted card-facts">
+						<div class="col-4">Total Spend<br><span class="text-body fw-semibold">$253.11</span></div>
+						<div class="col-4">Transactions<br><span class="text-body fw-semibold">10</span></div>
+						<div class="col-4">Avg. Basket<br><span class="text-body fw-semibold">$25.31</span></div>
+					</div>
+					<div class="text-end small text-muted mt-2">Oct 05, 2025</div>
+					</div>
+				</div>
+				</div>
+				
+				<div class="col-12 col-sm-6 col-md-4 col-lg-3">
+				<div class="card h-100 shadow-sm household-card" data-household="828" style="cursor:pointer;">
+					<div class="card-body">
+					<div class="d-flex justify-content-between align-items-center mb-1">
+						<a href="/customers/detail/828/" class="text-decoration-none text-dark profile-link">
+							<div class="d-flex align-items-center gap-2">
+								<i class="fa-solid fa-user text-muted"></i>
+								<span class="fw-semibold">828</span>
+							</div>
+						</a>
+						<div class="d-flex flex-column text-end">
+							<span class="badge mb-1 badge-base
+								bg-at-risk
+								
+							">At Risk</span>
+
+						<span class="badge 
+							 bg-warning text-dark
+							
+						">High Risk</span>
+						</div>
+					</div>
+
+					<div class="rfm-row text-center my-2">
+						<div><div class="rfm-label">RECENCY</div><div class="fw-bold fs-5">1</div></div>
+						<div><div class="rfm-label">FREQUENCY</div><div class="fw-bold fs-5">2</div></div>
+						<div><div class="rfm-label">MONETARY</div><div class="fw-bold fs-5">2</div></div>
+					</div>
+					<hr class="my-2"/>
+					<div class="row text-center g-2 small text-muted card-facts">
+						<div class="col-4">Total Spend<br><span class="text-body fw-semibold">$1123.16</span></div>
+						<div class="col-4">Transactions<br><span class="text-body fw-semibold">37</span></div>
+						<div class="col-4">Avg. Basket<br><span class="text-body fw-semibold">$30.36</span></div>
+					</div>
+					<div class="text-end small text-muted mt-2">Oct 05, 2025</div>
+					</div>
+				</div>
+				</div>
+				
+				<div class="col-12 col-sm-6 col-md-4 col-lg-3">
+				<div class="card h-100 shadow-sm household-card" data-household="130" style="cursor:pointer;">
+					<div class="card-body">
+					<div class="d-flex justify-content-between align-items-center mb-1">
+						<a href="/customers/detail/130/" class="text-decoration-none text-dark profile-link">
+							<div class="d-flex align-items-center gap-2">
+								<i class="fa-solid fa-user text-muted"></i>
+								<span class="fw-semibold">130</span>
+							</div>
+						</a>
+						<div class="d-flex flex-column text-end">
+							<span class="badge mb-1 badge-base
+								bg-hibernating
+								
+							">Hibernating</span>
+
+						<span class="badge 
+							 bg-warning text-dark
+							
+						">High Risk</span>
+						</div>
+					</div>
+
+					<div class="rfm-row text-center my-2">
+						<div><div class="rfm-label">RECENCY</div><div class="fw-bold fs-5">1</div></div>
+						<div><div class="rfm-label">FREQUENCY</div><div class="fw-bold fs-5">1</div></div>
+						<div><div class="rfm-label">MONETARY</div><div class="fw-bold fs-5">1</div></div>
+					</div>
+					<hr class="my-2"/>
+					<div class="row text-center g-2 small text-muted card-facts">
+						<div class="col-4">Total Spend<br><span class="text-body fw-semibold">$511.62</span></div>
+						<div class="col-4">Transactions<br><span class="text-body fw-semibold">20</span></div>
+						<div class="col-4">Avg. Basket<br><span class="text-body fw-semibold">$25.58</span></div>
+					</div>
+					<div class="text-end small text-muted mt-2">Oct 05, 2025</div>
+					</div>
+				</div>
+				</div>
+				
+			
+				
+				<div class="col-12 col-sm-6 col-md-4 col-lg-3">
+				<div class="card h-100 shadow-sm household-card" data-household="149" style="cursor:pointer;">
+					<div class="card-body">
+					<div class="d-flex justify-content-between align-items-center mb-1">
+						<a href="/customers/detail/149/" class="text-decoration-none text-dark profile-link">
+							<div class="d-flex align-items-center gap-2">
+								<i class="fa-solid fa-user text-muted"></i>
+								<span class="fw-semibold">149</span>
+							</div>
+						</a>
+						<div class="d-flex flex-column text-end">
+							<span class="badge mb-1 badge-base
+								bg-loyal-customers
+								
+							">Loyal Customers</span>
+
+						<span class="badge 
+							 bg-info text-dark
+							
+						">Medium Risk</span>
+						</div>
+					</div>
+
+					<div class="rfm-row text-center my-2">
+						<div><div class="rfm-label">RECENCY</div><div class="fw-bold fs-5">1</div></div>
+						<div><div class="rfm-label">FREQUENCY</div><div class="fw-bold fs-5">5</div></div>
+						<div><div class="rfm-label">MONETARY</div><div class="fw-bold fs-5">5</div></div>
+					</div>
+					<hr class="my-2"/>
+					<div class="row text-center g-2 small text-muted card-facts">
+						<div class="col-4">Total Spend<br><span class="text-body fw-semibold">$11920.93</span></div>
+						<div class="col-4">Transactions<br><span class="text-body fw-semibold">215</span></div>
+						<div class="col-4">Avg. Basket<br><span class="text-body fw-semibold">$55.45</span></div>
+					</div>
+					<div class="text-end small text-muted mt-2">Oct 05, 2025</div>
+					</div>
+				</div>
+				</div>
+				
+				<div class="col-12 col-sm-6 col-md-4 col-lg-3">
+				<div class="card h-100 shadow-sm household-card" data-household="226" style="cursor:pointer;">
+					<div class="card-body">
+					<div class="d-flex justify-content-between align-items-center mb-1">
+						<a href="/customers/detail/226/" class="text-decoration-none text-dark profile-link">
+							<div class="d-flex align-items-center gap-2">
+								<i class="fa-solid fa-user text-muted"></i>
+								<span class="fw-semibold">226</span>
+							</div>
+						</a>
+						<div class="d-flex flex-column text-end">
+							<span class="badge mb-1 badge-base
+								bg-at-risk
+								
+							">At Risk</span>
+
+						<span class="badge 
+							 bg-info text-dark
+							
+						">Medium Risk</span>
+						</div>
+					</div>
+
+					<div class="rfm-row text-center my-2">
+						<div><div class="rfm-label">RECENCY</div><div class="fw-bold fs-5">1</div></div>
+						<div><div class="rfm-label">FREQUENCY</div><div class="fw-bold fs-5">2</div></div>
+						<div><div class="rfm-label">MONETARY</div><div class="fw-bold fs-5">2</div></div>
+					</div>
+					<hr class="my-2"/>
+					<div class="row text-center g-2 small text-muted card-facts">
+						<div class="col-4">Total Spend<br><span class="text-body fw-semibold">$1205.06</span></div>
+						<div class="col-4">Transactions<br><span class="text-body fw-semibold">50</span></div>
+						<div class="col-4">Avg. Basket<br><span class="text-body fw-semibold">$24.10</span></div>
+					</div>
+					<div class="text-end small text-muted mt-2">Oct 05, 2025</div>
+					</div>
+				</div>
+				</div>
+				
+				<div class="col-12 col-sm-6 col-md-4 col-lg-3">
+				<div class="card h-100 shadow-sm household-card" data-household="274" style="cursor:pointer;">
+					<div class="card-body">
+					<div class="d-flex justify-content-between align-items-center mb-1">
+						<a href="/customers/detail/274/" class="text-decoration-none text-dark profile-link">
+							<div class="d-flex align-items-center gap-2">
+								<i class="fa-solid fa-user text-muted"></i>
+								<span class="fw-semibold">274</span>
+							</div>
+						</a>
+						<div class="d-flex flex-column text-end">
+							<span class="badge mb-1 badge-base
+								bg-hibernating
+								
+							">Hibernating</span>
+
+						<span class="badge 
+							 bg-info text-dark
+							
+						">Medium Risk</span>
+						</div>
+					</div>
+
+					<div class="rfm-row text-center my-2">
+						<div><div class="rfm-label">RECENCY</div><div class="fw-bold fs-5">1</div></div>
+						<div><div class="rfm-label">FREQUENCY</div><div class="fw-bold fs-5">1</div></div>
+						<div><div class="rfm-label">MONETARY</div><div class="fw-bold fs-5">1</div></div>
+					</div>
+					<hr class="my-2"/>
+					<div class="row text-center g-2 small text-muted card-facts">
+						<div class="col-4">Total Spend<br><span class="text-body fw-semibold">$120.07</span></div>
+						<div class="col-4">Transactions<br><span class="text-body fw-semibold">15</span></div>
+						<div class="col-4">Avg. Basket<br><span class="text-body fw-semibold">$8.00</span></div>
+					</div>
+					<div class="text-end small text-muted mt-2">Oct 05, 2025</div>
+					</div>
+				</div>
+				</div>
+				
+				<div class="col-12 col-sm-6 col-md-4 col-lg-3">
+				<div class="card h-100 shadow-sm household-card" data-household="835" style="cursor:pointer;">
+					<div class="card-body">
+					<div class="d-flex justify-content-between align-items-center mb-1">
+						<a href="/customers/detail/835/" class="text-decoration-none text-dark profile-link">
+							<div class="d-flex align-items-center gap-2">
+								<i class="fa-solid fa-user text-muted"></i>
+								<span class="fw-semibold">835</span>
+							</div>
+						</a>
+						<div class="d-flex flex-column text-end">
+							<span class="badge mb-1 badge-base
+								bg-hibernating
+								
+							">Hibernating</span>
+
+						<span class="badge 
+							 bg-info text-dark
+							
+						">Medium Risk</span>
+						</div>
+					</div>
+
+					<div class="rfm-row text-center my-2">
+						<div><div class="rfm-label">RECENCY</div><div class="fw-bold fs-5">1</div></div>
+						<div><div class="rfm-label">FREQUENCY</div><div class="fw-bold fs-5">1</div></div>
+						<div><div class="rfm-label">MONETARY</div><div class="fw-bold fs-5">1</div></div>
+					</div>
+					<hr class="my-2"/>
+					<div class="row text-center g-2 small text-muted card-facts">
+						<div class="col-4">Total Spend<br><span class="text-body fw-semibold">$273.81</span></div>
+						<div class="col-4">Transactions<br><span class="text-body fw-semibold">17</span></div>
+						<div class="col-4">Avg. Basket<br><span class="text-body fw-semibold">$16.11</span></div>
+					</div>
+					<div class="text-end small text-muted mt-2">Oct 05, 2025</div>
+					</div>
+				</div>
+				</div>
+				
+				<div class="col-12 col-sm-6 col-md-4 col-lg-3">
+				<div class="card h-100 shadow-sm household-card" data-household="1400" style="cursor:pointer;">
+					<div class="card-body">
+					<div class="d-flex justify-content-between align-items-center mb-1">
+						<a href="/customers/detail/1400/" class="text-decoration-none text-dark profile-link">
+							<div class="d-flex align-items-center gap-2">
+								<i class="fa-solid fa-user text-muted"></i>
+								<span class="fw-semibold">1400</span>
+							</div>
+						</a>
+						<div class="d-flex flex-column text-end">
+							<span class="badge mb-1 badge-base
+								bg-hibernating
+								
+							">Hibernating</span>
+
+						<span class="badge 
+							 bg-info text-dark
+							
+						">Medium Risk</span>
+						</div>
+					</div>
+
+					<div class="rfm-row text-center my-2">
+						<div><div class="rfm-label">RECENCY</div><div class="fw-bold fs-5">2</div></div>
+						<div><div class="rfm-label">FREQUENCY</div><div class="fw-bold fs-5">1</div></div>
+						<div><div class="rfm-label">MONETARY</div><div class="fw-bold fs-5">1</div></div>
+					</div>
+					<hr class="my-2"/>
+					<div class="row text-center g-2 small text-muted card-facts">
+						<div class="col-4">Total Spend<br><span class="text-body fw-semibold">$284.31</span></div>
+						<div class="col-4">Transactions<br><span class="text-body fw-semibold">11</span></div>
+						<div class="col-4">Avg. Basket<br><span class="text-body fw-semibold">$25.85</span></div>
+					</div>
+					<div class="text-end small text-muted mt-2">Oct 05, 2025</div>
+					</div>
+				</div>
+				</div>
+				
+			
+				
+				<div class="col-12 col-sm-6 col-md-4 col-lg-3">
+				<div class="card h-100 shadow-sm household-card" data-household="838" style="cursor:pointer;">
+					<div class="card-body">
+					<div class="d-flex justify-content-between align-items-center mb-1">
+						<a href="/customers/detail/838/" class="text-decoration-none text-dark profile-link">
+							<div class="d-flex align-items-center gap-2">
+								<i class="fa-solid fa-user text-muted"></i>
+								<span class="fw-semibold">838</span>
+							</div>
+						</a>
+						<div class="d-flex flex-column text-end">
+							<span class="badge mb-1 badge-base
+								bg-new-customers
+								
+							">New Customers</span>
+
+						<span class="badge 
+							 bg-success
+							
+						">Low Risk</span>
+						</div>
+					</div>
+
+					<div class="rfm-row text-center my-2">
+						<div><div class="rfm-label">RECENCY</div><div class="fw-bold fs-5">5</div></div>
+						<div><div class="rfm-label">FREQUENCY</div><div class="fw-bold fs-5">1</div></div>
+						<div><div class="rfm-label">MONETARY</div><div class="fw-bold fs-5">1</div></div>
+					</div>
+					<hr class="my-2"/>
+					<div class="row text-center g-2 small text-muted card-facts">
+						<div class="col-4">Total Spend<br><span class="text-body fw-semibold">$384.69</span></div>
+						<div class="col-4">Transactions<br><span class="text-body fw-semibold">32</span></div>
+						<div class="col-4">Avg. Basket<br><span class="text-body fw-semibold">$12.02</span></div>
+					</div>
+					<div class="text-end small text-muted mt-2">Oct 05, 2025</div>
+					</div>
+				</div>
+				</div>
+				
+				<div class="col-12 col-sm-6 col-md-4 col-lg-3">
+				<div class="card h-100 shadow-sm household-card" data-household="713" style="cursor:pointer;">
+					<div class="card-body">
+					<div class="d-flex justify-content-between align-items-center mb-1">
+						<a href="/customers/detail/713/" class="text-decoration-none text-dark profile-link">
+							<div class="d-flex align-items-center gap-2">
+								<i class="fa-solid fa-user text-muted"></i>
+								<span class="fw-semibold">713</span>
+							</div>
+						</a>
+						<div class="d-flex flex-column text-end">
+							<span class="badge mb-1 badge-base
+								bg-hibernating
+								
+							">Hibernating</span>
+
+						<span class="badge 
+							 bg-success
+							
+						">Low Risk</span>
+						</div>
+					</div>
+
+					<div class="rfm-row text-center my-2">
+						<div><div class="rfm-label">RECENCY</div><div class="fw-bold fs-5">2</div></div>
+						<div><div class="rfm-label">FREQUENCY</div><div class="fw-bold fs-5">1</div></div>
+						<div><div class="rfm-label">MONETARY</div><div class="fw-bold fs-5">1</div></div>
+					</div>
+					<hr class="my-2"/>
+					<div class="row text-center g-2 small text-muted card-facts">
+						<div class="col-4">Total Spend<br><span class="text-body fw-semibold">$540.90</span></div>
+						<div class="col-4">Transactions<br><span class="text-body fw-semibold">24</span></div>
+						<div class="col-4">Avg. Basket<br><span class="text-body fw-semibold">$22.54</span></div>
+					</div>
+					<div class="text-end small text-muted mt-2">Oct 05, 2025</div>
+					</div>
+				</div>
+				</div>
+				
+				<div class="col-12 col-sm-6 col-md-4 col-lg-3">
+				<div class="card h-100 shadow-sm household-card" data-household="981" style="cursor:pointer;">
+					<div class="card-body">
+					<div class="d-flex justify-content-between align-items-center mb-1">
+						<a href="/customers/detail/981/" class="text-decoration-none text-dark profile-link">
+							<div class="d-flex align-items-center gap-2">
+								<i class="fa-solid fa-user text-muted"></i>
+								<span class="fw-semibold">981</span>
+							</div>
+						</a>
+						<div class="d-flex flex-column text-end">
+							<span class="badge mb-1 badge-base
+								bg-at-risk
+								
+							">At Risk</span>
+
+						<span class="badge 
+							 bg-success
+							
+						">Low Risk</span>
+						</div>
+					</div>
+
+					<div class="rfm-row text-center my-2">
+						<div><div class="rfm-label">RECENCY</div><div class="fw-bold fs-5">2</div></div>
+						<div><div class="rfm-label">FREQUENCY</div><div class="fw-bold fs-5">2</div></div>
+						<div><div class="rfm-label">MONETARY</div><div class="fw-bold fs-5">2</div></div>
+					</div>
+					<hr class="my-2"/>
+					<div class="row text-center g-2 small text-muted card-facts">
+						<div class="col-4">Total Spend<br><span class="text-body fw-semibold">$1394.11</span></div>
+						<div class="col-4">Transactions<br><span class="text-body fw-semibold">36</span></div>
+						<div class="col-4">Avg. Basket<br><span class="text-body fw-semibold">$38.73</span></div>
+					</div>
+					<div class="text-end small text-muted mt-2">Oct 05, 2025</div>
+					</div>
+				</div>
+				</div>
+				
+				<div class="col-12 col-sm-6 col-md-4 col-lg-3">
+				<div class="card h-100 shadow-sm household-card" data-household="320" style="cursor:pointer;">
+					<div class="card-body">
+					<div class="d-flex justify-content-between align-items-center mb-1">
+						<a href="/customers/detail/320/" class="text-decoration-none text-dark profile-link">
+							<div class="d-flex align-items-center gap-2">
+								<i class="fa-solid fa-user text-muted"></i>
+								<span class="fw-semibold">320</span>
+							</div>
+						</a>
+						<div class="d-flex flex-column text-end">
+							<span class="badge mb-1 badge-base
+								bg-hibernating
+								
+							">Hibernating</span>
+
+						<span class="badge 
+							 bg-success
+							
+						">Low Risk</span>
+						</div>
+					</div>
+
+					<div class="rfm-row text-center my-2">
+						<div><div class="rfm-label">RECENCY</div><div class="fw-bold fs-5">2</div></div>
+						<div><div class="rfm-label">FREQUENCY</div><div class="fw-bold fs-5">1</div></div>
+						<div><div class="rfm-label">MONETARY</div><div class="fw-bold fs-5">1</div></div>
+					</div>
+					<hr class="my-2"/>
+					<div class="row text-center g-2 small text-muted card-facts">
+						<div class="col-4">Total Spend<br><span class="text-body fw-semibold">$497.41</span></div>
+						<div class="col-4">Transactions<br><span class="text-body fw-semibold">19</span></div>
+						<div class="col-4">Avg. Basket<br><span class="text-body fw-semibold">$26.18</span></div>
+					</div>
+					<div class="text-end small text-muted mt-2">Oct 05, 2025</div>
+					</div>
+				</div>
+				</div>
+				
+				<div class="col-12 col-sm-6 col-md-4 col-lg-3">
+				<div class="card h-100 shadow-sm household-card" data-household="994" style="cursor:pointer;">
+					<div class="card-body">
+					<div class="d-flex justify-content-between align-items-center mb-1">
+						<a href="/customers/detail/994/" class="text-decoration-none text-dark profile-link">
+							<div class="d-flex align-items-center gap-2">
+								<i class="fa-solid fa-user text-muted"></i>
+								<span class="fw-semibold">994</span>
+							</div>
+						</a>
+						<div class="d-flex flex-column text-end">
+							<span class="badge mb-1 badge-base
+								bg-lost
+								
+							">Lost</span>
+
+						<span class="badge 
+							 bg-success
+							
+						">Low Risk</span>
+						</div>
+					</div>
+
+					<div class="rfm-row text-center my-2">
+						<div><div class="rfm-label">RECENCY</div><div class="fw-bold fs-5">3</div></div>
+						<div><div class="rfm-label">FREQUENCY</div><div class="fw-bold fs-5">1</div></div>
+						<div><div class="rfm-label">MONETARY</div><div class="fw-bold fs-5">1</div></div>
+					</div>
+					<hr class="my-2"/>
+					<div class="row text-center g-2 small text-muted card-facts">
+						<div class="col-4">Total Spend<br><span class="text-body fw-semibold">$581.45</span></div>
+						<div class="col-4">Transactions<br><span class="text-body fw-semibold">21</span></div>
+						<div class="col-4">Avg. Basket<br><span class="text-body fw-semibold">$27.69</span></div>
+					</div>
+					<div class="text-end small text-muted mt-2">Oct 05, 2025</div>
+					</div>
+				</div>
+				</div>
+				
+			
+			</div>
+			
+          </div>
+          
+          <div class="col-12">
+            <h5 class="m-2 mb-3">RFM and Churn Guide</h5>
+            <div class="row g-4">
+              <div class="col-6 col-lg-6">
+                <div class="card h-100 shadow-sm guide-card">
+					<div class="card-body">
+						<div class="d-flex align-items-center gap-2 mb-3"><i class="fa-solid fa-users-gear text-primary"></i><strong>RFM Segments Guide</strong></div>
+						<div class="mb-2"><span class="badge badge-base bg-champions">Champions</span> High value, high frequency, recent customers — your best customers.</div>
+						<div class="mb-2"><span class="badge badge-base bg-loyal-customers">Loyal Customers</span> High frequency and monetary value — reliable revenue source.</div>
+						<div class="mb-2"><span class="badge badge-base bg-potential-loyalists">Potential Loyalists</span> Recent customers with good frequency and spending. Nurture them.</div>
+						<div class="mb-2"><span class="badge badge-base bg-new-customers">New Customers</span> Recent but low frequency/monetary — focus on onboarding.</div>
+						<div class="mb-2"><span class="badge badge-base bg-big-spenders">Big Spenders</span> High monetary value, regardless of recency or frequency.</div>
+						<div class="mb-2"><span class="badge badge-base bg-regular-customers">Regular Customers</span> Consistent shoppers but not exceptional. Upsell opportunities.</div>
+						<div class="mb-2"><span class="badge badge-base bg-need-attention">Need Attention</span> Good customers (high F & M) who haven't purchased recently.</div>
+						<div class="mb-2"><span class="badge badge-base bg-at-risk">At Risk</span> Average customers who haven't shopped recently.</div>
+						<div class="mb-2"><span class="badge badge-base bg-hibernating">Hibernating</span> Low activity customers who might be lost.</div>
+						<div class="mb-2"><span class="badge badge-base bg-lost">Lost</span> Lowest scores across all dimensions.</div>
+					</div>
+                </div>
+              </div>
+              <div class="col-6 col-lg-6">
+                <div class="card h-100 shadow-sm guide-card">
+                  <div class="card-body">
+                    <div class="d-flex align-items-center gap-2 mb-4"><i class="fa-solid fa-user-slash text-danger"></i><strong>Churn Risk Levels</strong></div>
+                    <div class="mb-4"><span class="badge bg-danger">Very High Risk</span> Customers are on the verge of leaving — urgent re-engagement is critical.</div>
+                    <div class="mb-4"><span class="badge bg-warning text-dark">High Risk</span> Customers are disengaging — require immediate attention to prevent churn.</div>
+                    <div class="mb-4"><span class="badge bg-info text-dark">Medium Risk</span> Customers show moderate activity — may churn if not nurtured.</div>
+					<div class="mb-4"><span class="badge bg-success">Low Risk</span> Customers are loyal and engaged — very unlikely to churn.</div>
+                    <div class="mb-4"><span class="badge bg-gray text-light">N/A</span> No churn data available for this customer segment.</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+  </div>
+</div>
+
+<div id="generatedExperimentData" class="d-none" data-experiments='[{"id":13,"active":false},{"id":11,"active":false},{"id":10,"active":true},{"id":6,"active":false},{"id":5,"active":false},{"id":4,"active":false},{"id":3,"active":false}]'></div>
+<dialog id="experimentConfirmDialog" class="experiment-confirm-dialog" aria-labelledby="experimentConfirmTitle">
+  <div class="experiment-confirm-header" id="experimentConfirmTitle">Confirm action</div>
+  <div class="experiment-confirm-body"><p class="mb-0" id="experimentConfirmMessage"></p></div>
+  <div class="experiment-confirm-actions">
+    <button type="button" class="btn btn-outline-secondary" id="experimentConfirmCancel">Cancel</button>
+    <button type="button" class="btn btn-primary" id="experimentConfirmAccept">Confirm</button>
+  </div>
+</dialog>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const csrftoken = (document.cookie.split('; ').find(r => r.startsWith('csrftoken=')) || '').split('=')[1] || '';
+    const detailModalEl = document.getElementById('detailModal');
+    if (!detailModalEl) return;
+
+    // -----------------------------------------------------------------
+    // ۱. تابع نمایش مودال (بدون تغییر)
+    // -----------------------------------------------------------------
+    function showDetailModal(title, body, footer = null) {
+        const modalTitle = detailModalEl.querySelector('.modal-title');
+        const modalBody = detailModalEl.querySelector('.modal-body');
+        const modalFooter = detailModalEl.querySelector('.modal-footer');
+
+        if (modalTitle) modalTitle.innerHTML = title;
+        if (modalBody) modalBody.innerHTML = body;
+        if (modalFooter) {
+            if (footer) {
+                modalFooter.innerHTML = footer;
+            } else {
+                modalFooter.innerHTML = '<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>';
+            }
+        }
+        
+        const modal = bootstrap.Modal.getOrCreateInstance(detailModalEl);
+        modal.show();
+    }
+
+    // -----------------------------------------------------------------
+    // ۲. تابع مرکزی برای دریافت و نمایش داده‌های هر دو نوع مودال
+    // -----------------------------------------------------------------
+    async function fetchAndDisplayPage(type, identifier, page) {
+        const form = new FormData();
+        form.append('csrfmiddlewaretoken', csrftoken);
+        form.append('page', page);
+
+        let apiUrl = '';
+        let titlePrefix = '';
+        
+        if (type === 'rfm') {
+            form.append('rfm_segment', identifier);
+            apiUrl = '/analysis/api/segment/';
+            titlePrefix = 'Segment: ';
+        } else if (type === 'churn') {
+            form.append('churn_risk', identifier);
+            apiUrl = '/analysis/api/churn/';
+            titlePrefix = 'Churn Risk: ';
+        }
+
+        const res = await fetch(apiUrl, { method: 'POST', body: form });
+        const j = await res.json();
+        
+        if (j.error) {
+            return showDetailModal(titlePrefix + identifier, `<div class="text-danger">${j.error}</div>`);
+        }
+
+        const m = j.metrics || {};
+        const p = j.pagination || {};
+        let bodyHtml = '';
+
+        // ساخت بخش متریک‌ها بر اساس نوع مودال
+        if (type === 'rfm') {
+            bodyHtml = `<div class="row g-3">
+                <div class="col-3 text-center"><div class="text-muted small">Customers</div><div class="fw-bold">${m.customers || 0}</div></div>
+                <div class="col-3 text-center"><div class="text-muted small">Avg Spend</div><div class="fw-bold">$${Number(m.avg_spend || 0).toFixed(2)}</div></div>
+                <div class="col-3 text-center"><div class="text-muted small">Avg Txns</div><div class="fw-bold">${Number(m.avg_txns || 0).toFixed(1)}</div></div>
+                <div class="col-3 text-center"><div class="text-muted small">Avg Basket</div><div class="fw-bold">$${Number(m.avg_basket || 0).toFixed(2)}</div></div>
+            </div>`;
+        } else if (type === 'churn') {
+            bodyHtml = `<div class="row g-3">
+                <div class="col-2 text-center"><div class="text-muted small">Customers</div><div class="fw-bold">${m.customers || 0}</div></div>
+                <div class="col-2 text-center"><div class="text-muted small">Avg Spend</div><div class="fw-bold">$${Number(m.avg_spend || 0).toFixed(2)}</div></div>
+                <div class="col-2 text-center"><div class="text-muted small">Avg Txns</div><div class="fw-bold">${Number(m.avg_txns || 0).toFixed(1)}</div></div>
+                <div class="col-2 text-center"><div class="text-muted small">Avg Basket</div><div class="fw-bold">$${Number(m.avg_basket || 0).toFixed(2)}</div></div>
+                <div class="col-2 text-center"><div class="text-muted small">Avg Risk</div><div class="fw-bold">${(Number(m.avg_churn_probability || 0) * 100).toFixed(1)}%</div></div>
+                <div class="col-2 text-center"><div class="text-muted small">Risk Range</div><div class="fw-bold">${(Number(m.min_churn_probability || 0) * 100).toFixed(0)}% - ${(Number(m.max_churn_probability || 0) * 100).toFixed(0)}%</div></div>
+            </div>`;
+        }
+        
+        // ساخت جدول (مشترک برای هر دو)
+        bodyHtml += '<h6 class="mt-3"></h6><div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Household</th><th>Spend</th><th>Txns</th><th>Avg Basket</th><th>R-F-M</th><th>Churn %</th><th>Updated</th></tr></thead><tbody>';
+		(j.households_page || []).forEach(h => {
+			const profileUrl = "/customers/detail/0/".replace('0', h.household_key);
+			bodyHtml += `<tr>
+				<td>
+					<a href="${profileUrl}" class="d-flex align-items-center text-decoration-none text-dark">
+						<i class="fa-solid fa-user text-muted me-2"></i>
+						<span>${h.household_key}</span>
+					</a>
+				</td>
+				<td>$${Number(h.total_spend || 0).toFixed(2)}</td>
+				<td>${h.total_transactions || 0}</td>
+				<td>$${Number(h.avg_basket_value || 0).toFixed(2)}</td>
+				<td>${h.recency_score || '-'}-${h.frequency_score || '-'}-${h.monetary_score || '-'}</td>
+				<td>${(Number(h.churn_probability || 0) * 100).toFixed(1)}%</td>
+				<td>${(h.updated_at || '').toString().slice(0, 10)}</td>
+			</tr>`;
+		});
+        bodyHtml += '</tbody></table></div>';
+        
+        // ساخت فوتر مودال (مشترک برای هر دو)
+        const itemsPerPage = 20;
+        const startItem = (p.current_page - 1) * itemsPerPage + 1;
+        const endItem = Math.min(p.current_page * itemsPerPage, p.total_items);
+        let footerHtml = `<div class="d-flex justify-content-between w-100 align-items-center">
+            <span class="text-muted small">Showing ${startItem}-${endItem} of ${p.total_items} records</span>
+            <div class="pager" style="margin:0">
+                <a href="#" class="page-link ${p.has_previous ? '' : 'disabled'}" data-page="1" id="first-page-btn">&laquo;&laquo; First</a>
+                <a href="#" class="page-link ${p.has_previous ? '' : 'disabled'}" data-page="${p.current_page - 1}" id="prev-page-btn">Previous</a>
+                <a href="#" class="page-link ${p.has_next ? '' : 'disabled'}" data-page="${p.current_page + 1}" id="next-page-btn">Next</a>
+                <a href="#" class="page-link ${p.has_next ? '' : 'disabled'}" data-page="${p.total_pages}" id="last-page-btn">Last &raquo;&raquo;</a>
+            </div>
+        </div>`;
+
+        // ذخیره اطلاعات لازم برای کلیک‌های بعدی روی خود مودال
+        detailModalEl.dataset.type = type;
+        detailModalEl.dataset.identifier = identifier;
+        
+        showDetailModal(titlePrefix + identifier, bodyHtml, footerHtml);
+    }
+    
+    // -----------------------------------------------------------------
+    // ۳. Event Listener مرکزی برای مدیریت کلیک دکمه‌های صفحه‌بندی
+    // -----------------------------------------------------------------
+    detailModalEl.addEventListener('click', function(event) {
+        const target = event.target.closest('a'); // برای اطمینان از کلیک روی لینک
+        if (!target) return;
+
+        const type = detailModalEl.dataset.type;
+        const identifier = detailModalEl.dataset.identifier;
+
+        // Any pager link carrying a page number, so First and Last work like the
+        // two that were here before rather than needing their ids listed.
+        if (target.dataset.page !== undefined) {
+            event.preventDefault();
+            if (!target.classList.contains('disabled')) {
+                const page = target.dataset.page;
+                fetchAndDisplayPage(type, identifier, page);
+            }
+        }
+    });
+
+    // -----------------------------------------------------------------
+    // ۴. Event Listenerهای اولیه برای باز کردن مودال‌ها
+    // -----------------------------------------------------------------
+    document.querySelectorAll('.segment-card').forEach(el => {
+        el.addEventListener('click', () => {
+            fetchAndDisplayPage('rfm', el.dataset.seg, 1);
+        });
+    });
+
+    document.querySelectorAll('.churn-card').forEach(el => {
+        el.addEventListener('click', () => {
+            fetchAndDisplayPage('churn', el.dataset.risk, 1);
+        });
+    });
+
+    // کد مربوط به مودال Household (که صفحه‌بندی ندارد)
+    document.querySelectorAll('.household-card').forEach(el=>{
+        el.addEventListener('click', async ()=>{
+            const hh = el.dataset.household;
+            const form = new FormData(); form.append('csrfmiddlewaretoken', csrftoken); form.append('household_key', hh);
+            const res = await fetch('/analysis/api/household/', {method:'POST', body: form});
+            const j = await res.json();
+            if(j.error){ return showDetailModal('Household '+hh, '<div class="text-danger">'+j.error+'</div>'); }
+            const seg = j.segment||{}; 
+            let body = `<div class="row g-3">
+                <div class="col-2 text-center"><div class="text-muted small">Segment</div><div class="fw-bold">${seg.rfm_segment||'-'}</div></div>
+                <div class="col-2 text-center"><div class="text-muted small">R-F-M</div><div class="fw-bold">${seg.recency_score||'-'}-${seg.frequency_score||'-'}-${seg.monetary_score||'-'}</div></div>
+                <div class="col-2 text-center"><div class="text-muted small">Churn Risk</div><div class="fw-bold">${(Number(seg.churn_probability||'0')*100).toFixed(1)}%</div></div>
+                <div class="col-2 text-center"><div class="text-muted small">Total Spend</div><div class="fw-bold">$${Number(seg.total_spend||0).toFixed(2)}</div></div>
+                <div class="col-2 text-center"><div class="text-muted small">Transactions</div><div class="fw-bold">${seg.total_transactions||0}</div></div>
+                <div class="col-2 text-center"><div class="text-muted small">Avg Basket</div><div class="fw-bold">$${Number(seg.avg_basket_value||0).toFixed(2)}</div></div>
+            </div>`;
+            body += '<h6 class="mt-3">Recent Transactions</h6><div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Basket</th><th>Product</th><th>Qty</th><th>Sales</th><th>Day</th></tr></thead><tbody>';
+            (j.recent_transactions||[]).forEach(t=>{ body += `<tr><td>${t.basket_id}</td><td>${t.product_id} ${t.commodity_desc?('— '+t.commodity_desc):''}</td><td>${t.quantity}</td><td>$${Number(t.sales_value||0).toFixed(2)}</td><td>${t.day}</td></tr>`; });
+            body += '</tbody></table></div>';
+            showDetailModal('Household: '+hh, body);
+        })
+    });
+});
+
+// Regenerate Segments Button Handler
+const regenerateSegmentsButton = document.getElementById('regenerateSegmentsBtn');
+if (regenerateSegmentsButton) regenerateSegmentsButton.addEventListener('click', function() {
+    const btn = this;
+    const originalHTML = btn.innerHTML;
+
+    // Show loading state
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Regenerating...';
+
+    // Call API to regenerate segments
+    fetch('/analysis/api/regenerate-segments/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Show success message
+            showNotification('Success', `Successfully regenerated ${data.count} customer segments!`, 'success');
+
+            // Reload page after 1.5 seconds to show updated segments
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
+        } else {
+            // Show error message
+            showNotification('Error', data.error || 'Failed to regenerate segments', 'error');
+            btn.disabled = false;
+            btn.innerHTML = originalHTML;
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('Error', 'An error occurred while regenerating segments', 'error');
+        btn.disabled = false;
+        btn.innerHTML = originalHTML;
+    });
+});
+
+// Helper function to get CSRF token
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+const methodSelect = document.getElementById('windowMethod');
+const stepControl = document.getElementById('stepControl');
+const stepHelp = document.getElementById('stepHelp');
+const observationSelect = document.querySelector('[name="observation_window_days"]');
+const horizonSelect = document.querySelector('[name="prediction_horizon_days"]');
+const stepSelect = document.querySelector('[name="sliding_step_days"]');
+const boundaryStatus = document.getElementById('windowBoundaryStatus');
+const trainExperimentButton = document.getElementById('runExperimentButton');
+
+function updateBoundaryStatus() {
+    const minDay = Number(boundaryStatus.dataset.minDay);
+    const maxDay = Number(boundaryStatus.dataset.maxDay);
+    const observation = Number(observationSelect.value);
+    const horizon = Number(horizonSelect.value);
+    const nonOverlapping = methodSelect.value === 'non_overlapping';
+    const step = nonOverlapping ? observation + horizon : Number(stepSelect.value);
+
+    if (!Number.isFinite(minDay) || !Number.isFinite(maxDay) || maxDay < minDay || !step) {
+        boundaryStatus.className = 'alert alert-warning mt-2 mb-0 py-2 small';
+        boundaryStatus.textContent = 'Dataset range is unavailable. Training will validate the selected window settings.';
+        trainExperimentButton.disabled = false;
+        return;
+    }
+
+    const firstEnd = minDay + observation + horizon - 1;
+    const completeWindows = firstEnd > maxDay ? 0 : Math.floor((maxDay - firstEnd) / step) + 1;
+    const lastEnd = completeWindows ? firstEnd + (completeWindows - 1) * step : minDay - 1;
+    const nextEnd = firstEnd + completeWindows * step;
+    const missingDays = Math.max(0, nextEnd - maxDay);
+    const tailDays = Math.max(0, maxDay - lastEnd);
+
+    if (completeWindows >= 3) {
+        boundaryStatus.className = 'alert alert-success mt-2 mb-0 py-2 small';
+        boundaryStatus.innerHTML = `<strong>Ready to train.</strong> Dataset days ${minDay}-${maxDay}; ${completeWindows} complete historical windows are available. ${tailDays} trailing day(s) are excluded because their future outcome is incomplete.`;
+        trainExperimentButton.disabled = false;
+        return;
+    }
+
+    trainExperimentButton.disabled = true;
+    boundaryStatus.className = 'alert alert-warning mt-2 mb-0 py-2 small';
+    let recommendation = 'Choose smaller observation/horizon values.';
+    if (nonOverlapping) {
+        const suggestedStep = 30;
+        const slidingWindows = firstEnd > maxDay ? 0 : Math.floor((maxDay - firstEnd) / suggestedStep) + 1;
+        recommendation = `Switch to Sliding Windows with a ${suggestedStep}-day step (${slidingWindows} complete windows). <button type="button" class="btn btn-sm btn-outline-primary ms-2" id="useSlidingRecommendation">Use this setup</button>`;
+    }
+    boundaryStatus.innerHTML = `<strong>Cannot train this configuration.</strong> Only ${completeWindows} complete window(s) fit in days ${minDay}-${maxDay}. The next window would end on day ${nextEnd}, ${missingDays} day(s) beyond the dataset. ${recommendation}`;
+    const recommendationButton = document.getElementById('useSlidingRecommendation');
+    if (recommendationButton) {
+        recommendationButton.addEventListener('click', () => {
+            methodSelect.value = 'sliding';
+            stepSelect.value = '30';
+            updateWindowControls();
+        });
+    }
+}
+
+function updateWindowControls() {
+    const nonOverlapping = methodSelect.value === 'non_overlapping';
+    stepControl.classList.toggle('d-none', nonOverlapping);
+    stepHelp.textContent = nonOverlapping
+        ? 'Step size is calculated automatically: observation window + prediction horizon.'
+        : 'Sliding windows overlap. Labels always begin after each cutoff day.';
+    updateBoundaryStatus();
+}
+methodSelect.addEventListener('change', updateWindowControls);
+observationSelect.addEventListener('change', updateBoundaryStatus);
+horizonSelect.addEventListener('change', updateBoundaryStatus);
+stepSelect.addEventListener('change', updateBoundaryStatus);
+updateWindowControls();
+
+function refreshDashboard(showNewestExperiment = false) {
+    // A cache-busting URL makes sure the new active experiment and its scores
+    // are rendered from the server rather than an older browser page.
+    const nextUrl = new URL(window.location.href);
+    nextUrl.searchParams.set('refresh', Date.now().toString());
+    window.location.assign(nextUrl.toString());
+}
+
+document.getElementById('churnExperimentForm').addEventListener('submit', async function(event) {
+    event.preventDefault();
+    const button = document.getElementById('runExperimentButton');
+    const progress = document.getElementById('trainingProgress');
+    const startedAt = Date.now();
+    button.disabled = true;
+    button.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Training…';
+    progress.classList.remove('d-none');
+    progress.textContent = 'Checking reusable cache, then training only if needed… 0s elapsed';
+    const progressTimer = window.setInterval(() => {
+        progress.textContent = `Checking reusable cache, then training only if needed… ${Math.floor((Date.now() - startedAt) / 1000)}s elapsed`;    }, 1000);
+    try {
+        const response = await fetch('/analysis/api/churn/experiments/run/', {method: 'POST', body: new FormData(this)});
+        const payload = await response.json();
+        if (!payload.success) throw new Error(payload.error || 'Training failed.');
+        const history = payload.history || {};
+        const elapsed = Number(payload.experiment.elapsed_seconds || 0).toFixed(1);
+        const restored = Boolean(payload.experiment.restored_from_model_cache);
+        const message = restored
+            ? `Restored the identical saved model result in ${elapsed}s. No model retraining was needed. Recall ${payload.experiment.recall.toFixed(3)}, F1 ${payload.experiment.f1.toFixed(3)}. Activate it when you are ready.`
+            : `Trained in ${elapsed}s. Recall ${payload.experiment.recall.toFixed(3)}, F1 ${payload.experiment.f1.toFixed(3)}. Saved ${history.window_records || 0} window-history records, including ${history.scored_records || 0} scored checkpoints. Future identical rules can restore this result without retraining.`;
+        showNotification(restored ? 'Experiment restored from cache' : 'Experiment complete', message, 'success');
+        window.setTimeout(() => refreshDashboard(true), 1200);
+    } catch (error) {
+        showNotification('Training failed', error.message, 'error');
+        button.disabled = false;
+        button.innerHTML = '<i class="fa-solid fa-play me-2"></i>Train experiment';
+        progress.classList.add('d-none');
+    } finally {
+        window.clearInterval(progressTimer);
+    }
+});
+
+function confirmExperimentAction({title, message, confirmLabel, confirmClass = 'btn-primary'}) {
+    const dialog = document.getElementById('experimentConfirmDialog');
+    if (!dialog || !dialog.showModal) return Promise.resolve(window.confirm(message));
+    return new Promise(resolve => {
+        const titleElement = document.getElementById('experimentConfirmTitle');
+        const messageElement = document.getElementById('experimentConfirmMessage');
+        const cancelButton = document.getElementById('experimentConfirmCancel');
+        const acceptButton = document.getElementById('experimentConfirmAccept');
+        const finish = accepted => { dialog.close(); resolve(accepted); };
+        titleElement.textContent = title;
+        messageElement.textContent = message;
+        acceptButton.textContent = confirmLabel;
+        acceptButton.className = `btn ${confirmClass}`;
+        cancelButton.onclick = () => finish(false);
+        acceptButton.onclick = () => finish(true);
+        dialog.oncancel = event => { event.preventDefault(); finish(false); };
+        dialog.showModal();
+    });
+}
+
+document.querySelectorAll('.activate-experiment').forEach(button => button.addEventListener('click', async function() {
+    if (!await confirmExperimentAction({
+        title: 'Activate churn rule',
+        message: 'Use this experiment to update the dashboard churn-risk scores?',
+        confirmLabel: 'Activate rule'
+    })) return;
+    const response = await fetch(`/analysis/api/churn/experiments/${this.dataset.id}/activate/`, {method: 'POST'});
+    const payload = await response.json();
+    if (payload.success) {
+        showNotification('Experiment activated', 'Dashboard scores were updated. Refreshing the page now...', 'success');
+        window.setTimeout(refreshDashboard, 700);
+    }
+    else showNotification('Activation failed', payload.error || 'Could not activate experiment.', 'error');
+}));
+
+function escapeExperimentText(value) {
+    return String(value ?? '').replace(/[&<>'"]/g, character => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#039;', '"': '&quot;'
+    })[character]);
+}
+
+function formatExperimentMetric(value, digits = 3) {
+    return value === null || value === undefined ? 'N/A' : Number(value).toFixed(digits);
+}
+
+function showExperimentDetailsModal(body) {
+    const modalElement = document.getElementById('detailModal');
+    const modalTitle = modalElement?.querySelector('.modal-title');
+    const modalBody = modalElement?.querySelector('.modal-body');
+    const modalFooter = modalElement?.querySelector('.modal-footer');
+    if (!modalElement || !modalTitle || !modalBody || !modalFooter) {
+        throw new Error('The details window is not available on this page.');
+    }
+    modalTitle.textContent = 'Churn experiment details';
+    modalBody.innerHTML = body;
+    modalFooter.innerHTML = '<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>';
+    bootstrap.Modal.getOrCreateInstance(modalElement).show();
+}
+
+document.querySelectorAll('.experiment-details').forEach(button => button.addEventListener('click', async function() {
+    try {
+        const response = await fetch(`/analysis/api/churn/experiments/${this.dataset.id}/details/`);
+        const payload = await response.json();
+        if (!payload.success) throw new Error(payload.error || 'Could not load this rule.');
+        const experiment = payload.experiment;
+        const metadata = experiment.metadata || {};
+        const hasMetadata = Object.keys(metadata).length > 0;
+        const metadataHtml = hasMetadata
+            ? `<div class="experiment-technical"><details><summary><i class="fa-solid fa-sliders me-2"></i>Training definition and technical settings</summary><div class="experiment-technical-content"><p class="small text-muted mb-2">${escapeExperimentText(metadata.label_definition || '')}</p><p class="small text-muted mb-0">${escapeExperimentText(metadata.time_split || '')}</p><div class="experiment-parameter-grid">${Object.entries(metadata.model_parameters || {})
+                   .map(([key, value]) => `<div class="experiment-parameter"><strong>${escapeExperimentText(key)}</strong><br>${escapeExperimentText(value)}</div>`)
+                   .join('')}</div></div></details></div>`
+            : '<div class="experiment-technical"><details><summary><i class="fa-solid fa-sliders me-2"></i>Training definition and technical settings</summary><div class="experiment-technical-content small text-muted">Detailed metadata was not saved for this older rule. Train it again to save full details.</div></details></div>';
+        const body = `
+            <div class="experiment-detail-rule">
+                <div><div class="experiment-detail-eyebrow">Rule configuration</div><h6>${escapeExperimentText(experiment.method)} windows</h6><div class="small text-muted">${experiment.observation_window_days}d observation · ${experiment.prediction_horizon_days}d horizon · ${experiment.step_size_days}d step</div></div>
+                <div class="experiment-detail-cutoff"><div class="experiment-detail-eyebrow">Classification cutoff</div><strong>${formatExperimentMetric(experiment.classification_threshold, 2)}</strong><span class="small text-muted">Used for Recall and F1</span></div>
+            </div>
+            <div class="row g-2">${[['Recall', formatExperimentMetric(experiment.recall)], ['F1', formatExperimentMetric(experiment.f1)], ['PR-AUC', formatExperimentMetric(experiment.pr_auc)], ['ROC-AUC', formatExperimentMetric(experiment.roc_auc)]].map(([label, value]) => `<div class="col-6 col-md-3"><div class="experiment-detail-metric"><div class="label">${label}</div><div class="value">${value}</div></div></div>`).join('')}</div>
+            <div class="experiment-detail-section"><div class="experiment-detail-section-title"><i class="fa-solid fa-clipboard-check me-2 text-primary"></i>Test-period check</div><div class="row g-2"><div class="col-6 col-md-3"><div class="experiment-detail-check"><span class="small text-muted">Correct churn (TP)</span><span class="value">${experiment.true_positive ?? '—'}</span></div></div><div class="col-6 col-md-3"><div class="experiment-detail-check"><span class="small text-muted">Missed churners (FN)</span><span class="value">${experiment.false_negative ?? '—'}</span></div></div><div class="col-6 col-md-3"><div class="experiment-detail-check"><span class="small text-muted">False alarms (FP)</span><span class="value">${experiment.false_positive ?? '—'}</span></div></div><div class="col-6 col-md-3"><div class="experiment-detail-check"><span class="small text-muted">Correct non-churn (TN)</span><span class="value">${experiment.true_negative ?? '—'}</span></div></div></div></div>
+            <div class="experiment-detail-section"><div class="experiment-detail-section-title"><i class="fa-solid fa-chart-pie me-2 text-primary"></i>Sample split</div><div class="row g-2"><div class="col-4"><div class="experiment-detail-check"><span class="small text-muted">Training</span><span class="value">${experiment.training_samples ?? '—'}</span></div></div><div class="col-4"><div class="experiment-detail-check"><span class="small text-muted">Validation</span><span class="value">${experiment.validation_samples ?? '—'}</span></div></div><div class="col-4"><div class="experiment-detail-check"><span class="small text-muted">Test</span><span class="value">${experiment.test_samples ?? '—'}</span></div></div></div></div>
+            ${metadataHtml}`;
+        showExperimentDetailsModal(body);
+    } catch (error) {
+        showNotification('Details unavailable', error.message, 'error');
+    }
+}));
+
+// Helper function to show notifications
+function showNotification(title, message, type) {
+    const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
+    const icon = type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle';
+
+    const notification = document.createElement('div');
+    notification.className = `alert ${alertClass} alert-dismissible fade show position-fixed`;
+    notification.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+    notification.innerHTML = `
+        <i class="fas ${icon} me-2"></i>
+        <strong>${title}:</strong> ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+
+    document.body.appendChild(notification);
+
+    // Auto remove after 5 seconds
+    setTimeout(() => {
+        notification.remove();
+    }, 5000);
+}
+// Add a delete action to every generated-rule row without changing its layout.
+const generatedExperiments = JSON.parse(document.getElementById('generatedExperimentData').dataset.experiments);
+const experimentResultsTable = document.querySelector('#churnExperimentForm ~ .table-responsive table');
+if (experimentResultsTable) {
+    experimentResultsTable.querySelector('thead th:last-child').textContent = 'Actions';
+}
+document.querySelectorAll('#churnExperimentForm ~ .table-responsive tbody tr').forEach((row, index) => {
+    const experiment = generatedExperiments[index];
+    if (!experiment) return;
+    const actionCell = row.lastElementChild;
+    const actionGroup = document.createElement('div');
+    actionGroup.className = 'experiment-actions';
+    while (actionCell.firstChild) actionGroup.appendChild(actionCell.firstChild);
+    actionCell.appendChild(actionGroup);
+    const deleteButton = document.createElement('button');
+    deleteButton.type = 'button';
+    deleteButton.className = 'btn btn-sm btn-outline-danger';
+    deleteButton.textContent = 'Delete';
+    if (experiment.active) {
+        deleteButton.disabled = true;
+        deleteButton.title = 'Activate another rule before deleting the active rule.';
+        actionGroup.appendChild(deleteButton);
+        return;
+    }
+    deleteButton.addEventListener('click', async () => {
+        const warning = experiment.active
+            ? 'This is the active rule. Activate another rule first, then delete it. Continue?'
+            : 'Delete this rule? The reusable RFM/history cache will be kept.';
+        if (!await confirmExperimentAction({
+            title: 'Delete churn rule',
+            message: warning,
+            confirmLabel: 'Delete rule',
+            confirmClass: 'btn-danger'
+        })) return;
+        const response = await fetch(`/analysis/api/churn/experiments/${experiment.id}/delete/`, {method: 'POST'});
+        const payload = await response.json();
+        if (!payload.success) {
+            showNotification('Delete unavailable', payload.error || 'Could not delete this rule.', 'error');
+            return;
+        }
+        showNotification('Rule deleted', payload.message, 'success');
+        window.setTimeout(refreshDashboard, 600);
+    });
+    actionGroup.appendChild(deleteButton);
+});
+</script>
+
+
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 3rem 2rem 2rem; margin-top: 4rem; border-top: 3px solid rgba(255,255,255,0.2);">
+    <div class="container-fluid" style="max-width: 1400px;">
+      <div class="row align-items-center">
+        <div class="col-md-4 text-center text-md-start mb-3 mb-md-0">
+          <div style="display: flex; align-items: center; gap: 1rem; justify-content: center; justify-content: md-start;">
+            <a href="https://kashanu.ac.ir/en" target="_blank" rel="noopener noreferrer" aria-label="Visit the University of Kashan website">
+              <img src="/static/images/kuLogo.png" alt="University of Kashan Logo" style="width: 100px; height: 90px; filter: drop-shadow(0 2px 8px rgba(255,255,255,0.2));">
+            </a>
+            <div>
+              <div style="font-size: 1.1rem; font-weight: 700; margin-bottom: 0.25rem;">University of Kashan</div>
+              <div style="font-size: 0.9rem; opacity: 0.9;">Computer Engineering Department</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-md-4 text-center mb-3 mb-md-0">
+          <div style="font-size: 1.5rem; font-weight: 800; margin-bottom: 0.5rem;">Market Analytics Platform</div>
+          <div style="font-size: 0.875rem; opacity: 0.85;">Advanced Data Mining & Analysis System</div>
+        </div>
+
+        <div class="col-md-4 text-center text-md-end">
+          <div style="font-size: 0.9rem; margin-bottom: 0.5rem; opacity: 0.9;">
+            <a href="https://www.djangoproject.com/" target="_blank" rel="noopener noreferrer" style="color: inherit; text-decoration: none;" aria-label="Visit the Django website">
+              <i class="fas fa-shield-alt"></i> Protected by Django Authentication
+            </a>
+          </div>
+          <div style="font-size: 1.1rem; font-weight: 600;">© 2026</div>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    // Modern Navigation Controller
+    class NavigationController {
+      constructor() {
+        this.init();
+      }
+      
+      init() {
+        this.setupThemeToggle();
+        this.setupMobileNav();
+        this.setupActiveLinks();
+        this.setupScrollEffects();
+      }
+      
+      setupThemeToggle() {
+        const setTheme = (theme) => {
+          document.documentElement.setAttribute('data-theme', theme);
+          try {
+            localStorage.setItem('market.theme', theme);
+            localStorage.setItem('theme', theme);
+          } catch(e) {}
+          
+          const icon = document.querySelector('#site-theme-toggle .icon');
+          if (icon) {
+            icon.className = 'icon fa-solid ' + (theme === 'dark' ? 'fa-sun' : 'fa-moon');
+          }
+        };
+        
+        const current = document.documentElement.getAttribute('data-theme') || 'light';
+        setTheme(current);
+        
+        const themeBtn = document.getElementById('site-theme-toggle');
+        if (themeBtn) {
+          themeBtn.addEventListener('click', () => {
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            setTheme(currentTheme === 'dark' ? 'light' : 'dark');
+            
+            // Add click animation
+            themeBtn.style.transform = 'scale(0.9)';
+            setTimeout(() => {
+              themeBtn.style.transform = '';
+            }, 150);
+          });
+        }
+      }
+      
+      setupMobileNav() {
+        const mobileToggle = document.getElementById('mobileNavToggle');
+        const navMiddle = document.getElementById('navMiddle');
+
+        if (mobileToggle && navMiddle) {
+          mobileToggle.addEventListener('click', () => {
+            navMiddle.classList.toggle('show');
+            const icon = mobileToggle.querySelector('i');
+            if (icon) {
+              icon.classList.toggle('fa-bars');
+              icon.classList.toggle('fa-times');
+            }
+          });
+
+          // Close mobile nav when clicking outside
+          document.addEventListener('click', (e) => {
+            if (!e.target.closest('.modern-nav')) {
+              navMiddle.classList.remove('show');
+              const icon = mobileToggle.querySelector('i');
+              if (icon) {
+                icon.classList.add('fa-bars');
+                icon.classList.remove('fa-times');
+              }
+            }
+          });
+        }
+      }
+      
+      setupActiveLinks() {
+        const currentPath = window.location.pathname;
+        const navLinks = document.querySelectorAll('.nav-link');
+        
+        navLinks.forEach(link => {
+          const href = link.getAttribute('href');
+          if (!href) return;
+          const linkPath = new URL(href, window.location.href).pathname;
+          if (currentPath === linkPath || 
+              (linkPath !== '/analysis/' && currentPath.startsWith(linkPath))) {
+            link.classList.add('active');
+          }
+        });
+      }
+      
+      setupScrollEffects() {
+        let lastScrollY = window.scrollY;
+        const nav = document.querySelector('.modern-nav');
+        
+        window.addEventListener('scroll', () => {
+          const currentScrollY = window.scrollY;
+          
+          if (currentScrollY > lastScrollY && currentScrollY > 100) {
+            // Scrolling down
+            nav.style.transform = 'translateY(-100%)';
+          } else {
+            // Scrolling up
+            nav.style.transform = 'translateY(0)';
+          }
+          
+          lastScrollY = currentScrollY;
+        });
+      }
+    }
+    
+    /* Opening a detail from inside an expanded list replaces what is on screen.
+       Anything marked data-modal-restore is remembered first -- its markup, how
+       far it was scrolled, and the name of the view it belongs to -- so Back can
+       put the reader down on the same card they opened rather than closing the
+       list and sending them to the top of the page. */
+    const detailModalHistory = [];
+
+    function captureDetailModalState() {
+      const modalEl = document.getElementById('detailModal');
+      if (!modalEl || !modalEl.classList.contains('show')) return;
+      const restorable = modalEl.querySelector('[data-modal-restore]');
+      if (!restorable) return;
+      detailModalHistory.push({
+        title: modalEl.querySelector('.modal-title').innerHTML,
+        body: modalEl.querySelector('.modal-body').innerHTML,
+        view: restorable.dataset.modalRestore,
+        scrollTop: restorable.scrollTop,
+      });
+    }
+
+    function resetDetailModalHistory() {
+      detailModalHistory.length = 0;
+      updateDetailModalBack();
+    }
+
+    function updateDetailModalBack() {
+      const button = document.getElementById('detailModalBack');
+      if (button) button.hidden = !detailModalHistory.length;
+    }
+
+    function detailModalBack() {
+      const state = detailModalHistory.pop();
+      const modalEl = document.getElementById('detailModal');
+      if (!state || !modalEl) return;
+      modalEl.querySelector('.modal-title').innerHTML = state.title;
+      modalEl.querySelector('.modal-body').innerHTML = state.body;
+      updateDetailModalBack();
+      /* The list is put back as markup, so anything bound to its cards with
+         addEventListener is gone. The page that owns the view re-binds it, then
+         the scroll position is restored -- after re-binding, because that step
+         can replace the cards. */
+      if (typeof window.onDetailModalRestore === 'function') {
+        window.onDetailModalRestore(state.view);
+      }
+      const restored = modalEl.querySelector('[data-modal-restore]');
+      if (restored) restored.scrollTop = state.scrollTop;
+    }
+
+    // Shared modal helper
+    function showDetailModal(title, bodyHtml) {
+      const modalEl = document.getElementById('detailModal');
+      if (!modalEl) {
+        return alert(title + '\n\n' + bodyHtml.replace(/<[^>]+>/g, ''));
+      }
+
+      /* A modal that is not on screen starts a fresh trail. Clearing here as
+         well as on hide keeps the Back button honest even if the hide event is
+         missed, which the dispose-and-recreate below can cause. */
+      if (!modalEl.classList.contains('show')) detailModalHistory.length = 0;
+      captureDetailModalState();
+      
+      // Dispose of any existing modal instance first
+      const existingModal = bootstrap.Modal.getInstance(modalEl);
+      if (existingModal) {
+        existingModal.dispose();
+      }
+      
+      // Clear any leftover backdrop
+      const backdrops = document.querySelectorAll('.modal-backdrop');
+      backdrops.forEach(backdrop => backdrop.remove());
+      
+      // Reset body classes and styles
+      document.body.classList.remove('modal-open');
+      document.body.style.overflow = '';
+      document.body.style.paddingRight = '';
+      
+      modalEl.querySelector('.modal-title').innerHTML = title;
+      modalEl.querySelector('.modal-body').innerHTML = bodyHtml;
+      updateDetailModalBack();
+      
+      const modal = new bootstrap.Modal(modalEl, {
+        backdrop: true,
+        keyboard: true
+      });
+      
+      // Add proper cleanup when modal is hidden
+      modalEl.addEventListener('hidden.bs.modal', function() {
+        const allBackdrops = document.querySelectorAll('.modal-backdrop');
+        allBackdrops.forEach(backdrop => backdrop.remove());
+        document.body.classList.remove('modal-open');
+        document.body.style.overflow = '';
+        document.body.style.paddingRight = '';
+        modal.dispose();
+      }, { once: true });
+      
+      modal.show();
+      
+      // Add fade-in animation to modal content
+      const modalBody = modalEl.querySelector('.modal-body');
+      modalBody.style.opacity = '0';
+      modalBody.style.transform = 'translateY(20px)';
+      
+      setTimeout(() => {
+        modalBody.style.transition = 'all 0.3s ease';
+        modalBody.style.opacity = '1';
+        modalBody.style.transform = 'translateY(0)';
+      }, 100);
+    }
+    
+    // Notification System
+    function showNotification(message, type = 'info', duration = 3000) {
+      let container = document.getElementById('global-notification-stack');
+      if (!container) {
+        container = document.createElement('div');
+        container.id = 'global-notification-stack';
+        Object.assign(container.style, {
+          position: 'fixed',
+          top: '90px',
+          right: '20px',
+          zIndex: '9999',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '12px',
+          maxWidth: '360px'
+        });
+        document.body.appendChild(container);
+      }
+
+      const notification = document.createElement('div');
+      notification.className = 'alert alert-' + type + ' alert-dismissible fade show shadow-sm';
+      notification.style.margin = '0';
+      notification.style.display = 'flex';
+      notification.style.alignItems = 'center';
+      notification.style.gap = '12px';
+
+      const messageWrapper = document.createElement('div');
+      messageWrapper.className = 'flex-grow-1';
+      messageWrapper.innerHTML = message;
+      notification.appendChild(messageWrapper);
+
+      const closeButton = document.createElement('button');
+      closeButton.type = 'button';
+      closeButton.className = 'btn-close';
+      closeButton.setAttribute('data-bs-dismiss', 'alert');
+      closeButton.addEventListener('click', () => {
+        notification.classList.remove('show');
+        setTimeout(() => notification.remove(), 150);
+      });
+      notification.appendChild(closeButton);
+
+      container.appendChild(notification);
+
+      setTimeout(() => {
+        if (notification) {
+          notification.classList.remove('show');
+          setTimeout(() => notification.remove(), 200);
+        }
+      }, duration);
+    }
+    
+    // Initialize when DOM is loaded
+    document.addEventListener('DOMContentLoaded', () => {
+      new NavigationController();
+
+      document.getElementById('detailModalBack')?.addEventListener('click', detailModalBack);
+      /* Closing the modal ends the trail: reopening a detail later should not
+         offer to go back to a list the reader has already dismissed. */
+      document.getElementById('detailModal')?.addEventListener('hidden.bs.modal',
+        resetDetailModalHistory);
+      
+      // Add smooth scrolling to all anchor links
+      document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener('click', function (e) {
+          e.preventDefault();
+          const target = document.querySelector(this.getAttribute('href'));
+          if (target) {
+            target.scrollIntoView({
+              behavior: 'smooth',
+              block: 'start'
+            });
+          }
+        });
+      });
+    });
+  </script>
+  
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <!-- Shared modal -->
+  <div class="modal fade" id="detailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+      <div class="modal-content" style="border-radius: 20px; border: none; box-shadow: 0 20px 60px rgba(0,0,0,0.2);">
+        <div class="modal-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 20px 20px 0 0; border: none;">
+          <h5 class="modal-title" style="font-weight: 700;"></h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body" style="padding: 2rem;"></div>
+        <div class="modal-footer" style="border: none; padding: 1rem 2rem;">
+          <button type="button" class="btn btn-outline-primary" id="detailModalBack" hidden
+                  style="border-radius: 10px; font-weight: 600;">
+            <i class="fas fa-arrow-left me-1"></i>Back to list
+          </button>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" style="border-radius: 10px;">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <style>
+    /* Table transitions */
+    .metric-card {
+      backdrop-filter: blur(10px);
+    }
+    
+    .tool-card {
+      backdrop-filter: blur(10px);
+    }
+    
+    .chart-section {
+      backdrop-filter: blur(10px);
+    }
+    
+    /* Custom scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+    
+    ::-webkit-scrollbar-track {
+      background: #f1f1f1;
+      border-radius: 10px;
+    }
+    
+    ::-webkit-scrollbar-thumb {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: 10px;
+    }
+    
+    ::-webkit-scrollbar-thumb:hover {
+      background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%);
+    }
+  </style>
+</body>
+</html>
+

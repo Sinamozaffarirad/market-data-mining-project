@@ -1,0 +1,68 @@
+[
+  {
+    "path": "/analysis/",
+    "status": 200,
+    "bytes": 51110,
+    "seconds": 2.75
+  },
+  {
+    "path": "/analysis/association-rules/",
+    "status": 200,
+    "bytes": 562559,
+    "seconds": 0.52
+  },
+  {
+    "path": "/analysis/customer-segments/",
+    "status": 200,
+    "bytes": 129493,
+    "seconds": 0.1
+  },
+  {
+    "path": "/analysis/bi-dashboard/",
+    "status": 200,
+    "bytes": 200025,
+    "seconds": 0.34
+  },
+  {
+    "path": "/analysis/data-management/",
+    "status": 200,
+    "bytes": 77404,
+    "seconds": 0.06
+  },
+  {
+    "path": "/customers/search/",
+    "status": 200,
+    "bytes": 30473,
+    "seconds": 0.02
+  },
+  {
+    "path": "/analysis/product-recommender/",
+    "status": 200,
+    "bytes": 31972,
+    "seconds": 0.03
+  },
+  {
+    "path": "/analysis/customer-retention/",
+    "status": 200,
+    "bytes": 50452,
+    "seconds": 0.04
+  },
+  {
+    "path": "/analysis/api/bi/kpis/",
+    "status": 200,
+    "bytes": 422,
+    "seconds": 1.18
+  },
+  {
+    "path": "/analysis/api/bi/top-products/",
+    "status": 200,
+    "bytes": 5582,
+    "seconds": 2.67
+  },
+  {
+    "path": "/analysis/basket-analysis/",
+    "status": 200,
+    "bytes": 708265,
+    "seconds": 1.63
+  }
+]

@@ -1,0 +1,1420 @@
+{% extends "site/base.html" %}
+{% load market_icons %}
+{% block title %}Association Rules{% endblock %}
+{% block favicon %}{% favicon "🔗" %}{% endblock %}
+{% block content %}
+<style>
+/* The card system the basket-mining tabs use, so the two pages read as one
+   product rather than two. Only what this page draws is restated here. */
+/* Banner and frame come from analysis_shell.css. */
+.ar-page { --rev-1:#667eea; --rev-2:#764ba2; --rev-ink:#1e2338; --rev-muted:#6b7391; --rev-line:#e6e8f2; }
+.ar-page .rev-card {
+  background:#fff; border:1px solid var(--rev-line); border-radius:16px;
+  padding:1.1rem 1.2rem; margin-bottom:1rem; box-shadow:0 2px 14px rgba(102,126,234,.06);
+}
+.ar-page .rev-step { display:flex; gap:.75rem; align-items:flex-start; margin-bottom:.9rem; }
+.ar-page .rev-step-num {
+  flex:0 0 auto; width:26px; height:26px; border-radius:50%;
+  background:linear-gradient(135deg, var(--rev-1), var(--rev-2)); color:#fff;
+  display:grid; place-items:center; font-size:.8rem; font-weight:700;
+}
+.ar-page .rev-step-title { margin:0; font-size:.97rem; font-weight:700; color:var(--rev-ink); }
+.ar-page .rev-step-hint { margin:.1rem 0 0; font-size:.8rem; color:var(--rev-muted); }
+.ar-page .rev-head-sm {
+  display:flex; justify-content:space-between; align-items:flex-start;
+  gap:.75rem; flex-wrap:wrap; margin-bottom:.85rem;
+}
+.ar-page .rev-btn-primary {
+  background:linear-gradient(135deg, var(--rev-1), var(--rev-2)); color:#fff; border:none;
+  border-radius:10px; padding:.55rem 1.1rem; font-weight:600;
+}
+.ar-page .rev-btn-primary:hover { color:#fff; filter:brightness(1.06); }
+.ar-page .form-label { font-size:.72rem; font-weight:700; letter-spacing:.04em;
+  text-transform:uppercase; color:var(--rev-muted); }
+.ar-page .form-select, .ar-page .form-control { border-radius:.55rem; border-color:#dfe3f1; }
+.ar-page .form-text { font-size:.8rem; color:var(--rev-muted); }
+/* The value scale, as chips rather than a stack of one-line paragraphs. */
+.ar-page .ar-scale { display:flex; flex-wrap:wrap; gap:.3rem; margin:.45rem 0 .3rem; }
+.ar-page .ar-scale span {
+  background:#f2f4fb; border:1px solid #e4e7f4; border-radius:999px;
+  padding:.1rem .5rem; font-size:.72rem; color:#4a5170;
+}
+.ar-page .ar-scale b { color:var(--rev-ink); }
+.ar-page .ar-live { display:block; font-size:.78rem; color:#0369a1; }
+.ar-page .ar-live.is-thin { color:#b45309; }
+.ar-page .ar-pager {
+  display:flex; align-items:center; justify-content:center; gap:.75rem;
+  flex-wrap:wrap; margin:.75rem 0;
+}
+.ar-page .ar-pager:empty { display:none; }
+.ar-page .ar-pager-label { font-size:.8rem; color:var(--rev-muted); }
+.ar-page .ar-results-title { font-weight:700; color:var(--rev-ink); }
+.ar-page .ar-results-sub { font-size:.78rem; color:var(--rev-muted); margin-top:.15rem; }
+.ar-page .ar-saved {
+  display:inline-flex; align-items:center; gap:.35rem; margin-bottom:.4rem;
+  font-size:.7rem; font-weight:600; color:#0f766e;
+  background:#ecfdf5; border:1px solid #a7f3d0; border-radius:999px; padding:.15rem .5rem;
+}
+.ar-page .ar-saved-date { font-weight:500; color:#0d9488; }
+.ar-page .ar-changed {
+  display:inline-flex; align-items:center; gap:.35rem; margin-bottom:.4rem;
+  font-size:.7rem; font-weight:600; color:#b45309;
+  background:#fff7ed; border:1px solid #fed7aa; border-radius:999px; padding:.15rem .5rem;
+}
+.ar-page .ar-changed .ar-saved-date { color:#c2761a; font-weight:500; }
+.ar-page .ar-thin {
+  margin-top:.5rem; font-size:.72rem; font-weight:600; color:#b45309;
+  background:#fff7ed; border:1px solid #fed7aa; border-radius:8px; padding:.3rem .5rem;
+}
+/* A grid rather than a flex row, so the three labels sit on one line and the
+   three controls on another. Under flex the department field was taller than
+   its neighbours -- it carries a hint underneath -- and bottom-alignment then
+   lifted its select above the other two. The hint is taken out of the flow and
+   the space it needs is reserved on every field, so adding a hint to another
+   field later cannot pull the row apart again. */
+.ar-page .ar-filterbar {
+  display:grid;
+  grid-template-columns:minmax(190px, 1fr) minmax(190px, 1fr) minmax(185px, 250px) auto;
+  gap:.75rem 1rem; align-items:end;
+  padding:.85rem 1rem; margin-bottom:1rem;
+  background:#f8fafc; border:1px solid var(--rev-line); border-radius:14px;
+}
+.ar-page .ar-filter-field {
+  display:flex; flex-direction:column; gap:.3rem; min-width:0;
+  position:relative; padding-bottom:1.15rem;
+}
+.ar-page .ar-filter-field label {
+  font-size:.72rem; font-weight:700; letter-spacing:.03em; text-transform:uppercase; color:#64748b;
+}
+.ar-page .ar-search-wrap { position:relative; }
+.ar-page .ar-search-wrap i {
+  position:absolute; left:.7rem; top:50%; transform:translateY(-50%);
+  color:#94a3b8; font-size:.8rem; pointer-events:none;
+}
+.ar-page .ar-search-wrap input { padding-left:2rem; }
+/* Matched to the height of a form control so the button sits on the same line
+   as the three inputs rather than standing taller than them. */
+.ar-page .ar-filter-clear {
+  margin-bottom:1.15rem; white-space:nowrap;
+  height:38px; display:inline-flex; align-items:center; gap:.3rem;
+}
+.ar-page .ar-filter-hint {
+  position:absolute; left:0; bottom:0; max-width:100%;
+  font-size:.7rem; color:#94a3b8;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+@media (max-width: 767px) {
+  .ar-page .ar-filterbar { grid-template-columns:1fr; }
+  .ar-page .ar-filter-clear { margin-bottom:0; justify-self:start; }
+}
+.ar-page .ar-no-matches {
+  padding:2rem 1rem; text-align:center; color:#64748b; font-size:.9rem;
+  border:1px dashed #cbd5e1; border-radius:12px; background:#f8fafc;
+}
+/* Lift under 1 is the opposite finding, not a weaker one, so it gets a colour of
+   its own rather than the green every other rule wears. Slate, not red: the pair
+   avoiding each other is a legitimate result, not an error. */
+.ar-page .ar-lift-inverse { background:#475569; color:#fff; }
+.ar-page .ar-inverse {
+  margin-top:.5rem; font-size:.72rem; font-weight:600; color:#334155;
+  background:#f1f5f9; border:1px solid #cbd5e1; border-radius:8px; padding:.3rem .5rem;
+}
+/* The chip carried inline padding and radius on every use; it belongs in one rule. */
+.ar-page .department-badge {
+  color:#fff; padding:4px 10px; border-radius:999px; font-size:.75rem; font-weight:600;
+  display:inline-flex; align-items:center; gap:5px; letter-spacing:.01em;
+  box-shadow:0 2px 6px rgba(15,23,42,.14);
+}
+.ar-page .rule-card { border-radius:16px; border:1px solid var(--rev-line); transition:transform .15s ease, box-shadow .15s ease; }
+.ar-page .rule-card:hover { transform:translateY(-3px); box-shadow:0 10px 26px rgba(102,126,234,.16); }
+</style>
+
+<div class="module pred-panel ar-page">
+  <div class="p-4">
+    <div class="analysis-banner">
+      <div>
+        <div class="analysis-banner-title"><i class="fas fa-diagram-project"></i> Association Rules Mining</div>
+        <div class="analysis-banner-sub">Which products are bought together, found with Apriori. Lower the
+        support to reach rarer pairs, at the cost of a longer run.</div>
+      </div>
+      {% comment %}
+        Counted from the transaction table on each load rather than written in.
+        The three figures were literals, correct only while the data stood
+        still and silently wrong the moment anything was loaded.
+      {% endcomment %}
+      <span class="badge bg-success px-3 py-2"
+            id="datasetScaleBadge"
+            data-baskets="{{ dataset_scale.baskets|default:0 }}">
+        {{ dataset_scale.transactions_display }} transactions &middot;
+        {{ dataset_scale.baskets_display }} baskets &middot;
+        {{ dataset_scale.products_display }} products</span>
+    </div>
+    <div class="row g-4">
+      <div class="col-12">
+        <div class="rev-card">
+          <div class="rev-step">
+            <span class="rev-step-num">1</span>
+            <div>
+              <h6 class="rev-step-title">Choose the settings</h6>
+              <p class="rev-step-hint">How much history to read, and how strong a pattern has to be
+              before it is reported.</p>
+            </div>
+          </div>
+          <div>
+            <form method="post" id="associationRulesForm">
+              {% csrf_token %}
+
+              <!-- First row: Basic controls -->
+              <div class="row g-3 mb-3">
+                <div class="col-12 col-md-6">
+                  <label for="transaction_period" class="form-label">Transaction Period</label>
+                  <select class="form-select" id="transaction_period" name="transaction_period">
+                    <option value="all" {% if transaction_period == 'all' or not transaction_period %}selected{% endif %}>All Transactions</option>
+                    <option value="1_month" {% if transaction_period == '1_month' %}selected{% endif %}>Last 1 Month</option>
+                    <option value="3_months" {% if transaction_period == '3_months' %}selected{% endif %}>Last 3 Months</option>
+                    <option value="6_months" {% if transaction_period == '6_months' %}selected{% endif %}>Last 6 Months</option>
+                    <option value="12_months" {% if transaction_period == '12_months' %}selected{% endif %}>Last 12 Months</option>
+                  </select>
+                  <div class="form-text">
+                    How much history to read. Shorter periods run faster and show what is
+                    selling now.
+                  </div>
+                </div>
+                <div class="col-12 col-md-6">
+                  <label for="max_results" class="form-label">Max Results</label>
+                  <select class="form-select" id="max_results" name="max_results">
+                    <option value="50" {% if max_results == 50 %}selected{% endif %}>50</option>
+                    <option value="100" {% if max_results == 100 or not max_results %}selected{% endif %}>100</option>
+                    <option value="200" {% if max_results == 200 %}selected{% endif %}>200</option>
+                    <option value="500" {% if max_results == 500 %}selected{% endif %}>500</option>
+                    <option value="1000" {% if max_results == 1000 %}selected{% endif %}>1000</option>
+                    <option value="2000" {% if max_results == 2000 %}selected{% endif %}>2000</option>
+                    <option value="3000" {% if max_results == 3000 %}selected{% endif %}>3000</option>
+                    <option value="5000" {% if max_results == 5000 %}selected{% endif %}>5000</option>
+                  </select>
+                  <div class="form-text">How many of the strongest rules to keep, ranked by lift.</div>
+                </div>
+              </div>
+
+              <!-- Second row: Algorithm parameters -->
+              <div class="row g-3 mb-4">
+                <div class="col-12 col-md-4">
+                  <label for="min_support" class="form-label">Minimum Support (0.0 - 1.0)</label>
+                  <input type="number" class="form-control" id="min_support" name="min_support" step="0.00001" min="0" max="1" value="{{ min_support|default:'0.0005' }}" oninput="updateSupportInfo()">
+                  <div class="form-text">
+                    How often a pair must appear before it counts. Higher is faster and stricter.
+                    <span class="ar-scale">
+                      <span><b>0.001</b> frequent</span>
+                      <span><b>0.0005</b> common</span>
+                      <span><b>0.0001</b> occasional</span>
+                      <span><b>0.00001</b> rare</span>
+                    </span>
+                    <span id="supportInfo" class="ar-live">Needs <b id="currentSupportCount">138</b>
+                    baskets of the <b id="supportBasketTotal">276,450</b> in range.</span>
+                  </div>
+                </div>
+                <div class="col-12 col-md-4">
+                  <label for="min_confidence" class="form-label">Minimum Confidence (0.0 - 1.0)</label>
+                  <input type="number" class="form-control" id="min_confidence" name="min_confidence" step="0.01" min="0" max="1" value="{{ min_confidence|default:'0.3' }}">
+                  <div class="form-text">
+                    How often the second product follows the first. 0.5 means half the time.
+                    <span class="ar-scale">
+                      <span><b>0.7</b> strong</span>
+                      <span><b>0.5</b> moderate</span>
+                      <span><b>0.3</b> exploratory</span>
+                    </span>
+                  </div>
+                </div>
+                <div class="col-12 col-md-4">
+                  <label for="min_lift" class="form-label">Minimum Lift (0 = no floor)</label>
+                  <input type="number" class="form-control" id="min_lift" name="min_lift" step="0.1" min="0" value="{{ min_lift|default:'0' }}">
+                  <div class="form-text">
+                    How much more often than chance. <b>1.0</b> is the dividing line: below it the
+                    two products appear together <em>less</em> than chance and avoid one another.
+                    <span class="ar-scale">
+                      <span><b>3.0</b> strong pull</span>
+                      <span><b>1.5</b> mild pull</span>
+                      <span><b>1.0</b> chance</span>
+                      <span><b>0</b> keep all</span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Running it is step two, numbered as on the other pages -->
+              <div class="rev-step mt-4">
+                <span class="rev-step-num">2</span>
+                <div>
+                  <h6 class="rev-step-title">Run the analysis</h6>
+                  <p class="rev-step-hint">Apriori scans the baskets for pairs that pass both
+                  thresholds, then ranks them by lift.</p>
+                </div>
+              </div>
+              <div class="row">
+                <div class="col-12">
+                  <button type="submit" class="btn rev-btn-primary" id="generateBtn">
+                    <i class="fas fa-play"></i> Run Apriori algorithm
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+      <div class="col-12">
+        <div class="rev-card">
+          <div class="rev-head-sm">
+            <div>
+              <div class="ar-results-title"><i class="fas fa-table"></i> Results, strongest lift first</div>
+              {% if rules.0.is_saved %}
+                <div class="ar-results-sub">Rules saved to the database from earlier runs. Run the
+                algorithm above to replace this list with a fresh one.</div>
+              {% elif rules %}
+                <div class="ar-results-sub">Just generated. Use <b>Insert</b> to save a rule to the
+                database.</div>
+              {% endif %}
+            </div>
+            <div class="btn-group btn-group-sm" role="group" id="rulesMultiSelectActions" style="display: none;">
+              <button class="btn btn-outline-secondary" onclick="selectAllRules(true)" title="Select All">
+                <i class="fas fa-check-square"></i> All
+              </button>
+              <button class="btn btn-outline-secondary" onclick="selectAllRules(false)" title="Select None">
+                <i class="fas fa-square"></i> None
+              </button>
+              <button class="btn btn-success" onclick="insertSelectedRules()" title="Insert Selected Rules">
+                <i class="fas fa-plus"></i> Insert (<span id="selectedRulesCount">0</span>)
+              </button>
+            </div>
+          </div>
+          <div class="card-body">
+            <div id="ruleInsertAlert" class="alert alert-success d-none" role="alert"></div>
+            {% if success_message %}
+            <div class="alert alert-success" role="alert">
+              <i class="fas fa-check-circle"></i> {{ success_message }}
+            </div>
+            {% endif %}
+            {% if error_message %}
+            <div class="alert alert-danger" role="alert">
+              <i class="fas fa-exclamation-triangle"></i> {{ error_message }}
+            </div>
+            {% endif %}
+
+            <!-- Loading State -->
+            <div id="loadingState" class="d-none text-center py-5">
+              <div class="spinner-border text-primary mb-3" role="status" style="width: 3rem; height: 3rem;">
+                <span class="visually-hidden">Loading...</span>
+              </div>
+              <h5 class="text-primary">Generating Association Rules...</h5>
+              <p class="text-muted">Analyzing transaction patterns across <span id="periodText">all transactions</span>...</p>
+              <div class="progress" style="height: 8px; max-width: 400px; margin: 0 auto;">
+                <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 100%"></div>
+              </div>
+            </div>
+
+            <!-- Results Container -->
+            <div id="resultsContainer">
+            {% if rules %}
+            {% comment %}
+              Searching and filtering happen in the browser over the cards already
+              rendered, the same set the pager walks. With a few thousand rules
+              that is immediate, and it avoids re-running Apriori to answer a
+              question about results that are already on the page.
+            {% endcomment %}
+            <div class="ar-filterbar">
+              <div class="ar-filter-field">
+                <label for="ruleSearch">Search rules</label>
+                <div class="ar-search-wrap">
+                  <i class="fas fa-magnifying-glass"></i>
+                  <input type="search" id="ruleSearch" class="form-control" autocomplete="off"
+                         placeholder="Product id, commodity, brand&hellip;"
+                         oninput="applyRuleFilter()">
+                </div>
+              </div>
+              <div class="ar-filter-field">
+                <label for="ruleDepartmentFilter">Department</label>
+                <select id="ruleDepartmentFilter" class="form-select" onchange="applyRuleFilter()">
+                  <option value="">All departments</option>
+                </select>
+                <span class="ar-filter-hint" id="ruleDepartmentHint"></span>
+              </div>
+              <div class="ar-filter-field ar-filter-field-narrow">
+                <label for="ruleLiftFilter">Lift</label>
+                <select id="ruleLiftFilter" class="form-select" onchange="applyRuleFilter()">
+                  <option value="">Any lift</option>
+                  <option value="above">Above 1 &mdash; bought together</option>
+                  <option value="below">Below 1 &mdash; avoid each other</option>
+                </select>
+              </div>
+              <button type="button" class="btn btn-outline-secondary btn-sm ar-filter-clear"
+                      id="ruleFilterClear" onclick="clearRuleFilter()" hidden>
+                <i class="fas fa-xmark"></i> Clear
+              </button>
+            </div>
+            <div class="pager" id="rulePagerTop"></div>
+            <div class="row g-3" id="ruleGrid">
+              {% for rule in rules %}
+              <div class="col-12 col-sm-6 col-md-4 col-lg-3">
+                <div class="card h-100 shadow-sm rule-card selectable-rule"
+                     style="border-left: 4px solid {% if rule.antecedent_details.0.department == 'GROCERY' %}#2E86C1{% elif rule.antecedent_details.0.department == 'DRUG GM' %}#A569BD{% elif rule.antecedent_details.0.department == 'PRODUCE' %}#27AE60{% elif rule.antecedent_details.0.department == 'DAIRY' %}#F39C12{% elif rule.antecedent_details.0.department == 'MEAT-PCKGD' %}#E74C3C{% elif rule.antecedent_details.0.department == 'FROZEN GROCERY' %}#85C1E9{% elif rule.antecedent_details.0.department == 'BAKERY' %}#D4AC0D{% elif rule.antecedent_details.0.department == 'BEVERAGE' %}#17A2B8{% else %}#6C757D{% endif %}; cursor: pointer; transition: all 0.3s ease;"
+                     data-ant="{{ rule.antecedent|join:', ' }}"
+                     data-con="{{ rule.consequent|join:', ' }}"
+                     {% comment %}
+                       This attribute is what the insert actually stores, so it
+                       carries more places than the card prints. The rarest pair
+                       possible here is one basket in 276,450, a support of
+                       0.0000036, which six places would have rounded to
+                       0.000004 before it ever reached the database.
+                     {% endcomment %}
+                     data-sup="{{ rule.support|floatformat:9 }}"
+                     data-conf="{{ rule.confidence|floatformat:4 }}"
+                     data-lift="{{ rule.lift|floatformat:4 }}"
+                     data-ant-list="{{ rule.antecedent|join:'|' }}"
+                     data-con-list="{{ rule.consequent|join:'|' }}"
+                     data-min-support="{{ rule.min_support_threshold|default:'0.01' }}"
+                     data-min-confidence="{{ rule.min_confidence_threshold|default:'' }}"
+                     data-min-lift="{{ rule.min_lift_threshold|default:'' }}"
+                     data-source="{{ rule.source_view|default:'analysis.association_rules' }}"
+                     data-type="{{ rule.rule_type|default:'product' }}"
+                     {% comment %}
+                       Everything the card shows, flattened into one lower-case
+                       string so the search box can match on what the reader can
+                       actually see: product ids, departments, commodities and
+                       brands. Filtering reads these attributes rather than the
+                       rendered text, which is faster and survives re-rendering.
+                     {% endcomment %}
+                     data-departments="{% for d in rule.antecedent_details %}{{ d.department|lower }}|{% endfor %}{% for d in rule.consequent_details %}{{ d.department|lower }}|{% endfor %}"
+                     data-search="{{ rule.antecedent|join:' '|lower }} {{ rule.consequent|join:' '|lower }}{% for d in rule.antecedent_details %} {{ d.department|lower }} {{ d.commodity|lower }} {{ d.brand|lower }}{% endfor %}{% for d in rule.consequent_details %} {{ d.department|lower }} {{ d.commodity|lower }} {{ d.brand|lower }}{% endfor %}"
+                     onmouseover="this.style.transform='translateY(-3px)'; this.style.boxShadow='0 12px 30px rgba(0,0,0,0.2)'"
+                     onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow=''">
+                  <div class="card-body">
+                    <!-- Multi-select checkbox -->
+                    <div class="position-absolute" style="top: 8px; right: 8px;">
+                      <div class="form-check">
+                        <input class="form-check-input rule-checkbox" type="checkbox" onchange="updateSelectedRulesCount()" onclick="event.stopPropagation()">
+                      </div>
+                    </div>
+                    <!-- Antecedent Product -->
+                    <div class="d-flex align-items-center mb-2">
+                      <span class="department-badge" style="background: {{ rule.antecedent_details.0.department|dept_gradient }};">
+                        {{ rule.antecedent_details.0.department|dept_icon }} {{ rule.antecedent_details.0.department }}
+                      </span>
+                    </div>
+                    <h6 class="card-title text-truncate mb-1" title="{{ rule.antecedent_details.0.commodity }}">
+                      {{ rule.antecedent_details.0.commodity|truncatechars:30 }}
+                    </h6>
+                    <div class="text-muted small mb-2">ID: {{ rule.antecedent|join:', ' }} • {{ rule.antecedent_details.0.brand }}</div>
+
+                    <!-- Arrow Separator -->
+                    <div class="text-center mb-2">
+                      <i class="fas fa-long-arrow-alt-down text-primary" style="font-size: 1.2rem;"></i>
+                    </div>
+
+                    <!-- Consequent Product -->
+                    <div class="mb-2">
+                      <span class="department-badge" style="background: {{ rule.consequent_details.0.department|dept_gradient }};">
+                        {{ rule.consequent_details.0.department|dept_icon }} {{ rule.consequent_details.0.department }}
+                      </span>
+                    </div>
+                    <h6 class="card-title text-truncate mb-1" title="{{ rule.consequent_details.0.commodity }}">
+                      {{ rule.consequent_details.0.commodity|truncatechars:30 }}
+                    </h6>
+                    <div class="text-muted small mb-2">ID: {{ rule.consequent|join:', ' }} • {{ rule.consequent_details.0.brand }}</div>
+
+                    <!-- Statistics -->
+                    <div class="mt-2 pt-2 border-top">
+                      {% if rule.is_saved %}
+                        <div class="ar-saved" title="Read from the saved rules table, not from a run on this screen">
+                          <i class="fas fa-database"></i> Saved
+                          <span class="ar-saved-date">{{ rule.created_at|date:"j M Y, H:i" }}</span>
+                        </div>
+                      {% elif rule.saved_state == 'saved' %}
+                        <div class="ar-saved" title="Already in the table with these same numbers">
+                          <i class="fas fa-database"></i> Saved
+                          <span class="ar-saved-date">{{ rule.saved_at|date:"j M Y" }}</span>
+                        </div>
+                      {% elif rule.saved_state == 'changed' %}
+                        <div class="ar-changed" title="In the table already, but the saved copy reads support {{ rule.saved_support|floatformat:6 }}, confidence {{ rule.saved_confidence|floatformat:4 }}, lift {{ rule.saved_lift|floatformat:2 }}. Insert to bring it up to date.">
+                          <i class="fas fa-rotate"></i> Update available
+                          <span class="ar-saved-date">saved {{ rule.saved_at|date:"j M Y" }}</span>
+                        </div>
+                      {% endif %}
+                      <div class="d-flex justify-content-between small">
+                        <span class="text-muted">Bought together in:</span>
+                        <span class="fw-bold">{{ rule.baskets_together }} basket{{ rule.baskets_together|pluralize }}</span>
+                      </div>
+                      <div class="d-flex justify-content-between small">
+                        <span class="text-muted">Support:</span>
+                        <span class="fw-bold">{{ rule.support|floatformat:6 }}</span>
+                      </div>
+                      <div class="d-flex justify-content-between small">
+                        <span class="text-muted">Confidence:</span>
+                        <span class="fw-bold">{{ rule.confidence|floatformat:4 }}</span>
+                      </div>
+                      <div class="d-flex justify-content-between align-items-center">
+                        <span class="text-muted small">Lift:</span>
+                        {% comment %}
+                          Lift below 1 is not a weak rule but an inverted one, and it
+                          used to wear the same green badge as a lift of 5. Direction
+                          is decided first; thin evidence keeps its own warning colour
+                          and its own note underneath.
+                        {% endcomment %}
+                        <span class="badge {% if rule.lift < 1 %}ar-lift-inverse{% elif rule.baskets_together < 20 %}bg-warning text-dark{% else %}bg-success{% endif %}">
+                          {% if rule.lift < 1 %}<i class="fas fa-arrow-down-long me-1"></i>{% endif %}{{ rule.lift|floatformat:2 }}</span>
+                      </div>
+                      {% if rule.lift < 1 %}
+                        <div class="ar-inverse" title="Lift below 1 means the pair shows up together less often than their individual rates would predict. Read as avoidance, not attraction: it is evidence against cross-selling these two, and may point to substitutes competing for the same slot in the basket.">
+                          <i class="fas fa-right-left"></i> Bought together <strong>less</strong> than chance &mdash; these two avoid each other
+                        </div>
+                      {% endif %}
+                      {% if rule.baskets_together < 20 %}
+                        <div class="ar-thin" title="A high lift on a handful of baskets is arithmetic rather than a pattern: with so few, one coincidence sets the figure.">
+                          <i class="fas fa-triangle-exclamation"></i> Thin evidence &mdash; too few baskets to rely on
+                        </div>
+                      {% endif %}
+                    </div>
+                    <div class="mt-3">
+                      <button type="button" class="btn btn-sm btn-outline-success w-100 insert-rule-btn">
+                        <i class="fas fa-database"></i> Insert Rule
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+            <div class="ar-no-matches" id="ruleNoMatches" hidden>
+              <i class="fas fa-magnifying-glass mb-2 d-block" style="font-size:1.4rem;"></i>
+              No rule on this page matches the search or filters.
+              <button type="button" class="btn btn-link btn-sm p-0 align-baseline"
+                      onclick="clearRuleFilter()">Clear them</button>
+              to see all of them again.
+            </div>
+            <div class="pager" id="rulePagerBottom"></div>
+            {% else %}
+              <div class="info-box">No association rules found. Try generating new rules with different parameters.</div>
+            {% endif %}
+            </div> <!-- End Results Container -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const ruleCards = document.querySelectorAll('.rule-card');
+
+  ruleCards.forEach((card) => {
+    const insertButton = card.querySelector('.insert-rule-btn');
+    if (insertButton) {
+      insertButton.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const ruleData = buildRuleData(card);
+        openInsertConfirm(ruleData, card);
+      });
+    }
+
+    card.addEventListener('click', () => {
+      const ruleData = buildRuleData(card);
+      const title = `🔗 Association Rule: ${card.dataset.ant} → ${card.dataset.con}`;
+      const body = `
+        <div class="row g-3">
+          <div class="col-12">
+            <div class="alert alert-info">
+              <h6><i class="fas fa-info-circle"></i> Rule Interpretation</h6>
+              <p class="mb-0">When customers buy product <strong>${card.dataset.ant}</strong>, they also tend to buy product <strong>${card.dataset.con}</strong></p>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="card border-primary">
+              <div class="card-body text-center">
+                <div class="text-primary h4">${card.dataset.sup}</div>
+                <div class="text-muted small">Support</div>
+                <small class="text-muted d-block">Frequency of both items together</small>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="card border-warning">
+              <div class="card-body text-center">
+                <div class="text-warning h4">${card.dataset.conf}</div>
+                <div class="text-muted small">Confidence</div>
+                <small class="text-muted d-block">Reliability of the rule</small>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="card border-success">
+              <div class="card-body text-center">
+                <div class="text-success h4">${card.dataset.lift}</div>
+                <div class="text-muted small">Lift</div>
+                <small class="text-muted d-block">Strength of association</small>
+              </div>
+            </div>
+          </div>
+          <div class="col-12">
+            <div class="bg-light p-3 rounded">
+              <h6><i class="fas fa-lightbulb text-warning"></i> Business Insights</h6>
+              <ul class="mb-0">
+                <li><strong>Cross-selling opportunity:</strong> Promote product ${card.dataset.con} to customers buying ${card.dataset.ant}</li>
+                <li><strong>Store layout:</strong> Consider placing these products near each other</li>
+                <li><strong>Bundle pricing:</strong> Create attractive package deals for these items</li>
+              </ul>
+            </div>
+          </div>
+          <div class="col-12 mt-3">
+            <div class="text-end">
+              <button type="button" class="btn btn-success" id="modalInsertRuleBtn">
+                <i class="fas fa-database"></i> Insert This Rule
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+      showDetailModal(title, body);
+      setTimeout(() => {
+        const modalInsertBtn = document.getElementById('modalInsertRuleBtn');
+        if (modalInsertBtn) {
+          modalInsertBtn.addEventListener('click', (event) => {
+            event.preventDefault();
+            // The same card the modal was opened from, so inserting here marks
+            // it saved too rather than only the button on the card itself.
+            openInsertConfirm(ruleData, card);
+          }, { once: true });
+        }
+      }, 200);
+    });
+  });
+});
+
+function buildRuleData(card) {
+  const splitList = (value) => {
+    if (!value) {
+      return [];
+    }
+    const delimiter = value.indexOf('|') !== -1 ? '|' : (value.indexOf(',') !== -1 ? ',' : null);
+    if (!delimiter) {
+      return [value.trim()];
+    }
+    return value.split(delimiter).map((item) => item.trim()).filter(Boolean);
+  };
+
+  const parseNumber = (value) => {
+    const num = parseFloat(value);
+    return Number.isFinite(num) ? num : null;
+  };
+
+  const antecedent = splitList(card.dataset.antList || card.dataset.ant);
+  const consequent = splitList(card.dataset.conList || card.dataset.con);
+  const support = parseNumber(card.dataset.sup);
+  const confidence = parseNumber(card.dataset.conf);
+  const lift = parseNumber(card.dataset.lift);
+
+  let ruleType = card.dataset.type || 'product';
+  if (['product', 'category', 'commodity', 'department'].indexOf(ruleType) === -1) {
+    ruleType = 'product';
+  }
+
+  const minSupportValue = parseNumber(card.dataset.minSupport);
+  const minConfidenceValue = parseNumber(card.dataset.minConfidence);
+  const minLiftValue = parseNumber(card.dataset.minLift);
+
+  return {
+    antecedent: antecedent,
+    consequent: consequent,
+    support: support,
+    confidence: confidence,
+    lift: lift,
+    rule_type: ruleType,
+    min_support_threshold: minSupportValue !== null ? minSupportValue : support,
+    min_confidence_threshold: minConfidenceValue,
+    min_lift_threshold: minLiftValue,
+    source_view: card.dataset.source || 'analysis.association_rules',
+    metadata: {
+      antecedent_label: card.dataset.ant,
+      consequent_label: card.dataset.con,
+      source_path: window.location.pathname
+    }
+  };
+}
+
+/* A card went on offering "Insert Rule" after its rule had been stored, and
+   only a page reload would say otherwise. That made the same rule easy to
+   insert twice and gave no sign the first attempt had worked. The card is
+   brought up to date in place instead, carrying the same badge the server
+   renders for an already-saved rule on the next load. */
+function markRuleCardSaved(card) {
+  if (!card || card.dataset.savedState === 'saved') return;
+  card.dataset.savedState = 'saved';
+
+  const stats = card.querySelector('.border-top');
+  if (stats) {
+    // "Update available" no longer applies once the saved copy matches this one.
+    stats.querySelectorAll('.ar-saved, .ar-changed').forEach(chip => chip.remove());
+    const badge = document.createElement('div');
+    badge.className = 'ar-saved';
+    badge.title = 'Stored from this page a moment ago';
+    /* Written out rather than left to toLocaleDateString, so it matches what
+       Django's "j M Y" renders for this same badge on the next load. The
+       locale versions disagree with it and with each other: the default gives
+       "Sep 6, 2026" and en-GB gives "6 Sept 2026", so the one card would be
+       dated differently before and after a refresh. */
+    const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const now = new Date();
+    const when = `${now.getDate()} ${MONTHS[now.getMonth()]} ${now.getFullYear()}`;
+    badge.innerHTML = `<i class="fas fa-database"></i> Saved `
+      + `<span class="ar-saved-date">${when}</span>`;
+    stats.insertBefore(badge, stats.firstChild);
+  }
+
+  const button = card.querySelector('.insert-rule-btn');
+  if (button) {
+    button.classList.remove('btn-outline-success');
+    button.classList.add('btn-outline-secondary');
+    button.innerHTML = '<i class="fas fa-check"></i> Saved';
+    button.disabled = true;
+  }
+
+  /* Leaving it ticked would send it again with the next bulk insert, for no
+     effect but a wasted request. */
+  const checkbox = card.querySelector('.rule-checkbox');
+  if (checkbox && checkbox.checked) {
+    checkbox.checked = false;
+    if (typeof updateSelectedRulesCount === 'function') updateSelectedRulesCount();
+  }
+}
+
+function openInsertConfirm(ruleData, card) {
+  /* Four decimal places suit confidence and lift, but not support, which on
+     this data runs into the ten-thousandths: 0.000130 was shown as 0.0001, so
+     the figure the reader confirmed was not the figure being stored. Values
+     below 0.001 are given three significant figures instead, in plain notation
+     rather than an exponent. */
+  const formatMetric = (value) => {
+    if (!Number.isFinite(value)) return 'N/A';
+    if (value === 0) return '0';
+    if (Math.abs(value) >= 0.001) return value.toFixed(4);
+    const places = 2 - Math.floor(Math.log10(Math.abs(value)));
+    return value.toFixed(Math.min(places, 100));
+  };
+
+  const body = `
+    <div class="alert alert-warning">
+      <i class="fas fa-database me-2"></i>
+      Store the rule <strong>${ruleData.antecedent.join(', ')}</strong> → <strong>${ruleData.consequent.join(', ')}</strong> for future recommendations?
+    </div>
+    <ul class="list-unstyled small mb-3">
+      <li><strong>Support:</strong> ${formatMetric(ruleData.support)}</li>
+      <li><strong>Confidence:</strong> ${formatMetric(ruleData.confidence)}</li>
+      <li><strong>Lift:</strong> ${formatMetric(ruleData.lift)}</li>
+    </ul>
+    <div class="text-end">
+      <button type="button" class="btn btn-secondary me-2" data-bs-dismiss="modal">Cancel</button>
+      <button type="button" class="btn btn-success" id="confirmInsertRuleBtn">
+        <i class="fas fa-database"></i> Insert Rule
+      </button>
+    </div>
+  `;
+  showDetailModal('Confirm Association Rule Insert', body);
+  setTimeout(() => {
+    const confirmBtn = document.getElementById('confirmInsertRuleBtn');
+    if (confirmBtn) {
+      confirmBtn.addEventListener('click', () => performRuleInsert(ruleData, card), { once: true });
+    }
+  }, 200);
+}
+
+function performRuleInsert(ruleData, card) {
+  const modalEl = document.getElementById('detailModal');
+  const modalInstance = modalEl ? bootstrap.Modal.getInstance(modalEl) : null;
+  const confirmBtn = document.getElementById('confirmInsertRuleBtn');
+  if (confirmBtn) {
+    confirmBtn.disabled = true;
+    confirmBtn.classList.add('disabled');
+  }
+
+  fetch('/analysis/api/association-rules/insert/', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': getCsrfToken()
+    },
+    body: JSON.stringify(ruleData)
+  })
+    .then(async (response) => {
+      const payload = await response.json().catch(() => ({ success: false, error: 'Unexpected response from server.' }));
+      if (response.ok && payload.success) {
+        if (modalInstance) {
+          modalInstance.hide();
+        }
+        markRuleCardSaved(card);
+        showRuleInsertFeedback(payload.message || 'Rule stored successfully.', 'success');
+      } else {
+        const errorMessage = payload.error || 'Unable to store the rule.';
+        showRuleInsertFeedback(errorMessage, 'danger');
+        if (modalInstance) {
+          modalInstance.hide();
+        }
+      }
+    })
+    .catch((error) => {
+      console.error('Failed to insert association rule', error);
+      showRuleInsertFeedback('Unexpected error while saving the rule.', 'danger');
+      if (modalInstance) {
+        modalInstance.hide();
+      }
+    })
+    .finally(() => {
+      if (confirmBtn) {
+        confirmBtn.disabled = false;
+        confirmBtn.classList.remove('disabled');
+      }
+    });
+}
+
+function showRuleInsertFeedback(message, variant) {
+  const container = document.getElementById('ruleInsertAlert');
+  if (!container) {
+    alert(message);
+    return;
+  }
+  container.textContent = message;
+  container.className = `alert alert-${variant}`;
+  container.classList.remove('d-none');
+  setTimeout(() => {
+    container.classList.add('d-none');
+  }, 5000);
+}
+
+function getCsrfToken() {
+  const match = document.cookie.match(/csrftoken=([^;]+)/);
+  return match ? match[1] : '';
+}
+
+// Loading functionality for association rules generation
+document.addEventListener('DOMContentLoaded', function() {
+  const form = document.getElementById('associationRulesForm');
+  const generateBtn = document.getElementById('generateBtn');
+  const loadingState = document.getElementById('loadingState');
+  const resultsContainer = document.getElementById('resultsContainer');
+  const periodSelect = document.getElementById('transaction_period');
+  const periodText = document.getElementById('periodText');
+
+  // Update period text when selection changes
+  if (periodSelect && periodText) {
+    periodSelect.addEventListener('change', function() {
+      updatePeriodText();
+    });
+    updatePeriodText(); // Set initial text
+  }
+
+  function updatePeriodText() {
+    const selectedOption = periodSelect.options[periodSelect.selectedIndex];
+    periodText.textContent = selectedOption.text.toLowerCase();
+  }
+
+  // Handle form submission with loading state
+  if (form && generateBtn && loadingState && resultsContainer) {
+    form.addEventListener('submit', function(e) {
+      // Show loading state
+      generateBtn.disabled = true;
+      generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+
+      loadingState.classList.remove('d-none');
+      resultsContainer.style.display = 'none';
+
+      // Allow form to submit normally
+      // The page will reload with results or error message
+    });
+  }
+});
+
+// Real-time support value calculator
+/* Five thousand rules is a legitimate request, but laying them all out at once
+   made a three-million-pixel page: one scroll to the bottom cost 1.6 seconds.
+   The cards are all here in the document; only a page of them is displayed, so
+   the browser lays out a hundred instead of five thousand. Selection and the
+   insert count still work across the whole set. */
+const RULE_PAGE_SIZE = 100;
+let rulePage = 1;
+
+function ruleCells() {
+  const grid = document.getElementById('ruleGrid');
+  return grid ? Array.from(grid.children) : [];
+}
+
+/* The pager walks the cards that match the current search and filters, not
+   every card in the grid, so "Showing 1-100 of 2,000" keeps telling the truth
+   once a filter is on. A cell that does not match is hidden outright and never
+   enters the page arithmetic. */
+function ruleFilterState() {
+  const term = (document.getElementById('ruleSearch')?.value || '').trim().toLowerCase();
+  return {
+    term,
+    department: (document.getElementById('ruleDepartmentFilter')?.value || '').toLowerCase(),
+    lift: document.getElementById('ruleLiftFilter')?.value || '',
+    active: Boolean(term) || Boolean(document.getElementById('ruleDepartmentFilter')?.value)
+      || Boolean(document.getElementById('ruleLiftFilter')?.value),
+  };
+}
+
+function ruleCellMatches(cell, state) {
+  const card = cell.querySelector('.rule-card');
+  if (!card) return true;
+  if (state.term && !(card.dataset.search || '').includes(state.term)) return false;
+  if (state.department && !(card.dataset.departments || '').includes(state.department + '|')) return false;
+  if (state.lift) {
+    const lift = Number(card.dataset.lift);
+    if (!Number.isFinite(lift)) return false;
+    if (state.lift === 'above' && !(lift >= 1)) return false;
+    if (state.lift === 'below' && !(lift < 1)) return false;
+  }
+  return true;
+}
+
+function matchingRuleCells() {
+  const state = ruleFilterState();
+  if (!state.active) return ruleCells();
+  return ruleCells().filter(cell => ruleCellMatches(cell, state));
+}
+
+function applyRuleFilter() {
+  rulePage = 1;
+  const state = ruleFilterState();
+  const clear = document.getElementById('ruleFilterClear');
+  if (clear) clear.hidden = !state.active;
+  renderRulePage();
+}
+
+function clearRuleFilter() {
+  const search = document.getElementById('ruleSearch');
+  const department = document.getElementById('ruleDepartmentFilter');
+  const lift = document.getElementById('ruleLiftFilter');
+  if (search) search.value = '';
+  if (department) department.value = '';
+  if (lift) lift.value = '';
+  applyRuleFilter();
+}
+
+/* The list of departments comes from the rules on the page rather than the 43
+   in the product table, so it never offers a department that would return
+   nothing. The count beside each name says so plainly: without it the list
+   looks like it ought to be the whole catalogue and its shortness reads as a
+   bug rather than as the point. */
+function buildDepartmentFilter() {
+  const select = document.getElementById('ruleDepartmentFilter');
+  if (!select) return;
+  const seen = new Map();
+  ruleCells().forEach(cell => {
+    const card = cell.querySelector('.rule-card');
+    if (!card) return;
+    (card.dataset.departments || '').split('|').forEach(name => {
+      const trimmed = name.trim();
+      if (trimmed) seen.set(trimmed, (seen.get(trimmed) || 0) + 1);
+    });
+  });
+  [...seen.entries()].sort((first, second) => first[0].localeCompare(second[0]))
+    .forEach(([name, count]) => {
+      const option = document.createElement('option');
+      option.value = name;
+      option.textContent = `${name.toUpperCase()} (${count})`;
+      select.appendChild(option);
+    });
+  const label = document.getElementById('ruleDepartmentHint');
+  if (label) {
+    label.textContent = `${seen.size} of 43 departments appear in these rules`;
+  }
+}
+
+function renderRulePage() {
+  const all = ruleCells();
+  const cells = matchingRuleCells();
+  const empty = document.getElementById('ruleNoMatches');
+  if (empty) empty.hidden = cells.length > 0;
+  if (!cells.length) {
+    all.forEach(cell => { cell.style.display = 'none'; });
+    ['rulePagerTop', 'rulePagerBottom'].forEach(id => {
+      const box = document.getElementById(id);
+      if (box) box.innerHTML = '';
+    });
+    return;
+  }
+  // Anything filtered out is hidden before the page window is applied.
+  const matching = new Set(cells);
+  all.forEach(cell => {
+    if (!matching.has(cell)) cell.style.display = 'none';
+  });
+  const pages = Math.max(1, Math.ceil(cells.length / RULE_PAGE_SIZE));
+  rulePage = Math.min(Math.max(rulePage, 1), pages);
+  const first = (rulePage - 1) * RULE_PAGE_SIZE;
+  cells.forEach((cell, index) => {
+    cell.style.display = (index >= first && index < first + RULE_PAGE_SIZE) ? '' : 'none';
+  });
+  const shown = `${first + 1}-${Math.min(first + RULE_PAGE_SIZE, cells.length)}`;
+  const controls = `
+    <button type="button" class="pager-btn"
+            onclick="goRulePage(1)" ${rulePage <= 1 ? 'disabled' : ''}>&laquo;&laquo; First</button>
+    <button type="button" class="pager-btn"
+            onclick="changeRulePage(-1)" ${rulePage <= 1 ? 'disabled' : ''}>Previous</button>
+    <span class="pager-status">Showing <b>${shown}</b> of
+      <b>${cells.length.toLocaleString()}</b> rules &middot; page ${rulePage} of ${pages}</span>
+    <button type="button" class="pager-btn"
+            onclick="changeRulePage(1)" ${rulePage >= pages ? 'disabled' : ''}>Next</button>
+    <button type="button" class="pager-btn"
+            onclick="goRulePage(0)" ${rulePage >= pages ? 'disabled' : ''}>Last &raquo;&raquo;</button>`;
+  ['rulePagerTop', 'rulePagerBottom'].forEach(id => {
+    const box = document.getElementById(id);
+    if (box) box.innerHTML = cells.length > RULE_PAGE_SIZE ? controls : '';
+  });
+}
+
+/* 0 means the last page, whatever it turns out to be. */
+function goRulePage(page) {
+  const pages = Math.max(1, Math.ceil(matchingRuleCells().length / RULE_PAGE_SIZE));
+  rulePage = page === 0 ? pages : page;
+  renderRulePage();
+  document.getElementById('rulePagerTop')?.scrollIntoView({behavior: 'smooth', block: 'start'});
+}
+
+function changeRulePage(step) {
+  rulePage += step;
+  renderRulePage();
+  document.getElementById('rulePagerTop')?.scrollIntoView({behavior: 'smooth', block: 'start'});
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  buildDepartmentFilter();
+  renderRulePage();
+});
+
+/* Basket counts per period, read from the database rather than written in.
+   null means "not fetched yet"; the request is fired once and the answer kept. */
+const basketCountCache = {};
+const basketCountPending = {};
+
+function seedBasketCountCache() {
+  const badge = document.getElementById('datasetScaleBadge');
+  const allTime = badge ? Number(badge.dataset.baskets) : 0;
+  if (Number.isFinite(allTime) && allTime > 0) basketCountCache['all'] = allTime;
+}
+
+function basketsForPeriod(period) {
+  if (basketCountCache[period] != null) return basketCountCache[period];
+  if (!basketCountPending[period]) {
+    basketCountPending[period] = true;
+    const body = new URLSearchParams({transaction_period: period});
+    fetch('/analysis/api/period-metrics/', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': getCsrfToken()},
+      body: body.toString(),
+    })
+      .then(response => response.json())
+      .then(payload => {
+        const baskets = payload && payload.metrics && payload.metrics.total_baskets;
+        if (Number.isFinite(Number(baskets))) basketCountCache[period] = Number(baskets);
+        updateSupportInfo();
+      })
+      .catch(error => {
+        console.error('Could not read basket counts for', period, error);
+        // Falling back to the all-time figure is better than leaving the hint
+        // blank; it is the same order of magnitude and the label says so.
+        if (basketCountCache['all'] != null) basketCountCache[period] = basketCountCache['all'];
+        updateSupportInfo();
+      });
+  }
+  return null;
+}
+
+function updateSupportInfo() {
+  const supportInput = document.getElementById('min_support');
+  const countSpan = document.getElementById('currentSupportCount');
+  const totalSpan = document.getElementById('supportBasketTotal');
+  const periodSelect = document.getElementById('transaction_period');
+  if (!supportInput || !countSpan) return;
+
+  /* Support is measured against baskets, not transaction lines. This read
+     transaction counts and so overstated every threshold about ninefold: 0.00001
+     was labelled "26+ transactions" when the algorithm was in fact accepting
+     pairs seen in 3 baskets.
+
+     The five basket counts used to be written in here, correct only while the
+     table did not change. They are fetched from the period-metrics endpoint
+     instead and remembered per period, so typing in the support box does not
+     put a request on the wire for every keystroke. The all-time count rendered
+     into the banner seeds the cache, so the first paint needs no request. */
+  const period = periodSelect ? periodSelect.value : 'all';
+  const total = basketsForPeriod(period);
+  if (total === null) {
+    if (totalSpan) totalSpan.textContent = '…';
+    countSpan.textContent = '…';
+    return;
+  }
+  const support = parseFloat(supportInput.value);
+  if (totalSpan) totalSpan.textContent = total.toLocaleString();
+  if (isNaN(support) || support <= 0) { countSpan.textContent = '--'; return; }
+
+  // Rounded up, matching the threshold the query applies.
+  const needed = Math.max(1, Math.ceil(total * support));
+  countSpan.textContent = needed.toLocaleString();
+  const box = document.getElementById('supportInfo');
+  if (box) {
+    box.classList.toggle('is-thin', needed < 20);
+    box.title = needed < 20
+      ? 'Fewer than 20 baskets is thin evidence: a high lift on a handful of baskets is usually noise.'
+      : '';
+  }
+}
+
+// Initialize when page loads
+document.addEventListener('DOMContentLoaded', function() {
+  seedBasketCountCache();
+  updateSupportInfo();
+
+  // Also update when period changes
+  const periodSelect = document.getElementById('transaction_period');
+  if (periodSelect) {
+    periodSelect.addEventListener('change', updateSupportInfo);
+  }
+
+  // Initialize multi-select functionality
+  initializeMultiSelect();
+});
+
+// Multi-select functionality for association rules
+function selectAllRules(selectAll) {
+  const checkboxes = document.querySelectorAll('.rule-checkbox');
+  checkboxes.forEach(checkbox => {
+    checkbox.checked = selectAll;
+  });
+  updateSelectedRulesCount();
+}
+
+function updateSelectedRulesCount() {
+  const selectedCount = document.querySelectorAll('.rule-checkbox:checked').length;
+  const totalCount = document.querySelectorAll('.rule-checkbox').length;
+
+  const countElement = document.getElementById('selectedRulesCount');
+  const actionsElement = document.getElementById('rulesMultiSelectActions');
+
+  if (countElement) {
+    countElement.textContent = selectedCount;
+  }
+
+  // Show/hide actions based on whether there are rules
+  if (actionsElement) {
+    actionsElement.style.display = totalCount > 0 ? 'flex' : 'none';
+  }
+
+  // Update insert button state
+  const insertBtn = document.querySelector('#rulesMultiSelectActions .btn-success');
+  if (insertBtn) {
+    insertBtn.disabled = selectedCount === 0;
+    if (selectedCount === 0) {
+      insertBtn.classList.add('disabled');
+    } else {
+      insertBtn.classList.remove('disabled');
+    }
+  }
+
+  // Update visual feedback for selected cards
+  document.querySelectorAll('.selectable-rule').forEach(card => {
+    const checkbox = card.querySelector('.rule-checkbox');
+    if (checkbox && checkbox.checked) {
+      card.style.background = 'linear-gradient(135deg, #e8f5e8, #f0f8f0)';
+      card.style.transform = 'translateX(2px)';
+    } else {
+      card.style.background = '';
+      card.style.transform = '';
+    }
+  });
+}
+
+function insertSelectedRules() {
+  const selectedCards = document.querySelectorAll('.selectable-rule:has(.rule-checkbox:checked)');
+
+  if (selectedCards.length === 0) {
+    alert('Please select at least one rule to insert.');
+    return;
+  }
+
+  const selectedRules = [];
+  const duplicateRules = new Set();
+
+  selectedCards.forEach(card => {
+    const ruleData = {
+      antecedent: card.dataset.ant,
+      consequent: card.dataset.con,
+      support: parseFloat(card.dataset.sup),
+      confidence: parseFloat(card.dataset.conf),
+      lift: parseFloat(card.dataset.lift),
+      rule_type: card.dataset.type,
+      /* Carried so each card can be marked saved as its own insert lands.
+         insertSingleRule rebuilds its payload from named fields, so this
+         element never reaches JSON.stringify. */
+      card: card,
+    };
+
+    // Create unique identifier for duplicate detection
+    const ruleId = `${ruleData.antecedent}→${ruleData.consequent}`;
+
+    if (!duplicateRules.has(ruleId)) {
+      duplicateRules.add(ruleId);
+      selectedRules.push(ruleData);
+    }
+  });
+
+  // Show confirmation dialog with filtered count
+  const confirmMsg = `Insert ${selectedRules.length} selected association rules?${selectedRules.length < selectedCards.length ? ` (${selectedCards.length - selectedRules.length} duplicates removed)` : ''}`;
+  if (!confirm(confirmMsg)) return;
+
+  // Process bulk insertion with pre-validation
+  processBulkRuleInsertion(selectedRules);
+}
+
+function processBulkRuleInsertion(rules) {
+  let successCount = 0;
+  let errorCount = 0;
+  const errors = [];
+
+  // Pre-validate rules
+  const validRules = rules.filter(rule => validateRule(rule));
+  const invalidCount = rules.length - validRules.length;
+
+  if (invalidCount > 0) {
+    console.log(`Filtered out ${invalidCount} invalid rules before insertion`);
+  }
+
+  // Show progress
+  const alertElement = document.getElementById('ruleInsertAlert');
+  if (alertElement) {
+    alertElement.className = 'alert alert-info';
+    alertElement.style.display = 'block';
+    alertElement.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Inserting ${validRules.length} validated rules with retry logic...`;
+  }
+
+  // Process rules with improved batching and connection management
+  let currentIndex = 0;
+  const rulesToProcess = validRules;
+
+  // Connection health tracking
+  let consecutiveFailures = 0;
+  const maxConsecutiveFailures = 3;
+
+  function processNextRule() {
+    if (currentIndex >= rulesToProcess.length) {
+      // All rules processed, show final result
+      if (alertElement) {
+        if (successCount > 0 && errorCount === 0) {
+          alertElement.className = 'alert alert-success';
+          alertElement.innerHTML = `<i class="fas fa-check-circle"></i> Successfully inserted ${successCount} association rules!`;
+        } else if (successCount > 0 && errorCount > 0) {
+          alertElement.className = 'alert alert-warning';
+          const errorSummary = errors.length > 3 ?
+            `${errors.slice(0, 3).join(', ')} and ${errors.length - 3} more` :
+            errors.join(', ');
+          alertElement.innerHTML = `
+            <i class="fas fa-exclamation-triangle"></i>
+            <strong>Partial Success:</strong> ${successCount} rules inserted successfully, ${errorCount} failed.
+            <br><small><strong>Failed rules:</strong> ${errorSummary}</small>
+          `;
+        } else {
+          alertElement.className = 'alert alert-danger';
+          const errorSummary = errors.length > 5 ?
+            `${errors.slice(0, 5).join(', ')} and ${errors.length - 5} more` :
+            errors.join(', ');
+          alertElement.innerHTML = `
+            <i class="fas fa-times-circle"></i>
+            <strong>Insertion Failed:</strong> All ${rulesToProcess.length} rules failed to insert.
+            <br><small><strong>Failed rules:</strong> ${errorSummary}</small>
+          `;
+        }
+
+        // Clear selection after successful insertion
+        if (successCount > 0) {
+          selectAllRules(false);
+        }
+
+        // Hide alert after 5 seconds
+        setTimeout(() => {
+          alertElement.style.display = 'none';
+        }, 5000);
+      }
+      return;
+    }
+
+    const rule = rulesToProcess[currentIndex];
+
+    // Enhanced insertion with connection health monitoring
+    insertSingleRule(rule).then(() => {
+      markRuleCardSaved(rule.card);
+      successCount++;
+      currentIndex++;
+      consecutiveFailures = 0; // Reset failure counter on success
+
+      // Update progress
+      if (alertElement) {
+        alertElement.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Inserting rules... (${currentIndex}/${rulesToProcess.length}) - ${successCount} successful`;
+      }
+
+      processNextRule();
+    }).catch((error) => {
+      consecutiveFailures++;
+
+      // If too many consecutive failures, implement connection recovery delay
+      if (consecutiveFailures >= maxConsecutiveFailures) {
+        console.log(`Detected connection issues, implementing recovery delay...`);
+        setTimeout(() => {
+          consecutiveFailures = 0; // Reset after recovery
+          // Retry this rule
+          processNextRule();
+        }, 2000); // 2 second recovery delay
+        return;
+      }
+
+      errorCount++;
+      const errorMsg = error.message || 'Unknown error';
+      errors.push(`${rule.antecedent}→${rule.consequent} (${errorMsg})`);
+      currentIndex++;
+      processNextRule();
+    });
+  }
+
+  processNextRule();
+}
+
+// Rule validation function
+function validateRule(rule) {
+  // Check if rule has valid antecedent and consequent
+  if (!rule.antecedent || !rule.consequent) return false;
+
+  // Check if antecedent and consequent are different
+  if (rule.antecedent === rule.consequent) return false;
+
+  // Check if support, confidence, and lift are valid numbers
+  if (isNaN(rule.support) || isNaN(rule.confidence) || isNaN(rule.lift)) return false;
+
+  // Check minimum thresholds
+  if (rule.support <= 0 || rule.confidence <= 0 || rule.lift <= 0) return false;
+
+  // Check maximum thresholds
+  if (rule.support > 1 || rule.confidence > 1) return false;
+
+  return true;
+}
+
+// Store for tracking inserted rules to prevent duplicates
+let insertedRulesCache = new Set();
+
+function insertSingleRule(rule, retryCount = 0) {
+  return new Promise((resolve, reject) => {
+    // Create unique identifier
+    const ruleId = `${rule.antecedent}→${rule.consequent}`;
+
+    // Check if rule was already inserted in this session
+    if (insertedRulesCache.has(ruleId)) {
+      resolve(); // Already inserted, consider it successful
+      return;
+    }
+
+    // Prepare rule data for API
+    const ruleData = {
+      antecedent: Array.isArray(rule.antecedent) ? rule.antecedent : [rule.antecedent],
+      consequent: Array.isArray(rule.consequent) ? rule.consequent : [rule.consequent],
+      support: rule.support,
+      confidence: rule.confidence,
+      lift: rule.lift,
+      rule_type: rule.rule_type || rule.type || rule.ruleType || 'product',
+      min_support_threshold: rule.min_support_threshold || rule.support,
+      min_confidence_threshold: rule.min_confidence_threshold,
+      min_lift_threshold: rule.min_lift_threshold,
+      source_view: rule.source_view || 'analysis.association_rules',
+      metadata: rule.metadata || {
+        antecedent_label: rule.antecedent,
+        consequent_label: rule.consequent,
+        source_path: window.location.pathname
+      }
+    };
+
+    // Make actual API call to insert rule
+    const maxRetries = 3;
+    const baseDelay = 100;
+    const backoffMultiplier = 1.5;
+
+    function attemptInsertion() {
+      const delay = baseDelay * Math.pow(backoffMultiplier, retryCount);
+
+      setTimeout(() => {
+        fetch('/analysis/api/association-rules/insert/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCsrfToken()
+          },
+          body: JSON.stringify(ruleData)
+        })
+        .then(async (response) => {
+          const result = await response.json().catch(() => ({ success: false, error: 'Invalid server response' }));
+
+          if (response.ok && result.success) {
+            // Successful insertion
+            insertedRulesCache.add(ruleId);
+            console.log(`Successfully inserted rule: ${ruleId}`);
+            resolve();
+          } else {
+            throw new Error(result.error || 'Unknown server error');
+          }
+        })
+        .catch((error) => {
+          console.log(`Insertion attempt failed for ${ruleId}:`, error.message);
+
+          if (retryCount < maxRetries) {
+            // Retry with exponential backoff
+            console.log(`Retrying insertion for ${ruleId} (attempt ${retryCount + 1}/${maxRetries})`);
+            insertSingleRule(rule, retryCount + 1).then(resolve).catch(reject);
+          } else {
+            // Final failure after all retries
+            reject(new Error(error.message || `Insertion failed after ${maxRetries} retries`));
+          }
+        });
+      }, delay);
+    }
+
+    attemptInsertion();
+  });
+}
+
+function initializeMultiSelect() {
+  // Initialize the multi-select UI
+  updateSelectedRulesCount();
+
+  // Add CSS for selected rule cards
+  const style = document.createElement('style');
+  style.textContent = `
+    .selectable-rule {
+      transition: all 0.3s ease;
+      position: relative;
+    }
+    .selectable-rule:has(.rule-checkbox:checked) {
+      background: linear-gradient(135deg, #e8f5e8, #f0f8f0) !important;
+      transform: translateX(2px);
+    }
+    .rule-checkbox {
+      cursor: pointer;
+    }
+    .selectable-rule .rule-checkbox:checked {
+      background-color: #28a745;
+      border-color: #28a745;
+    }
+    .btn-group .btn.disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  `;
+  document.head.appendChild(style);
+}
+</script>
+
+
+{% endblock %}

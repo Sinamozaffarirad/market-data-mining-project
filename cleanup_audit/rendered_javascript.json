@@ -1,0 +1,224 @@
+[
+  {
+    "page": "analysis.html",
+    "script": 0,
+    "ok": true,
+    "error": ""
+  },
+  {
+    "page": "analysis.html",
+    "script": 1,
+    "ok": true,
+    "error": ""
+  },
+  {
+    "page": "analysis.html",
+    "script": 2,
+    "ok": true,
+    "error": ""
+  },
+  {
+    "page": "analysis.html",
+    "script": 3,
+    "ok": true,
+    "error": ""
+  },
+  {
+    "page": "analysis_association-rules.html",
+    "script": 0,
+    "ok": true,
+    "error": ""
+  },
+  {
+    "page": "analysis_association-rules.html",
+    "script": 1,
+    "ok": true,
+    "error": ""
+  },
+  {
+    "page": "analysis_association-rules.html",
+    "script": 2,
+    "ok": true,
+    "error": ""
+  },
+  {
+    "page": "analysis_association-rules.html",
+    "script": 3,
+    "ok": true,
+    "error": ""
+  },
+  {
+    "page": "analysis_basket-analysis.html",
+    "script": 0,
+    "ok": true,
+    "error": ""
+  },
+  {
+    "page": "analysis_basket-analysis.html",
+    "script": 1,
+    "ok": true,
+    "error": ""
+  },
+  {
+    "page": "analysis_basket-analysis.html",
+    "script": 2,
+    "ok": true,
+    "error": ""
+  },
+  {
+    "page": "analysis_basket-analysis.html",
+    "script": 3,
+    "ok": true,
+    "error": ""
+  },
+  {
+    "page": "analysis_basket-analysis.html",
+    "script": 4,
+    "ok": true,
+    "error": ""
+  },
+  {
+    "page": "analysis_bi-dashboard.html",
+    "script": 0,
+    "ok": true,
+    "error": ""
+  },
+  {
+    "page": "analysis_bi-dashboard.html",
+    "script": 1,
+    "ok": true,
+    "error": ""
+  },
+  {
+    "page": "analysis_bi-dashboard.html",
+    "script": 2,
+    "ok": true,
+    "error": ""
+  },
+  {
+    "page": "analysis_bi-dashboard.html",
+    "script": 3,
+    "ok": true,
+    "error": ""
+  },
+  {
+    "page": "analysis_customer-retention.html",
+    "script": 0,
+    "ok": true,
+    "error": ""
+  },
+  {
+    "page": "analysis_customer-retention.html",
+    "script": 1,
+    "ok": true,
+    "error": ""
+  },
+  {
+    "page": "analysis_customer-retention.html",
+    "script": 2,
+    "ok": true,
+    "error": ""
+  },
+  {
+    "page": "analysis_customer-retention.html",
+    "script": 3,
+    "ok": true,
+    "error": ""
+  },
+  {
+    "page": "analysis_customer-segments.html",
+    "script": 0,
+    "ok": true,
+    "error": ""
+  },
+  {
+    "page": "analysis_customer-segments.html",
+    "script": 1,
+    "ok": true,
+    "error": ""
+  },
+  {
+    "page": "analysis_customer-segments.html",
+    "script": 2,
+    "ok": true,
+    "error": ""
+  },
+  {
+    "page": "analysis_customer-segments.html",
+    "script": 3,
+    "ok": true,
+    "error": ""
+  },
+  {
+    "page": "analysis_data-management.html",
+    "script": 0,
+    "ok": true,
+    "error": ""
+  },
+  {
+    "page": "analysis_data-management.html",
+    "script": 1,
+    "ok": true,
+    "error": ""
+  },
+  {
+    "page": "analysis_data-management.html",
+    "script": 2,
+    "ok": true,
+    "error": ""
+  },
+  {
+    "page": "analysis_data-management.html",
+    "script": 3,
+    "ok": true,
+    "error": ""
+  },
+  {
+    "page": "analysis_product-recommender.html",
+    "script": 0,
+    "ok": true,
+    "error": ""
+  },
+  {
+    "page": "analysis_product-recommender.html",
+    "script": 1,
+    "ok": true,
+    "error": ""
+  },
+  {
+    "page": "analysis_product-recommender.html",
+    "script": 2,
+    "ok": true,
+    "error": ""
+  },
+  {
+    "page": "analysis_product-recommender.html",
+    "script": 3,
+    "ok": true,
+    "error": ""
+  },
+  {
+    "page": "analysis_product-recommender.html",
+    "script": 4,
+    "ok": true,
+    "error": ""
+  },
+  {
+    "page": "customers_search.html",
+    "script": 0,
+    "ok": true,
+    "error": ""
+  },
+  {
+    "page": "customers_search.html",
+    "script": 1,
+    "ok": true,
+    "error": ""
+  },
+  {
+    "page": "customers_search.html",
+    "script": 2,
+    "ok": true,
+    "error": ""
+  }
+]

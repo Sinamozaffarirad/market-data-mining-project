@@ -1,0 +1,677 @@
+{% extends "admin/base.html" %}
+{% load static %}
+
+{% block title %}Association Rules Mining | Market Analysis Platform{% endblock %}
+
+{% block content %}
+<div class="dashboard">
+    <div class="module">
+        <h2><i class="fas fa-network-wired"></i> Association Rules Mining</h2>
+        
+        {% if result_message %}
+        <div class="alert alert-success">
+            <strong><i class="fas fa-check-circle"></i> Success:</strong> {{ result_message }}
+        </div>
+        {% endif %}
+        
+        {% if error_message %}
+        <div class="alert alert-danger">
+            <strong><i class="fas fa-exclamation-triangle"></i> Error:</strong> {{ error_message }}
+        </div>
+        {% endif %}
+        
+        <!-- Configuration Section -->
+        <div class="form-section">
+            <h3><i class="fas fa-cogs"></i> Algorithm Configuration</h3>
+            <p class="section-description">Configure parameters for association rule mining using the Apriori algorithm to discover shopping patterns and product relationships.</p>
+            
+            <form method="post" action="" id="rulesForm" class="modern-form">
+                {% csrf_token %}
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="min_support">
+                            <i class="fas fa-percentage"></i> Minimum Support
+                        </label>
+                        <input type="number" id="min_support" name="min_support" 
+                               step="0.001" value="{{ min_support|default:0.01 }}" 
+                               min="0" max="1" required>
+                        <small class="help-text">Minimum frequency of itemset occurrence (0.001 - 1.0). Lower values find more patterns but may include noise.</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="min_confidence">
+                            <i class="fas fa-chart-line"></i> Minimum Confidence
+                        </label>
+                        <input type="number" id="min_confidence" name="min_confidence" 
+                               step="0.01" value="{{ min_confidence|default:0.5 }}" 
+                               min="0" max="1" required>
+                        <small class="help-text">Minimum rule reliability threshold (0.0 - 1.0). Higher values ensure stronger associations.</small>
+                    </div>
+                </div>
+                
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary" id="generateBtn">
+                        <i class="fas fa-magic"></i> Generate Association Rules
+                    </button>
+                    <div id="loadingIndicator" class="loading-indicator" style="display: none;">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        <span>Mining association rules... This may take a few minutes for large datasets.</span>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <!-- Results Section -->
+        <div class="results-section">
+            <div class="section-header">
+                <h3><i class="fas fa-chart-bar"></i> Association Rules Results</h3>
+                <div class="section-meta">
+                    <span class="result-count">{{ rules|length }} rules found</span>
+                    {% if min_support %}
+                    <span class="parameters">
+                        <i class="fas fa-sliders-h"></i> 
+                        Support: {{ min_support }}, Confidence: {{ min_confidence }}
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <p class="section-description">Rules sorted by lift value - higher lift indicates stronger association between products.</p>
+            
+            <div class="data-table-container">
+                <table class="data-table modern-table">
+                    <thead>
+                        <tr>
+                            <th><i class="fas fa-arrow-right"></i> Antecedent</th>
+                            <th><i class="fas fa-bullseye"></i> Consequent</th>
+                            <th><i class="fas fa-percentage"></i> Support</th>
+                            <th><i class="fas fa-chart-line"></i> Confidence</th>
+                            <th><i class="fas fa-rocket"></i> Lift</th>
+                            <th><i class="fas fa-tag"></i> Rule Type</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for rule in rules %}
+                        <tr class="rule-row">
+                            <td class="antecedent-cell">
+                                <div class="product-list">
+                                    {% if rule.antecedent %}
+                                        {% for item in rule.antecedent %}
+                                        <span class="product-tag">{{ item }}</span>
+                                        {% endfor %}
+                                    {% else %}
+                                        <span class="product-tag">Product {{ rule.antecedent.0 }}</span>
+                                    {% endif %}
+                                </div>
+                            </td>
+                            <td class="consequent-cell">
+                                <div class="product-list">
+                                    {% if rule.consequent %}
+                                        {% for item in rule.consequent %}
+                                        <span class="product-tag consequent">{{ item }}</span>
+                                        {% endfor %}
+                                    {% else %}
+                                        <span class="product-tag consequent">Product {{ rule.consequent.0 }}</span>
+                                    {% endif %}
+                                </div>
+                            </td>
+                            <td class="metric-cell">
+                                <div class="metric-value">{{ rule.support|floatformat:3 }}</div>
+                                <div class="metric-bar" style="width: {{ rule.support|floatformat:0 }}%"></div>
+                            </td>
+                            <td class="metric-cell">
+                                <div class="metric-value">{{ rule.confidence|floatformat:3 }}</div>
+                                <div class="metric-bar confidence" style="width: {{ rule.confidence|floatformat:0 }}%"></div>
+                            </td>
+                            <td class="metric-cell">
+                                <div class="metric-value lift">{{ rule.lift|floatformat:3 }}</div>
+                                <div class="lift-indicator {% if rule.lift > 1 %}positive{% else %}negative{% endif %}">
+                                    <i class="fas {% if rule.lift > 1 %}fa-arrow-up{% else %}fa-arrow-down{% endif %}"></i>
+                                </div>
+                            </td>
+                            <td class="type-cell">
+                                <span class="rule-type-badge">{{ rule.rule_type|default:"Generated" }}</span>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr class="empty-row">
+                            <td colspan="6" class="empty-state">
+                                <div class="empty-content">
+                                    <i class="fas fa-search fa-3x"></i>
+                                    <h4>No Association Rules Found</h4>
+                                    <p>Try generating new rules with different parameters. Lower the minimum support or confidence values to discover more patterns.</p>
+                                    <div class="suggestions">
+                                        <strong>Suggestions:</strong>
+                                        <ul>
+                                            <li>Reduce minimum support to 0.001-0.01</li>
+                                            <li>Lower confidence threshold to 0.3-0.5</li>
+                                            <li>Ensure sufficient transaction data exists</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <!-- Insights Panel -->
+        {% if rules %}
+        <div class="insights-section">
+            <h3><i class="fas fa-lightbulb"></i> Key Insights</h3>
+            <div class="insights-grid">
+                <div class="insight-card">
+                    <div class="insight-icon">
+                        <i class="fas fa-trophy"></i>
+                    </div>
+                    <div class="insight-content">
+                        <h4>Strongest Association</h4>
+                        <p>{{ rules.0.antecedent.0 }} → {{ rules.0.consequent.0 }}</p>
+                        <span class="insight-value">Lift: {{ rules.0.lift|floatformat:2 }}</span>
+                    </div>
+                </div>
+                
+                <div class="insight-card">
+                    <div class="insight-icon">
+                        <i class="fas fa-chart-pie"></i>
+                    </div>
+                    <div class="insight-content">
+                        <h4>Average Confidence</h4>
+                        <p>Overall rule reliability</p>
+                        <span class="insight-value">{{ rules|length }} rules analyzed</span>
+                    </div>
+                </div>
+                
+                <div class="insight-card">
+                    <div class="insight-icon">
+                        <i class="fas fa-network-wired"></i>
+                    </div>
+                    <div class="insight-content">
+                        <h4>Pattern Complexity</h4>
+                        <p>Multi-item associations found</p>
+                        <span class="insight-value">Market basket insights</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        
+        <!-- Algorithm Information -->
+        <div class="info-section">
+            <h3><i class="fas fa-info-circle"></i> About Association Rules Mining</h3>
+            <div class="info-grid">
+                <div class="info-card">
+                    <h4><i class="fas fa-cogs"></i> Apriori Algorithm</h4>
+                    <p>Uses frequent itemset mining to discover relationships between products in shopping baskets. Identifies patterns like "customers who buy X also buy Y".</p>
+                </div>
+                
+                <div class="info-card">
+                    <h4><i class="fas fa-chart-line"></i> Key Metrics</h4>
+                    <ul>
+                        <li><strong>Support:</strong> How frequently items appear together</li>
+                        <li><strong>Confidence:</strong> Likelihood of consequent given antecedent</li>
+                        <li><strong>Lift:</strong> Strength of association (>1 = positive)</li>
+                    </ul>
+                </div>
+                
+                <div class="info-card">
+                    <h4><i class="fas fa-bullseye"></i> Business Applications</h4>
+                    <ul>
+                        <li>Product recommendations</li>
+                        <li>Store layout optimization</li>
+                        <li>Cross-selling strategies</li>
+                        <li>Inventory management</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+/* Modern Form Styling */
+.modern-form {
+    background: var(--bg-primary);
+    border-radius: var(--radius-xl);
+    padding: var(--space-6);
+    margin: var(--space-4) 0;
+}
+
+.form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: var(--space-6);
+    margin-bottom: var(--space-6);
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.form-group label {
+    font-weight: 600;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-sm);
+}
+
+.form-group input {
+    padding: var(--space-3) var(--space-4);
+    border: 2px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    font-size: var(--font-base);
+    transition: all 0.3s ease;
+}
+
+.form-group input:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    outline: none;
+}
+
+.help-text {
+    font-size: var(--font-xs);
+    color: var(--text-light);
+    line-height: 1.4;
+}
+
+.form-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+}
+
+/* Section Headers */
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-4);
+    padding-bottom: var(--space-3);
+    border-bottom: 2px solid var(--border-color);
+}
+
+.section-meta {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    font-size: var(--font-sm);
+    color: var(--text-secondary);
+}
+
+.result-count {
+    background: var(--primary-color);
+    color: white;
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius-full);
+    font-weight: 600;
+    font-size: var(--font-xs);
+}
+
+.parameters {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+}
+
+.section-description {
+    color: var(--text-secondary);
+    font-size: var(--font-base);
+    margin-bottom: var(--space-6);
+    line-height: 1.6;
+}
+
+/* Enhanced Table Styling */
+.data-table-container {
+    background: var(--bg-primary);
+    border-radius: var(--radius-xl);
+    overflow: hidden;
+    box-shadow: var(--shadow-lg);
+    border: 1px solid var(--border-color);
+}
+
+.modern-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.modern-table th {
+    background: linear-gradient(135deg, var(--primary-color), var(--primary-hover));
+    color: white;
+    padding: var(--space-4) var(--space-3);
+    text-align: left;
+    font-weight: 600;
+    font-size: var(--font-sm);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.modern-table th i {
+    margin-right: var(--space-1);
+    opacity: 0.9;
+}
+
+.rule-row {
+    transition: all 0.2s ease;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.rule-row:hover {
+    background: var(--bg-hover);
+    transform: scale(1.01);
+    box-shadow: var(--shadow-sm);
+}
+
+.modern-table td {
+    padding: var(--space-4) var(--space-3);
+    vertical-align: top;
+}
+
+/* Product Tags */
+.product-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+}
+
+.product-tag {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-md);
+    font-size: var(--font-xs);
+    font-weight: 500;
+    border: 1px solid var(--border-color);
+}
+
+.product-tag.consequent {
+    background: linear-gradient(135deg, var(--success-color), #059669);
+    color: white;
+    border: none;
+}
+
+/* Metric Cells */
+.metric-cell {
+    position: relative;
+    min-width: 80px;
+}
+
+.metric-value {
+    font-weight: 600;
+    font-size: var(--font-base);
+    color: var(--text-primary);
+    margin-bottom: var(--space-1);
+}
+
+.metric-value.lift {
+    color: var(--primary-color);
+    font-weight: 700;
+}
+
+.metric-bar {
+    height: 4px;
+    background: var(--primary-color);
+    border-radius: var(--radius-full);
+    opacity: 0.6;
+}
+
+.metric-bar.confidence {
+    background: var(--success-color);
+}
+
+.lift-indicator {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: var(--radius-full);
+    font-size: var(--font-xs);
+    margin-top: var(--space-1);
+}
+
+.lift-indicator.positive {
+    background: rgba(16, 185, 129, 0.2);
+    color: var(--success-color);
+}
+
+.lift-indicator.negative {
+    background: rgba(239, 68, 68, 0.2);
+    color: var(--danger-color);
+}
+
+/* Rule Type Badge */
+.rule-type-badge {
+    background: var(--info-color);
+    color: white;
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-md);
+    font-size: var(--font-xs);
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+/* Empty State */
+.empty-row td {
+    padding: var(--space-8);
+    text-align: center;
+}
+
+.empty-content {
+    color: var(--text-secondary);
+}
+
+.empty-content i {
+    color: var(--text-light);
+    margin-bottom: var(--space-4);
+}
+
+.empty-content h4 {
+    color: var(--text-primary);
+    margin: var(--space-4) 0 var(--space-2) 0;
+    font-size: var(--font-xl);
+}
+
+.suggestions {
+    background: var(--bg-tertiary);
+    padding: var(--space-4);
+    border-radius: var(--radius-lg);
+    margin-top: var(--space-4);
+    text-align: left;
+    max-width: 400px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.suggestions ul {
+    margin: var(--space-2) 0 0 var(--space-4);
+    padding: 0;
+}
+
+.suggestions li {
+    margin-bottom: var(--space-1);
+}
+
+/* Insights Section */
+.insights-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: var(--space-6);
+    margin-top: var(--space-4);
+}
+
+.insight-card {
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-xl);
+    padding: var(--space-6);
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    transition: all 0.3s ease;
+    box-shadow: var(--shadow-sm);
+}
+
+.insight-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-lg);
+    border-color: var(--primary-color);
+}
+
+.insight-icon {
+    background: linear-gradient(135deg, var(--primary-color), var(--primary-hover));
+    color: white;
+    width: 60px;
+    height: 60px;
+    border-radius: var(--radius-xl);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--font-xl);
+    flex-shrink: 0;
+}
+
+.insight-content h4 {
+    color: var(--text-primary);
+    margin: 0 0 var(--space-1) 0;
+    font-size: var(--font-lg);
+    font-weight: 600;
+}
+
+.insight-content p {
+    color: var(--text-secondary);
+    margin: 0 0 var(--space-2) 0;
+    font-size: var(--font-sm);
+}
+
+.insight-value {
+    color: var(--primary-color);
+    font-weight: 700;
+    font-size: var(--font-base);
+}
+
+/* Info Grid */
+.info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: var(--space-6);
+    margin-top: var(--space-4);
+}
+
+.info-card {
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-xl);
+    padding: var(--space-6);
+    border-left: 4px solid var(--primary-color);
+}
+
+.info-card h4 {
+    color: var(--primary-color);
+    margin: 0 0 var(--space-3) 0;
+    font-size: var(--font-lg);
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.info-card p {
+    color: var(--text-secondary);
+    line-height: 1.6;
+    margin-bottom: var(--space-3);
+}
+
+.info-card ul {
+    color: var(--text-secondary);
+    padding-left: var(--space-4);
+}
+
+.info-card li {
+    margin-bottom: var(--space-1);
+    line-height: 1.5;
+}
+
+.info-card strong {
+    color: var(--text-primary);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .form-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .section-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--space-2);
+    }
+    
+    .section-meta {
+        flex-wrap: wrap;
+    }
+    
+    .insights-grid,
+    .info-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .insight-card {
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .modern-table {
+        font-size: var(--font-sm);
+    }
+    
+    .modern-table th,
+    .modern-table td {
+        padding: var(--space-2);
+    }
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('rulesForm');
+    const generateBtn = document.getElementById('generateBtn');
+    const loadingIndicator = document.getElementById('loadingIndicator');
+    
+    if (form && generateBtn) {
+        form.addEventListener('submit', function(e) {
+            // Show loading state
+            generateBtn.style.display = 'none';
+            loadingIndicator.style.display = 'flex';
+            
+            // Add timeout safety to prevent infinite loading
+            setTimeout(function() {
+                generateBtn.style.display = 'inline-flex';
+                loadingIndicator.style.display = 'none';
+                console.log('Association rules generation timeout - UI reset');
+            }, 120000); // 2 minutes timeout
+            
+            console.log('Association rules generation started');
+        });
+    }
+    
+    // Enhanced table interactions
+    const rows = document.querySelectorAll('.rule-row');
+    rows.forEach(row => {
+        row.addEventListener('click', function() {
+            // Add click functionality if needed
+            this.style.backgroundColor = 'var(--bg-hover)';
+            setTimeout(() => {
+                this.style.backgroundColor = '';
+            }, 200);
+        });
+    });
+});
+</script>
+{% endblock %}

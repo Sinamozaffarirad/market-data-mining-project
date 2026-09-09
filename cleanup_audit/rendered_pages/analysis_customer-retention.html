@@ -1,0 +1,1248 @@
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Customer Retention</title>
+  
+  <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20viewBox%3D%270%200%20100%20100%27%3E%3Ctext%20x%3D%2750%27%20y%3D%2752%27%20font-size%3D%2778%27%20text-anchor%3D%27middle%27%20dominant-baseline%3D%27central%27%3E%F0%9F%92%9C%3C/text%3E%3C/svg%3E">
+  <script>
+    (function(){
+      try{
+        var t = localStorage.getItem('market.theme') || 'light';
+        document.documentElement.setAttribute('data-theme', t);
+        localStorage.setItem('theme', t); // keep django key aligned even outside admin
+      }catch(e){}
+    })();
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+  <!-- Tailwind CDN (utilities only) -->
+  <script>
+    window.tailwind = {
+      config: {
+        corePlugins: { preflight: false } // keep Bootstrap defaults
+      }
+    };
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Bootstrap 5 for faster iteration -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="/static/js/chart_quality.js"></script>
+  <link rel="stylesheet" href="/static/css/market_theme.css" />
+  <link rel="stylesheet" href="/static/css/market_analysis_v2.css" />
+  <link rel="stylesheet" href="/static/css/analysis_shell.css" />
+  <!-- Bootstrap Icons is not loaded. Its stylesheet styles every class beginning
+       "bi-", and the BI dashboard's layout classes use that prefix, so bi-table and
+       bi-bookmark were being given icon glyphs. The one icon the site took from it
+       is drawn with Font Awesome, which everything else already uses. -->
+  <style>
+    /* market_analysis_v2.css forces `.admin .table th { text-align: left !important }`,
+       which outranks Bootstrap's alignment utilities. Every right-aligned number
+       column therefore sat under a left-aligned heading. Restated here, after that
+       file and specific enough to win, so a heading sits over its own column. */
+    .admin .table th.text-end,    .table th.text-end,    th.text-end    { text-align: right !important; }
+    .admin .table th.text-center, .table th.text-center, th.text-center { text-align: center !important; }
+    .admin .table th.text-start,  .table th.text-start,  th.text-start  { text-align: left !important; }
+
+    :root {
+      --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      --gradient-nav: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+      --shadow-nav: 0 4px 20px rgba(102, 126, 234, 0.3);
+      --nav-height: 70px;
+    }
+
+    .modern-nav {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      height: var(--nav-height);
+      background: var(--gradient-nav);
+      backdrop-filter: blur(10px);
+      box-shadow: var(--shadow-nav);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .nav-container {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 100%;
+      /*padding: 0 1.5rem 0 1rem;*/
+      padding:0 0.8rem;
+      max-width: 1500px;
+      margin: 0 auto;
+      flex-wrap: nowrap;
+      overflow: visible;
+    }
+
+    .nav-middle {
+      display: flex;
+      align-items: center;
+      flex: 1;
+      min-width: 0;
+      overflow-x: auto;
+      overflow-y: hidden;
+      -webkit-overflow-scrolling: touch;
+      margin-left: 1rem;
+      scrollbar-width: none; /* Hide scrollbar completely */
+    }
+
+    /* Hide scrollbar for webkit browsers */
+    .nav-middle::-webkit-scrollbar {
+      display: none;
+    }
+
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      /*gap: 1rem;*/
+      gap: 0.5rem;
+      color: white;
+      text-decoration: none;
+      font-weight: 800;
+      /*font-size: 1.5rem;*/
+      font-size: 1.2rem;
+      letter-spacing: -0.025em;
+      transition: all 0.3s ease;
+      flex-shrink: 0;
+      /*margin-right: 2rem;*/
+      margin-right: 0.8rem;
+    }
+
+    .nav-brand:hover {
+      color: rgba(255, 255, 255, 0.9);
+      transform: scale(1.05);
+    }
+
+    .nav-brand-icon {
+      /*font-size: 2rem;*/
+      font-size: 1.35rem;
+      background: white;
+      color: #667eea;
+      border-radius: 12px;
+      /*width: 40px;
+      height: 40px;*/
+      width: 35px;
+      height: 35px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      /*gap: 0.3rem;*/
+      gap: 0.15rem;
+      list-style: none;
+      margin: 0;
+      padding: 0.5rem 1rem;
+      flex-wrap: nowrap;
+      flex-shrink: 0;
+      min-width: max-content;
+    }
+
+    .nav-link {
+      position: relative;
+      /*padding: 0.75rem 1rem;*/
+      padding: 0.45rem 0.5rem;
+      color: rgba(255, 255, 255, 0.9);
+      text-decoration: none;
+      font-weight: 600;
+      /*font-size: 0.85rem;
+      border-radius: 12px;*/
+      font-size: 0.75rem;
+      border-radius: 10px;
+      transition: all 0.3s ease;
+      white-space: nowrap;
+    }
+
+    .nav-link i {
+      font-size: 0.85rem;
+    }
+
+    .nav-link::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .nav-link:hover {
+      color: white;
+      transform: translateY(-2px);
+    }
+
+    .nav-link:hover::before {
+      opacity: 1;
+    }
+
+    .nav-link.active {
+      color: white;
+      background: rgba(255, 255, 255, 0.15);
+      backdrop-filter: blur(10px);
+    }
+
+    .theme-toggle {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: white;
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      margin-left: 1rem;
+    }
+
+    .theme-toggle:hover {
+      background: rgba(255, 255, 255, 0.2);
+      transform: scale(1.1);
+      color: white;
+    }
+
+    .content {
+      min-height: calc(100vh - var(--nav-height));
+      padding: 2rem;
+      background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+    }
+
+    .mobile-nav-toggle {
+      display: none;
+      background: none;
+      border: none;
+      color: white;
+      font-size: 1.5rem;
+      cursor: pointer;
+      padding: 0.5rem;
+    }
+
+    @media (max-width: 1200px) {
+      .nav-middle {
+        /*margin-left: 2rem;*/
+        overflow: visible;
+        flex-wrap: nowrap;
+      }
+
+      .nav-brand {
+        margin-right: 1.5rem;
+      }
+
+      .nav-links {
+        gap: 0.2rem;
+        padding-right: 1rem;
+      }
+
+      .nav-link {
+        padding: 0.75rem 0.8rem;
+        font-size: 0.8rem;
+      }
+    }
+
+    @media (max-width: 1540px) {
+      .nav-container {
+        padding: 0 1rem 0 0.5rem;
+      }
+
+      .nav-middle {
+        display: none;
+      }
+
+      .nav-middle.show {
+        display: flex;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: rgba(102, 126, 234, 0.98);
+        backdrop-filter: blur(10px);
+        flex-direction: column;
+        padding: 1rem;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        overflow-x: visible;
+        z-index: 1000;
+        margin-left: 0;
+      }
+
+      .nav-middle.show .nav-links {
+        flex-direction: column;
+        width: 100%;
+        padding: 0;
+      }
+
+      .nav-middle.show .nav-link {
+        width: 100%;
+        text-align: center;
+        margin: 0.25rem 0;
+        padding: 1rem;
+      }
+
+      .nav-brand {
+        font-size: 1.3rem;
+        margin-right: 1rem;
+      }
+
+      .mobile-nav-toggle {
+        display: block;
+      }
+
+      .theme-toggle {
+        margin-left: 0.5rem;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .nav-middle {
+        display: none;
+      }
+
+      .nav-middle.show {
+        display: flex;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: rgba(102, 126, 234, 0.98);
+        backdrop-filter: blur(10px);
+        flex-direction: column;
+        padding: 1rem;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        overflow-x: visible;
+        z-index: 1000;
+      }
+
+      .nav-middle.show .nav-links {
+        flex-direction: column;
+        width: 100%;
+        padding: 0;
+      }
+
+      .nav-middle.show .nav-link {
+        width: 100%;
+        text-align: center;
+        margin: 0.25rem 0;
+        padding: 1rem;
+      }
+
+      .mobile-nav-toggle {
+        display: block;
+      }
+    }
+
+    @media (max-width: 768px) {
+      .nav-brand {
+        font-size: 1.2rem;
+      }
+
+      .nav-brand-icon {
+        width: 35px;
+        height: 35px;
+        font-size: 1.5rem;
+      }
+
+      .content {
+        padding: 1rem;
+      }
+
+      footer .row {
+        text-align: center !important;
+      }
+
+      footer .col-md-4 {
+        margin-bottom: 2rem;
+      }
+
+      footer .col-md-4 > div {
+        justify-content: center !important;
+      }
+
+      footer img {
+        width: 60px !important;
+        height: 60px !important;
+      }
+    }
+
+    @media (max-width: 576px) {
+      .nav-brand {
+        font-size: 1rem;
+      }
+
+      footer {
+        padding: 2rem 1rem !important;
+      }
+
+      footer img {
+        width: 50px !important;
+        height: 50px !important;
+      }
+
+      footer div[style*="font-size: 1.1rem"] {
+        font-size: 0.95rem !important;
+      }
+
+      footer div[style*="font-size: 1.5rem"] {
+        font-size: 1.2rem !important;
+      }
+    }
+
+    body {
+      background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+      font-family: 'Inter', sans-serif;
+      overflow-x: hidden;
+      width: 100%;
+      max-width: 100vw;
+    }
+
+    html {
+      overflow-x: hidden;
+      width: 100%;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    .container-fluid {
+      width: 100%;
+      max-width: 100%;
+      padding-right: 15px;
+      padding-left: 15px;
+      margin-right: auto;
+      margin-left: auto;
+    }
+
+    .fade-up {
+      animation: fadeUp 0.6s ease-out;
+    }
+
+    @keyframes fadeUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+  </style>
+  
+<style>
+  /* Same RFM label palette used by Customer Segments and the churn profile. */
+  .bg-champions { background-color: #28a745; color: #fff !important; }
+  .bg-loyal-customers { background-color: #007bff; color: #fff !important; }
+  .bg-potential-loyalists { background-color: #17a2b8; color: #fff !important; }
+  .bg-new-customers { background-color: #340696; color: #fff !important; }
+  .bg-big-spenders { background-color: #6d74bd; color: #fff !important; }
+  .bg-regular-customers { background-color: #de5fc5; color: #212529 !important; }
+  .bg-need-attention { background-color: #fd7e14; color: #212529 !important; }
+  .bg-at-risk { background-color: #ffc107; color: #212529 !important; }
+  .bg-cant-lose-them { background-color: #dc3545; color: #fff !important; }
+  .bg-hibernating { background-color: #adb5bd; color: #212529 !important; }
+  .bg-lost { background-color: #343a40; color: #fff !important; }
+
+  .badge-risk-very-high { background-color: #dc3545; color: #fff !important; }
+  .badge-risk-high { background-color: #ffc107; color: #212529 !important; }
+  .badge-risk-medium { background-color: #0dcaf0; color: #212529 !important; }
+  .retention-filter { border-left: 4px solid #6674df; width: 100%; }
+  /* Frame and banner come from analysis_shell.css. */
+
+  /* Card system shared with the association-rules and basket-mining pages. */
+  .page-frame .card {
+    border: 1px solid #e6e8f2; border-radius: 14px;
+    box-shadow: 0 2px 12px rgba(102, 126, 234, .05);
+  }
+  .page-frame .form-select, .page-frame .form-control { border-radius: .55rem; border-color: #dfe3f1; }
+  .page-frame .form-select:focus, .page-frame .form-control:focus {
+    border-color: #667eea; box-shadow: 0 0 0 .18rem rgba(102, 126, 234, .15);
+  }
+  .page-frame .btn-primary {
+    background: linear-gradient(135deg, #667eea, #764ba2); border: none;
+    border-radius: 10px; font-weight: 600;
+  }
+  .page-frame .btn-primary:hover { filter: brightness(1.06); }
+  .page-frame .table thead th {
+    font-size: .66rem; letter-spacing: .05em; text-transform: uppercase;
+    color: #fff; font-weight: 700;
+    background: linear-gradient(135deg, #667eea, #764ba2); border-bottom: 0;
+  }
+  .retention-filter .form-select,
+  .retention-filter .form-control {
+    height: calc(1.5em + .75rem + 2px);
+    padding: .375rem .75rem;
+    font-size: 1rem;
+    line-height: 1.5;
+  }
+  .retention-filter input[type="number"] {
+    appearance: textfield;
+    -moz-appearance: textfield;
+  }
+  .retention-filter input[type="number"]::-webkit-inner-spin-button,
+  .retention-filter input[type="number"]::-webkit-outer-spin-button {
+    appearance: none;
+    margin: 0;
+  }
+  .retention-table thead th {
+    background: var(--gradient-primary); color: #fff; border: 0; font-size: .82rem;
+    letter-spacing: .02em; padding: .9rem .65rem; text-align: center !important; text-transform: uppercase; white-space: nowrap;
+  }
+  .retention-table { table-layout: fixed; }
+  .retention-table th:nth-child(1), .retention-table td:nth-child(1) { width: 17%; }
+  .retention-table th:nth-child(2), .retention-table td:nth-child(2) { width: 24%; }
+  .retention-table th:nth-child(3), .retention-table td:nth-child(3) { width: 21%; }
+  .retention-table th:nth-child(4), .retention-table td:nth-child(4) { width: 16%; }
+  .retention-table th:nth-child(5), .retention-table td:nth-child(5) { width: 22%; }
+  .retention-table tbody td { padding: .9rem .65rem; text-align: center; vertical-align: middle; }
+  .retention-table tbody tr { transition: background-color .15s ease; }
+  .retention-table tbody tr:hover { background-color: #f7f8ff; }
+  .customer-id { color: #212529; font-weight: 700; }
+  .customer-id i { color: #6c757d; }
+  .profile-link {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.5rem;
+    transition: background-color 0.2s ease-in-out;
+  }
+  .profile-link:hover { background-color: rgba(0, 0, 0, 0.05); }
+  .risk-badge, .rfm-badge { border-radius: .35rem; font-weight: 700; padding: .42rem .6rem; }
+  .spend-value { color: #182b4d; font-weight: 700; white-space: nowrap; }
+  .recommendation-action { border-radius: .4rem; white-space: nowrap; }
+  .retention-filter-actions .btn {
+    height: calc(1.5em + .75rem + 2px) !important;
+    min-height: 0;
+    padding: .375rem .75rem !important;
+  }
+  .recommender-loading-overlay {
+    display: none; position: fixed; inset: 0; z-index: 2000;
+    align-items: center; justify-content: center; padding: 1.5rem;
+    background: rgba(20, 31, 52, .58); backdrop-filter: blur(3px);
+  }
+  .recommender-loading-overlay.is-visible { display: flex; }
+  .recommender-loading-card {
+    width: min(100%, 430px); padding: 2rem; border-radius: 1rem;
+    background: #fff; box-shadow: 0 1.2rem 3.5rem rgba(0, 0, 0, .25);
+    text-align: center;
+  }
+  .recommender-loading-spinner {
+    width: 3.25rem; height: 3.25rem; margin: 0 auto 1rem;
+    border: .35rem solid #e4e7ff; border-top-color: #6674df;
+    border-radius: 50%; animation: recommender-spin .8s linear infinite;
+  }
+  @keyframes recommender-spin { to { transform: rotate(360deg); } }
+  @media (max-width: 767.98px) { .retention-table { min-width: 760px; } }
+</style>
+
+  
+</head>
+<body class="admin">
+  <nav class="modern-nav fade-up">
+    <div class="nav-container">
+      <a href="/analysis/" class="nav-brand">
+        <div class="nav-brand-icon">
+          <i class="fas fa-chart-line"></i>
+        </div>
+        <span>Market Analytics</span>
+      </a>
+
+      <div class="nav-middle" id="navMiddle">
+        <div class="nav-links">
+          <a href="/analysis/" class="nav-link">
+            <i class="fas fa-home me-1"></i>
+            Dashboard
+          </a>
+          <a href="/analysis/basket-analysis/" class="nav-link">
+            <i class="fas fa-shopping-basket me-1"></i>
+            Basket Analysis
+          </a>
+          <a href="/analysis/association-rules/" class="nav-link">
+            <i class="fas fa-project-diagram me-1"></i>
+            Association Rules
+          </a>
+          <a href="/analysis/customer-segments/" class="nav-link">
+            <i class="fas fa-users me-1"></i>
+            Customer Segments
+          </a>
+          <a href="/analysis/customer-retention/" class="nav-link">
+            <i class="fas fa-heart-circle-check me-1"></i>
+            Customer Retention
+          </a>
+          <a href="/analysis/data-management/" class="nav-link">
+            <i class="fas fa-database me-1"></i>
+            Data Management
+          </a>
+          <a href="/customers/search/" class="nav-link">
+            <i class="fas fa-user me-1"></i>
+            Customers
+          </a>
+          <a href="/analysis/product-recommender/" class="nav-link">
+              <i class="fas fa-file-pen me-1"></i>
+              Product Recommender
+          </a>
+        </div>
+      </div>
+
+      <div class="d-flex align-items-center">
+        
+        <a href="/analysis/logout/" class="nav-link" style="background: rgba(255,255,255,0.1); padding: 0.5rem 1rem; border-radius: 10px; margin-right: 1rem;">
+          <i class="fas fa-sign-out-alt me-2"></i>
+          Logout
+        </a>
+        
+        <button class="mobile-nav-toggle" id="mobileNavToggle" aria-label="Toggle navigation">
+          <i class="fas fa-bars"></i>
+        </button>
+        <button id="site-theme-toggle" class="theme-toggle" title="Toggle theme">
+          <i class="icon fa-solid fa-moon"></i>
+        </button>
+      </div>
+    </div>
+  </nav>
+  <main class="content">
+    <div class="container-fluid" style="max-width: 1400px;">
+      
+<div class="analysis-frame">
+<div class="analysis-banner">
+  <div>
+    <div class="analysis-banner-title"><i class="fa-solid fa-heart-circle-check"></i> Customer Retention</div>
+    <div class="analysis-banner-sub">Prioritize at-risk customers, then open their existing personalized product recommender.</div>
+  </div>
+  
+    <span class="badge bg-success px-3 py-2">Active model: Non_Overlapping &middot; 180d / 30d / 210d</span>
+  
+</div>
+
+<div class="card shadow-sm border-0 retention-filter mb-4">
+  <div class="card-body p-4">
+    <form class="row g-3 align-items-end" method="get">
+      <div class="col-lg-4 col-md-6">
+        <label class="form-label fw-semibold">Minimum churn probability</label>
+        <select class="form-select" name="minimum_probability">
+          <option value="0.25" >25% - Medium risk and above</option>
+          <option value="0.50" selected>50% - High risk and above</option>
+          <option value="0.75" >75% - Very high risk only</option>
+        </select>
+      </div>
+      <div class="col-lg-3 col-md-6">
+        <label class="form-label fw-semibold" for="customerSearch">Customer number</label>
+        <input class="form-control" id="customerSearch" name="customer" type="search" inputmode="numeric" value="" placeholder="For example: 2164">
+      </div>
+      <div class="col-lg-3 col-md-6">
+        <label class="form-label fw-semibold" for="maximumCustomers">Maximum customers</label>
+        <input class="form-control" id="maximumCustomers" name="maximum_customers" type="number" min="1" step="1" value="" placeholder="For example: 50">
+      </div>
+      <div class="col-lg-2 col-md-6"><div class="d-flex gap-2 retention-filter-actions"><button class="btn btn-primary flex-grow-1"><i class="fa-solid fa-filter me-2"></i>Filter</button><a class="btn btn-outline-secondary" href="/analysis/customer-retention/" title="Clear filters"><i class="fa-solid fa-rotate-left"></i></a></div></div>
+    </form>
+  </div>
+</div>
+
+
+
+<div class="card shadow-sm border-0 overflow-hidden">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table retention-table align-middle mb-0">
+        <thead><tr><th style="text-align: center !important;">Customer</th><th style="text-align: center !important;">Churn probability</th><th style="text-align: center !important;">RFM segment</th><th style="text-align: center !important;">Total spend</th><th style="text-align: center !important;">Retention action</th></tr></thead>
+        <tbody>
+          
+          <tr>
+            <td><a class="customer-id profile-link text-decoration-none" href="/customers/detail/1035/"><i class="fa-solid fa-user me-2"></i>1035</a></td>
+            <td><span class="badge risk-badge badge-risk-very-high">86.5% &middot; Very High Risk</span></td>
+            <td><span class="badge rfm-badge bg-hibernating">Hibernating</span></td>
+            <td><span class="spend-value">$183.04</span></td>
+            <td><a class="btn btn-sm btn-outline-primary recommendation-action" href="/customers/detail/1035/recommendations/"><i class="fa-solid fa-wand-magic-sparkles me-2"></i>Recommendations</a></td>
+          </tr>
+          
+          <tr>
+            <td><a class="customer-id profile-link text-decoration-none" href="/customers/detail/1482/"><i class="fa-solid fa-user me-2"></i>1482</a></td>
+            <td><span class="badge risk-badge badge-risk-very-high">85.6% &middot; Very High Risk</span></td>
+            <td><span class="badge rfm-badge bg-hibernating">Hibernating</span></td>
+            <td><span class="spend-value">$1042.35</span></td>
+            <td><a class="btn btn-sm btn-outline-primary recommendation-action" href="/customers/detail/1482/recommendations/"><i class="fa-solid fa-wand-magic-sparkles me-2"></i>Recommendations</a></td>
+          </tr>
+          
+          <tr>
+            <td><a class="customer-id profile-link text-decoration-none" href="/customers/detail/359/"><i class="fa-solid fa-user me-2"></i>359</a></td>
+            <td><span class="badge risk-badge badge-risk-very-high">85.4% &middot; Very High Risk</span></td>
+            <td><span class="badge rfm-badge bg-hibernating">Hibernating</span></td>
+            <td><span class="spend-value">$172.85</span></td>
+            <td><a class="btn btn-sm btn-outline-primary recommendation-action" href="/customers/detail/359/recommendations/"><i class="fa-solid fa-wand-magic-sparkles me-2"></i>Recommendations</a></td>
+          </tr>
+          
+          <tr>
+            <td><a class="customer-id profile-link text-decoration-none" href="/customers/detail/948/"><i class="fa-solid fa-user me-2"></i>948</a></td>
+            <td><span class="badge risk-badge badge-risk-very-high">85.4% &middot; Very High Risk</span></td>
+            <td><span class="badge rfm-badge bg-hibernating">Hibernating</span></td>
+            <td><span class="spend-value">$304.85</span></td>
+            <td><a class="btn btn-sm btn-outline-primary recommendation-action" href="/customers/detail/948/recommendations/"><i class="fa-solid fa-wand-magic-sparkles me-2"></i>Recommendations</a></td>
+          </tr>
+          
+          <tr>
+            <td><a class="customer-id profile-link text-decoration-none" href="/customers/detail/1727/"><i class="fa-solid fa-user me-2"></i>1727</a></td>
+            <td><span class="badge risk-badge badge-risk-very-high">84.3% &middot; Very High Risk</span></td>
+            <td><span class="badge rfm-badge bg-hibernating">Hibernating</span></td>
+            <td><span class="spend-value">$149.01</span></td>
+            <td><a class="btn btn-sm btn-outline-primary recommendation-action" href="/customers/detail/1727/recommendations/"><i class="fa-solid fa-wand-magic-sparkles me-2"></i>Recommendations</a></td>
+          </tr>
+          
+          <tr>
+            <td><a class="customer-id profile-link text-decoration-none" href="/customers/detail/634/"><i class="fa-solid fa-user me-2"></i>634</a></td>
+            <td><span class="badge risk-badge badge-risk-very-high">83.9% &middot; Very High Risk</span></td>
+            <td><span class="badge rfm-badge bg-at-risk">At Risk</span></td>
+            <td><span class="spend-value">$1555.15</span></td>
+            <td><a class="btn btn-sm btn-outline-primary recommendation-action" href="/customers/detail/634/recommendations/"><i class="fa-solid fa-wand-magic-sparkles me-2"></i>Recommendations</a></td>
+          </tr>
+          
+          <tr>
+            <td><a class="customer-id profile-link text-decoration-none" href="/customers/detail/2422/"><i class="fa-solid fa-user me-2"></i>2422</a></td>
+            <td><span class="badge risk-badge badge-risk-very-high">83.7% &middot; Very High Risk</span></td>
+            <td><span class="badge rfm-badge bg-hibernating">Hibernating</span></td>
+            <td><span class="spend-value">$368.07</span></td>
+            <td><a class="btn btn-sm btn-outline-primary recommendation-action" href="/customers/detail/2422/recommendations/"><i class="fa-solid fa-wand-magic-sparkles me-2"></i>Recommendations</a></td>
+          </tr>
+          
+          <tr>
+            <td><a class="customer-id profile-link text-decoration-none" href="/customers/detail/2246/"><i class="fa-solid fa-user me-2"></i>2246</a></td>
+            <td><span class="badge risk-badge badge-risk-very-high">83.5% &middot; Very High Risk</span></td>
+            <td><span class="badge rfm-badge bg-hibernating">Hibernating</span></td>
+            <td><span class="spend-value">$321.35</span></td>
+            <td><a class="btn btn-sm btn-outline-primary recommendation-action" href="/customers/detail/2246/recommendations/"><i class="fa-solid fa-wand-magic-sparkles me-2"></i>Recommendations</a></td>
+          </tr>
+          
+          <tr>
+            <td><a class="customer-id profile-link text-decoration-none" href="/customers/detail/416/"><i class="fa-solid fa-user me-2"></i>416</a></td>
+            <td><span class="badge risk-badge badge-risk-very-high">83.4% &middot; Very High Risk</span></td>
+            <td><span class="badge rfm-badge bg-hibernating">Hibernating</span></td>
+            <td><span class="spend-value">$2177.04</span></td>
+            <td><a class="btn btn-sm btn-outline-primary recommendation-action" href="/customers/detail/416/recommendations/"><i class="fa-solid fa-wand-magic-sparkles me-2"></i>Recommendations</a></td>
+          </tr>
+          
+          <tr>
+            <td><a class="customer-id profile-link text-decoration-none" href="/customers/detail/682/"><i class="fa-solid fa-user me-2"></i>682</a></td>
+            <td><span class="badge risk-badge badge-risk-very-high">83.4% &middot; Very High Risk</span></td>
+            <td><span class="badge rfm-badge bg-loyal-customers">Loyal Customers</span></td>
+            <td><span class="spend-value">$4438.29</span></td>
+            <td><a class="btn btn-sm btn-outline-primary recommendation-action" href="/customers/detail/682/recommendations/"><i class="fa-solid fa-wand-magic-sparkles me-2"></i>Recommendations</a></td>
+          </tr>
+          
+          <tr>
+            <td><a class="customer-id profile-link text-decoration-none" href="/customers/detail/1603/"><i class="fa-solid fa-user me-2"></i>1603</a></td>
+            <td><span class="badge risk-badge badge-risk-very-high">83.4% &middot; Very High Risk</span></td>
+            <td><span class="badge rfm-badge bg-hibernating">Hibernating</span></td>
+            <td><span class="spend-value">$492.72</span></td>
+            <td><a class="btn btn-sm btn-outline-primary recommendation-action" href="/customers/detail/1603/recommendations/"><i class="fa-solid fa-wand-magic-sparkles me-2"></i>Recommendations</a></td>
+          </tr>
+          
+          <tr>
+            <td><a class="customer-id profile-link text-decoration-none" href="/customers/detail/372/"><i class="fa-solid fa-user me-2"></i>372</a></td>
+            <td><span class="badge risk-badge badge-risk-very-high">83.1% &middot; Very High Risk</span></td>
+            <td><span class="badge rfm-badge bg-hibernating">Hibernating</span></td>
+            <td><span class="spend-value">$440.42</span></td>
+            <td><a class="btn btn-sm btn-outline-primary recommendation-action" href="/customers/detail/372/recommendations/"><i class="fa-solid fa-wand-magic-sparkles me-2"></i>Recommendations</a></td>
+          </tr>
+          
+          <tr>
+            <td><a class="customer-id profile-link text-decoration-none" href="/customers/detail/683/"><i class="fa-solid fa-user me-2"></i>683</a></td>
+            <td><span class="badge risk-badge badge-risk-very-high">82.9% &middot; Very High Risk</span></td>
+            <td><span class="badge rfm-badge bg-hibernating">Hibernating</span></td>
+            <td><span class="spend-value">$170.06</span></td>
+            <td><a class="btn btn-sm btn-outline-primary recommendation-action" href="/customers/detail/683/recommendations/"><i class="fa-solid fa-wand-magic-sparkles me-2"></i>Recommendations</a></td>
+          </tr>
+          
+          <tr>
+            <td><a class="customer-id profile-link text-decoration-none" href="/customers/detail/1327/"><i class="fa-solid fa-user me-2"></i>1327</a></td>
+            <td><span class="badge risk-badge badge-risk-very-high">82.9% &middot; Very High Risk</span></td>
+            <td><span class="badge rfm-badge bg-hibernating">Hibernating</span></td>
+            <td><span class="spend-value">$477.17</span></td>
+            <td><a class="btn btn-sm btn-outline-primary recommendation-action" href="/customers/detail/1327/recommendations/"><i class="fa-solid fa-wand-magic-sparkles me-2"></i>Recommendations</a></td>
+          </tr>
+          
+          <tr>
+            <td><a class="customer-id profile-link text-decoration-none" href="/customers/detail/651/"><i class="fa-solid fa-user me-2"></i>651</a></td>
+            <td><span class="badge risk-badge badge-risk-very-high">82.8% &middot; Very High Risk</span></td>
+            <td><span class="badge rfm-badge bg-hibernating">Hibernating</span></td>
+            <td><span class="spend-value">$370.53</span></td>
+            <td><a class="btn btn-sm btn-outline-primary recommendation-action" href="/customers/detail/651/recommendations/"><i class="fa-solid fa-wand-magic-sparkles me-2"></i>Recommendations</a></td>
+          </tr>
+          
+          <tr>
+            <td><a class="customer-id profile-link text-decoration-none" href="/customers/detail/1455/"><i class="fa-solid fa-user me-2"></i>1455</a></td>
+            <td><span class="badge risk-badge badge-risk-very-high">82.6% &middot; Very High Risk</span></td>
+            <td><span class="badge rfm-badge bg-hibernating">Hibernating</span></td>
+            <td><span class="spend-value">$820.18</span></td>
+            <td><a class="btn btn-sm btn-outline-primary recommendation-action" href="/customers/detail/1455/recommendations/"><i class="fa-solid fa-wand-magic-sparkles me-2"></i>Recommendations</a></td>
+          </tr>
+          
+          <tr>
+            <td><a class="customer-id profile-link text-decoration-none" href="/customers/detail/775/"><i class="fa-solid fa-user me-2"></i>775</a></td>
+            <td><span class="badge risk-badge badge-risk-very-high">82.6% &middot; Very High Risk</span></td>
+            <td><span class="badge rfm-badge bg-at-risk">At Risk</span></td>
+            <td><span class="spend-value">$1121.00</span></td>
+            <td><a class="btn btn-sm btn-outline-primary recommendation-action" href="/customers/detail/775/recommendations/"><i class="fa-solid fa-wand-magic-sparkles me-2"></i>Recommendations</a></td>
+          </tr>
+          
+          <tr>
+            <td><a class="customer-id profile-link text-decoration-none" href="/customers/detail/2009/"><i class="fa-solid fa-user me-2"></i>2009</a></td>
+            <td><span class="badge risk-badge badge-risk-very-high">82.4% &middot; Very High Risk</span></td>
+            <td><span class="badge rfm-badge bg-at-risk">At Risk</span></td>
+            <td><span class="spend-value">$1506.88</span></td>
+            <td><a class="btn btn-sm btn-outline-primary recommendation-action" href="/customers/detail/2009/recommendations/"><i class="fa-solid fa-wand-magic-sparkles me-2"></i>Recommendations</a></td>
+          </tr>
+          
+          <tr>
+            <td><a class="customer-id profile-link text-decoration-none" href="/customers/detail/1472/"><i class="fa-solid fa-user me-2"></i>1472</a></td>
+            <td><span class="badge risk-badge badge-risk-very-high">81.4% &middot; Very High Risk</span></td>
+            <td><span class="badge rfm-badge bg-hibernating">Hibernating</span></td>
+            <td><span class="spend-value">$269.54</span></td>
+            <td><a class="btn btn-sm btn-outline-primary recommendation-action" href="/customers/detail/1472/recommendations/"><i class="fa-solid fa-wand-magic-sparkles me-2"></i>Recommendations</a></td>
+          </tr>
+          
+          <tr>
+            <td><a class="customer-id profile-link text-decoration-none" href="/customers/detail/231/"><i class="fa-solid fa-user me-2"></i>231</a></td>
+            <td><span class="badge risk-badge badge-risk-very-high">81.1% &middot; Very High Risk</span></td>
+            <td><span class="badge rfm-badge bg-hibernating">Hibernating</span></td>
+            <td><span class="spend-value">$325.68</span></td>
+            <td><a class="btn btn-sm btn-outline-primary recommendation-action" href="/customers/detail/231/recommendations/"><i class="fa-solid fa-wand-magic-sparkles me-2"></i>Recommendations</a></td>
+          </tr>
+          
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+
+<nav class="mt-3" aria-label="Retention priority pages">
+  <ul class="pager">
+      <li class="disabled">
+        <a class="page-link" href="?minimum_probability=0.5&customer=&maximum_customers=&probability_order=descending&page=1">&laquo;&laquo; First</a></li>
+      <li class="disabled">
+        <a class="page-link" href="?minimum_probability=0.5&customer=&maximum_customers=&probability_order=descending&page=1">Previous</a></li>
+      <li><span class="pager-status">Page 1 of 16</span></li>
+      <li class="">
+        <a class="page-link" href="?minimum_probability=0.5&customer=&maximum_customers=&probability_order=descending&page=2">Next</a></li>
+      <li class="">
+        <a class="page-link" href="?minimum_probability=0.5&customer=&maximum_customers=&probability_order=descending&page=16">Last &raquo;&raquo;</a></li>
+    </ul>
+</nav>
+
+
+<div id="recommenderLoadingOverlay" class="recommender-loading-overlay" role="status" aria-live="polite" aria-label="Preparing recommendations">
+  <div class="recommender-loading-card">
+    <div class="recommender-loading-spinner" aria-hidden="true"></div>
+    <h3 class="h5 fw-bold mb-2">Preparing recommendations</h3>
+    <p class="text-muted mb-0">This can take a moment the first time while the recommender is prepared.</p>
+  </div>
+</div>
+<script>
+  document.querySelectorAll('.recommendation-action').forEach((link) => {
+    link.addEventListener('click', () => {
+      document.getElementById('recommenderLoadingOverlay').classList.add('is-visible');
+    });
+  });
+</script>
+</div>
+
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 3rem 2rem 2rem; margin-top: 4rem; border-top: 3px solid rgba(255,255,255,0.2);">
+    <div class="container-fluid" style="max-width: 1400px;">
+      <div class="row align-items-center">
+        <div class="col-md-4 text-center text-md-start mb-3 mb-md-0">
+          <div style="display: flex; align-items: center; gap: 1rem; justify-content: center; justify-content: md-start;">
+            <a href="https://kashanu.ac.ir/en" target="_blank" rel="noopener noreferrer" aria-label="Visit the University of Kashan website">
+              <img src="/static/images/kuLogo.png" alt="University of Kashan Logo" style="width: 100px; height: 90px; filter: drop-shadow(0 2px 8px rgba(255,255,255,0.2));">
+            </a>
+            <div>
+              <div style="font-size: 1.1rem; font-weight: 700; margin-bottom: 0.25rem;">University of Kashan</div>
+              <div style="font-size: 0.9rem; opacity: 0.9;">Computer Engineering Department</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-md-4 text-center mb-3 mb-md-0">
+          <div style="font-size: 1.5rem; font-weight: 800; margin-bottom: 0.5rem;">Market Analytics Platform</div>
+          <div style="font-size: 0.875rem; opacity: 0.85;">Advanced Data Mining & Analysis System</div>
+        </div>
+
+        <div class="col-md-4 text-center text-md-end">
+          <div style="font-size: 0.9rem; margin-bottom: 0.5rem; opacity: 0.9;">
+            <a href="https://www.djangoproject.com/" target="_blank" rel="noopener noreferrer" style="color: inherit; text-decoration: none;" aria-label="Visit the Django website">
+              <i class="fas fa-shield-alt"></i> Protected by Django Authentication
+            </a>
+          </div>
+          <div style="font-size: 1.1rem; font-weight: 600;">© 2026</div>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    // Modern Navigation Controller
+    class NavigationController {
+      constructor() {
+        this.init();
+      }
+      
+      init() {
+        this.setupThemeToggle();
+        this.setupMobileNav();
+        this.setupActiveLinks();
+        this.setupScrollEffects();
+      }
+      
+      setupThemeToggle() {
+        const setTheme = (theme) => {
+          document.documentElement.setAttribute('data-theme', theme);
+          try {
+            localStorage.setItem('market.theme', theme);
+            localStorage.setItem('theme', theme);
+          } catch(e) {}
+          
+          const icon = document.querySelector('#site-theme-toggle .icon');
+          if (icon) {
+            icon.className = 'icon fa-solid ' + (theme === 'dark' ? 'fa-sun' : 'fa-moon');
+          }
+        };
+        
+        const current = document.documentElement.getAttribute('data-theme') || 'light';
+        setTheme(current);
+        
+        const themeBtn = document.getElementById('site-theme-toggle');
+        if (themeBtn) {
+          themeBtn.addEventListener('click', () => {
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            setTheme(currentTheme === 'dark' ? 'light' : 'dark');
+            
+            // Add click animation
+            themeBtn.style.transform = 'scale(0.9)';
+            setTimeout(() => {
+              themeBtn.style.transform = '';
+            }, 150);
+          });
+        }
+      }
+      
+      setupMobileNav() {
+        const mobileToggle = document.getElementById('mobileNavToggle');
+        const navMiddle = document.getElementById('navMiddle');
+
+        if (mobileToggle && navMiddle) {
+          mobileToggle.addEventListener('click', () => {
+            navMiddle.classList.toggle('show');
+            const icon = mobileToggle.querySelector('i');
+            if (icon) {
+              icon.classList.toggle('fa-bars');
+              icon.classList.toggle('fa-times');
+            }
+          });
+
+          // Close mobile nav when clicking outside
+          document.addEventListener('click', (e) => {
+            if (!e.target.closest('.modern-nav')) {
+              navMiddle.classList.remove('show');
+              const icon = mobileToggle.querySelector('i');
+              if (icon) {
+                icon.classList.add('fa-bars');
+                icon.classList.remove('fa-times');
+              }
+            }
+          });
+        }
+      }
+      
+      setupActiveLinks() {
+        const currentPath = window.location.pathname;
+        const navLinks = document.querySelectorAll('.nav-link');
+        
+        navLinks.forEach(link => {
+          const href = link.getAttribute('href');
+          if (!href) return;
+          const linkPath = new URL(href, window.location.href).pathname;
+          if (currentPath === linkPath || 
+              (linkPath !== '/analysis/' && currentPath.startsWith(linkPath))) {
+            link.classList.add('active');
+          }
+        });
+      }
+      
+      setupScrollEffects() {
+        let lastScrollY = window.scrollY;
+        const nav = document.querySelector('.modern-nav');
+        
+        window.addEventListener('scroll', () => {
+          const currentScrollY = window.scrollY;
+          
+          if (currentScrollY > lastScrollY && currentScrollY > 100) {
+            // Scrolling down
+            nav.style.transform = 'translateY(-100%)';
+          } else {
+            // Scrolling up
+            nav.style.transform = 'translateY(0)';
+          }
+          
+          lastScrollY = currentScrollY;
+        });
+      }
+    }
+    
+    /* Opening a detail from inside an expanded list replaces what is on screen.
+       Anything marked data-modal-restore is remembered first -- its markup, how
+       far it was scrolled, and the name of the view it belongs to -- so Back can
+       put the reader down on the same card they opened rather than closing the
+       list and sending them to the top of the page. */
+    const detailModalHistory = [];
+
+    function captureDetailModalState() {
+      const modalEl = document.getElementById('detailModal');
+      if (!modalEl || !modalEl.classList.contains('show')) return;
+      const restorable = modalEl.querySelector('[data-modal-restore]');
+      if (!restorable) return;
+      detailModalHistory.push({
+        title: modalEl.querySelector('.modal-title').innerHTML,
+        body: modalEl.querySelector('.modal-body').innerHTML,
+        view: restorable.dataset.modalRestore,
+        scrollTop: restorable.scrollTop,
+      });
+    }
+
+    function resetDetailModalHistory() {
+      detailModalHistory.length = 0;
+      updateDetailModalBack();
+    }
+
+    function updateDetailModalBack() {
+      const button = document.getElementById('detailModalBack');
+      if (button) button.hidden = !detailModalHistory.length;
+    }
+
+    function detailModalBack() {
+      const state = detailModalHistory.pop();
+      const modalEl = document.getElementById('detailModal');
+      if (!state || !modalEl) return;
+      modalEl.querySelector('.modal-title').innerHTML = state.title;
+      modalEl.querySelector('.modal-body').innerHTML = state.body;
+      updateDetailModalBack();
+      /* The list is put back as markup, so anything bound to its cards with
+         addEventListener is gone. The page that owns the view re-binds it, then
+         the scroll position is restored -- after re-binding, because that step
+         can replace the cards. */
+      if (typeof window.onDetailModalRestore === 'function') {
+        window.onDetailModalRestore(state.view);
+      }
+      const restored = modalEl.querySelector('[data-modal-restore]');
+      if (restored) restored.scrollTop = state.scrollTop;
+    }
+
+    // Shared modal helper
+    function showDetailModal(title, bodyHtml) {
+      const modalEl = document.getElementById('detailModal');
+      if (!modalEl) {
+        return alert(title + '\n\n' + bodyHtml.replace(/<[^>]+>/g, ''));
+      }
+
+      /* A modal that is not on screen starts a fresh trail. Clearing here as
+         well as on hide keeps the Back button honest even if the hide event is
+         missed, which the dispose-and-recreate below can cause. */
+      if (!modalEl.classList.contains('show')) detailModalHistory.length = 0;
+      captureDetailModalState();
+      
+      // Dispose of any existing modal instance first
+      const existingModal = bootstrap.Modal.getInstance(modalEl);
+      if (existingModal) {
+        existingModal.dispose();
+      }
+      
+      // Clear any leftover backdrop
+      const backdrops = document.querySelectorAll('.modal-backdrop');
+      backdrops.forEach(backdrop => backdrop.remove());
+      
+      // Reset body classes and styles
+      document.body.classList.remove('modal-open');
+      document.body.style.overflow = '';
+      document.body.style.paddingRight = '';
+      
+      modalEl.querySelector('.modal-title').innerHTML = title;
+      modalEl.querySelector('.modal-body').innerHTML = bodyHtml;
+      updateDetailModalBack();
+      
+      const modal = new bootstrap.Modal(modalEl, {
+        backdrop: true,
+        keyboard: true
+      });
+      
+      // Add proper cleanup when modal is hidden
+      modalEl.addEventListener('hidden.bs.modal', function() {
+        const allBackdrops = document.querySelectorAll('.modal-backdrop');
+        allBackdrops.forEach(backdrop => backdrop.remove());
+        document.body.classList.remove('modal-open');
+        document.body.style.overflow = '';
+        document.body.style.paddingRight = '';
+        modal.dispose();
+      }, { once: true });
+      
+      modal.show();
+      
+      // Add fade-in animation to modal content
+      const modalBody = modalEl.querySelector('.modal-body');
+      modalBody.style.opacity = '0';
+      modalBody.style.transform = 'translateY(20px)';
+      
+      setTimeout(() => {
+        modalBody.style.transition = 'all 0.3s ease';
+        modalBody.style.opacity = '1';
+        modalBody.style.transform = 'translateY(0)';
+      }, 100);
+    }
+    
+    // Notification System
+    function showNotification(message, type = 'info', duration = 3000) {
+      let container = document.getElementById('global-notification-stack');
+      if (!container) {
+        container = document.createElement('div');
+        container.id = 'global-notification-stack';
+        Object.assign(container.style, {
+          position: 'fixed',
+          top: '90px',
+          right: '20px',
+          zIndex: '9999',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '12px',
+          maxWidth: '360px'
+        });
+        document.body.appendChild(container);
+      }
+
+      const notification = document.createElement('div');
+      notification.className = 'alert alert-' + type + ' alert-dismissible fade show shadow-sm';
+      notification.style.margin = '0';
+      notification.style.display = 'flex';
+      notification.style.alignItems = 'center';
+      notification.style.gap = '12px';
+
+      const messageWrapper = document.createElement('div');
+      messageWrapper.className = 'flex-grow-1';
+      messageWrapper.innerHTML = message;
+      notification.appendChild(messageWrapper);
+
+      const closeButton = document.createElement('button');
+      closeButton.type = 'button';
+      closeButton.className = 'btn-close';
+      closeButton.setAttribute('data-bs-dismiss', 'alert');
+      closeButton.addEventListener('click', () => {
+        notification.classList.remove('show');
+        setTimeout(() => notification.remove(), 150);
+      });
+      notification.appendChild(closeButton);
+
+      container.appendChild(notification);
+
+      setTimeout(() => {
+        if (notification) {
+          notification.classList.remove('show');
+          setTimeout(() => notification.remove(), 200);
+        }
+      }, duration);
+    }
+    
+    // Initialize when DOM is loaded
+    document.addEventListener('DOMContentLoaded', () => {
+      new NavigationController();
+
+      document.getElementById('detailModalBack')?.addEventListener('click', detailModalBack);
+      /* Closing the modal ends the trail: reopening a detail later should not
+         offer to go back to a list the reader has already dismissed. */
+      document.getElementById('detailModal')?.addEventListener('hidden.bs.modal',
+        resetDetailModalHistory);
+      
+      // Add smooth scrolling to all anchor links
+      document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener('click', function (e) {
+          e.preventDefault();
+          const target = document.querySelector(this.getAttribute('href'));
+          if (target) {
+            target.scrollIntoView({
+              behavior: 'smooth',
+              block: 'start'
+            });
+          }
+        });
+      });
+    });
+  </script>
+  
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <!-- Shared modal -->
+  <div class="modal fade" id="detailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+      <div class="modal-content" style="border-radius: 20px; border: none; box-shadow: 0 20px 60px rgba(0,0,0,0.2);">
+        <div class="modal-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 20px 20px 0 0; border: none;">
+          <h5 class="modal-title" style="font-weight: 700;"></h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body" style="padding: 2rem;"></div>
+        <div class="modal-footer" style="border: none; padding: 1rem 2rem;">
+          <button type="button" class="btn btn-outline-primary" id="detailModalBack" hidden
+                  style="border-radius: 10px; font-weight: 600;">
+            <i class="fas fa-arrow-left me-1"></i>Back to list
+          </button>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" style="border-radius: 10px;">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <style>
+    /* Table transitions */
+    .metric-card {
+      backdrop-filter: blur(10px);
+    }
+    
+    .tool-card {
+      backdrop-filter: blur(10px);
+    }
+    
+    .chart-section {
+      backdrop-filter: blur(10px);
+    }
+    
+    /* Custom scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+    
+    ::-webkit-scrollbar-track {
+      background: #f1f1f1;
+      border-radius: 10px;
+    }
+    
+    ::-webkit-scrollbar-thumb {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: 10px;
+    }
+    
+    ::-webkit-scrollbar-thumb:hover {
+      background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%);
+    }
+  </style>
+</body>
+</html>
+

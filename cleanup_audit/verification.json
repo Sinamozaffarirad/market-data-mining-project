@@ -1,0 +1,485 @@
+{
+  "python": [
+    "Website/market/catalog/__init__.py",
+    "Website/market/catalog/admin.py",
+    "Website/market/catalog/apps.py",
+    "Website/market/catalog/migrations/0001_initial.py",
+    "Website/market/catalog/migrations/0002_initial.py",
+    "Website/market/catalog/migrations/__init__.py",
+    "Website/market/catalog/models.py",
+    "Website/market/catalog/tests.py",
+    "Website/market/catalog/views.py",
+    "Website/market/check_schema.py",
+    "Website/market/core/__init__.py",
+    "Website/market/core/admin.py",
+    "Website/market/core/apps.py",
+    "Website/market/core/migrations/__init__.py",
+    "Website/market/core/models.py",
+    "Website/market/core/tests.py",
+    "Website/market/core/urls.py",
+    "Website/market/core/views.py",
+    "Website/market/customer_retention/__init__.py",
+    "Website/market/customer_retention/admin.py",
+    "Website/market/customer_retention/apps.py",
+    "Website/market/customer_retention/models.py",
+    "Website/market/customer_retention/urls.py",
+    "Website/market/customer_retention/views.py",
+    "Website/market/customers/__init__.py",
+    "Website/market/customers/admin.py",
+    "Website/market/customers/apps.py",
+    "Website/market/customers/management/__init__.py",
+    "Website/market/customers/management/commands/__init__.py",
+    "Website/market/customers/management/commands/build_cf_cache.py",
+    "Website/market/customers/management/commands/train_hybrid_recommender.py",
+    "Website/market/customers/migrations/0001_initial.py",
+    "Website/market/customers/migrations/0002_customerrecommendationcache.py",
+    "Website/market/customers/migrations/0003_customerrecommendationcache_model_trained_at.py",
+    "Website/market/customers/migrations/__init__.py",
+    "Website/market/customers/ml/__init__.py",
+    "Website/market/customers/ml/cf_cache.py",
+    "Website/market/customers/ml/feature_engineering.py",
+    "Website/market/customers/ml/recommender_model.py",
+    "Website/market/customers/models.py",
+    "Website/market/customers/templatetags/__init__.py",
+    "Website/market/customers/templatetags/custom_filters.py",
+    "Website/market/customers/tests.py",
+    "Website/market/customers/urls.py",
+    "Website/market/customers/views.py",
+    "Website/market/dunnhumby/__init__.py",
+    "Website/market/dunnhumby/admin.py",
+    "Website/market/dunnhumby/analytics.py",
+    "Website/market/dunnhumby/apps.py",
+    "Website/market/dunnhumby/autoregressive_rnn.py",
+    "Website/market/dunnhumby/bi_views.py",
+    "Website/market/dunnhumby/churn_windows.py",
+    "Website/market/dunnhumby/collab_filter.py",
+    "Website/market/dunnhumby/management/__init__.py",
+    "Website/market/dunnhumby/management/commands/__init__.py",
+    "Website/market/dunnhumby/management/commands/churn_data_assessment.py",
+    "Website/market/dunnhumby/management/commands/clean_transactions.py",
+    "Website/market/dunnhumby/management/commands/import_transactions.py",
+    "Website/market/dunnhumby/management/commands/optimize_churn_model.py",
+    "Website/market/dunnhumby/management/commands/remove_duplicates.py",
+    "Website/market/dunnhumby/management/commands/test_admin_functionality.py",
+    "Website/market/dunnhumby/management/commands/train_churn_model.py",
+    "Website/market/dunnhumby/management/commands/update_churn_probabilities.py",
+    "Website/market/dunnhumby/migrations/0001_initial.py",
+    "Website/market/dunnhumby/migrations/0002_alter_customersegment_churn_probability.py",
+    "Website/market/dunnhumby/migrations/0003_churnexperiment_churncustomerscore.py",
+    "Website/market/dunnhumby/migrations/0004_rename_dunnhumby__experi_5be373_idx_dunnhumby_c_experim_7067eb_idx.py",
+    "Website/market/dunnhumby/migrations/0005_customer_history_snapshots.py",
+    "Website/market/dunnhumby/migrations/0006_rename_dunnhumby_c_experim_91fdb1_idx_dunnhumby_c_experim_2e793c_idx_and_more.py",
+    "Website/market/dunnhumby/migrations/0007_customerwindowhistory.py",
+    "Website/market/dunnhumby/migrations/0008_shared_churn_window_cache.py",
+    "Website/market/dunnhumby/migrations/0009_churnwindowcache_training_dataset_blob.py",
+    "Website/market/dunnhumby/migrations/0010_churnexperiment_evaluation_fields.py",
+    "Website/market/dunnhumby/migrations/0011_churnexperiment_training_metadata.py",
+    "Website/market/dunnhumby/migrations/0012_churnwindowcache_model_result_cache.py",
+    "Website/market/dunnhumby/migrations/__init__.py",
+    "Website/market/dunnhumby/ml_models.py",
+    "Website/market/dunnhumby/models.py",
+    "Website/market/dunnhumby/repurchase_classifier.py",
+    "Website/market/dunnhumby/rfm_utils.py",
+    "Website/market/dunnhumby/templatetags/__init__.py",
+    "Website/market/dunnhumby/templatetags/market_icons.py",
+    "Website/market/dunnhumby/test_churn_windows.py",
+    "Website/market/dunnhumby/test_legacy_churn_deprecation.py",
+    "Website/market/dunnhumby/test_rfm_utils.py",
+    "Website/market/dunnhumby/tests.py",
+    "Website/market/dunnhumby/time_series_forecasting.py",
+    "Website/market/dunnhumby/urls.py",
+    "Website/market/dunnhumby/views.py",
+    "Website/market/manage.py",
+    "Website/market/market/__init__.py",
+    "Website/market/market/asgi.py",
+    "Website/market/market/settings.py",
+    "Website/market/market/urls.py",
+    "Website/market/market/wsgi.py",
+    "Website/market/product_recommender/__init__.py",
+    "Website/market/product_recommender/admin.py",
+    "Website/market/product_recommender/apps.py",
+    "Website/market/product_recommender/forms.py",
+    "Website/market/product_recommender/models.py",
+    "Website/market/product_recommender/urls.py",
+    "Website/market/product_recommender/views.py",
+    "Website/market/test_connection.py"
+  ],
+  "json": [
+    "Website/market/ml_models_cache/repurchase_v4_model_metrics.json",
+    "Website/market/ml_models_cache/time_series/product_revenue_v12_h1_w12_s1_tr80_auto_hu16_fb050_e10_metrics.json",
+    "Website/market/ml_models_cache/time_series/product_revenue_v12_h2_w7_s1_tr80_auto_hu16_fb050_e10_metrics.json",
+    "Website/market/ml_models_cache/time_series/product_revenue_v12_h3_w12_s1_tr80_auto_hu16_fb050_e10_metrics.json",
+    "Website/market/ml_models_cache/time_series/product_revenue_v12_h3_w3_s1_tr80_auto_hu16_fb050_e10_metrics.json",
+    "Website/market/ml_models_cache/time_series/product_revenue_v12_h3_w6_s1_tr80_auto_hu16_fb050_e10_metrics.json",
+    "Website/market/ml_models_cache/time_series/product_revenue_v12_h4_w12_s1_tr80_auto_hu16_fb050_e10_metrics.json",
+    "Website/market/ml_models_cache/time_series/product_revenue_v12_h4_w4_s1_tr80_auto_hu16_fb050_e10_metrics.json",
+    "Website/market/ml_models_cache/time_series/product_revenue_v12_h6_w10_s2_tr80_auto_hu16_fb050_e10_metrics.json",
+    "Website/market/ml_models_cache/time_series/product_revenue_v12_h8_w6_s1_tr80_auto_hu16_fb050_e10_metrics.json",
+    "Website/market/ml_models_cache/time_series/product_revenue_v12_h9_w2_s1_tr80_auto_hu16_fb050_e10_metrics.json",
+    "Website/market/ml_models_cache/time_series/product_revenue_v12_h9_w3_s1_tr80_auto_hu16_fb050_e10_metrics.json"
+  ],
+  "templates": [
+    "Website/market/dunnhumby/templates/admin/index.html",
+    "Website/market/templates/admin/dunnhumby/association_rules.html",
+    "Website/market/templates/admin/dunnhumby/basket_analysis.html",
+    "Website/market/templates/admin/dunnhumby/customer_segments.html",
+    "Website/market/templates/admin/dunnhumby/data_manipulation.html",
+    "Website/market/templates/site/base.html",
+    "Website/market/templates/site/customer_retention/customer_retention.html",
+    "Website/market/templates/site/customers/churn.html",
+    "Website/market/templates/site/customers/detail.html",
+    "Website/market/templates/site/customers/purchases.html",
+    "Website/market/templates/site/customers/recommendations.html",
+    "Website/market/templates/site/customers/search.html",
+    "Website/market/templates/site/dunnhumby/_bi_dashboard_panel.html",
+    "Website/market/templates/site/dunnhumby/association_rules.html",
+    "Website/market/templates/site/dunnhumby/basket_analysis.html",
+    "Website/market/templates/site/dunnhumby/bi_dashboard.html",
+    "Website/market/templates/site/dunnhumby/customer_segments.html",
+    "Website/market/templates/site/dunnhumby/data_management.html",
+    "Website/market/templates/site/index.html",
+    "Website/market/templates/site/login.html",
+    "Website/market/templates/site/product_recommender/product_detail.html",
+    "Website/market/templates/site/product_recommender/recommend_customers.html",
+    "Website/market/templates/site/product_recommender/recommendations_list.html"
+  ],
+  "template_references": [
+    {
+      "file": "Website/market/dunnhumby/templates/admin/index.html",
+      "template": "admin/base_site.html"
+    },
+    {
+      "file": "Website/market/templates/admin/dunnhumby/association_rules.html",
+      "template": "admin/base.html"
+    },
+    {
+      "file": "Website/market/templates/admin/dunnhumby/basket_analysis.html",
+      "template": "admin/base.html"
+    },
+    {
+      "file": "Website/market/templates/admin/dunnhumby/customer_segments.html",
+      "template": "admin/base.html"
+    },
+    {
+      "file": "Website/market/templates/admin/dunnhumby/data_manipulation.html",
+      "template": "admin/base.html"
+    },
+    {
+      "file": "Website/market/templates/site/customer_retention/customer_retention.html",
+      "template": "site/base.html"
+    },
+    {
+      "file": "Website/market/templates/site/customers/churn.html",
+      "template": "site/base.html"
+    },
+    {
+      "file": "Website/market/templates/site/customers/detail.html",
+      "template": "site/base.html"
+    },
+    {
+      "file": "Website/market/templates/site/customers/purchases.html",
+      "template": "site/base.html"
+    },
+    {
+      "file": "Website/market/templates/site/customers/recommendations.html",
+      "template": "site/base.html"
+    },
+    {
+      "file": "Website/market/templates/site/customers/search.html",
+      "template": "site/base.html"
+    },
+    {
+      "file": "Website/market/templates/site/dunnhumby/association_rules.html",
+      "template": "site/base.html"
+    },
+    {
+      "file": "Website/market/templates/site/dunnhumby/basket_analysis.html",
+      "template": "site/base.html"
+    },
+    {
+      "file": "Website/market/templates/site/dunnhumby/basket_analysis.html",
+      "template": "site/dunnhumby/_bi_dashboard_panel.html"
+    },
+    {
+      "file": "Website/market/templates/site/dunnhumby/bi_dashboard.html",
+      "template": "site/base.html"
+    },
+    {
+      "file": "Website/market/templates/site/dunnhumby/bi_dashboard.html",
+      "template": "site/dunnhumby/_bi_dashboard_panel.html"
+    },
+    {
+      "file": "Website/market/templates/site/dunnhumby/customer_segments.html",
+      "template": "site/base.html"
+    },
+    {
+      "file": "Website/market/templates/site/dunnhumby/data_management.html",
+      "template": "site/base.html"
+    },
+    {
+      "file": "Website/market/templates/site/index.html",
+      "template": "site/base.html"
+    },
+    {
+      "file": "Website/market/templates/site/product_recommender/product_detail.html",
+      "template": "site/base.html"
+    },
+    {
+      "file": "Website/market/templates/site/product_recommender/recommend_customers.html",
+      "template": "site/base.html"
+    },
+    {
+      "file": "Website/market/templates/site/product_recommender/recommendations_list.html",
+      "template": "site/base.html"
+    },
+    {
+      "file": "Website/market/customer_retention/views.py",
+      "template": "site/customer_retention/customer_retention.html"
+    },
+    {
+      "file": "Website/market/customers/views.py",
+      "template": "site/customers/search.html"
+    },
+    {
+      "file": "Website/market/customers/views.py",
+      "template": "site/customers/detail.html"
+    },
+    {
+      "file": "Website/market/customers/views.py",
+      "template": "site/customers/recommendations.html"
+    },
+    {
+      "file": "Website/market/customers/views.py",
+      "template": "site/customers/churn.html"
+    },
+    {
+      "file": "Website/market/customers/views.py",
+      "template": "site/customers/purchases.html"
+    },
+    {
+      "file": "Website/market/dunnhumby/admin.py",
+      "template": "admin/dunnhumby/basket_analysis.html"
+    },
+    {
+      "file": "Website/market/dunnhumby/admin.py",
+      "template": "admin/dunnhumby/association_rules.html"
+    },
+    {
+      "file": "Website/market/dunnhumby/admin.py",
+      "template": "admin/dunnhumby/customer_segments.html"
+    },
+    {
+      "file": "Website/market/dunnhumby/admin.py",
+      "template": "admin/dunnhumby/data_manipulation.html"
+    },
+    {
+      "file": "Website/market/dunnhumby/bi_views.py",
+      "template": "site/dunnhumby/bi_dashboard.html"
+    },
+    {
+      "file": "Website/market/dunnhumby/views.py",
+      "template": "site/login.html"
+    },
+    {
+      "file": "Website/market/dunnhumby/views.py",
+      "template": "site/index.html"
+    },
+    {
+      "file": "Website/market/dunnhumby/views.py",
+      "template": "site/dunnhumby/association_rules.html"
+    },
+    {
+      "file": "Website/market/dunnhumby/views.py",
+      "template": "site/dunnhumby/data_management.html"
+    },
+    {
+      "file": "Website/market/dunnhumby/views.py",
+      "template": "site/dunnhumby/customer_segments.html"
+    },
+    {
+      "file": "Website/market/dunnhumby/views.py",
+      "template": "site/dunnhumby/basket_analysis.html"
+    },
+    {
+      "file": "Website/market/dunnhumby/views.py",
+      "template": "site/dunnhumby/basket_analysis.html"
+    },
+    {
+      "file": "Website/market/product_recommender/views.py",
+      "template": "site/product_recommender/recommend_customers.html"
+    },
+    {
+      "file": "Website/market/product_recommender/views.py",
+      "template": "site/product_recommender/recommendations_list.html"
+    },
+    {
+      "file": "Website/market/product_recommender/views.py",
+      "template": "site/product_recommender/product_detail.html"
+    },
+    {
+      "file": "Website/market/product_recommender/views.py",
+      "template": "site/product_recommender/recommendations_list.html"
+    },
+    {
+      "file": "Website/market/product_recommender/views.py",
+      "template": "site/product_recommender/recommendations_list.html"
+    }
+  ],
+  "static_references": [
+    {
+      "file": "Website/market/templates/admin/dunnhumby/basket_analysis.html",
+      "asset": "js/chart_quality.js",
+      "found": true
+    },
+    {
+      "file": "Website/market/templates/site/base.html",
+      "asset": "js/chart_quality.js",
+      "found": true
+    },
+    {
+      "file": "Website/market/templates/site/base.html",
+      "asset": "css/market_theme.css",
+      "found": true
+    },
+    {
+      "file": "Website/market/templates/site/base.html",
+      "asset": "css/market_analysis_v2.css",
+      "found": true
+    },
+    {
+      "file": "Website/market/templates/site/base.html",
+      "asset": "css/analysis_shell.css",
+      "found": true
+    },
+    {
+      "file": "Website/market/templates/site/base.html",
+      "asset": "images/kuLogo.png",
+      "found": true
+    },
+    {
+      "file": "Website/market/templates/site/login.html",
+      "asset": "images/kuLogo.png",
+      "found": true
+    }
+  ],
+  "javascript": [
+    {
+      "file": "Website/market/static/js/chart_quality.js",
+      "script": 0,
+      "ok": true
+    },
+    {
+      "file": "Website/market/templates/admin/dunnhumby/association_rules.html",
+      "script": 0,
+      "ok": true
+    },
+    {
+      "file": "Website/market/templates/admin/dunnhumby/basket_analysis.html",
+      "script": 0,
+      "ok": true
+    },
+    {
+      "file": "Website/market/templates/admin/dunnhumby/customer_segments.html",
+      "script": 0,
+      "ok": true
+    },
+    {
+      "file": "Website/market/templates/site/base.html",
+      "script": 0,
+      "ok": true
+    },
+    {
+      "file": "Website/market/templates/site/base.html",
+      "script": 1,
+      "ok": true
+    },
+    {
+      "file": "Website/market/templates/site/base.html",
+      "script": 2,
+      "ok": true
+    },
+    {
+      "file": "Website/market/templates/site/customer_retention/customer_retention.html",
+      "script": 0,
+      "ok": true
+    },
+    {
+      "file": "Website/market/templates/site/customers/churn.html",
+      "script": 0,
+      "ok": true
+    },
+    {
+      "file": "Website/market/templates/site/customers/detail.html",
+      "script": 0,
+      "ok": true
+    },
+    {
+      "file": "Website/market/templates/site/dunnhumby/_bi_dashboard_panel.html",
+      "script": 0,
+      "ok": true
+    },
+    {
+      "file": "Website/market/templates/site/dunnhumby/association_rules.html",
+      "script": 0,
+      "ok": true
+    },
+    {
+      "file": "Website/market/templates/site/dunnhumby/basket_analysis.html",
+      "script": 0,
+      "ok": true
+    },
+    {
+      "file": "Website/market/templates/site/dunnhumby/customer_segments.html",
+      "script": 0,
+      "ok": true
+    },
+    {
+      "file": "Website/market/templates/site/dunnhumby/data_management.html",
+      "script": 0,
+      "ok": true
+    },
+    {
+      "file": "Website/market/templates/site/index.html",
+      "script": 0,
+      "ok": true
+    },
+    {
+      "file": "Website/market/templates/site/login.html",
+      "script": 0,
+      "ok": true
+    },
+    {
+      "file": "Website/market/templates/site/product_recommender/recommend_customers.html",
+      "script": 0,
+      "ok": true
+    },
+    {
+      "file": "Website/market/templates/site/product_recommender/recommend_customers.html",
+      "script": 1,
+      "ok": true
+    },
+    {
+      "file": "Website/market/templates/site/product_recommender/recommendations_list.html",
+      "script": 0,
+      "ok": true
+    }
+  ],
+  "legacy_redirects": [
+    {
+      "path": "/dashboard/",
+      "target": "/analysis/bi-dashboard/",
+      "ok": true
+    },
+    {
+      "path": "/analytics/",
+      "target": "/analysis/basket-analysis/",
+      "ok": true
+    },
+    {
+      "path": "/reports/",
+      "target": "/analysis/bi-dashboard/",
+      "ok": true
+    }
+  ],
+  "errors": []
+}

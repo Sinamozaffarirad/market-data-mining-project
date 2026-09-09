@@ -1,0 +1,146 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block title %}Analytics Dashboard | Dunnhumby Market Analysis{% endblock %}
+
+{% block content %}
+<div class="dashboard">
+    <div class="module">
+        <h2><i class="fas fa-chart-line"></i> Market Intelligence Analytics Dashboard</h2>
+        
+        <!-- Quick Stats -->
+        <div class="dashboard-stats">
+            <h3><i class="fas fa-tachometer-alt"></i> System Overview</h3>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <h4>1,048,569</h4>
+                    <p>Total Transactions</p>
+                </div>
+                <div class="stat-card">
+                    <h4>92,353</h4>
+                    <p>Unique Products</p>
+                </div>
+                <div class="stat-card">
+                    <h4>2,497</h4>
+                    <p>Households</p>
+                </div>
+                <div class="stat-card">
+                    <h4>$2.84M</h4>
+                    <p>Total Revenue</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Analysis Tools -->
+        <div class="action-section">
+            <div class="section-header">
+                <h3><i class="fas fa-tools"></i> Analytics Tools</h3>
+                <div class="section-badge">4 Tools Available</div>
+            </div>
+            <p class="section-description">Advanced market analysis and data mining tools for comprehensive retail intelligence.</p>
+            
+            <div class="action-grid modern-grid">
+                <div class="action-card enhanced-card">
+                    <div class="card-gradient search-gradient"></div>
+                    <div class="card-icon search-icon"><i class="fas fa-shopping-basket"></i></div>
+                    <h4>Shopping Basket Analysis</h4>
+                    <p>Analyze shopping baskets, top products, and purchasing patterns with advanced market basket analysis algorithms for retail insights.</p>
+                    <div class="card-features">
+                        <span class="feature-tag"><i class="fas fa-chart-bar"></i> Top Products</span>
+                        <span class="feature-tag"><i class="fas fa-shopping-cart"></i> Basket Stats</span>
+                    </div>
+                    <div class="action-buttons">
+                        <a href="basket-analysis/" class="btn btn-primary modern-btn">
+                            <i class="fas fa-rocket"></i> Launch Analysis
+                        </a>
+                    </div>
+                </div>
+                
+                <div class="action-card enhanced-card">
+                    <div class="card-gradient add-gradient"></div>
+                    <div class="card-icon add-icon"><i class="fas fa-network-wired"></i></div>
+                    <h4>Association Rules Mining</h4>
+                    <p>Generate and analyze market basket association rules using Apriori algorithm for product recommendation insights and cross-selling strategies.</p>
+                    <div class="card-features">
+                        <span class="feature-tag"><i class="fas fa-brain"></i> Apriori Algorithm</span>
+                        <span class="feature-tag"><i class="fas fa-link"></i> Product Rules</span>
+                    </div>
+                    <div class="action-buttons">
+                        <a href="association-rules/" class="btn btn-success modern-btn">
+                            <i class="fas fa-magic"></i> Mine Rules
+                        </a>
+                    </div>
+                </div>
+                
+                <div class="action-card enhanced-card">
+                    <div class="card-gradient edit-gradient"></div>
+                    <div class="card-icon edit-icon"><i class="fas fa-users"></i></div>
+                    <h4>Customer Segmentation</h4>
+                    <p>Perform RFM analysis and create behavioral customer segments for targeted marketing strategies and personalized customer experiences.</p>
+                    <div class="card-features">
+                        <span class="feature-tag"><i class="fas fa-chart-pie"></i> RFM Analysis</span>
+                        <span class="feature-tag"><i class="fas fa-target"></i> Segments</span>
+                    </div>
+                    <div class="action-buttons">
+                        <a href="customer-segments/" class="btn btn-warning modern-btn">
+                            <i class="fas fa-user-friends"></i> Analyze Customers
+                        </a>
+                    </div>
+                </div>
+                
+                <div class="action-card enhanced-card">
+                    <div class="card-gradient delete-gradient"></div>
+                    <div class="card-icon delete-icon"><i class="fas fa-database"></i></div>
+                    <h4>Database Management</h4>
+                    <p>Advanced database manipulation, CRUD operations, and data quality management tools for comprehensive data control and analytics preparation.</p>
+                    <div class="card-features">
+                        <span class="feature-tag"><i class="fas fa-cogs"></i> CRUD Operations</span>
+                        <span class="feature-tag"><i class="fas fa-shield-alt"></i> Data Quality</span>
+                    </div>
+                    <div class="action-buttons">
+                        <a href="data-manipulation/" class="btn btn-info modern-btn">
+                            <i class="fas fa-wrench"></i> Manage Data
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Access -->
+        <div class="info-section">
+            <h3><i class="fas fa-info-circle"></i> Quick Access Guide</h3>
+            <div class="info-grid">
+                <div class="info-card">
+                    <h4><i class="fas fa-rocket"></i> Getting Started</h4>
+                    <ul>
+                        <li>Start with <strong>Shopping Basket Analysis</strong> to understand purchasing patterns</li>
+                        <li>Use <strong>Association Rules</strong> to discover product relationships</li>
+                        <li>Apply <strong>Customer Segmentation</strong> for targeted marketing</li>
+                        <li>Manage data using <strong>Database Tools</strong> as needed</li>
+                    </ul>
+                </div>
+                
+                <div class="info-card">
+                    <h4><i class="fas fa-chart-line"></i> Data Sources</h4>
+                    <ul>
+                        <li><strong>Transactions:</strong> 1,048,569 purchase records</li>
+                        <li><strong>Products:</strong> 92,353 unique items</li>
+                        <li><strong>Households:</strong> 2,497 customer profiles</li>
+                        <li><strong>Revenue:</strong> $2.84M total sales data</li>
+                    </ul>
+                </div>
+                
+                <div class="info-card">
+                    <h4><i class="fas fa-lightbulb"></i> Key Insights</h4>
+                    <ul>
+                        <li>Identify high-value customer segments</li>
+                        <li>Discover cross-selling opportunities</li>
+                        <li>Optimize product recommendations</li>
+                        <li>Improve marketing campaign targeting</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

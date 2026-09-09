@@ -1,0 +1,69 @@
+TY  - DATA
+AU  - dunnhumby
+TI  - Dunnhumby - The Complete Journey
+PB  - Kaggle
+UR  - https://www.kaggle.com/datasets/frtgnn/dunnhumby-the-complete-journey
+Y2  - 2026/09/08
+ER  - 
+
+TY  - ELEC
+AU  - Noble, J.
+TI  - What is the Apriori algorithm?
+T2  - IBM Think
+PB  - IBM
+PY  - 2024
+UR  - https://www.ibm.com/think/topics/apriori-algorithm
+Y2  - 2026/09/08
+ER  - 
+
+TY  - ELEC
+AU  - scikit-learn developers
+TI  - Metrics and scoring: quantifying the quality of predictions
+T2  - scikit-learn User Guide
+UR  - https://scikit-learn.org/stable/modules/model_evaluation.html
+Y2  - 2026/09/08
+ER  - 
+
+TY  - ELEC
+AU  - IBM
+TI  - What Is Business Intelligence (BI)?
+T2  - IBM Think
+PY  - 2024
+UR  - https://www.ibm.com/think/topics/business-intelligence
+Y2  - 2026/09/08
+ER  - 
+
+TY  - ELEC
+AU  - O'Brien, K.
+AU  - Downie, A.
+TI  - What is customer churn?
+T2  - IBM Think
+PB  - IBM
+PY  - 2024
+UR  - https://www.ibm.com/think/topics/customer-churn
+Y2  - 2026/09/08
+ER  - 
+
+TY  - ELEC
+AU  - Oracle
+TI  - Recency, Frequency and Monetary models
+T2  - Oracle Unity User's Guide
+UR  - https://docs.oracle.com/en/cloud/saas/cx-unity/cx-unity-user/Help/Data_Science/Engagement_analysis/DataScience_Model_RFM.htm
+Y2  - 2026/09/08
+ER  - 
+
+TY  - ELEC
+AU  - XGBoost developers
+TI  - Introduction to Boosted Trees
+T2  - XGBoost documentation
+UR  - https://xgboost.readthedocs.io/en/stable/tutorials/model.html
+Y2  - 2026/09/08
+ER  - 
+
+TY  - ELEC
+AU  - Google
+TI  - Collaborative filtering
+T2  - Recommendation Systems
+UR  - https://developers.google.com/machine-learning/recommendation/collaborative/basics
+Y2  - 2026/09/08
+ER  - 

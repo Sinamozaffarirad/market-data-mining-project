@@ -1,0 +1,90 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Chart pointer regression checks</title>
+<style>
+body { font: 15px system-ui; margin: 24px; }
+#box { position:relative; width:1000px; height:320px; margin:70px 0 30px 60px; }
+canvas { width:100% !important; height:100% !important; }
+pre { white-space:pre-wrap; }
+</style>
+<h1>Chart pointer regression checks</h1>
+<button id="run" disabled>Run checks</button>
+<pre id="result">Ready</pre>
+<div id="box"><canvas id="chart"></canvas></div>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+// Start Django on port 8000, then serve this directory on localhost:
+// python -m http.server 8765 --bind 127.0.0.1 --directory tests/chart_hover
+// ?before=1 disables the fix to demonstrate the original coordinate mismatch.
+const quality = document.createElement('script');
+quality.src = 'http://127.0.0.1:8000/static/js/chart_quality.js?v=20260909-pointer';
+quality.onload = () => {
+  if (new URLSearchParams(location.search).get('before') === '1') {
+    Chart.unregister(Chart.registry.plugins.get('chartPointerPosition'));
+  }
+  document.getElementById('run').disabled = false;
+};
+quality.onerror = () => { document.getElementById('result').textContent = 'Start the local Django server on port 8000 first.'; };
+document.head.appendChild(quality);
+// Feed the real Chart.js event pipeline synchronously: browser RAF throttling
+// in background tabs otherwise makes assertions race the event listener.
+const settle = () => Promise.resolve();
+document.getElementById('run').onclick = async () => {
+  const result = document.getElementById('result');
+  const box = document.getElementById('box');
+  const canvas = document.getElementById('chart');
+  let checked = 0; const failures = [];
+  const check = (ok, label) => { checked++; if (!ok) failures.push(label); };
+  try {
+    for (const zoom of [0.9, 1, 1.25]) {
+      document.documentElement.style.zoom = zoom;
+      for (const type of ['bar', 'horizontal', 'line', 'doughnut', 'scatter', 'mixed']) {
+        for (const ratio of [2, 3]) {
+          result.textContent = `Running ${zoom} / ${type} / DPR ${ratio}`;
+          const labels = Array.from({length:24}, (_,i) => 'Month ' + (i+1));
+          const values = labels.map((_,i) => 50 + (i % 7) * 5);
+          let clicked = [];
+          const config = {
+            type: type === 'horizontal' || type === 'mixed' ? 'bar' : type,
+            data: {labels, datasets:[{label:'Revenue', data: type === 'scatter' ? values.map((y,x) => ({x,y})) : values, pointRadius:5}]},
+            options: {animation:false, responsive:false, maintainAspectRatio:false, devicePixelRatio:ratio,
+              onClick: (e, els) => { clicked = els; },
+              ...(type === 'horizontal' ? {indexAxis:'y'} : {})}
+          };
+          if (type === 'mixed') config.data.datasets.push({type:'line',label:'Rate',data:values.map(v=>v+30),pointRadius:5});
+          const chart = new Chart(canvas, config);
+          await settle();
+          for (const width of [1000, 580]) {
+            box.style.width = width+'px'; chart.resize(); await settle();
+            for (const index of [0, 6, 12, 18, 23]) {
+              const point = chart.getDatasetMeta(0).data[index].getCenterPoint();
+              const rect = canvas.getBoundingClientRect();
+              const clientX = rect.left + point.x * rect.width / chart.width;
+              const clientY = rect.top + point.y * rect.height / chart.height;
+              const tag = `${zoom}/${type}/DPR${ratio}/${width}/index${index}`;
+              chart._eventHandler({type:'mousemove',chart,native:new MouseEvent('mousemove',{clientX,clientY}), ...Chart.helpers.getRelativePosition(new MouseEvent('mousemove',{clientX,clientY}),chart)});
+              await settle();
+              check(chart.getActiveElements().some(el => el.datasetIndex===0 && el.index===index), tag+' hover');
+              check(chart.tooltip.getActiveElements().some(el => el.datasetIndex===0 && el.index===index), tag+' tooltip');
+              chart._eventHandler({type:'click',chart,native:new MouseEvent('click',{clientX,clientY}), ...Chart.helpers.getRelativePosition(new MouseEvent('click',{clientX,clientY}),chart)});
+              await settle();
+              check(clicked.some(el => el.datasetIndex===0 && el.index===index), tag+' click');
+            }
+            chart._eventHandler({type:'mouseout',chart,native:new MouseEvent('mouseout'),x:null,y:null}); await settle();
+            check(chart.getActiveElements().length===0, `${type} mouseout`);
+          }
+          chart.destroy();
+        }
+      }
+    }
+    document.documentElement.style.zoom = 1;
+    result.textContent = JSON.stringify({version:Chart.version,checked,failed:failures.length,failures},null,2);
+  } catch (error) { result.textContent = error.stack; }
+};
+</script>
+
+
+
+
+
+
