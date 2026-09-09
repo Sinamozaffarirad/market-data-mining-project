@@ -166,6 +166,16 @@ input[type="text"]:focus, input[type="number"]:focus, select:focus, textarea:foc
 .breadcrumbs a { color: var(--link-fg); text-decoration:none; }
 .breadcrumbs a:hover { color: var(--link-hover-color); }
 
+/* Viewport units shrink with the root zoom. Pin Bootstrap backdrops to all
+   four viewport edges so dialogs dim the whole screen at any page scale. */
+.modal-backdrop,
+.offcanvas-backdrop {
+  position: fixed;
+  inset: 0;
+  width: auto;
+  height: auto;
+}
+
 .alert { border-radius: var(--radius-md); padding: var(--space-md) var(--space-lg); }
 .alert-success { background: color-mix(in srgb, var(--secondary-color) 12%, transparent); color: var(--secondary-color); border-left: 4px solid var(--secondary-color); }
 .alert-danger { background: color-mix(in srgb, var(--danger-color) 15%, transparent); color: var(--danger-color); border-left: 4px solid var(--danger-color); }
