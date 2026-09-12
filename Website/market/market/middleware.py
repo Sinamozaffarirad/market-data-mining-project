@@ -30,11 +30,7 @@ def strip_html_comments(html):
 
 
 class StripCommentsMiddleware:
-    """Remove HTML and CSS comments from responses.
-
-    Script bodies are set aside first and restored untouched, so nothing that
-    looks like a comment inside JavaScript can be altered.
-    """
+    
 
     def __init__(self, get_response):
         self.get_response = get_response

@@ -1,14 +1,5 @@
 # customers/ml/feature_engineering.py
-"""
-Feature engineering for the Hybrid Recommender ML model.
 
-CAVEAT: AssociationRule rows are computed once (not re-derived per cutoff
-day), so assoc_score is not strictly "as of cutoff day" — rules describe
-stable co-purchase patterns, so this is a reasonable simplification.
-Household-level features (recency, frequency, repurchase gaps) ARE
-strictly filtered to day <= cutoff_day, which is what actually matters
-for preventing label leakage.
-"""
 import numpy as np
 import pandas as pd
 from django.db import connection
@@ -24,7 +15,7 @@ FEATURE_COLUMNS = [
 
 
 def compute_product_popularity(as_of_day=None):
-    """product_id -> popularity score = log1p(total quantity sold)."""
+    
     query = "SELECT product_id, SUM(quantity) AS qty FROM transactions"
     params = []
     if as_of_day is not None:
@@ -38,12 +29,7 @@ def compute_product_popularity(as_of_day=None):
 
 
 def compute_commodity_repurchase_cycles(as_of_day=None):
-    """
-    commodity_desc -> median days between consecutive purchases of that
-    commodity, across ALL households. Small median (soda, bought every
-    few days) = always suggestible. Large median (rice/meat, bought
-    monthly) = don't suggest right after a recent purchase.
-    """
+    
     query = """
         SELECT t.household_key, p.commodity_desc, t.day
         FROM transactions t
@@ -74,11 +60,7 @@ def compute_commodity_repurchase_cycles(as_of_day=None):
 def build_candidate_features(household_key, candidate_product_ids, as_of_day,
                               popularity_map, cycle_map,
                               assoc_scores=None, cf_scores=None):
-    """
-    Returns a DataFrame indexed by product_id with FEATURE_COLUMNS, for one
-    household and a list of candidate product_ids, using only data on or
-    before as_of_day.
-    """
+    
     assoc_scores = assoc_scores or {}
     cf_scores = cf_scores or {}
 
@@ -133,12 +115,7 @@ def build_candidate_features(household_key, candidate_product_ids, as_of_day,
 def build_household_features_for_target(household_keys, level, value, as_of_day,
                                           popularity_map, cycle_map,
                                           assoc_scores=None, cf_scores=None):
-    """
-    Reverse-direction version of build_candidate_features: ONE target
-    (a product_id, a commodity_desc, or a department) and MANY candidate
-    households. Returns a DataFrame indexed by household_key with the same
-    FEATURE_COLUMNS schema, so the SAME trained model can score it.
-    """
+    
     from customers.models import Transaction, Product
 
     assoc_scores = assoc_scores or {}
@@ -151,9 +128,9 @@ def build_household_features_for_target(household_keys, level, value, as_of_day,
     elif level == "commodity":
         target_pids = list(Product.objects.filter(commodity_desc=value).values_list("product_id", flat=True))
         target_commodity = value
-    else:  # department
+    else:  
         target_pids = list(Product.objects.filter(department=value).values_list("product_id", flat=True))
-        target_commodity = None  # spans many commodities; no single repurchase cycle applies
+        target_commodity = None  
 
     target_pop = float(np.mean([popularity_map.get(pid, 0.0) for pid in target_pids])) if target_pids else 0.0
     default_gap = cycle_map.get("__default__", 14.0)
@@ -197,7 +174,7 @@ def build_household_features_for_target(household_keys, level, value, as_of_day,
             "household_commodity_count": commodity_count,
             "days_since_last_household_commodity_purchase": min(days_since, 9999),
             "commodity_median_gap_days": gap,
-            "is_new_brand_for_household": 0,  # not meaningful in reverse direction; kept for schema compatibility
+            "is_new_brand_for_household": 0,  
         })
 
     return pd.DataFrame(rows).set_index("household_key")

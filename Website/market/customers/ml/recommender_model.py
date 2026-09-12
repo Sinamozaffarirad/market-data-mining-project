@@ -16,10 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 class HybridRecommenderModel:
-    """
-    Predicts P(household purchases this candidate product soon), trained
-    on association/CF candidates labeled from held-out future transactions.
-    """
+  
 
     def __init__(self):
         self.pipeline = None
@@ -82,9 +79,7 @@ class HybridRecommenderModel:
             with path.open("rb") as f:
                 artifact = pickle.load(f)
         except (AttributeError, ImportError, ModuleNotFoundError, pickle.UnpicklingError) as exc:
-            # scikit-learn estimators are not portable across every package
-            # version. Keep recommendation pages available with their rule/CF
-            # fallback until this machine retrains a compatible artifact.
+
             logger.warning(
                 "Ignoring incompatible hybrid recommender artifact at %s: %s. "
                 "Run `python manage.py train_hybrid_recommender` to rebuild it.",

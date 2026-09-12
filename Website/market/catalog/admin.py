@@ -9,9 +9,9 @@ class ProductAdmin(admin.ModelAdmin):
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
     list_display = ("id", "customer", "created_at", "total")
-    # The problematic filter has been removed.
+
     list_filter = ("created_at",)
-    # A search field is added to allow searching by the customer's household key.
+
     search_fields = ("customer__household_key",)
     date_hierarchy = "created_at"
 

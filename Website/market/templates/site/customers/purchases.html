@@ -7,7 +7,7 @@
 
 {% block extra_css %}
 <style>
-  /* Frame, banner and cards shared with the other analysis pages. */
+
   .purchase-filter {
     max-width: 340px;
     margin-bottom: 1.25rem;
@@ -60,7 +60,7 @@
 {% block content %}
 <div class="analysis-frame">
 
-  <!-- Banner and frame shared with the other analysis pages. -->
+
   <div class="analysis-banner">
     <div>
       <div class="analysis-banner-title"><i class="fa-solid fa-basket-shopping"></i> Purchases for Customer {{ household.household_key }}</div>
@@ -100,7 +100,7 @@
       {% endfor %}
     </div>
 
-    <!-- Pagination Controls -->
+
     <nav class="mt-4">
       <ul class="pager">
         {% comment %}
@@ -142,7 +142,7 @@
   </div>
 </div>
 
-<!-- Modals for Basket Details -->
+
 {% for basket_id, items in page_obj %}
 <div class="modal fade" id="modal{{ basket_id }}" tabindex="-1" aria-labelledby="modalLabel{{ basket_id }}" aria-hidden="true">
   <div class="modal-dialog modal-xl modal-dialog-centered">

@@ -16,7 +16,6 @@ from customers.ml.feature_engineering import (
 from customers.ml.recommender_model import HybridRecommenderModel
 from .forms import ProductSearchForm
 
-# Lazily-loaded singleton, shared logic with customers app (same trained model).
 _ML_MODEL_CACHE = {"model": None, "loaded": False}
 
 
@@ -38,15 +37,9 @@ def _normalize_label(s):
     return s
 
 
-# ---------------------------
-# صفحه‌ی جستجو (انتخاب سطح + مقدار هدف)
-# ---------------------------
+
 def recommend_home(request):
-    """
-    صفحه‌ی جستجو با سه سطح: Product / Commodity / Department.
-    کاربر یه سطح رو انتخاب می‌کنه، بعد یه عبارت جستجو می‌زنه، و لیستی از
-    گزینه‌های مطابق (با یه دکمه‌ی «Get Recommendations» برای هرکدوم) می‌بینه.
-    """
+
     level = request.GET.get("level", "product")
     if level not in ("product", "commodity", "department"):
         level = "product"
@@ -80,7 +73,7 @@ def recommend_home(request):
                     .order_by("commodity_desc")[:50]
                 )
 
-            else:  # department
+            else:  
                 departments = (
                     DunnhumbyProduct.objects
                     .filter(department__icontains=query)
@@ -121,9 +114,7 @@ def recommend_home(request):
     })
 
 
-# ---------------------------
-# تولید کاندید خانوار برای هر سطح
-# ---------------------------
+
 def _target_product_ids(level, value):
     if level == "product":
         return [value]
@@ -139,7 +130,7 @@ def _get_direct_buyers(level, value, target_pids):
 
 
 def _get_content_candidates(level, value):
-    """فقط در سطح Product معنا داره: مشتریانی که محصولات هم‌دسته خریده‌اند."""
+
     if level != "product":
         return set()
     product = DunnhumbyProduct.objects.filter(product_id=value).first()
@@ -157,11 +148,8 @@ def _get_content_candidates(level, value):
 
 
 def _get_assoc_candidates(level, value, target_pids, max_rules=100):
-    """
-    خانوارهایی که قوانین انجمنی (در همون سطح: product/commodity/department)
-    اونا رو به سمت این محصول/دسته هدایت می‌کنن.
-    """
-    rule_type = level  # 'product' | 'commodity' | 'department'
+   
+    rule_type = level  
     candidates = set()
 
     if level == "product":
@@ -203,10 +191,7 @@ def _get_assoc_candidates(level, value, target_pids, max_rules=100):
 
 
 def recommend_customers(request):
-    """
-    خانوارهایی که به احتمال زیاد این محصول/دسته/دپارتمان رو خریداری می‌کنن،
-    رتبه‌بندی‌شده با همون مدل ML آموزش‌دیده‌ی Hybrid Recommender.
-    """
+    
     level = request.GET.get("level", "product")
     if level not in ("product", "commodity", "department"):
         level = "product"
@@ -239,7 +224,7 @@ def recommend_customers(request):
         cf_scores = {}
     candidate_households |= set(cf_scores.keys())
 
-    # کسانی که مستقیم قبلاً خریده‌اند، لید جدید نیستن
+
     candidate_households -= direct_buyers
 
     if not candidate_households:
@@ -267,14 +252,14 @@ def recommend_customers(request):
     features_df = build_household_features_for_target(
         list(candidate_households), level, value, as_of_day,
         popularity_map, cycle_map,
-        assoc_scores={},  # پیشنهاد association قبلاً در انتخاب کاندید لحاظ شده
+        assoc_scores={},  
         cf_scores=cf_scores,
     )
 
     if ml_model is not None:
         ml_scores = ml_model.predict_scores(features_df)
     else:
-        # نبود مدل؟ برگرد به رتبه‌بندی ساده بر اساس شباهت CF خام
+        
         ml_scores = features_df["cf_score"]
 
     scored = []
@@ -298,7 +283,7 @@ def recommend_customers(request):
             c_obj = CustomerProfile(household_key=hh)
             c_obj.age_desc = "-"
         c_obj.recommender_score = round(score, 4)
-        c_obj.score_percent = round((score / max_score) * 100, 1) if max_score else 0  # ← جدید
+        c_obj.score_percent = round((score / max_score) * 100, 1) if max_score else 0
         final_customers.append(c_obj)
         
     paginator = Paginator(final_customers, 10)
@@ -317,7 +302,6 @@ def recommend_customers(request):
 
 
 def product_detail(request, product_id):
-    """اطلاعات تکمیلی محصول: مشتریانی که خریده‌اند و قوانین انجمنی مرتبط."""
     product = get_object_or_404(DunnhumbyProduct, product_id=product_id)
 
     households = Transaction.objects.filter(product_id=product_id) \

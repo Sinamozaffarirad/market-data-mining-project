@@ -3,7 +3,7 @@ from django.db import models
 from django.contrib.auth.models import AbstractUser
 
 class User(AbstractUser):
-    # This model stores user login information (username, password, etc.)
+
     pass
 
 class CustomerProfile(models.Model):
@@ -21,7 +21,7 @@ class CustomerProfile(models.Model):
     kid_category_desc = models.CharField(max_length=50, null=True, blank=True)
 
     class Meta:
-        db_table = 'household' # Tells Django to use the 'household' table
+        db_table = 'household' 
         verbose_name = 'Customer Profile'
         verbose_name_plural = 'Customer Profiles'
 

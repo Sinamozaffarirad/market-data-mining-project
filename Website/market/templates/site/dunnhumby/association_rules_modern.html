@@ -345,7 +345,7 @@
 {% endblock %}
 
 {% block content %}
-<!-- Mining Header -->
+
 <div class="mining-header text-center">
     <div style="position: relative; z-index: 2;">
         <h1 class="display-5 fw-bold mb-3">
@@ -361,7 +361,7 @@
     </div>
 </div>
 
-<!-- Parameter Configuration -->
+
 <div class="parameter-panel animate-on-scroll">
     <h3 class="h4 fw-bold mb-4">
         <i class="fas fa-sliders-h me-2"></i>
@@ -421,13 +421,13 @@
     </div>
 </div>
 
-<!-- Progress Indicator -->
+
 <div class="progress mb-4" id="miningProgress" style="display: none;">
     <div class="progress-bar progress-bar-striped progress-bar-animated bg-success" 
          role="progressbar" style="width: 0%"></div>
 </div>
 
-<!-- Visualization Panel -->
+
 <div class="visualization-panel animate-on-scroll" id="visualizationPanel" style="display: none;">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h3 class="h5 fw-bold mb-0">
@@ -442,7 +442,7 @@
     <div id="networkViz" style="height: 400px; border: 1px solid var(--gray-200); border-radius: var(--border-radius);"></div>
 </div>
 
-<!-- Results Container -->
+
 <div class="rules-container animate-on-scroll">
     <div class="rules-header">
         <h3 class="h5 fw-bold mb-0">
@@ -468,7 +468,7 @@
     </div>
 </div>
 
-<!-- Explanation Panel -->
+
 <div class="explanation-panel animate-on-scroll">
     <h3 class="h5 fw-bold mb-3">
         <i class="fas fa-lightbulb me-2"></i>
@@ -517,7 +517,7 @@ class AssociationRulesMiner {
     }
     
     bindEvents() {
-        // Parameter sliders
+
         document.getElementById('supportSlider').addEventListener('input', (e) => {
             this.updateParameterDisplay('support', e.target.value);
             if (this.autoMine) this.debounced_mine();
@@ -533,12 +533,12 @@ class AssociationRulesMiner {
             if (this.autoMine) this.debounced_mine();
         });
         
-        // Mine button
+
         document.getElementById('mineRulesBtn').addEventListener('click', () => {
             this.mineRules();
         });
         
-        // Auto-mine checkbox
+
         document.getElementById('autoMine').addEventListener('change', (e) => {
             this.autoMine = e.target.checked;
             if (this.autoMine && this.rules.length === 0) {
@@ -546,17 +546,17 @@ class AssociationRulesMiner {
             }
         });
         
-        // Sort dropdown
+
         document.getElementById('sortRules').addEventListener('change', (e) => {
             this.sortRules(e.target.value);
         });
         
-        // Data source change
+
         document.getElementById('dataSource').addEventListener('change', () => {
             if (this.autoMine) this.debounced_mine();
         });
         
-        // Debounced mining function
+
         this.debounced_mine = this.debounce(() => this.mineRules(), 1000);
     }
     
@@ -596,10 +596,8 @@ class AssociationRulesMiner {
         try {
             const params = this.getMiningParameters();
             
-            // Simulate mining process with progress
             await this.simulateMiningWithProgress();
-            
-            // Generate mock rules
+
             this.rules = this.generateMockRules(params);
             
             this.renderRules();
@@ -649,7 +647,7 @@ class AssociationRulesMiner {
         ];
         
         const rules = [];
-        const numRules = Math.floor(Math.random() * 25) + 15; // 15-40 rules
+        const numRules = Math.floor(Math.random() * 25) + 15; 
         
         for (let i = 0; i < numRules; i++) {
             const antecedentSize = Math.random() > 0.7 ? 2 : 1;
@@ -657,8 +655,7 @@ class AssociationRulesMiner {
             
             const antecedent = this.selectRandomProducts(products, antecedentSize);
             let consequent = this.selectRandomProducts(products, consequentSize);
-            
-            // Ensure no overlap
+
             consequent = consequent.filter(p => !antecedent.includes(p));
             if (consequent.length === 0) continue;
             
@@ -720,8 +717,7 @@ class AssociationRulesMiner {
         }
         
         container.innerHTML = this.rules.map(rule => this.createRuleCard(rule)).join('');
-        
-        // Animate cards
+
         container.querySelectorAll('.rule-card').forEach((card, index) => {
             card.style.opacity = '0';
             card.style.transform = 'translateY(20px)';
@@ -732,8 +728,7 @@ class AssociationRulesMiner {
                 card.style.transform = 'translateY(0)';
             }, index * 100);
         });
-        
-        // Show visualization
+
         document.getElementById('visualizationPanel').style.display = 'block';
     }
     
@@ -806,10 +801,8 @@ class AssociationRulesMiner {
     }
     
     updateVisualization() {
-        // Simple network visualization placeholder
         const vizContainer = document.getElementById('networkViz');
-        
-        // Create a simple D3.js-style network visualization
+
         vizContainer.innerHTML = `
             <div class="d-flex align-items-center justify-content-center h-100">
                 <div class="text-center">
@@ -820,8 +813,7 @@ class AssociationRulesMiner {
                 </div>
             </div>
         `;
-        
-        // Here you would implement actual network visualization using D3.js or similar
+  
     }
     
     showMiningProgress(show) {
@@ -849,7 +841,6 @@ class AssociationRulesMiner {
     }
 }
 
-// Initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
     window.rulesMiner = new AssociationRulesMiner();
 });

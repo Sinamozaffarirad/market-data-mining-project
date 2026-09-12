@@ -6,7 +6,7 @@
 
 {% block extra_css %}
 <style>
-  /* Frame, banner and cards shared with the other analysis pages. */
+
   .pd-grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
   .pd-card {
     background: #fff;
@@ -36,8 +36,6 @@
   .pd-row .pd-key { font-weight: 700; color: #1e2338; }
   .pd-row .pd-meta { font-size: .76rem; color: #6b7391; }
 
-  /* One shared scale for how likely a household is to leave, so the figure is
-     readable at a glance instead of eighteen decimal places of noise. */
   .pd-chip {
     font-size: .7rem; font-weight: 700; padding: .15rem .55rem; border-radius: 999px;
     white-space: nowrap;

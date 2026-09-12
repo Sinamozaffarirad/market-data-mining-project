@@ -260,8 +260,7 @@
   border: none;
   white-space: nowrap;
   flex-shrink: 0;
-  /* The longest label sets the size: the pills sit in a five-across grid, so
-     the type has to stay small enough that the widest one is not clipped. */
+
   font-size: clamp(0.68rem, 0.8vw, 0.82rem);
   max-width: 100%;
   overflow: hidden;
@@ -391,7 +390,7 @@
 {% endblock %}
 
 {% block content %}
-<!-- Hero Section -->
+
 <div class="hero-section fade-in">
   <div class="hero-content text-center">
     <h1 class="hero-title">
@@ -404,7 +403,7 @@
   </div>
 </div>
 
-<!-- Metrics Cards -->
+
 <div class="row g-4 mb-4">
   <div class="col-12 col-md-6 col-lg-3">
     <div class="metric-card fade-in stagger-animation" style="--animation-order: 1;">
@@ -471,7 +470,7 @@
   </div>
 </div>
 
-<!-- Analysis Tools Grid -->
+
 <div class="tools-grid">
   <div class="d-flex flex-wrap g-4 justify-content-start">
     {% for tool in analysis_tools %}
@@ -494,7 +493,7 @@
 
 
 
-<!-- Chart Section -->
+
 <div class="chart-section fade-in">
   <h3 class="chart-title">
     <i class="fas fa-chart-area"></i>
@@ -506,7 +505,7 @@
 </div>
 
 <script>
-// Modern Dashboard JavaScript
+
 class DashboardController {
   constructor() {
     this.init();
@@ -557,13 +556,13 @@ class DashboardController {
     const ctx = document.getElementById('trendsChart');
     if (!ctx) return;
 
-    // Fetch real market trends data
+
     let chartData;
     try {
       const response = await fetch('/analysis/api/market-trends/');
       const data = await response.json();
 
-      // Convert revenue to K dollars (divide by 1000)
+
       const revenueInK = data.datasets.revenue.map(val => (val / 1000).toFixed(1));
 
       chartData = {
@@ -603,7 +602,7 @@ class DashboardController {
       };
     } catch (error) {
       console.error('Failed to load market trends:', error);
-      // Fallback to static data if API fails
+
       chartData = {
         labels: ['Month 1', 'Month 2', 'Month 3', 'Month 4', 'Month 5', 'Month 6'],
         datasets: [
@@ -744,7 +743,7 @@ class DashboardController {
   }
   
   addInteractivity() {
-    // Add hover effects to metric cards
+
     const metricCards = document.querySelectorAll('.metric-card');
     metricCards.forEach(card => {
       card.addEventListener('mouseenter', () => {
@@ -756,17 +755,17 @@ class DashboardController {
       });
     });
     
-    // Add click animations to tool cards
+
     const toolCards = document.querySelectorAll('.tool-card');
     toolCards.forEach(card => {
       card.addEventListener('click', (e) => {
         e.preventDefault();
         
-        // Add click animation
+
         card.style.transform = 'scale(0.95)';
         setTimeout(() => {
           card.style.transform = '';
-          // Navigate after animation
+
           setTimeout(() => {
             window.location.href = card.href;
           }, 100);
@@ -790,7 +789,7 @@ class DashboardController {
       });
     }, observerOptions);
     
-    // Observe all fade-in elements
+
     document.querySelectorAll('.fade-in').forEach(el => {
       el.style.opacity = '0';
       el.style.transform = 'translateY(30px)';
@@ -800,11 +799,11 @@ class DashboardController {
   }
 }
 
-// Initialize dashboard when DOM is loaded
+
 document.addEventListener('DOMContentLoaded', function() {
   new DashboardController();
   
-  // Add some sparkle effects
+
   setTimeout(() => {
     const heroSection = document.querySelector('.hero-section');
     if (heroSection) {

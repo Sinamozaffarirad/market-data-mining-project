@@ -8,8 +8,7 @@ Note the block form: the short {# ... #} form is single-line only, so spreading
 one over several lines renders it onto the page as visible text.
 {% endcomment %}
 <style>
-/* Palette follows the site's indigo/violet identity, with one accent hue per
-   report page so sections stay distinguishable without leaving the theme. */
+
 .bi-module {
   padding: .25rem;
   max-width: 100%;
@@ -25,8 +24,6 @@ one over several lines renders it onto the page as visible text.
   --bi-cyan: #0891b2;
 }
 
-/* Header card matching .analysis-type-card on the other tabs, including its
-   default h4 size, so the three tab headers read as one set. */
 .bi-type-card {
   background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
   border-radius: 15px; padding: 1.2rem; margin-bottom: 1rem;
@@ -53,7 +50,6 @@ one over several lines renders it onto the page as visible text.
   border-color: #dfe3f1; }
 .bi-slicers .form-select:focus, .bi-slicers .form-control:focus {
   border-color: var(--bi-1); box-shadow: 0 0 0 .18rem rgba(102,126,234,.15); }
-/* An active slicer is tinted so a narrowed dashboard is obvious at a glance. */
 .bi-slicers .field.is-set .form-select, .bi-slicers .field.is-set .form-control {
   border-color: var(--bi-1); background: rgba(102,126,234,.07); font-weight: 600;
   color: var(--bi-1); }
@@ -65,7 +61,7 @@ one over several lines renders it onto the page as visible text.
 }
 .bi-slicers .form-select, .bi-slicers .form-control { border-radius: .55rem; }
 
-/* Page navigation */
+
 .bi-pages { display: flex; flex-wrap: wrap; gap: .45rem; margin-bottom: 1rem; }
 .bi-page-btn {
   border: 1px solid #d9dcec; background: #fff; color: #4a5170;
@@ -86,9 +82,6 @@ one over several lines renders it onto the page as visible text.
   width: 26px; height: 26px; border-radius: 6px; font-size: .72rem; line-height: 1; cursor: pointer; }
 .bi-vis-tools button:hover { color: var(--bi-1, #667eea); border-color: var(--bi-1, #667eea); }
 .bi-vis-tools button.on { background: var(--bi-1, #667eea); border-color: var(--bi-1, #667eea); color: #fff; }
-/* The focused card is moved into this layer on the body. Kept in place it
-   inherited a stacking context from the tab wrapper, so its z-index counted
-   only inside that context and the backdrop covered it. */
 .bi-focus-layer { position: fixed; inset: 0; z-index: 20000; background: rgba(15,23,42,.5);
   display: flex; padding: 3vh 3vw; overscroll-behavior: contain; }
 .bi-focus-layer > .bi-card { width: 100%; height: 100%; margin: 0; overflow: auto;
@@ -124,8 +117,7 @@ one over several lines renders it onto the page as visible text.
 .sig-legend { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem;
   font-size: .76rem; color: var(--bi-muted, #6b7280); margin-bottom: .6rem; }
 .sig-table-fold { margin-top: .25rem; }
-/* The test a click opened. It stays marked until another is chosen, so it is
-   still identifiable after scrolling away and back. */
+
 .test-card.test-card-picked {
   border-color: var(--bi-1); background: #f7f8ff;
   box-shadow: 0 0 0 3px rgba(102,126,234,.18);
@@ -148,7 +140,6 @@ one over several lines renders it onto the page as visible text.
 .bi-page.active { display: block; animation: biFade .28s ease; }
 @keyframes biFade { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: none; } }
 
-/* Cross-filter chips */
 .bi-chips {
   display: flex; flex-wrap: wrap; gap: .4rem; align-items: center;
   margin-top: .85rem; padding-top: .85rem; border-top: 1px dashed var(--bi-line);
@@ -172,7 +163,6 @@ one over several lines renders it onto the page as visible text.
   text-transform: uppercase; color: var(--bi-muted);
 }
 
-/* KPI cards */
 .kpi-strip {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
   gap: .75rem; margin-bottom: 1rem;
@@ -207,7 +197,6 @@ one over several lines renders it onto the page as visible text.
 }
 .kpi .h { font-size: .68rem; color: #9aa1bd; margin-top: .2rem; position: relative; }
 
-/* Panels */
 .bi-card {
   background: #fff; border: 1px solid var(--bi-line); border-radius: 16px;
   padding: 1.1rem 1.2rem; margin-bottom: 1rem; height: 100%;
@@ -272,7 +261,6 @@ one over several lines renders it onto the page as visible text.
 .bi-loading { color: #9aa1bd; font-size: .84rem; padding: 1.6rem; text-align: center; }
 .bi-note { font-size: .75rem; color: #9aa1bd; margin: .5rem 0 0; }
 
-/* Significance tests */
 .test-card {
   border: 1px solid var(--bi-line); border-radius: 13px; padding: .9rem 1rem;
   margin-bottom: .8rem; background: #fbfbff;
@@ -305,10 +293,7 @@ one over several lines renders it onto the page as visible text.
   display: inline-block; padding: .12rem .55rem; border-radius: 999px;
   font-size: .7rem; font-weight: 700; text-transform: capitalize;
 }
-/* One scale for the size of a difference, used by every badge that shows it:
-   the further from grey, the more there is to look at. The two panels had
-   drifted onto different scales, so medium was green in one and orange in the
-   other. */
+
 :root {
   --eff-negligible-bg: #f1f5f9; --eff-negligible-fg: #64748b;
   --eff-small-bg:      #e0f2fe; --eff-small-fg:      #0369a1;
@@ -495,7 +480,7 @@ one over several lines renders it onto the page as visible text.
 
   <div class="kpi-strip" id="kpiStrip"></div>
 
-  <!-- Overview -->
+
   <div class="bi-page active" id="biPage-overview">
     <div class="row g-3">
       <div class="col-lg-7">
@@ -528,7 +513,7 @@ one over several lines renders it onto the page as visible text.
     </div>
   </div>
 
-  <!-- Products -->
+
   <div class="bi-page" id="biPage-products">
     <div class="row g-3">
       <div class="col-lg-5">
@@ -594,7 +579,7 @@ one over several lines renders it onto the page as visible text.
     </div>
   </div>
 
-  <!-- Time and trading -->
+
   <div class="bi-page" id="biPage-time">
     <div class="row g-3">
       <div class="col-lg-7">
@@ -628,7 +613,6 @@ one over several lines renders it onto the page as visible text.
     </div>
   </div>
 
-  <!-- Customers -->
   <div class="bi-page" id="biPage-customers">
     <div class="row g-3">
       <div class="col-lg-7">
@@ -659,7 +643,6 @@ one over several lines renders it onto the page as visible text.
     </div>
   </div>
 
-  <!-- Growth and loyalty -->
   <div class="bi-page" id="biPage-growth">
     <div class="bi-card" style="--panel-accent:var(--bi-emerald)">
       <div class="bi-head">
@@ -719,7 +702,6 @@ one over several lines renders it onto the page as visible text.
     </div>
   </div>
 
-  <!-- Pricing and promotions -->
   <div class="bi-page" id="biPage-promotions">
     <div class="row g-3">
       <div class="col-lg-7">
@@ -742,7 +724,6 @@ one over several lines renders it onto the page as visible text.
     </div>
   </div>
 
-  <!-- Stores -->
   <div class="bi-page" id="biPage-stores">
     <div class="bi-card" style="--panel-accent:var(--bi-rose)">
       <div class="bi-head"><div><h5><i class="fas fa-store"></i> Store performance</h5>
@@ -751,7 +732,6 @@ one over several lines renders it onto the page as visible text.
     </div>
   </div>
 
-  <!-- Significance tests -->
   <div class="bi-page" id="biPage-tests">
     <div class="bi-card" style="--panel-accent:var(--bi-emerald)">
       <div class="bi-head">
@@ -838,8 +818,8 @@ one over several lines renders it onto the page as visible text.
 
 <script>
 const BI = {
-  filters: {},                       // the one shared selection
-  productLevels: [], timeLevels: [], // level keys, so a crumb knows what to clear
+  filters: {},                       
+  productLevels: [], timeLevels: [], 
   product: null, time: null, segment: null, store: null, basket: null,
   hour: null, weekday: null, discount: null, brand: null, demo: null,
   pareto: null, growth: null, repeat: null, household: null,
@@ -859,8 +839,6 @@ const T = {
 };
 const PALETTE = [T.indigo, T.violet, T.emerald, T.amber, T.rose, T.cyan, '#4a54c9', '#db2777'];
 
-/* ---------- filter context ------------------------------------------------ */
-
 function biParams(extra) {
   const params = new URLSearchParams();
   Object.entries(BI.filters).forEach(([k, v]) => params.set(k, v));
@@ -868,11 +846,6 @@ function biParams(extra) {
   return params;
 }
 
-/* A refresh fires about twenty queries at once and they finish out of order.
-   Clicking a second mark before the first refresh has landed used to let the
-   older, slower answers overwrite the newer ones, leaving panels showing a
-   filter that is no longer selected. Each refresh takes a number, and a reply
-   from a superseded one is dropped instead of drawn. */
 let biRun = 0;
 const BI_STALE = Symbol('superseded refresh');
 
@@ -884,18 +857,13 @@ async function biGet(url, extra) {
   try {
     var payload = JSON.parse(text);
   } catch (error) {
-    // A server error returns an HTML page; name the endpoint rather than
-    // surfacing a raw JSON parse failure that says nothing useful.
+
     throw new Error(`${url.split('/').filter(Boolean).pop()} failed with HTTP ${response.status}`);
   }
   if (!payload.success) throw new Error(payload.error || 'Request failed');
   return payload;
 }
 
-/* Holding ctrl, cmd or shift while clicking a mark adds it to the selection
-   instead of replacing it, the way a slicer multi-selects. The modifier is read
-   from the last mousedown so every existing chart handler gets it without
-   having to thread the event through. */
 document.addEventListener('mousedown', event => {
   BI.additive = !!(event.ctrlKey || event.metaKey || event.shiftKey);
 }, true);
@@ -907,7 +875,7 @@ function biSetFilter(key, value, options) {
     delete BI.filters[key];
   } else if (BI.additive && current.length) {
     const next = current.includes(clean)
-      ? current.filter(v => v !== clean)     // ctrl-click an active mark to drop it
+      ? current.filter(v => v !== clean)    
       : current.concat(clean);
     if (next.length) BI.filters[key] = next.join('|');
     else delete BI.filters[key];
@@ -920,10 +888,6 @@ function biSetFilter(key, value, options) {
   biRefresh();
 }
 
-/* Some marks stand for a combination rather than a single value: a bar on the
-   month chart means one month of one year. Setting the parts one at a time
-   would refresh the dashboard twice and, in between, show that month across
-   every year. This applies the whole set in one go and refreshes once. */
 function biSetFilters(pairs, options) {
   const entries = pairs
     .map(([key, value]) => [key, (value === null || value === undefined) ? '' : String(value).trim()])
@@ -937,8 +901,7 @@ function biSetFilters(pairs, options) {
 }
 
 function biRemoveFilter(key) {
-  /* Hierarchy levels only make sense with their parents in place, so removing
-     one level also drops everything below it. */
+
   [BI.productLevels, BI.timeLevels].forEach(levels => {
     const index = levels.indexOf(key);
     if (index >= 0) levels.slice(index).forEach(k => delete BI.filters[k]);
@@ -950,8 +913,6 @@ function biRemoveFilter(key) {
 
 function biClearAll() { BI.filters = {}; biSyncSlicers(); biRefresh(); }
 
-/* Keep the dropdowns showing whatever the chips say, so a filter set by
-   clicking a chart is reflected in the controls and the other way round. */
 function biSyncSlicers() {
   const bound = [
     ['fYear', 'year'], ['fQuarter', 'quarter'], ['fMonth', 'month'],
@@ -964,9 +925,7 @@ function biSyncSlicers() {
     const el = document.getElementById(id);
     if (!el) return;
     const value = BI.filters[key] || '';
-    /* A slicer shows a single choice. Several values can be selected by
-       ctrl-clicking marks, and the control steps back rather than pretending
-       one of them is the selection; the chips carry the full set. */
+
     const many = value.includes('|');
     if (el.tagName === 'SELECT') {
       el.value = (!many && [...el.options].some(o => o.value === value)) ? value : 'all';
@@ -984,9 +943,6 @@ function biSyncSlicers() {
   if (secondaryActive && more?.hidden) biToggleMoreFilters();
 }
 
-/* Three hundred commodities is not a list anyone reads. Choosing a department
-   narrows it to that department's own, which is also what clicking through the
-   product hierarchy does. */
 function biNarrowCommodities() {
   const select = document.getElementById('fCommodity');
   if (!select) return;
@@ -1040,7 +996,7 @@ function renderChips() {
        onclick="biClearAll()">Clear all</button>`;
 }
 
-/* ---------- formatting ---------------------------------------------------- */
+
 
 const money = v => '$' + Number(v || 0).toLocaleString(undefined, {maximumFractionDigits: 0});
 const money2 = v => '$' + Number(v || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
@@ -1052,7 +1008,7 @@ function escapeHtml(text) {
   ));
 }
 
-/* ---------- pages --------------------------------------------------------- */
+
 
 function biShowPage(page, button) {
   BI.page = page;
@@ -1060,16 +1016,12 @@ function biShowPage(page, button) {
   document.getElementById('biPage-' + page)?.classList.add('active');
   document.querySelectorAll('.bi-page-btn').forEach(el => el.classList.remove('active'));
   button?.classList.add('active');
-  // Charts on a hidden page could not measure their container, so settle them
-  // now the page is on screen.
+
   setTimeout(() => biSettleCharts(), 60);
-  /* Opening the tests page runs the search once, so the reader arrives at
-     findings rather than at a button. It is not run before the page is opened,
-     because it is the slowest panel here and most visits never reach it. */
   if (page === 'tests' && !biScanRequested) setTimeout(() => loadSignificanceScan(), 80);
 }
 
-/* ---------- panels -------------------------------------------------------- */
+
 
 const KPI_CARDS = [
   ['revenue',               'Revenue',              'fa-sack-dollar',   T.indigo,  money,  k => money(k.revenue_per_day) + '/day'],
@@ -1137,8 +1089,7 @@ async function loadProduct() {
         borderRadius: 4 }] },
     options: {
       indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-      // Clicking a level sets that level's filter, which both descends the
-      // hierarchy and narrows every other panel.
+
       onClick: (event, elements) => {
         if (!elements.length) return;
         biSetFilter(data.level, data.rows[elements[0].index].value, {toggle: true});
@@ -1184,7 +1135,7 @@ async function loadTime() {
   });
 }
 
-/* A crumb clears its own level and everything below it. */
+
 function jumpProduct(depth) { biJump(BI.productLevels, depth); }
 function jumpTime(depth) { biJump(BI.timeLevels, depth); }
 function biJump(levels, depth) {
@@ -1224,14 +1175,7 @@ async function loadStores() {
   BI.store = new Chart(document.getElementById('storeChart'), {
     type: 'bubble',
     data: { datasets: [{ label: 'Store',
-      /* The radius used to rise linearly with revenue share, but a circle is
-         read by its area, and area grows with the square of the radius. Two
-         stores 1.2x apart in revenue were drawn 1.4x apart to the eye. Solving
-         for area instead -- area = min + (max - min) * share -- gives
-         r = sqrt(rMin^2 + (rMax^2 - rMin^2) * share), which keeps the same 4px
-         floor and 20px ceiling while making the area, not the radius, carry
-         the number. The floor is still a floor: stores near zero revenue are
-         drawn larger than truth so they stay clickable. */
+
       data: data.rows.map(r => ({ x: r.baskets, y: r.avg_basket,
         r: Math.sqrt(16 + 384 * (r.revenue / maxRevenue)),
         store: r.store_id, revenue: r.revenue })),
@@ -1302,8 +1246,7 @@ async function loadDaypart() {
   if (BI.weekday) BI.weekday.destroy();
   BI.weekday = new Chart(document.getElementById('weekdayChart'), {
     type: 'bar',
-    // Weekdays recur a different number of times across the window, so the
-    // comparable measure is revenue per occurrence, not the raw total.
+
     data: { labels: data.weekdays.map(r => r.weekday),
       datasets: [{ label: 'Revenue per day', data: data.weekdays.map(r => r.revenue_per_day),
         backgroundColor: T.emerald, borderRadius: 4 }] },
@@ -1330,8 +1273,7 @@ async function loadDiscountTrend() {
       ] },
     options: {
       responsive: true, maintainAspectRatio: false,
-      /* A bar is one month of one year, so it sets both halves of the time
-         hierarchy; the chips then read the same way as drilling down to it. */
+
       onClick: (e, els) => {
         if (!els.length) return;
         const row = data.rows[els[0].index];
@@ -1379,8 +1321,7 @@ async function loadDemographics() {
   document.getElementById('demoSub').textContent = `Revenue by ${data.dimension_label.toLowerCase()}`;
   const note = document.getElementById('demoNote');
   if (note) {
-    // Only 802 of 2,497 households carry demographics, so state the covered
-    // share rather than letting the reader assume the chart is everyone.
+
     note.textContent = `Covers ${pct(data.coverage)} of revenue in this selection; `
       + 'the rest belongs to households with no demographic record.';
   }
@@ -1403,9 +1344,7 @@ async function loadDemographics() {
 async function loadTopProducts() {
   const data = await biGet('/analysis/api/bi/top-products/');
   const body = document.getElementById('topProductRows');
-  /* The count is read back rather than written into the header: a filter can
-     leave fewer than 25 rows, and a header that still said 25 would be naming
-     the wrong base for the column beneath it. */
+
   const shownHead = document.getElementById('topShareShownHead');
   if (shownHead) shownHead.textContent = `Share of these ${Number(data.shown || data.rows.length)}`;
   body.innerHTML = data.rows.length ? data.rows.map(r => `<tr onclick="biSetFilter('product', '${r.product_id}', {toggle:true})">
@@ -1425,36 +1364,17 @@ async function loadInsights() {
     : '<div class="bi-loading">No findings for this selection.</div>';
 }
 
-/* Significance tests. `reset` clears the chosen groups so switching dimension
-   picks that dimension's own two largest groups rather than carrying stale
-   names across. */
-/* Searches the comparisons rather than waiting to be pointed at one. Ordered
-   by effect size: at this many baskets a p-value is significant almost
-   everywhere, so sorting by it would rank noise alongside the real gaps. */
-/* Once the scan has been run it follows the dashboard: a cross-filter or a
-   drill changes which groups are being compared, and a list left as it was
-   would be describing a selection the reader has already moved off. It stays
-   idle until first asked, because it is the slowest panel here and nobody
-   should pay for it before they want it. */
 let biScanRequested = false;
-/* Filters can change faster than a scan finishes. Each run carries a serial and
-   only the newest is allowed to render, otherwise a slow earlier scan lands on
-   top of a newer one and describes a selection that is no longer set. */
+
 let biScanSerial = 0;
 let biScanShowAll = false;
 let biScanLastPayload = null;
 
-/* Re-lays the table already in hand rather than asking the server again. */
 function biScanToggleAll(showAll) {
   biScanShowAll = !!showAll;
   if (biScanLastPayload) biScanRender(biScanLastPayload);
 }
 
-/* Both panels have to move together. Leaving the scan on basket value while
-   the tests below switched to visits would put two answers to different
-   questions on one screen, and the scan's rows link straight into those tests.
-   The scan is only re-run if it has already been run once, because it is the
-   expensive half and is behind a button for that reason. */
 function biMeasureChanged() {
   loadSignificance();
   if (biScanRequested) loadSignificanceScan();
@@ -1484,9 +1404,6 @@ async function loadSignificanceScan() {
   }
 }
 
-/* One test per dimension rather than per pair, which answers a question the
-   pairwise list cannot: is this way of grouping customers worth slicing by at
-   all? */
 function renderDimensionRanking(dims) {
   const box = document.getElementById('sigDimRank');
   if (!box) return;
@@ -1515,10 +1432,6 @@ function renderDimensionRanking(dims) {
     spread, which basket value does not have, so it sits alongside rather than being relied on.</p>`;
 }
 
-/* Points at the test the click actually opened. The pair list ranks on the rank
-   test, and the dimension list on Kruskal-Wallis, so those are the cards to
-   bring forward -- highlighting the whole panel said only "something changed"
-   and highlighting the source row left the reader looking in the wrong place. */
 function biHighlightTest(testName) {
   const cards = [...document.querySelectorAll('#sigResults .test-card')];
   if (!cards.length) return;
@@ -1526,7 +1439,7 @@ function biHighlightTest(testName) {
   const card = cards.find(c => (c.dataset.testName || '').toLowerCase() === testName.toLowerCase())
             || cards[0];
   card.scrollIntoView({behavior: 'smooth', block: 'center'});
-  // Wait for the scroll to arrive, or the pop is over before the reader is.
+
   const onScreen = () => {
     const box = card.getBoundingClientRect();
     return box.top < window.innerHeight * 0.9 && box.bottom > window.innerHeight * 0.1;
@@ -1570,9 +1483,7 @@ function biScanRender(data) {
         ${escapeHtml(data.observation_noun || 'baskets')} in this selection to compare.</div>`;
       return;
     }
-    /* Medians here are trips when the tab is measuring visits, so the money
-       formatter cannot be assumed, and the column headings have to say which
-       response the scan was run on. */
+
     const isCount = data.measure_unit === 'count';
     const scanAmount = value => isCount
       ? Number(value).toLocaleString(undefined, {maximumFractionDigits: 1})
@@ -1580,9 +1491,7 @@ function biScanRender(data) {
     const measureName = data.measure_label || 'Basket value';
     const unitPlural = data.observation_noun || 'baskets';
     const top = Math.max(...rows.map(r => Math.abs(Number(r.delta)))) || 1;
-    /* The headline counts the comparisons worth a look, so those are the ones
-       laid out. The smaller ones stay one click away rather than padding the
-       table or being dropped silently. */
+
     const worthALook = rows.filter(r => r.actionable);
     const shown = biScanShowAll || !worthALook.length ? rows : worthALook;
     const hidden = rows.length - shown.length;
@@ -1637,15 +1546,12 @@ function biScanRender(data) {
   }
 }
 
-/* The mix column answers a different question from the spend column, and
-   reusing "negligible" for both made the pair look contradictory: a group can
-   spend far more per basket while filling it from the very same aisles. */
 function biMixWords(effect) {
   return {negligible: 'same aisles', small: 'slightly different',
           medium: 'different', large: 'very different'}[effect] || effect;
 }
 
-/* A number nobody reads as 4.2e-136. What matters is whether it is a fluke. */
+
 function biFormatQ(value) {
   const q = Number(value);
   if (!isFinite(q)) return '--';
@@ -1655,8 +1561,6 @@ function biFormatQ(value) {
   return `${(q * 100).toFixed(0)}% -- could be chance`;
 }
 
-/* Hands a scanned pair to the manual panel, so the scan is a starting point
-   rather than a separate answer. */
 function biOpenComparison(dimension, groupA, groupB) {
   const dim = document.getElementById('sigDim');
   if (dim) dim.value = dimension;
@@ -1698,8 +1602,6 @@ async function loadSignificance(reset) {
     + (data.circular ? `<span class="d-block mt-1">
        <i class="fas fa-circle-exclamation"></i> ${escapeHtml(data.circular_note)}</span>` : '');
 
-  /* The card answers the question. The numbers behind it stay folded away, so a
-     reader who wants the finding is not made to read the statistics first. */
   results.innerHTML = data.tests.length ? data.tests.map(t => `
     <div class="test-card" data-test-name="${escapeHtml(t.name)}">
       <div class="verdict-row">
@@ -1732,9 +1634,6 @@ async function loadSignificance(reset) {
   renderSignificanceTable(data);
 }
 
-/* One row per test in the shape a report expects: the two groups, the test, its
-   statistic, the p-value, the effect size and the verdict. The cards above are
-   for reading; this is the table to quote, and to hand to another tool. */
 let lastSignificanceTable = null;
 
 function renderSignificanceTable(data) {
@@ -1745,8 +1644,7 @@ function renderSignificanceTable(data) {
   const pairFor = t => (/ANOVA|Kruskal/i.test(t.name)
     ? `all ${escapeHtml(data.dimension_label.toLowerCase())} groups`
     : `${escapeHtml(data.group_a)} vs ${escapeHtml(data.group_b)}`);
-  /* A confidence interval on visits is a count of trips, not a sum of money,
-     so the formatter follows the response the tests were run on. */
+
   const sigAmount = value => data.measure_unit === 'count'
     ? Number(value).toLocaleString(undefined, {maximumFractionDigits: 1})
     : money2(value);
@@ -1829,12 +1727,9 @@ function exportSignificanceTable() {
   URL.revokeObjectURL(url);
 }
 
-/* ---------- concentration, growth, loyalty and promotion panels ----------- */
 
 const biDestroy = (chart) => { if (chart) chart.destroy(); };
 
-/* Revenue concentration. The curve is informational rather than a filter: a
-   point on it is a rank, not a product anyone would want to select. */
 async function loadPareto() {
   const canvas = document.getElementById('paretoChart');
   if (!canvas) return;
@@ -1877,12 +1772,6 @@ async function loadPareto() {
   });
 }
 
-/* Growth follows the time filter down rather than holding a fixed pair of
-   periods: it compares the two newest whole 30-day periods the filter still
-   contains, or, when the filter cuts across periods and leaves none whole, the
-   newer half of the selected days against the older half. Only a filter too
-   narrow to hold two windows comes back empty. The server says which comparison
-   it drew, so print that rather than guessing at a reason. */
 async function loadGrowth() {
   const canvas = document.getElementById('growthChart');
   if (!canvas) return;
@@ -1903,11 +1792,6 @@ async function loadGrowth() {
   const top = rows.slice(0, 8).concat(rows.slice(-8)).filter(
     (row, index, all) => all.indexOf(row) === index);
 
-  /* The bars have to carry whatever the ranking used. Plotting money while
-     ranking by percentage would put the longest bar in the middle of the
-     chart and read as a sorting fault. A line with no earlier revenue has no
-     finite percentage, so it is drawn at the tallest percentage present
-     rather than as a gap; the tooltip still says it had none. */
   const byPercent = (data.sort || sort) === 'percent';
   const finitePct = top.map(r => r.change_pct).filter(v => v !== null).map(Number);
   const pctCeiling = finitePct.length ? Math.max(...finitePct.map(Math.abs)) : 100;
@@ -2106,8 +1990,7 @@ async function loadBrandMix() {
   });
 }
 
-/* The heatmap is drawn as a grid rather than a chart: it needs one clickable
-   cell per day-and-hour pair, and each cell sets both filters at once. */
+
 async function loadHeatmap() {
   const grid = document.getElementById('heatmapGrid');
   if (!grid) return;
@@ -2147,13 +2030,11 @@ async function loadHeatmap() {
   }</tbody></table>`;
 }
 
-/* One click sets both halves of the pair, so the cell and the filter chips
-   always describe the same slice. */
 function biHeatmapPick(day, hour) {
   biSetFilters([['weekday', day], ['hour', hour]], {toggle: true});
 }
 
-/* ---------- chart sizing -------------------------------------------------- */
+
 
 const BI_LOADERS = [
   ['productChart',  () => BI.product,  loadProduct],
@@ -2182,12 +2063,9 @@ async function biSettleCharts(attempt = 0) {
     const canvas = document.getElementById(id);
     if (!chart || !canvas) return;
     const box = canvas.parentElement;
-    if (!box || box.clientWidth < 1) return;   // page still hidden
+    if (!box || box.clientWidth < 1) return;   
     if (canvas.width < Math.floor(box.clientWidth * ratio) - 4) {
-      /* The bitmap is smaller than its box. resize() cannot fix this: Chart.js
-         compares against its own record, which already matches the box, so the
-         call is a no-op while the canvas stays small and renders stretched.
-         Rebuilding measures the box afresh. */
+
       rebuilds.add(load);
     }
     if (box.dataset.biObserved) return;
@@ -2201,11 +2079,6 @@ async function biSettleCharts(attempt = 0) {
   if (attempt < 4) setTimeout(() => biSettleCharts(attempt + 1), 300);
 }
 
-/* ---------- per-visual controls ------------------------------------------
-   The three things a reader reaches for on any tile: make it bigger, see the
-   numbers behind it, take it away. Attached to every card from the chart
-   registry, so a new panel gets them by being registered rather than by
-   repeating markup. */
 
 const BI_CHART_BY_ID = () => Object.fromEntries(BI_LOADERS.map(([id, get]) => [id, get]));
 
@@ -2218,7 +2091,7 @@ function biDecorateCards() {
     if (card.dataset.biTools) return;
     const canvas = card.querySelector('canvas');
     const grid = card.querySelector('.bi-heatmap');
-    if (!canvas && !grid) return;             // tables already read as data
+    if (!canvas && !grid) return;            
     card.dataset.biTools = '1';
     const tools = document.createElement('div');
     tools.className = 'bi-vis-tools';
@@ -2238,17 +2111,13 @@ function biDecorateCards() {
   });
 }
 
-/* Rows behind a card, taken from the chart that is already on screen so the
-   table can never disagree with the picture. */
 function biCardRows(card) {
   const canvas = card.querySelector('canvas');
   if (canvas) {
     const chart = (BI_CHART_BY_ID()[canvas.id] || (() => null))();
     if (!chart) return null;
     const sets = chart.data.datasets || [];
-    // Chart.js stores an empty array when a chart is plotted from {x, y} points
-    // rather than labels, so an empty one has to count as "no labels" or the
-    // table comes out with headings and nothing under them.
+
     const labels = (chart.data.labels && chart.data.labels.length) ? chart.data.labels : null;
     const length = labels ? labels.length
       : Math.max(0, ...sets.map(d => (d.data || []).length));
@@ -2295,9 +2164,7 @@ function biToggleDataView(card, button) {
   button.classList.add('on');
 }
 
-/* An open table has to follow its chart. Drilling or cross-filtering rebuilds
-   the chart, and a table left as first drawn would keep quoting the level the
-   reader has already moved off. */
+
 function biRefreshDataViews() {
   document.querySelectorAll('.bi-card[data-bi-dataview]').forEach(biRenderDataView);
 }
@@ -2306,9 +2173,7 @@ function biRenderDataView(card) {
   card.querySelector('.bi-datatable')?.remove();
   const rows = biCardRows(card);
   if (!rows) return;
-  /* Sorting is applied to the table rather than to the chart axis: several
-     charts resolve a click to a filter by the mark's position, so reordering
-     the plotted data would send clicks to the wrong category. */
+
   const sortColumn = card.dataset.biSortCol === undefined ? null : Number(card.dataset.biSortCol);
   const descending = card.dataset.biSortDir !== 'asc';
   if (sortColumn !== null) {
@@ -2332,9 +2197,7 @@ function biRenderDataView(card) {
     }).join('')
   }</tr></thead><tbody>${
     rows.body.map(row => `<tr>${row.map((cell, i) => {
-      /* The first column is a category. Whole numbers there are identities --
-         a year or a store id -- so they keep their digits; a fraction there is
-         a plotted position and only needs a few figures. */
+
       let value = cell;
       if (isNumber(cell)) {
         const n = Number(cell);
@@ -2352,7 +2215,7 @@ function biRenderDataView(card) {
         card.dataset.biSortDir = card.dataset.biSortDir === 'asc' ? 'desc' : 'asc';
       } else {
         card.dataset.biSortCol = String(column);
-        card.dataset.biSortDir = column ? 'desc' : 'asc';   // numbers high first, names A-Z
+        card.dataset.biSortDir = column ? 'desc' : 'asc';   
       }
       biRenderDataView(card);
     });
@@ -2379,14 +2242,12 @@ function biExportCard(card) {
   URL.revokeObjectURL(url);
 }
 
-/* Focus lifts one card over a backdrop. The chart is rebuilt afterwards rather
-   than resized, for the same reason the tab switch rebuilds: a canvas measured
-   at one size will not stretch cleanly to another. */
+
 function biToggleFocus(card, button) {
   const layer = document.querySelector('.bi-focus-layer');
   if (layer && layer.contains(card)) { biCloseFocus(); return; }
   if (layer) biCloseFocus();
-  // Leave a marker so the card returns to exactly where it came from.
+
   const placeholder = document.createElement('div');
   placeholder.dataset.biPlaceholder = '1';
   card.parentNode.insertBefore(placeholder, card);
@@ -2420,7 +2281,7 @@ document.addEventListener('keydown', event => {
   biCloseFocus();
 });
 
-/* ---------- saved views --------------------------------------------------- */
+
 
 const BI_BOOKMARK_KEY = 'bi.bookmarks.v1';
 
@@ -2469,7 +2330,7 @@ function renderBookmarks() {
     : '';
 }
 
-/* ---------- orchestration ------------------------------------------------- */
+
 
 async function biRefresh() {
   const run = ++biRun;
@@ -2493,7 +2354,7 @@ async function biRefresh() {
     }
     renderBookmarks();
   } catch (error) {
-    // A refresh the user has already replaced is not a failure worth reporting.
+
     if (error === BI_STALE || run !== biRun) return;
     console.error(error);
     showNotification('Dashboard could not load: ' + error.message, 'danger');
@@ -2502,8 +2363,7 @@ async function biRefresh() {
 
 document.addEventListener('DOMContentLoaded', () => {
   const tab = document.getElementById('kpiStrip')?.closest('.tab-content');
-  // Charts built inside a hidden tab measure a zero-width canvas, so hold the
-  // first load until the tab is shown. The standalone page has no tab.
+
   if (!tab || tab.classList.contains('active')) { biRefresh(); return; }
   const observer = new MutationObserver(() => {
     if (!tab.classList.contains('active')) return;

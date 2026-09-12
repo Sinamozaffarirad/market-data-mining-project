@@ -46,7 +46,6 @@
     <div class="results">
         <h3 class="section-title"><i class="fas fa-chart-line"></i> Association Rules (Top by Lift)</h3>
         
-        <!-- Debug section -->
         {% if min_support and min_confidence %}
         <div style="background: #f0f8ff; padding: 10px; margin: 10px 0; border-left: 4px solid #007cba;">
             <h4>Debug Information:</h4>
@@ -293,7 +292,6 @@ document.addEventListener('DOMContentLoaded', function() {
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating Rules...';
             btn.disabled = true;
             
-            // Re-enable after timeout as safety
             setTimeout(() => {
                 btn.innerHTML = originalText;
                 btn.disabled = false;

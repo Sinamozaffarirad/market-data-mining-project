@@ -3,7 +3,7 @@
 
 {% block extrahead %}
 <style>
-    /* Dashboard-specific styles */
+
     .hero-section {
         background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
         color: white;
@@ -215,7 +215,7 @@
         }
     }
     
-    /* Dark theme adjustments */
+
     [data-theme="dark"] .analytics-card,
     [data-theme="dark"] .chart-container {
         background: var(--gray-100);
@@ -240,7 +240,7 @@
 {% endblock %}
 
 {% block content %}
-<!-- Hero Section -->
+
 <div class="hero-section">
     <div class="hero-content text-center">
         <h1 class="display-4 fw-bold mb-3">Market Intelligence Dashboard</h1>
@@ -253,7 +253,7 @@
     </div>
 </div>
 
-<!-- Key Metrics -->
+
 <div class="dashboard-grid animate-on-scroll">
     <div class="metric-card">
         <div class="metric-value" data-count="1048569">0</div>
@@ -288,7 +288,7 @@
     </div>
 </div>
 
-<!-- Analytics Tools -->
+
 <div class="row mb-5">
     <div class="col-12">
         <h2 class="h3 fw-bold mb-4">
@@ -385,7 +385,7 @@
 </div>
 
 
-<!-- Chart Section -->
+
 <div class="chart-container animate-on-scroll">
     <div class="chart-header">
         <h3 class="chart-title">
@@ -402,7 +402,7 @@
     </div>
 </div>
 
-<!-- Insights and Quick Actions -->
+
 <div class="row">
     <div class="col-lg-8">
         <div class="insights-panel animate-on-scroll">
@@ -487,7 +487,7 @@
 {% block footer %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Animate counter numbers
+
     function animateCounter(element) {
         const target = parseInt(element.dataset.count);
         const duration = 2000;
@@ -508,7 +508,7 @@ document.addEventListener('DOMContentLoaded', function() {
         requestAnimationFrame(updateCounter);
     }
     
-    // Start counter animations when elements come into view
+
     const observer = new IntersectionObserver((entries) => {
         entries.forEach(entry => {
             if (entry.isIntersecting) {
@@ -525,7 +525,7 @@ document.addEventListener('DOMContentLoaded', function() {
         observer.observe(card);
     });
     
-    // Chart initialization
+
     const ctx = document.getElementById('trendsChart');
     if (ctx) {
         const chart = new Chart(ctx, {
@@ -633,19 +633,19 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
         
-        // Chart period controls
+
         document.querySelectorAll('.chart-btn').forEach(btn => {
             btn.addEventListener('click', function() {
                 document.querySelectorAll('.chart-btn').forEach(b => b.classList.remove('active'));
                 this.classList.add('active');
                 
-                // Here you would update the chart data based on the selected period
+
                 showNotification(`Chart updated to show ${this.dataset.period} view`, 'success');
             });
         });
     }
     
-    // Add hover effects to analytics cards
+
     document.querySelectorAll('.analytics-card').forEach(card => {
         card.addEventListener('mouseenter', function() {
             gsap.to(this, {

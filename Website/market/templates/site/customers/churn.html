@@ -6,7 +6,7 @@
 
 {% block extra_css %}
 <style>
-    /* Same RFM badge classes and colors as Customer Segments. */
+
     .bg-champions { background-color: #28a745; }
     .bg-loyal-customers { background-color: #007bff; }
     .bg-potential-loyalists { background-color: #17a2b8; color: white !important; }
@@ -37,13 +37,12 @@
         .churn-rfm-summary { border-left: 1px solid #dee2e6; }
     }
 
-    /* Card system shared with the other analysis pages. */
+
     .analysis-frame .card {
         border: 1px solid #e6e8f2; border-radius: 16px;
         box-shadow: 0 2px 14px rgba(102, 126, 234, .06);
     }
-    /* The figure carries Bootstrap's .text-primary, which is !important, so the
-       gradient has to say it too or the number stays flat blue. */
+
     .analysis-frame .churn-probability {
         background: linear-gradient(135deg, #667eea, #764ba2);
         -webkit-background-clip: text; background-clip: text;
@@ -71,7 +70,7 @@
 {% block content %}
 <div class="analysis-frame">
 
-    <!-- Banner and frame shared with the other analysis pages. -->
+
     <div class="analysis-banner">
       <div>
         <div class="analysis-banner-title"><i class="fa-solid fa-chart-line"></i> Churn Analysis for Customer {{ household.household_key }}</div>

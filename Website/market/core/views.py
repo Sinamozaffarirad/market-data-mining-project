@@ -12,21 +12,18 @@ def home(request):
 @login_required
 def dashboard(request):
     """Main dashboard for authenticated users"""
-    # Get key metrics
     top_products = Transaction.objects.values(
         'product_id'
     ).annotate(
         total_sales=Sum('sales_value'),
         frequency=Count('id')
     ).order_by('-total_sales')[:10]
-    
-    # Customer segments overview
+
     segments = CustomerSegment.objects.values('rfm_segment').annotate(
         count=Count('id'),
         avg_spend=Avg('total_spend')
     ).order_by('-count')
     
-    # Recent baskets
     recent_baskets = BasketAnalysis.objects.order_by('-created_at')[:10]
     
     context = {
@@ -40,15 +37,13 @@ def dashboard(request):
 @login_required
 def analytics(request):
     """Analytics page with charts and insights"""
-    # Department analysis
     dept_analysis = Transaction.objects.values(
-        'product_id'  # We'd normally join with product table
+        'product_id'  
     ).annotate(
         total_sales=Sum('sales_value'),
         transaction_count=Count('id')
     ).order_by('-total_sales')[:15]
-    
-    # Monthly trends (simplified)
+
     weekly_trends = Transaction.objects.values(
         'week_no'
     ).annotate(

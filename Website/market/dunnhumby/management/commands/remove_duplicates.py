@@ -1,8 +1,3 @@
-"""
-Django management command to remove duplicate transactions
-Keep only unique transactions based on basket_id, product_id, day combination
-"""
-
 from django.core.management.base import BaseCommand
 from django.db import connection, transaction as db_transaction
 
@@ -23,14 +18,11 @@ class Command(BaseCommand):
         if dry_run:
             self.stdout.write("DRY RUN MODE - No data will be deleted")
 
-        # Check current counts
         self.show_current_counts()
 
         if not dry_run:
-            # Remove duplicates
             self.remove_duplicates()
 
-            # Check final counts
             self.stdout.write("\n" + "="*50)
             self.stdout.write("AFTER CLEANUP:")
             self.show_current_counts()
@@ -39,11 +31,11 @@ class Command(BaseCommand):
 
     def show_current_counts(self):
         with connection.cursor() as cursor:
-            # Total count
+       
             cursor.execute("SELECT COUNT(*) FROM transactions")
             total = cursor.fetchone()[0]
 
-            # Unique combinations
+           
             cursor.execute("""
                 SELECT COUNT(*) FROM (
                     SELECT DISTINCT basket_id, product_id, day
@@ -60,7 +52,6 @@ class Command(BaseCommand):
 
     def show_duplicate_preview(self):
         with connection.cursor() as cursor:
-            # Show some examples of duplicates
             cursor.execute("""
                 SELECT TOP 10 basket_id, product_id, day, COUNT(*) as count
                 FROM transactions
@@ -74,12 +65,10 @@ class Command(BaseCommand):
                 self.stdout.write(f"  {row[0]}, {row[1]}, {row[2]} -> {row[3]} copies")
 
     def remove_duplicates(self):
-        """Remove duplicate transactions keeping only one copy of each unique combination"""
 
         self.stdout.write("Removing duplicate transactions...")
 
         with connection.cursor() as cursor:
-            # Create a temporary table with unique transactions (keeping the one with highest ID)
             self.stdout.write("Step 1: Creating temporary table with unique transactions...")
 
             cursor.execute("""
@@ -93,12 +82,10 @@ class Command(BaseCommand):
                          store_id, retail_disc, trans_time, week_no, coupon_disc, coupon_match_disc
             """)
 
-            # Count unique transactions
             cursor.execute("SELECT COUNT(*) FROM #unique_transactions")
             unique_count = cursor.fetchone()[0]
             self.stdout.write(f"Found {unique_count:,} unique transactions")
 
-            # Delete all transactions not in the unique set
             self.stdout.write("Step 2: Removing duplicate transactions...")
 
             cursor.execute("""
@@ -109,18 +96,15 @@ class Command(BaseCommand):
             deleted_count = cursor.rowcount
             self.stdout.write(f"Deleted {deleted_count:,} duplicate transactions")
 
-            # Clean up temporary table
             cursor.execute("DROP TABLE #unique_transactions")
 
         self.stdout.write(self.style.SUCCESS("Duplicate removal completed!"))
 
     def verify_csv_match(self):
-        """Verify the final count matches the CSV file"""
         with connection.cursor() as cursor:
             cursor.execute("SELECT COUNT(*) FROM transactions")
             db_count = cursor.fetchone()[0]
 
-            # Expected count from CSV (2,595,732 data rows)
             csv_count = 2595732
 
             self.stdout.write(f"\nVerification:")

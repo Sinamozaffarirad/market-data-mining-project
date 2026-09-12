@@ -17,7 +17,7 @@ from dunnhumby.models import (
 from .ml.cf_cache import get_cf_candidates
 from dunnhumby.collab_filter import (
     get_cf_recommendations as get_cf_recommendations_live,
-)  # fallback
+) 
 from django.utils import timezone
 from django.db import models
 from django.db.models import Max
@@ -34,11 +34,8 @@ from .ml.recommender_model import HybridRecommenderModel
 
 logger = logging.getLogger(__name__)
 
-# How many days of "typical repurchase cycle" makes a commodity a "staple"
-# (bought in bulk / lasts a while) rather than a "consumable" (bought often).
 STAPLE_CYCLE_THRESHOLD_DAYS = 10
 
-# Lazily-loaded singleton so we don't unpickle the model on every request.
 _ML_MODEL_CACHE = {"model": None, "loaded": False}
 
 
@@ -65,10 +62,6 @@ def customer_detail(request, pk):
     household = get_object_or_404(CustomerProfile, household_key=pk)
     return render(request, "site/customers/detail.html", {"household": household})
 
-
-# ---------------------------
-# تابع تولید Hybrid Recommender
-# ---------------------------
 
 
 def _normalize_label(s):
@@ -154,7 +147,7 @@ def generate_hybrid_recommendations(household_key, top_n=20, levels_order=None):
         "created_at__max"
     ]
 
-    # --- مرحله ۱: جمع‌آوری کاندیدها از قوانین انجمنی + CF در همه سطوح ---
+
     for level in levels_order:
         rules_qs = AssociationRule.objects.filter(rule_type=level).order_by("-lift")[
             :500
@@ -234,8 +227,7 @@ def generate_hybrid_recommendations(household_key, top_n=20, levels_order=None):
                             "source_level": level,
                         }
 
-        # جدید: هر دو جا top_n*2 -> top_n*6، برای این‌که pool کاندید شخصی‌سازی‌شده هم
-        # به‌اندازه‌ی کافی گسترده باشه (شبیه‌تر به دامنه‌ی جستجوی product_recommender)
+
         cf_list = get_cf_candidates(household_key, level=level, top_n=(top_n * 6))
         if cf_list is None:
             cf_list = get_cf_recommendations_live(
@@ -251,7 +243,7 @@ def generate_hybrid_recommendations(household_key, top_n=20, levels_order=None):
                     "source_level": level,
                 }
 
-    # --- مرحله ۲: ادغام کاندیدهای association + CF (بدون بلند کردن با alpha) ---
+ 
     final_recs = {}
     all_pids = set(all_assoc_recs.keys()) | set(all_cf_recs.keys())
 
@@ -275,7 +267,7 @@ def generate_hybrid_recommendations(household_key, top_n=20, levels_order=None):
         assoc_data = all_assoc_recs.get(pid, {})
         cf_data = all_cf_recs.get(pid, {})
 
-        # فقط برای fallback (وقتی مدل ML موجود نباشه) استفاده می‌شه
+       
         norm_assoc = assoc_data.get("assoc_score", 0) / max_assoc
         norm_cf = cf_data.get("cf_score", 0) / max_cf
         fallback_score = 0.5 * norm_assoc + 0.5 * norm_cf
@@ -300,7 +292,7 @@ def generate_hybrid_recommendations(household_key, top_n=20, levels_order=None):
                 "origin": "+".join(origin_parts),
             }
 
-    # --- مرحله ۳: تزریق کاندیدهای «کشف برند جدید» ---
+    
     brand_candidates = _inject_brand_exploration_candidates(
         household_key, purchased_product_ids, set(final_recs.keys())
     )
@@ -317,7 +309,7 @@ def generate_hybrid_recommendations(household_key, top_n=20, levels_order=None):
             "origin": "brand_exploration",
         }
 
-    # --- مرحله ۴: امتیازدهی نهایی با مدل ML + قوانین کسب‌وکار ---
+    
     ml_model = _get_ml_model()
     max_day = Transaction.objects.aggregate(Max("day"))["day__max"] or 0
     candidate_ids = list(final_recs.keys())
@@ -358,19 +350,18 @@ def generate_hybrid_recommendations(household_key, top_n=20, levels_order=None):
             feat["household_commodity_count"] if feat is not None else 0
         )
 
-        # --- قانون ۱: سرکوب کالاهای اساسی (staple) که تازه خریداری شده‌اند ---
+ 
         is_staple = gap > STAPLE_CYCLE_THRESHOLD_DAYS
         recently_bought = days_since < gap
         if is_staple and recently_bought and rec["source_level"] != "brand_exploration":
             continue
 
-        # --- امتیاز پایه: مدل ML، یا در نبودش fallback_score ---
         if ml_scores is not None and pid in ml_scores.index:
             base_score = float(ml_scores.loc[pid])
         else:
             base_score = rec["fallback_score"]
 
-        # --- قانون ۲: بوست علاقه‌مندی شخصی ---
+
         favorite_boost = 1.0 + min(household_commodity_count, 10) * 0.02
 
         final_score = base_score * favorite_boost
@@ -415,9 +406,7 @@ def generate_hybrid_recommendations(household_key, top_n=20, levels_order=None):
     )
 
 
-# ---------------------------
-# Main View with Caching
-# ---------------------------
+
 def customer_recommendations(request, pk):
     household = get_object_or_404(CustomerProfile, household_key=pk)
 
@@ -500,9 +489,6 @@ def customer_churn(request, pk):
         else:
             segment.churn_risk = "Low Risk"
 
-    # One selector exposes every saved rule, including rules that are not the
-    # dashboard's active rule.  Only the latest copy of an identical rule is
-    # offered, which also keeps older duplicate runs out of the UI.
     all_experiments = list(ChurnExperiment.objects.order_by("-created_at"))
     available_history_experiments = []
     seen_rules = set()
@@ -542,8 +528,7 @@ def customer_churn(request, pk):
         classification_threshold = experiment.classification_threshold
         rows = []
         previous_health_score = None
-        # New experiments read RFM/outcomes from the reusable cache. Older
-        # experiments continue to work through the legacy per-experiment rows.
+
         if experiment.window_cache_id:
             records = CachedCustomerWindow.objects.filter(
                 cache=experiment.window_cache, household_key=pk

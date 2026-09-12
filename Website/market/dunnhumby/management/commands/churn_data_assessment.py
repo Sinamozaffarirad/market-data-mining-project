@@ -3,7 +3,6 @@ import pandas as pd
 from django.core.management.base import BaseCommand
 from django.db.models import Min, Max, Count
 
-# --- اصلاحیه نهایی: مدل‌ها از اپلیکیشن‌های صحیح وارد می‌شوند ---
 from dunnhumby.models import Transaction, Household, DunnhumbyProduct
 
 class Command(BaseCommand):
@@ -12,22 +11,18 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         self.stdout.write(self.style.SUCCESS("🚀 Starting Data Assessment for Churn Prediction..."))
 
-        # --- گام ۱: بررسی ابعاد زمانی و حجم داده‌ها ---
         self.stdout.write(self.style.HTTP_INFO("\n--- Step 1: Temporal and Volume Analysis ---"))
         self.perform_step_1()
 
-        # --- گام ۲: تحلیل الگوی خرید مشتریان ---
         self.stdout.write(self.style.HTTP_INFO("\n--- Step 2: Purchase Pattern Analysis ---"))
         self.perform_step_2()
 
-        # --- گام ۳: ارزیابی پتانسیل ویژگی‌ها ---
         self.stdout.write(self.style.HTTP_INFO("\n--- Step 3: Feature Potential Evaluation ---"))
         self.perform_step_3()
 
         self.stdout.write(self.style.SUCCESS("\n✅ Data Assessment Complete! The dataset is highly suitable for churn analysis."))
 
     def perform_step_1(self):
-        """بررسی بازه زمانی، تعداد تراکنش‌ها و مشتریان."""
         self.stdout.write("Analyzing transaction time range and data volume...")
         temporal_range = Transaction.objects.aggregate(first_day=Min('day'), last_day=Max('day'))
         first_day = temporal_range.get('first_day', 'N/A')
@@ -51,7 +46,6 @@ class Command(BaseCommand):
             self.stdout.write(self.style.WARNING("  - Verdict: The volume of data is small. Model performance might be limited."))
 
     def perform_step_2(self):
-        """تحلیل فاصله بین خریدها و طول عمر مشتری."""
         self.stdout.write("Analyzing purchase frequency and customer lifetime...")
         transactions_df = pd.DataFrame(list(Transaction.objects.values('household_key', 'day')))
         
@@ -79,10 +73,8 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS("  - Verdict: A long average lifetime allows for building powerful time-based features for survival analysis."))
 
     def perform_step_3(self):
-        """بررسی غنی بودن داده‌های جمعیت‌شناختی و محصول."""
         self.stdout.write("Evaluating potential for feature engineering...")
 
-        # داده‌های جمعیت‌شناختی
         demographic_fields = ['age_desc', 'marital_status_code', 'income_desc', 'homeowner_desc']
         demographic_counts = {field: Household.objects.values(field).distinct().count() for field in demographic_fields}
         
@@ -95,7 +87,6 @@ class Command(BaseCommand):
         else:
              self.stdout.write(self.style.WARNING("    - Verdict: Demographic data seems limited."))
 
-        # --- اصلاحیه: بررسی ساده‌تر داده‌های محصول متناسب با ساختار پروژه ---
         self.stdout.write("  - Product Feature Potential:")
         product_count = DunnhumbyProduct.objects.count()
         self.stdout.write(f"    - Total unique products in catalog: {product_count}")

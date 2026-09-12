@@ -1,6 +1,4 @@
-"""
-Django management command to clean transactions table to match CSV exactly
-"""
+
 
 from django.core.management.base import BaseCommand
 from django.db import connection
@@ -13,12 +11,10 @@ class Command(BaseCommand):
         self.stdout.write("Cleaning transactions table to match CSV exactly...")
 
         with connection.cursor() as cursor:
-            # Check current state
             cursor.execute("SELECT COUNT(*) FROM transactions")
             before_count = cursor.fetchone()[0]
             self.stdout.write(f"Before cleanup: {before_count:,} transactions")
 
-            # Delete duplicates keeping only the one with the highest ID for each unique combination
             self.stdout.write("Removing duplicates based on basket_id, product_id, day...")
 
             cursor.execute("""
@@ -33,7 +29,6 @@ class Command(BaseCommand):
             deleted_count = cursor.rowcount
             self.stdout.write(f"Deleted {deleted_count:,} duplicate transactions")
 
-            # Check final state
             cursor.execute("SELECT COUNT(*) FROM transactions")
             after_count = cursor.fetchone()[0]
 
@@ -48,7 +43,6 @@ class Command(BaseCommand):
             self.stdout.write(f"After cleanup: {after_count:,} transactions")
             self.stdout.write(f"Unique combinations: {unique_combinations:,}")
 
-            # Compare with CSV
             csv_rows = 2595732
             self.stdout.write(f"\nCSV file has: {csv_rows:,} data rows")
 

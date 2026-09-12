@@ -28,7 +28,7 @@ def retention_dashboard(request):
         churn_percentage=ExpressionWrapper(F('churn_probability') * 100.0, output_field=FloatField())
     )
     if customer_query:
-        # Household keys are numeric, so this is an exact customer-number lookup.
+        
         if customer_query.isdigit():
             customers = customers.filter(household_key=int(customer_query))
         else:
@@ -36,9 +36,7 @@ def retention_dashboard(request):
 
     churn_ordering = 'churn_probability' if probability_order == 'ascending' else '-churn_probability'
     customers = customers.order_by(churn_ordering, '-total_spend')
-    # Apply the limit after every filter and the risk/value ranking.  This means
-    # a request for 100 customers fills from the next risk category when fewer
-    # than 100 customers exist in the highest-risk category.
+    
     if maximum_customers is not None:
         customers = customers[:maximum_customers]
     page_obj = Paginator(customers, 20).get_page(request.GET.get('page'))

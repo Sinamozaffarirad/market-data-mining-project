@@ -21,7 +21,6 @@
     <div class="alert alert-danger"><strong>Error:</strong> {{ error_message }}</div>
     {% endif %}
 
-    <!-- Database Statistics -->
     <div class="module">
         <h3 class="section-title"><i class="fas fa-chart-bar"></i> Current Database Statistics</h3>
         <div class="stats-grid">
@@ -52,7 +51,6 @@
         </div>
     </div>
 
-    <!-- Data Processing & Analysis Tools -->
     <div class="module">
         <h3 class="section-title"><i class="fas fa-cogs"></i> Data Processing & Analysis</h3>
         <div class="analysis-tools-grid">
@@ -123,7 +121,6 @@
         </div>
     </div>
 
-    <!-- Quick Navigation -->
     <div class="module">
         <h3 class="section-title"><i class="fas fa-external-link-alt"></i> Quick Navigation</h3>
         <div class="navigation-grid">
@@ -165,7 +162,6 @@
 </div>
 
 <style>
-/* Stats Grid */
 .stats-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -200,7 +196,6 @@
     font-weight: 500;
 }
 
-/* Analysis Tools Grid */
 .analysis-tools-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -332,7 +327,6 @@
     transform: translateY(-1px);
 }
 
-/* Navigation Grid */
 .navigation-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -387,7 +381,6 @@
     margin: 0;
 }
 
-/* Alert Styles */
 .alert {
     padding: 12px 16px;
     border-radius: 8px;
@@ -407,7 +400,6 @@
     border-left-color: var(--danger);
 }
 
-/* Warning Box */
 .warning-box {
     background: var(--warning-light);
     border: 1px solid var(--warning);
@@ -431,7 +423,6 @@
     margin-bottom: 4px;
 }
 
-/* Section Title */
 .section-title {
     color: var(--text-primary);
     margin-bottom: 16px;
@@ -442,7 +433,6 @@
     gap: 8px;
 }
 
-/* Loading States */
 .btn:disabled {
     opacity: 0.6;
     cursor: not-allowed;
@@ -455,7 +445,6 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Enhanced form handling with better loading states
     const forms = document.querySelectorAll('.card-form');
     
     forms.forEach(form => {
@@ -465,30 +454,25 @@ document.addEventListener('DOMContentLoaded', function() {
                 const originalHTML = submitBtn.innerHTML;
                 const action = form.querySelector('input[name="action"]').value;
                 
-                // Set loading state
                 submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
                 submitBtn.disabled = true;
                 
-                // Safety timeout to re-enable button
                 const timeout = setTimeout(() => {
                     submitBtn.innerHTML = originalHTML;
                     submitBtn.disabled = false;
                 }, 30000);
                 
-                // Store timeout for cleanup
                 submitBtn.dataset.timeoutId = timeout;
             }
         });
     });
     
-    // Restore buttons on page load (in case of errors)
     window.addEventListener('load', function() {
         document.querySelectorAll('.btn[disabled]').forEach(btn => {
             if (btn.innerHTML.includes('Processing')) {
                 const timeout = btn.dataset.timeoutId;
                 if (timeout) clearTimeout(parseInt(timeout));
                 
-                // Restore based on button class
                 if (btn.classList.contains('btn-primary')) {
                     btn.innerHTML = '<i class="fas fa-refresh"></i> Refresh Analysis';
                 } else if (btn.classList.contains('btn-success')) {

@@ -340,13 +340,11 @@
 }
 </style>
 
-<!-- Hero Section -->
 <div class="segments-hero fade-in">
     <h1><i class="fas fa-users-line"></i> Customer Segmentation</h1>
     <p>Advanced RFM analysis and customer behavioral insights for targeted marketing strategies</p>
 </div>
 
-<!-- Analysis Actions -->
 <div class="analysis-actions fade-in">
     <button class="action-btn" onclick="refreshSegmentData()">
         <i class="fas fa-sync-alt"></i> Refresh Data
@@ -359,7 +357,6 @@
     </button>
 </div>
 
-<!-- Filters Section -->
 <div class="filters-section fade-in">
     <div class="row g-4">
         <div class="col-12 col-md-6">
@@ -390,7 +387,6 @@
     </div>
 </div>
 
-<!-- Segments Overview -->
 <div class="section-container fade-in">
     <div class="section-header">
         <h2><i class="fas fa-layer-group"></i> RFM Segments Overview</h2>
@@ -443,7 +439,6 @@
     </div>
 </div>
 
-<!-- Recent Customer Analysis -->
 <div class="section-container fade-in">
     <div class="section-header">
         <h2><i class="fas fa-user-chart"></i> Recent Customer Analysis</h2>
@@ -513,7 +508,6 @@
     </div>
 </div>
 
-<!-- RFM Segmentation Guide -->
 <div class="section-container fade-in">
     <div class="section-header">
         <h2><i class="fas fa-book-open"></i> RFM Segmentation Guide</h2>
@@ -604,38 +598,33 @@ class CustomerSegmentation {
         this.animateOnScroll();
         this.initializeFilters();
         
-        // Add loading states
         this.showLoadingState();
         
-        // Simulate data loading for demo
         setTimeout(() => {
             this.hideLoadingState();
         }, 1000);
     }
 
     bindEvents() {
-        // Segment card clicks
+
         document.querySelectorAll('.segment-card').forEach(card => {
             card.addEventListener('click', (e) => this.handleSegmentClick(e));
         });
 
-        // Customer card clicks
         document.querySelectorAll('.customer-card').forEach(card => {
             card.addEventListener('click', (e) => this.handleCustomerClick(e));
         });
 
-        // Filter pills
         document.querySelectorAll('.filter-pill').forEach(pill => {
             pill.addEventListener('click', (e) => this.handleFilterClick(e));
         });
 
-        // Search functionality
         document.getElementById('customerSearch').addEventListener('input', 
             this.debounce((e) => this.handleSearch(e.target.value), 300));
     }
 
     initializeFilters() {
-        // Set up filter functionality
+
         this.updateFilterCounts();
     }
 
@@ -852,12 +841,11 @@ class CustomerSegmentation {
     }
 
     handleFilterClick(e) {
-        // Remove active class from all pills
+
         document.querySelectorAll('.filter-pill').forEach(pill => {
             pill.classList.remove('active');
         });
 
-        // Add active class to clicked pill
         e.target.classList.add('active');
         
         const segment = e.target.dataset.segment;
@@ -907,13 +895,13 @@ class CustomerSegmentation {
     }
 
     updateFilterCounts() {
-        // Update segment count badge
+
         const visibleSegments = document.querySelectorAll('.segment-card:not([style*="display: none"])').length;
         document.getElementById('segmentCount').textContent = `${visibleSegments} active segments`;
     }
 
     showLoadingState() {
-        // Add loading skeletons to empty cards
+
         document.querySelectorAll('.segment-card, .customer-card').forEach(card => {
             if (!card.dataset.loaded) {
                 const content = card.innerHTML;
@@ -987,12 +975,11 @@ class CustomerSegmentation {
     }
 }
 
-// Global functions for action buttons
+
 function refreshSegmentData() {
     const segmentation = new CustomerSegmentation();
     segmentation.showNotification('Refreshing segment data...', 'info');
     
-    // Simulate refresh
     setTimeout(() => {
         segmentation.hideNotification();
         segmentation.showNotification('Segment data refreshed successfully!', 'success');
@@ -1003,7 +990,6 @@ function exportSegmentData() {
     const segmentation = new CustomerSegmentation();
     segmentation.showNotification('Preparing export...', 'info');
     
-    // Simulate export
     setTimeout(() => {
         segmentation.hideNotification();
         segmentation.showNotification('Segment data exported to CSV!', 'success');
@@ -1076,7 +1062,7 @@ function searchCustomer() {
     }
 }
 
-// Initialize when DOM is loaded
+
 document.addEventListener('DOMContentLoaded', function() {
     const segmentation = new CustomerSegmentation();
 });

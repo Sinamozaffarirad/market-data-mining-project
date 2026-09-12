@@ -166,8 +166,7 @@ input[type="text"]:focus, input[type="number"]:focus, select:focus, textarea:foc
 .breadcrumbs a { color: var(--link-fg); text-decoration:none; }
 .breadcrumbs a:hover { color: var(--link-hover-color); }
 
-/* Viewport units shrink with the root zoom. Pin Bootstrap backdrops to all
-   four viewport edges so dialogs dim the whole screen at any page scale. */
+
 .modal-backdrop,
 .offcanvas-backdrop {
   position: fixed;

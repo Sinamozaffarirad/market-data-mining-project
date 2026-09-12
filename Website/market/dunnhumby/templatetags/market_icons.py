@@ -1,11 +1,4 @@
-"""Department styling shared by every template that draws a department chip.
 
-The rule cards on two pages were each carrying their own list -- one as a chain
-of template conditionals, one as a JavaScript object -- so a department present
-in one was a grey box in the other.  Both now read this table, which covers
-every department in the catalogue rather than the handful that happened to be
-written out.
-"""
 from __future__ import annotations
 
 import json
@@ -15,7 +8,6 @@ from django.utils.safestring import mark_safe
 
 register = template.Library()
 
-# emoji, gradient start, gradient end
 DEPARTMENT_STYLE = {
     "GROCERY":          ("\U0001F6D2", "#2E86C1", "#3498DB"),
     "DRUG GM":          ("\U0001FA79", "#A569BD", "#BB8FCE"),
@@ -75,13 +67,11 @@ def _style(department):
 
 @register.filter
 def dept_icon(department):
-    """The emoji standing for a department."""
     return _style(department)[0]
 
 
 @register.filter
 def dept_gradient(department):
-    """Its chip background, as a CSS gradient."""
     _, start, end = _style(department)
     return f"linear-gradient(135deg, {start}, {end})"
 
@@ -93,7 +83,6 @@ def dept_color(department):
 
 @register.simple_tag
 def department_styles_json():
-    """The same table for templates that draw their chips in JavaScript."""
     payload = {
         name: {"emoji": emoji, "color": start,
                "gradient": f"linear-gradient(135deg, {start}, {end})"}
@@ -104,9 +93,6 @@ def department_styles_json():
                           "gradient": f"linear-gradient(135deg, {start}, {end})"}
     return mark_safe(json.dumps(payload))
 
-
-# Built once per process: 307 commodities, and the catalogue does not change
-# between requests.
 _COMMODITY_DEPARTMENTS = None
 
 
@@ -117,19 +103,7 @@ def _commodity_departments():
         mapping = {}
         try:
             with connection.cursor() as cursor:
-                # A commodity can appear under more than one department; the one
-                # holding the most of its products is the one to show.
-                cursor.execute("""
-                    SELECT commodity_desc, department FROM (
-                        SELECT commodity_desc, department, COUNT(*) AS n,
-                               ROW_NUMBER() OVER (PARTITION BY commodity_desc
-                                                  ORDER BY COUNT(*) DESC) AS rn
-                        FROM product
-                        WHERE commodity_desc IS NOT NULL AND commodity_desc <> ''
-                          AND department IS NOT NULL AND department <> ''
-                        GROUP BY commodity_desc, department
-                    ) ranked WHERE rn = 1
-                """)
+                cursor.execute()
                 mapping = {str(row[0]).strip().upper(): row[1] for row in cursor.fetchall()}
         except Exception:
             logger = __import__('logging').getLogger(__name__)
@@ -140,13 +114,11 @@ def _commodity_departments():
 
 @register.simple_tag
 def commodity_departments_json():
-    """Which department each commodity sits in, for chips drawn in JavaScript."""
     return mark_safe(json.dumps(_commodity_departments()))
 
 
 @register.filter
 def commodity_icon(commodity):
-    """A commodity wears its department's icon, so the two levels agree."""
     return dept_icon(_commodity_departments().get((commodity or '').strip().upper()))
 
 
@@ -157,15 +129,8 @@ def commodity_gradient(commodity):
 
 @register.simple_tag
 def favicon(emoji):
-    """A tab icon matching the page's icon in the navigation bar.
-
-    Browsers show a generic globe for a site with no icon, so every tab looked
-    alike once a few were open. An emoji drawn into an inline SVG needs no file
-    and no extra request.
-    """
     from urllib.parse import quote
-    # Centred rather than sat on a baseline: emoji carry their own metrics, and
-    # a fixed baseline cropped the taller ones at the top of the tab.
+    
     svg = (
         "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'>"
         "<text x='50' y='52' font-size='78' text-anchor='middle' "

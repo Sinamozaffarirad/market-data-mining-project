@@ -63,13 +63,6 @@
 		transform: scaleX(0);
 		transition: transform 0.3s ease;
 	}
-	/* .guide-card:hover {
-		transform: translateY(-5px);
-		box-shadow: 0 15px 35px rgba(0,0,0,0.1);
-	}
-	.guide-card:hover::before {
-		transform: scaleX(1);
-	} */
 
 
 	.profile-link {
@@ -102,8 +95,6 @@
 		border-radius: 5px;
 	}
 
-
-	    /* ----- بخش جدید: تعریف رنگ‌های منحصر به فرد برای هر سگمنت ----- */
     .badge-base {
         color: white;
         padding: 5px 8px;
@@ -113,15 +104,15 @@
     }
     .bg-champions { background-color: #28a745; }
     .bg-loyal-customers { background-color: #007bff; }
-    .bg-potential-loyalists { background-color: #17a2b8; color: white !important; } /* Teal */
-    .bg-new-customers { background-color: #340696; color: white !important; } /* purple */
-    .bg-big-spenders { background-color: #6d74bd; color: white !important; } /* Gray */
-    .bg-regular-customers { background-color: #de5fc5; color: #212529 !important; } /* Light Pink */
-    .bg-need-attention { background-color: #fd7e14; color: #212529 !important;} /* Orange */
-    .bg-at-risk { background-color: #ffc107; color: #212529 !important; } /* Yellow */
-    .bg-cant-lose-them { background-color: #dc3545; } /* Red */
-    .bg-hibernating { background-color: #adb5bd; color: #212529 !important; } /* Light Gray */
-    .bg-lost { background-color: #343a40; } /* Dark */
+    .bg-potential-loyalists { background-color: #17a2b8; color: white !important; } 
+    .bg-new-customers { background-color: #340696; color: white !important; }
+    .bg-big-spenders { background-color: #6d74bd; color: white !important; } 
+    .bg-regular-customers { background-color: #de5fc5; color: #212529 !important; } 
+    .bg-need-attention { background-color: #fd7e14; color: #212529 !important;} 
+    .bg-at-risk { background-color: #ffc107; color: #212529 !important; } 
+    .bg-cant-lose-them { background-color: #dc3545; } 
+    .bg-hibernating { background-color: #adb5bd; color: #212529 !important; }
+    .bg-lost { background-color: #343a40; } 
 #churnExperimentForm ~ .table-responsive {
   max-height: none;
   overflow-x: auto;
@@ -157,9 +148,7 @@
 #churnExperimentForm ~ .table-responsive thead th:last-child {
   border-top-right-radius: .5rem;
 }
-/* #churnExperimentForm ~ .table-responsive thead th:first-child::after {
-  content: " (Iran)";
-} */
+
 #churnExperimentForm ~ .table-responsive table {
   min-width: 1120px;
   width: 100%;
@@ -182,7 +171,7 @@
 #churnExperimentForm ~ .table-responsive th:nth-child(7), #churnExperimentForm ~ .table-responsive td:nth-child(7) { width: 8%; }
 #churnExperimentForm ~ .table-responsive th:nth-child(8), #churnExperimentForm ~ .table-responsive td:nth-child(8) { width: 7%; }
 #churnExperimentForm ~ .table-responsive th:nth-child(9), #churnExperimentForm ~ .table-responsive td:nth-child(9) { width: 16%; }
-/* The status/activate control and Delete always occupy the same two slots. */
+
 .experiment-actions {
   display: inline-grid;
   grid-template-columns: 84px 64px;
@@ -265,19 +254,17 @@
 .experiment-parameter { padding: .55rem .65rem; color: #44546a; font-size: .85rem; background: #f8fafc; border-radius: .45rem; }
 @media (max-width: 575.98px) { .experiment-detail-rule { display: block; } .experiment-detail-cutoff { margin-top: .85rem; padding: .85rem 0 0; border-top: 1px solid #d5dcf3; border-left: 0; } }
 @media (min-width: 768px) {
-  /* Keep the Train button aligned right when Non-overlapping hides the step control. */
+
   #stepControl.d-none + div {
     margin-left: auto;
   }
 }
 
-/* ---- shared card system -------------------------------------------------
-   Matches the association-rules and basket-mining pages. Styling only: every
-   control, label and figure on this page is left exactly as it was. */
+
 .cs-page {
   --rev-1:#667eea; --rev-2:#764ba2; --rev-ink:#1e2338; --rev-muted:#6b7391; --rev-line:#e6e8f2;
 }
-/* Banner comes from analysis_shell.css. */
+
 .cs-page .cs-title {
   font-size:1.2rem; font-weight:700; color:#fff;
   display:flex; align-items:center; gap:.5rem;
@@ -286,7 +273,7 @@
   border:1px solid var(--rev-line); border-radius:16px; overflow:hidden;
   box-shadow:0 2px 14px rgba(102,126,234,.06);
 }
-/* Inner panels take the same border, radius and lift as the cards elsewhere. */
+
 .cs-page .card:not(.segmentation-dashboard-card) {
   border:1px solid var(--rev-line); border-radius:14px;
   box-shadow:0 2px 12px rgba(102,126,234,.05);
@@ -319,29 +306,24 @@
   border-bottom:0;
 }
 
-/* The three scores sat in a justify-between row with no gap, so at card width
-   the words ran together as RECENCYFREQUENCYMONETARY. Equal columns with a gap,
-   and a label size that fits the longest of the three. */
+
 .cs-page .rfm-row { display: flex; gap: .5rem; }
 .cs-page .rfm-row > div { flex: 1 1 0; min-width: 0; }
 .cs-page .rfm-label {
   font-size: .58rem; font-weight: 700; letter-spacing: .02em;
   text-transform: uppercase; color: #8b91a7; line-height: 1.2;
 }
-/* "Transactions" was breaking mid-word into "Transactio ns". */
+
 .cs-page .card-facts > [class^="col"] { font-size: .72rem; line-height: 1.3; }
 .cs-page .card-facts { word-break: keep-all; overflow-wrap: normal; hyphens: none; }
 </style>
 
 
-<!-- The white page frame the other analysis pages sit on. This page put its
-     content straight onto the grey background. -->
 <div class="module cs-page">
   <div class="p-4">
 <div class="row g-4">
   <div class="col-12">
-    <!-- Same banner the association-rules and basket-mining pages use: a rounded
-         bar standing above the card rather than a header flush inside it. -->
+
     <div class="analysis-banner">
       <div>
         <div class="analysis-banner-title"><i class="fas fa-users"></i> Customer Segmentation Dashboard</div>
@@ -587,9 +569,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const detailModalEl = document.getElementById('detailModal');
     if (!detailModalEl) return;
 
-    // -----------------------------------------------------------------
-    // ۱. تابع نمایش مودال (بدون تغییر)
-    // -----------------------------------------------------------------
     function showDetailModal(title, body, footer = null) {
         const modalTitle = detailModalEl.querySelector('.modal-title');
         const modalBody = detailModalEl.querySelector('.modal-body');
@@ -609,9 +588,6 @@ document.addEventListener('DOMContentLoaded', function() {
         modal.show();
     }
 
-    // -----------------------------------------------------------------
-    // ۲. تابع مرکزی برای دریافت و نمایش داده‌های هر دو نوع مودال
-    // -----------------------------------------------------------------
     async function fetchAndDisplayPage(type, identifier, page) {
         const form = new FormData();
         form.append('csrfmiddlewaretoken', csrftoken);
@@ -641,7 +617,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const p = j.pagination || {};
         let bodyHtml = '';
 
-        // ساخت بخش متریک‌ها بر اساس نوع مودال
+
         if (type === 'rfm') {
             bodyHtml = `<div class="row g-3">
                 <div class="col-3 text-center"><div class="text-muted small">Customers</div><div class="fw-bold">${m.customers || 0}</div></div>
@@ -660,7 +636,6 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>`;
         }
         
-        // ساخت جدول (مشترک برای هر دو)
         bodyHtml += '<h6 class="mt-3"></h6><div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Household</th><th>Spend</th><th>Txns</th><th>Avg Basket</th><th>R-F-M</th><th>Churn %</th><th>Updated</th></tr></thead><tbody>';
 		(j.households_page || []).forEach(h => {
 			const profileUrl = "{% url 'customers:detail' 0 %}".replace('0', h.household_key);
@@ -680,8 +655,7 @@ document.addEventListener('DOMContentLoaded', function() {
 			</tr>`;
 		});
         bodyHtml += '</tbody></table></div>';
-        
-        // ساخت فوتر مودال (مشترک برای هر دو)
+
         const itemsPerPage = 20;
         const startItem = (p.current_page - 1) * itemsPerPage + 1;
         const endItem = Math.min(p.current_page * itemsPerPage, p.total_items);
@@ -695,25 +669,19 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
         </div>`;
 
-        // ذخیره اطلاعات لازم برای کلیک‌های بعدی روی خود مودال
         detailModalEl.dataset.type = type;
         detailModalEl.dataset.identifier = identifier;
         
         showDetailModal(titlePrefix + identifier, bodyHtml, footerHtml);
     }
-    
-    // -----------------------------------------------------------------
-    // ۳. Event Listener مرکزی برای مدیریت کلیک دکمه‌های صفحه‌بندی
-    // -----------------------------------------------------------------
+
     detailModalEl.addEventListener('click', function(event) {
-        const target = event.target.closest('a'); // برای اطمینان از کلیک روی لینک
+        const target = event.target.closest('a'); 
         if (!target) return;
 
         const type = detailModalEl.dataset.type;
         const identifier = detailModalEl.dataset.identifier;
 
-        // Any pager link carrying a page number, so First and Last work like the
-        // two that were here before rather than needing their ids listed.
         if (target.dataset.page !== undefined) {
             event.preventDefault();
             if (!target.classList.contains('disabled')) {
@@ -723,9 +691,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // -----------------------------------------------------------------
-    // ۴. Event Listenerهای اولیه برای باز کردن مودال‌ها
-    // -----------------------------------------------------------------
+
     document.querySelectorAll('.segment-card').forEach(el => {
         el.addEventListener('click', () => {
             fetchAndDisplayPage('rfm', el.dataset.seg, 1);
@@ -738,7 +704,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // کد مربوط به مودال Household (که صفحه‌بندی ندارد)
+
     document.querySelectorAll('.household-card').forEach(el=>{
         el.addEventListener('click', async ()=>{
             const hh = el.dataset.household;
@@ -763,17 +729,17 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-// Regenerate Segments Button Handler
+
 const regenerateSegmentsButton = document.getElementById('regenerateSegmentsBtn');
 if (regenerateSegmentsButton) regenerateSegmentsButton.addEventListener('click', function() {
     const btn = this;
     const originalHTML = btn.innerHTML;
 
-    // Show loading state
+
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Regenerating...';
 
-    // Call API to regenerate segments
+
     fetch('/analysis/api/regenerate-segments/', {
         method: 'POST',
         headers: {
@@ -784,15 +750,15 @@ if (regenerateSegmentsButton) regenerateSegmentsButton.addEventListener('click',
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            // Show success message
+
             showNotification('Success', `Successfully regenerated ${data.count} customer segments!`, 'success');
 
-            // Reload page after 1.5 seconds to show updated segments
+
             setTimeout(() => {
                 window.location.reload();
             }, 1500);
         } else {
-            // Show error message
+
             showNotification('Error', data.error || 'Failed to regenerate segments', 'error');
             btn.disabled = false;
             btn.innerHTML = originalHTML;
@@ -806,7 +772,7 @@ if (regenerateSegmentsButton) regenerateSegmentsButton.addEventListener('click',
     });
 });
 
-// Helper function to get CSRF token
+
 function getCookie(name) {
     let cookieValue = null;
     if (document.cookie && document.cookie !== '') {
@@ -894,8 +860,7 @@ stepSelect.addEventListener('change', updateBoundaryStatus);
 updateWindowControls();
 
 function refreshDashboard(showNewestExperiment = false) {
-    // A cache-busting URL makes sure the new active experiment and its scores
-    // are rendered from the server rather than an older browser page.
+
     const nextUrl = new URL(window.location.href);
     nextUrl.searchParams.set('refresh', Date.now().toString());
     window.location.assign(nextUrl.toString());
@@ -1021,7 +986,7 @@ document.querySelectorAll('.experiment-details').forEach(button => button.addEve
     }
 }));
 
-// Helper function to show notifications
+
 function showNotification(title, message, type) {
     const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
     const icon = type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle';
@@ -1037,12 +1002,11 @@ function showNotification(title, message, type) {
 
     document.body.appendChild(notification);
 
-    // Auto remove after 5 seconds
     setTimeout(() => {
         notification.remove();
     }, 5000);
 }
-// Add a delete action to every generated-rule row without changing its layout.
+
 const generatedExperiments = JSON.parse(document.getElementById('generatedExperimentData').dataset.experiments);
 const experimentResultsTable = document.querySelector('#churnExperimentForm ~ .table-responsive table');
 if (experimentResultsTable) {

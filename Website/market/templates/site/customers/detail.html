@@ -7,12 +7,12 @@
 {% block content %}
 <div class="container my-5">
 
-  <!-- کادر Customer Detail -->
+
   <div class="card shadow-lg p-4 mb-5" style="max-width: 750px; margin: 0 auto; border-radius: 50px;">
     <h3 class="text-center mb-4 fw-bold">Customer Detail</h3>
 
     <div class="row align-items-center">
-      <!-- ستون اطلاعات مشتری -->
+
       <div class="col-md-8">
         <p><strong>Household Key:</strong> {{ household.household_key }}</p>
         <p><strong>Age:</strong> {{ household.age_desc }}</p>
@@ -24,14 +24,14 @@
         <p><strong>Kid Category:</strong> {{ household.kid_category_desc }}</p>
       </div>
 
-      <!-- ستون آیکن کاربر -->
+
       <div class="col-md-4 text-center">
         <i class="fas fa-circle-user gradient-icon"></i>
       </div>
     </div>
   </div>
 
-<!-- استایل کارت‌ها و دکمه‌ها -->
+
 <style>
   .gradient-icon {
     font-size: 9rem;
@@ -82,7 +82,7 @@
   }
 </style>
 
-<!-- سه کارت -->
+
 <div class="row g-4 justify-content-center">
   <div class="col-12 col-sm-6 col-md-4 col-lg-3">
     <div class="card custom-card shadow-lg h-100">
@@ -117,7 +117,7 @@
 
 
 
-  <!-- دکمه بازگشت -->
+
   <div class="text-center mt-5">
     <a href="{% url 'customers:search' %}" class="btn btn-primary">← Back to Search</a>
   </div>

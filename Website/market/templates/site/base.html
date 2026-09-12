@@ -13,7 +13,7 @@
       try{
         var t = localStorage.getItem('market.theme') || 'light';
         document.documentElement.setAttribute('data-theme', t);
-        localStorage.setItem('theme', t); // keep django key aligned even outside admin
+        localStorage.setItem('theme', t);
       }catch(e){}
     })();
   </script>
@@ -21,31 +21,25 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
-  <!-- Tailwind CDN (utilities only) -->
+
   <script>
     window.tailwind = {
       config: {
-        corePlugins: { preflight: false } // keep Bootstrap defaults
+        corePlugins: { preflight: false }
       }
     };
   </script>
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Bootstrap 5 for faster iteration -->
+
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="{% static 'js/chart_quality.js' %}?v=20260909-pointer"></script>
   <link rel="stylesheet" href="{% static 'css/market_theme.css' %}?v=20260909-backdrop" />
   <link rel="stylesheet" href="{% static 'css/market_analysis_v2.css' %}" />
   <link rel="stylesheet" href="{% static 'css/analysis_shell.css' %}" />
-  <!-- Bootstrap Icons is not loaded. Its stylesheet styles every class beginning
-       "bi-", and the BI dashboard's layout classes use that prefix, so bi-table and
-       bi-bookmark were being given icon glyphs. The one icon the site took from it
-       is drawn with Font Awesome, which everything else already uses. -->
+  
   <style>
-    /* market_analysis_v2.css forces `.admin .table th { text-align: left !important }`,
-       which outranks Bootstrap's alignment utilities. Every right-aligned number
-       column therefore sat under a left-aligned heading. Restated here, after that
-       file and specific enough to win, so a heading sits over its own column. */
+    
     .admin .table th.text-end,    .table th.text-end,    th.text-end    { text-align: right !important; }
     .admin .table th.text-center, .table th.text-center, th.text-center { text-align: center !important; }
     .admin .table th.text-start,  .table th.text-start,  th.text-start  { text-align: left !important; }
@@ -90,10 +84,10 @@
       overflow-y: hidden;
       -webkit-overflow-scrolling: touch;
       margin-left: 1rem;
-      scrollbar-width: none; /* Hide scrollbar completely */
+      scrollbar-width: none; 
     }
 
-    /* Hide scrollbar for webkit browsers */
+
     .nav-middle::-webkit-scrollbar {
       display: none;
     }
@@ -401,10 +395,7 @@
       }
     }
 
-    /* The page is drawn at 90%, which is the size the whole navigation fits at.
-       The zoom belongs on the root: on the body it scales a box already sized to
-       the viewport, leaving a tenth of the window blank down the right. For the
-       same reason the body must not be capped at the viewport width. */
+
     html {
       zoom: 0.9;
     }
@@ -522,7 +513,7 @@
     </div>
   </main>
 
-  <!-- Footer -->
+
   <footer style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 3rem 2rem 2rem; margin-top: 4rem; border-top: 3px solid rgba(255,255,255,0.2);">
     <div class="container-fluid" style="max-width: 1400px;">
       <div class="row align-items-center">
@@ -556,7 +547,7 @@
   </footer>
 
   <script>
-    // Modern Navigation Controller
+
     class NavigationController {
       constructor() {
         this.init();
@@ -592,7 +583,7 @@
             const currentTheme = document.documentElement.getAttribute('data-theme');
             setTheme(currentTheme === 'dark' ? 'light' : 'dark');
             
-            // Add click animation
+
             themeBtn.style.transform = 'scale(0.9)';
             setTimeout(() => {
               themeBtn.style.transform = '';
@@ -615,7 +606,7 @@
             }
           });
 
-          // Close mobile nav when clicking outside
+
           document.addEventListener('click', (e) => {
             if (!e.target.closest('.modern-nav')) {
               navMiddle.classList.remove('show');
@@ -652,10 +643,10 @@
           const currentScrollY = window.scrollY;
           
           if (currentScrollY > lastScrollY && currentScrollY > 100) {
-            // Scrolling down
+
             nav.style.transform = 'translateY(-100%)';
           } else {
-            // Scrolling up
+
             nav.style.transform = 'translateY(0)';
           }
           
@@ -664,11 +655,7 @@
       }
     }
     
-    /* Opening a detail from inside an expanded list replaces what is on screen.
-       Anything marked data-modal-restore is remembered first -- its markup, how
-       far it was scrolled, and the name of the view it belongs to -- so Back can
-       put the reader down on the same card they opened rather than closing the
-       list and sending them to the top of the page. */
+    
     const detailModalHistory = [];
 
     function captureDetailModalState() {
@@ -701,10 +688,7 @@
       modalEl.querySelector('.modal-title').innerHTML = state.title;
       modalEl.querySelector('.modal-body').innerHTML = state.body;
       updateDetailModalBack();
-      /* The list is put back as markup, so anything bound to its cards with
-         addEventListener is gone. The page that owns the view re-binds it, then
-         the scroll position is restored -- after re-binding, because that step
-         can replace the cards. */
+     
       if (typeof window.onDetailModalRestore === 'function') {
         window.onDetailModalRestore(state.view);
       }
@@ -712,30 +696,28 @@
       if (restored) restored.scrollTop = state.scrollTop;
     }
 
-    // Enhanced Modal Helper
+    
     function showDetailModal(title, bodyHtml) {
       const modalEl = document.getElementById('detailModal');
       if (!modalEl) {
         return alert(title + '\n\n' + bodyHtml.replace(/<[^>]+>/g, ''));
       }
 
-      /* A modal that is not on screen starts a fresh trail. Clearing here as
-         well as on hide keeps the Back button honest even if the hide event is
-         missed, which the dispose-and-recreate below can cause. */
+     
       if (!modalEl.classList.contains('show')) detailModalHistory.length = 0;
       captureDetailModalState();
       
-      // Dispose of any existing modal instance first
+    
       const existingModal = bootstrap.Modal.getInstance(modalEl);
       if (existingModal) {
         existingModal.dispose();
       }
       
-      // Clear any leftover backdrop
+      
       const backdrops = document.querySelectorAll('.modal-backdrop');
       backdrops.forEach(backdrop => backdrop.remove());
       
-      // Reset body classes and styles
+      
       document.body.classList.remove('modal-open');
       document.body.style.overflow = '';
       document.body.style.paddingRight = '';
@@ -749,7 +731,7 @@
         keyboard: true
       });
       
-      // Add proper cleanup when modal is hidden
+      
       modalEl.addEventListener('hidden.bs.modal', function() {
         const allBackdrops = document.querySelectorAll('.modal-backdrop');
         allBackdrops.forEach(backdrop => backdrop.remove());
@@ -761,7 +743,7 @@
       
       modal.show();
       
-      // Add fade-in animation to modal content
+      
       const modalBody = modalEl.querySelector('.modal-body');
       modalBody.style.opacity = '0';
       modalBody.style.transform = 'translateY(20px)';
@@ -773,7 +755,7 @@
       }, 100);
     }
     
-    // Notification System
+   
     function showNotification(message, type = 'info', duration = 3000) {
       let container = document.getElementById('global-notification-stack');
       if (!container) {
@@ -824,17 +806,16 @@
       }, duration);
     }
     
-    // Initialize when DOM is loaded
+    
     document.addEventListener('DOMContentLoaded', () => {
       new NavigationController();
 
       document.getElementById('detailModalBack')?.addEventListener('click', detailModalBack);
-      /* Closing the modal ends the trail: reopening a detail later should not
-         offer to go back to a list the reader has already dismissed. */
+      
       document.getElementById('detailModal')?.addEventListener('hidden.bs.modal',
         resetDetailModalHistory);
       
-      // Add smooth scrolling to all anchor links
+      
       document.querySelectorAll('a[href^="#"]').forEach(anchor => {
         anchor.addEventListener('click', function (e) {
           e.preventDefault();
@@ -851,7 +832,7 @@
   </script>
   {% block footer %}{% endblock %}
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  <!-- Enhanced Modal -->
+  
   <div class="modal fade" id="detailModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-scrollable">
       <div class="modal-content" style="border-radius: 20px; border: none; box-shadow: 0 20px 60px rgba(0,0,0,0.2);">
@@ -872,7 +853,7 @@
   </div>
   
   <style>
-    /* Additional modern enhancements */
+   
     .metric-card {
       backdrop-filter: blur(10px);
     }
@@ -885,7 +866,7 @@
       backdrop-filter: blur(10px);
     }
     
-    /* Custom scrollbar */
+   
     ::-webkit-scrollbar {
       width: 8px;
     }

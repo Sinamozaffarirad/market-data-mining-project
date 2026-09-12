@@ -18,9 +18,7 @@ from customers.ml.recommender_model import HybridRecommenderModel
 
 
 def _precompute_cf_matrix(as_of_day):
-    """Build the household x product purchase-count matrix and cosine
-    similarity ONCE, reused for every household during training instead of
-    being rebuilt from scratch per household (that was the slow part)."""
+    
     query = "SELECT household_key, product_id, COUNT(*) as cnt FROM transactions"
     params = []
     if as_of_day is not None:
@@ -43,7 +41,7 @@ def _cf_scores_from_precomputed(household_key, user_item, similarity_df, top_n=3
     if household_key not in similarity_df.index:
         return {}
     similar = similarity_df[household_key].drop(household_key).sort_values(ascending=False)
-    similar = similar[similar > 0].head(200)  # only look at the closest neighbors
+    similar = similar[similar > 0].head(200)  
     if similar.empty:
         return {}
 
@@ -61,7 +59,7 @@ def _cf_scores_from_precomputed(household_key, user_item, similarity_df, top_n=3
 
 
 def _get_raw_candidates(household_key, purchased_ids, user_item, similarity_df, rules_list, top_n=30):
-    """Product-level association + CF candidates for one household."""
+
     assoc_scores = {}
 
     for rule in rules_list:
@@ -111,7 +109,7 @@ class Command(BaseCommand):
         user_item, similarity_df = _precompute_cf_matrix(as_of_day=cutoff_day)
         self.stdout.write(f"  - matrix ready: {user_item.shape[0]} households x {user_item.shape[1]} products")
 
-        # بارگیری قوانین انجمنی از دیتابیس
+        
         rules_list = list(AssociationRule.objects.all())
 
         all_household_keys = list(user_item.index)
@@ -124,7 +122,7 @@ class Command(BaseCommand):
             if not purchased_ids:
                 continue
 
-            # ارسال rules_list به عنوان آرگومان پنجم
+            
             assoc_scores, cf_scores = _get_raw_candidates(hh, purchased_ids, user_item, similarity_df, rules_list)
             candidate_ids = list(set(assoc_scores) | set(cf_scores))
             if not candidate_ids:

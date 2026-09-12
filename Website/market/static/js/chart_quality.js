@@ -7,9 +7,7 @@
   let refreshTimer = null;
   let pointerPluginRegistered = false;
 
-  // CSS zoom and stretched canvases can put native offsetX/offsetY in a
-  // different coordinate space from Chart.js. Map viewport coordinates through
-  // the rendered content box so hover, tooltips, legends and clicks agree.
+ 
   const chartPointerPosition = {
     id: 'chartPointerPosition',
     beforeEvent(chart, args) {
@@ -39,7 +37,7 @@
         * chart.width / contentWidth;
       event.y = ((pointer.clientY - rect.top) * height / rect.height - top)
         * chart.height / contentHeight;
-      // Chart.js calculates this flag before calling beforeEvent.
+
       args.inChartArea = chart.isPointInArea(event);
     }
   };

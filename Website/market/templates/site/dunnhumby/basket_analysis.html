@@ -205,7 +205,6 @@
   margin-top: 0.5rem;
 }
 
-/* Pulse animation for predict button */
 @keyframes pulse {
   0%, 100% {
     transform: scale(1);
@@ -256,8 +255,6 @@
   width: 8px;
 }
 
-/* Collapsed high-value lists use pages instead of nested scrollbars. This
-   keeps complete rows visible and avoids trapping the mouse wheel. */
 .admin .chart-container.high-value-panel {
   height: auto !important;
   min-height: 0 !important;
@@ -275,7 +272,6 @@
   border-radius: 10px !important;
 }
 
-/* Keep Bootstrap gutters inside the compact card panels. */
 #basketsGrid {
   --bs-gutter-x: 1rem;
   --bs-gutter-y: 1rem;
@@ -309,7 +305,6 @@
   text-align: center;
 }
 
-/* Card spacing */
 .basket-card,
 .product-card {
   margin-bottom: 12px !important;
@@ -652,7 +647,6 @@
   box-shadow: 0 8px 25px rgba(0,0,0,0.15);
 }
 
-/* Enhanced popup interactivity */
 #expandedContent .basket-card {
   cursor: pointer;
   transition: all 0.3s ease;
@@ -894,7 +888,6 @@
   }
 }
 
-/* Custom scrollbar for containers */
 .association-rules-container::-webkit-scrollbar,
 .insights-container::-webkit-scrollbar {
   width: 6px;
@@ -916,7 +909,6 @@
   display: block;
 }
 
-/* Ensure natural scrolling */
 html, body {
   overflow-x: hidden;
   overflow-y: auto;
@@ -944,10 +936,6 @@ html, body {
   background: #eff6ff;
 }
 
-/* ---- Predictive panels ----------------------------------------------------
-   One card system shared by both predictive tasks and the benchmarks modal, in
-   the site's indigo/violet identity, matching the BI dashboard. Scoped to
-   .pred-panel so it cannot reach the rest of the page. */
 .pred-panel {
   --rev-1: #667eea;
   --rev-2: #764ba2;
@@ -973,7 +961,6 @@ html, body {
   box-shadow: 0 2px 14px rgba(102,126,234,.06);
 }
 
-/* Numbered steps: the panel is a sequence, so the markers carry real order. */
 .pred-panel .rev-step { display: flex; gap: .75rem; align-items: flex-start; margin-bottom: .9rem; }
 .pred-panel .rev-step-num {
   flex: 0 0 auto; width: 26px; height: 26px; border-radius: 50%;
@@ -1048,7 +1035,7 @@ html, body {
   font-size: 1.45rem; font-weight: 800; color: var(--rev-ink); line-height: 1.12;
   font-variant-numeric: tabular-nums; position: relative;
 }
-/* The winning-model card holds a name, not a number, so it needs its own size. */
+
 .pred-panel .rev-kpi-text { font-size: 1.05rem; line-height: 1.25; color: var(--rev-1); }
 .pred-panel .rev-kpi-hint { font-size: .68rem; color: #9aa1bd; margin-top: .2rem; position: relative; }
 
@@ -1068,8 +1055,7 @@ html, body {
   outline: none; border-color: var(--rev-1); box-shadow: 0 0 0 .18rem rgba(102,126,234,.15);
 }
 .pred-panel .rev-context { font-size: .78rem; color: var(--rev-muted); margin: 0 0 .8rem; }
-/* Empty state for a chart that has nothing to draw yet. Sits over the canvas so
-   the card keeps its height and the layout does not jump when results land. */
+
 .pred-panel .rev-empty {
   position: absolute; inset: 0; display: flex; flex-direction: column;
   align-items: center; justify-content: center; text-align: center;
@@ -1080,24 +1066,13 @@ html, body {
 .pred-panel .rev-empty i { font-size: 1.9rem; color: #c3c9e4; }
 .pred-panel .rev-empty h6 { margin: 0; font-weight: 700; color: var(--rev-ink); font-size: .95rem; }
 .pred-panel .rev-empty p { margin: 0; font-size: .82rem; max-width: 430px; }
-/* The same empty state sitting in the flow rather than over a canvas. The rules
-   card keeps a tall minimum so the layout does not jump when results arrive, so
-   the list area is stretched to fill it and the empty state fills that in turn.
-   Without this the placeholder sat in a band with white space under it. */
 .pred-panel .rev-empty.is-block { position: static; min-height: 230px; }
 .pred-panel .association-rules-block { display: flex; flex-direction: column; }
 .pred-panel .association-rules-block > .scrollable-section { flex: 1 1 auto; }
-/* Stretch the placeholder over the whole list area, but only while it is the
-   placeholder: once rules render, the list goes back to normal flow so their
-   own spacing is untouched. */
 .pred-panel .association-rules-block > .scrollable-section:has(> .rev-empty) {
   display: flex; flex-direction: column;
 }
 .pred-panel .association-rules-block > .scrollable-section > .rev-empty { flex: 1 1 auto; }
-/* The settings row bottom-aligns its fields, which is right when they are bare
-   controls but not here: the captions run to different lengths, so the four
-   labels landed at three different heights. Align them at the top and let the
-   captions hang from the bottom instead. */
 #descriptive .rev-fields { align-items: stretch; }
 #descriptive .rev-fields .rev-field { display: flex; flex-direction: column; }
 #descriptive .rev-fields .rev-field .rev-note { margin-top: auto; padding-top: .4rem; }
@@ -1122,9 +1097,6 @@ html, body {
 }
 .pred-panel .rev-range { margin-top: .35rem; }
 .pred-panel .rev-range::-webkit-slider-thumb { background: var(--rev-1); }
-/* Deliberately not Bootstrap's .d-inline-flex: that rule is !important and
-   overrode the inline display the JS sets, which pinned the spinner open. No
-   display rule here at all, so the inline style the JS writes simply wins. */
 .pred-panel .rev-training { align-items: center; gap: .5rem; vertical-align: middle; }
 .pred-panel .rev-training > * { vertical-align: middle; }
 .pred-panel .rev-training-label { font-weight: 600; font-size: .85rem; color: var(--rev-1); }
@@ -1139,14 +1111,12 @@ html, body {
 }
 .pred-panel .rev-table tbody td { padding: .5rem .45rem; font-size: .82rem; }
 .pred-panel .rev-table tbody td:first-child { font-weight: 600; }
-/* The department name needs the room; the four figures are short. */
 .pred-panel .rev-table th:first-child, .pred-panel .rev-table td:first-child { width: 30%; }
 .pred-panel .rev-table th:not(:first-child), .pred-panel .rev-table td:not(:first-child) { width: 17.5%; }
 .pred-panel .rev-defs .rev-field { flex: 1 1 200px; }
 .pred-panel .rev-defs strong { color: var(--rev-ink); font-size: .85rem; }
 .pred-panel .rev-advanced-body { padding-top: .2rem; }
 
-/* Benchmarks modal, sharing the same card system. */
 #modelBenchmarksModal .modal-content { border: 0; border-radius: 18px; overflow: hidden; }
 #modelBenchmarksModal .benchmarks-modal-header {
   background: linear-gradient(135deg, #1e2338 0%, #3b3f63 55%, #4a4f7a 100%);
@@ -1164,8 +1134,6 @@ html, body {
 #modelBenchmarksModal .bench-card .bench-sub {
   font-size: .78rem; color: #6b7391; margin: 0 0 .8rem;
 }
-/* Benchmarks modal report: the same card system, replacing a single pale
-   alert box that held every figure at once. */
 #modelBenchmarksModal .bench-head {
   display: flex; justify-content: space-between; align-items: flex-start;
   gap: 1rem; flex-wrap: wrap;
@@ -1237,8 +1205,6 @@ html, body {
   box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
 }
 
-/* Model Benchmarks modal: distinct dark "lab" styling so admins can tell
-   test/validation evidence apart from the live forecast on the main page. */
 .benchmarks-modal-dialog {
   width: min(96vw, 1400px);
   max-width: min(96vw, 1400px);
@@ -1258,9 +1224,7 @@ html, body {
   margin: 0.5rem 0 1rem;
 }
 
-/* "Best model" shows a model name, not a number, so it gets its own
-   text style instead of the numeric .metric-value (which the site-wide
-   .admin rule pins to 2.5rem !important and which wraps badly for text). */
+
 .quick-stat-model-value {
   font-size: 1.3rem;
   font-weight: 800;
@@ -1289,7 +1253,6 @@ html, body {
 {% block content %}
 {% csrf_token %}
 <div class="module">
-  <!-- Hero Section -->
   <div class="hero-section fade-in">
     <div class="text-center">
       <h1 class="hero-title">
@@ -1301,7 +1264,6 @@ html, body {
     </div>
   </div>
 
-  <!-- Analysis Tabs -->
   <div class="analysis-tabs fade-in">
     <div class="tab-buttons">
       <button class="tab-btn active" onclick="switchTab('descriptive')">
@@ -1321,10 +1283,7 @@ html, body {
       </button>
     </div>
 
-    <!-- Descriptive Analysis Tab -->
     <div id="descriptive" class="tab-content active pred-panel">
-      <!-- Same header card as the other two tabs: the tab a reader is on should
-           be recognisable from its frame, not just its wording. -->
       <div class="analysis-type-card descriptive-card">
         <h4 style="color: #28a745; margin-bottom: 1rem;">
           <i class="fas fa-search-plus"></i>
@@ -1336,7 +1295,6 @@ html, body {
         </p>
       </div>
 
-      <!-- Baskets Grid -->
       <div class="chart-container rev-card high-value-panel">
         <div class="rev-head-sm">
           <h5 class="rev-card-title"><i class="fas fa-shopping-basket"></i> High-Value Baskets Analysis</h5>
@@ -1383,7 +1341,6 @@ html, body {
         <div id="basketsPagination" class="high-value-pagination" aria-label="High-value basket pages"></div>
       </div>
 
-      <!-- High-Value Products Analysis -->
       <div class="chart-container rev-card high-value-panel">
         <div class="rev-head-sm">
           <h5 class="rev-card-title"><i class="fas fa-star"></i> High-Value Products Analysis</h5>
@@ -1492,7 +1449,6 @@ html, body {
         <div id="topProductsPagination" class="high-value-pagination" aria-label="High-value product pages"></div>
       </div>
 
-      <!-- Step 1: settings -->
       <section class="rev-card">
         <div class="rev-step">
           <span class="rev-step-num">1</span>
@@ -1545,7 +1501,6 @@ html, body {
         </div>
       </section>
 
-      <!-- Step 2: run it -->
       <section class="rev-card">
         <div class="rev-step">
           <span class="rev-step-num">2</span>
@@ -1562,7 +1517,6 @@ html, body {
         </div>
       </section>
 
-      <!-- Key Metrics -->
       <div class="metric-grid">
         <div class="metric-item">
           <div class="metric-value" id="totalBaskets">{% if overall_stats.total_baskets %}{{ overall_stats.total_baskets|floatformat:0 }}{% else %}155,352{% endif %}</div>
@@ -1582,7 +1536,6 @@ html, body {
         </div>
       </div>
 
-      <!-- Association Rules -->
       <div class="chart-container rev-card association-rules-block">
         <div class="rev-head-sm">
           <h5 class="rev-card-title" id="deptRulesTitle"><i class="fas fa-project-diagram"></i> Association Rules (0/∞) — Department Level</h5>
@@ -1614,7 +1567,6 @@ html, body {
         </div>
       </div>
 
-      <!-- Commodity-level Rules -->
       <div class="chart-container rev-card association-rules-block">
         <div class="rev-head-sm">
           <h5 class="rev-card-title" id="commodityRulesTitle"><i class="fas fa-boxes-stacked"></i> Association Rules (0/∞) — Commodity Level</h5>
@@ -1647,7 +1599,6 @@ html, body {
       </div>
     </div>
 
-    <!-- Predictive Analysis Tab -->
     <div id="predictive" class="tab-content">
       <div class="analysis-type-card predictive-card">
         <h4 style="color: #007bff; margin-bottom: 1rem;">
@@ -1668,7 +1619,6 @@ html, body {
         </button>
       </div>
 
-      <!-- ML Algorithm Selection -->
       <div class="interactive-controls">
         <div data-predictive-panel="legacy" class="pred-panel" style="display:none;">
 
@@ -1682,7 +1632,6 @@ html, body {
             </button>
           </div>
 
-          <!-- Step 1: settings -->
           <section class="rev-card">
             <div class="rev-step">
               <span class="rev-step-num">1</span>
@@ -1730,7 +1679,6 @@ html, body {
             </div>
           </section>
 
-          <!-- Step 2: run it -->
           <section class="rev-card">
             <div class="rev-step">
               <span class="rev-step-num">2</span>
@@ -1753,7 +1701,6 @@ html, body {
             </div>
           </section>
 
-          <!-- Validation result -->
           <div id="modelAccuracyDisplay" class="alert alert-success rev-metrics" style="display: none;">
             <div class="d-flex align-items-center gap-3">
               <i class="fas fa-check-circle fa-2x"></i>
@@ -1776,7 +1723,6 @@ html, body {
             from. Every figure stops at the prediction day, and no revenue is forecast here.
           </p>
 
-          <!-- Results -->
           <div class="row g-3">
             <div class="col-lg-5">
               <section class="rev-card h-100" id="legacyProbabilityChartContainer">
@@ -1861,7 +1807,6 @@ html, body {
             </button>
           </div>
 
-          <!-- Step 1: what to forecast -->
           <section class="rev-card">
             <div class="rev-step">
               <span class="rev-step-num">1</span>
@@ -1908,7 +1853,6 @@ html, body {
             </div>
           </section>
 
-          <!-- Step 2: run it -->
           <section class="rev-card">
             <div class="rev-step">
               <span class="rev-step-num">2</span>
@@ -1936,7 +1880,6 @@ html, body {
             </div>
           </section>
 
-          <!-- Results -->
           <div class="rev-kpis" id="revenueQuickStats" style="display:none">
             <div class="rev-kpi" style="--rev-accent:#e0a800">
               <div class="rev-kpi-top">
@@ -1987,8 +1930,7 @@ html, body {
             </div>
             <div style="height: 340px; position: relative;">
               <canvas id="timeSeriesDepartmentChart"></canvas>
-              <!-- Shown until a forecast exists, so an empty axis never reads as
-                   a forecast of nothing. -->
+
               <div id="timeSeriesDepartmentEmpty" class="rev-empty">
                 <i class="fas fa-chart-column"></i>
                 <h6>No forecast yet</h6>
@@ -1998,9 +1940,6 @@ html, body {
             </div>
           </section>
 
-          <!-- Display and advanced settings, folded away: a manager never needs
-               the network internals, and the display filters do not change the
-               model or its score. -->
           <details class="rev-advanced">
             <summary><i class="fas fa-sliders-h"></i> Display &amp; advanced settings</summary>
             <div class="rev-advanced-body">
@@ -2094,7 +2033,6 @@ html, body {
         </div>
       </div>
 
-      <!-- Prediction Results -->
       <div class="alert alert-light border small mb-2" style="display:none!important">
         <strong>Legacy charts:</strong> the two charts below belong to the customer-repurchase classifier above. They are retained for comparison with the existing project, but they do <strong>not</strong> measure Product ID revenue forecasting. Use the Product Revenue Time Series report and table for the professor's new time-series requirement.
       </div>
@@ -2135,7 +2073,6 @@ html, body {
         </div>
       </div>
 
-      <!-- Recommended Products -->
       <div class="chart-container product-revenue-results-card mb-3" data-predictive-panel="revenue">
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
           <div><h5 class="mb-0"><i class="fas fa-list-ol"></i> Product Revenue Forecast Results</h5><small class="text-muted">Recursive and independent forecasts are shown side by side.</small></div>
@@ -2166,8 +2103,6 @@ html, body {
         </div>
         <div class="forecast-pagination d-flex flex-wrap justify-content-between align-items-center gap-2 mt-2">
           <div id="forecastResultSummary" class="small text-muted"></div>
-          <!-- Not a btn-group: that joins its buttons edge to edge, which ran the
-               labels together as "FirstPrevious". -->
           <div class="pager" style="margin:0" role="group" aria-label="Forecast result pages">
             <button class="pager-btn" id="forecastFirstPage" type="button" onclick="goForecastPage(1)">&laquo;&laquo; First</button>
             <button class="pager-btn" id="forecastPreviousPage" type="button" onclick="changeForecastPage(-1)">Previous</button>
@@ -2178,7 +2113,6 @@ html, body {
         </div>
       </div>
 
-      <!-- Recommended Products -->
       <div class="chart-container" style="display:none!important; min-height: 800px !important;">
         <div class="d-flex justify-content-between align-items-center mb-3">
           <h5 class="mb-0"><i class="fas fa-lightbulb"></i> AI-Powered Product Recommendations <small class="text-muted" style="font-size: 0.7rem;">Legacy customer-repurchase output</small></h5>
@@ -2202,19 +2136,13 @@ html, body {
       </div>
     </div>
 
-    <!-- Business Intelligence Tab -->
     <div id="differential" class="tab-content">
       {% include "site/dunnhumby/_bi_dashboard_panel.html" %}
 
-      <!-- The significance tests now live on the dashboard's own Significance
-           tests page, where they share its filter context, so the standalone
-           differential panel that used to sit here has been retired. -->
     </div>
   </div>
 </div>
 
-<!-- Model Benchmarks Modal: chronological holdout evidence for the Product Revenue Time Series models.
-     Kept separate from #detailModal so its canvases stay in the DOM and don't need to be re-cloned. -->
 <div class="modal fade" id="modelBenchmarksModal" tabindex="-1" aria-hidden="true" aria-labelledby="modelBenchmarksModalLabel">
   <div class="modal-dialog modal-dialog-scrollable benchmarks-modal-dialog">
     <div class="modal-content">
@@ -2269,23 +2197,16 @@ html, body {
 </div>
 
 <script>
-// Department mapping with colors and emojis
-// Department chips are styled from one table shared with the association-rules
-// page, so a department cannot have an icon on one page and a grey box on the
-// other.
+
 const DEPARTMENT_CONFIG = {% department_styles_json %};
 
-// Global variables for analysis
+
 let currentAnalysisData = {};
 let charts = {};
 let lastTimeSeriesDepartmentRows = [];
 let lastLegacyProbabilityPredictions = [];
 
-// Tab switching functionality
 
-/* Both lists are cut server-side, so a larger one means asking the server again.
-   The other list's size is carried along so changing one does not reset it, and
-   the descriptive tab is restored on arrival. */
 function setTopListSize(name, value) {
   const params = new URLSearchParams(window.location.search);
   params.set(name, value);
@@ -2302,23 +2223,22 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function switchTab(tabName) {
-  // Hide all tab contents
+
   document.querySelectorAll('.tab-content').forEach(content => {
     content.classList.remove('active');
   });
 
-  // Remove active class from all buttons
+
   document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.classList.remove('active');
   });
 
-  // Show selected tab content
+
   const targetTab = document.getElementById(tabName);
   if (targetTab) {
     targetTab.classList.add('active');
   }
 
-  // Add active class to the correct button based on tab name
   const buttons = document.querySelectorAll('.tab-btn');
   buttons.forEach(btn => {
     const onclick = btn.getAttribute('onclick');
@@ -2327,7 +2247,7 @@ function switchTab(tabName) {
     }
   });
 
-  // Initialize tab-specific content
+
   initializeTab(tabName);
 }
 
@@ -2345,7 +2265,7 @@ function initializeTab(tabName) {
   }
 }
 
-// Create department badge
+
 function createDepartmentBadge(department) {
   const config = DEPARTMENT_CONFIG[department] || DEPARTMENT_CONFIG['DEFAULT'];
   return `
@@ -2355,71 +2275,68 @@ function createDepartmentBadge(department) {
   `;
 }
 
-// Commodity mapping with colors and emojis (based on actual DB commodities)
+
 const COMMODITY_CONFIG = {
-  // Frozen Items
+
   'FRZN ICE': { color: '#3B82F6', emoji: '🧊', gradient: 'linear-gradient(135deg, #3B82F6, #60A5FA)' },
   'ICE CREAM/MILK/SHERBTS': { color: '#EC4899', emoji: '🍦', gradient: 'linear-gradient(135deg, #EC4899, #F472B6)' },
   
-  // Bakery & Bread
+
   'BREAD': { color: '#D4AC0D', emoji: '🍞', gradient: 'linear-gradient(135deg, #D4AC0D, #F1C40F)' },
   'COOKIES/CONES': { color: '#8B4513', emoji: '🍪', gradient: 'linear-gradient(135deg, #8B4513, #A0522D)' },
   'BREAKFAST SWEETS': { color: '#FF6B6B', emoji: '🧁', gradient: 'linear-gradient(135deg, #FF6B6B, #FF8E8E)' },
   
-  // Pantry & Condiments  
+
   'PNT BTR/JELLY/JAMS': { color: '#9C27B0', emoji: '🫙', gradient: 'linear-gradient(135deg, #9C27B0, #BA68C8)' },
   'SPICES & EXTRACTS': { color: '#FF5722', emoji: '🌶️', gradient: 'linear-gradient(135deg, #FF5722, #FF7043)' },
   
-  // Health & Wellness
+
   'VITAMINS': { color: '#4CAF50', emoji: '💊', gradient: 'linear-gradient(135deg, #4CAF50, #66BB6A)' },
   
-  // Fresh Produce
+
   'FRUIT - SHELF STABLE': { color: '#FF9800', emoji: '🍎', gradient: 'linear-gradient(135deg, #FF9800, #FFB74D)' },
   
-  // Beverages
+
   'SOFT DRINKS': { color: '#2196F3', emoji: '🥤', gradient: 'linear-gradient(135deg, #2196F3, #42A5F5)' },
   'COFFEE': { color: '#5D4037', emoji: '☕', gradient: 'linear-gradient(135deg, #5D4037, #6D4C41)' },
   'MILK': { color: '#FFF8E1', emoji: '🥛', gradient: 'linear-gradient(135deg, #FFF8E1, #FFFDE7)', textColor: '#333' },
   
-  // Snacks
+
   'CHIPS': { color: '#FFC107', emoji: '🥔', gradient: 'linear-gradient(135deg, #FFC107, #FFD54F)' },
   'COOKIES': { color: '#795548', emoji: '🍪', gradient: 'linear-gradient(135deg, #795548, #8D6E63)' },
   
-  // Dairy
+
   'BUTTER': { color: '#FFEB3B', emoji: '🧈', gradient: 'linear-gradient(135deg, #FFEB3B, #FFF176)', textColor: '#333' },
   'YOGURT': { color: '#E91E63', emoji: '🥛', gradient: 'linear-gradient(135deg, #E91E63, #F06292)' },
   
-  // Pantry Staples
+
   'PASTA': { color: '#FF7043', emoji: '🍝', gradient: 'linear-gradient(135deg, #FF7043, #FF8A65)' },
   'TOMATO SAUCE': { color: '#F44336', emoji: '🍅', gradient: 'linear-gradient(135deg, #F44336, #EF5350)' },
   'CEREAL': { color: '#9E9E9E', emoji: '🥣', gradient: 'linear-gradient(135deg, #9E9E9E, #BDBDBD)' },
   
-  // Frozen Foods
+
   'PIZZA': { color: '#FF5722', emoji: '🍕', gradient: 'linear-gradient(135deg, #FF5722, #FF7043)' },
   
-  // Sweets & Desserts
+
   'CHOCOLATE': { color: '#3E2723', emoji: '🍫', gradient: 'linear-gradient(135deg, #3E2723, #5D4037)' },
   'GRANOLA BARS': { color: '#8BC34A', emoji: '🥜', gradient: 'linear-gradient(135deg, #8BC34A, #9CCC65)' },
   
-  // Dairy Products
+
   'CREAMER': { color: '#FFF3E0', emoji: '🥛', gradient: 'linear-gradient(135deg, #FFF3E0, #FFE0B2)', textColor: '#333' },
   
-  // Cleaning
+
   'DETERGENT': { color: '#00BCD4', emoji: '🧼', gradient: 'linear-gradient(135deg, #00BCD4, #26C6DA)' },
   'FABRIC SOFTENER': { color: '#E1BEE7', emoji: '🧺', gradient: 'linear-gradient(135deg, #E1BEE7, #F3E5F5)', textColor: '#333' },
   
-  // Default for unknown commodities
+
   'NO COMMODITY DESCRIPTION': { color: '#6C757D', emoji: '📦', gradient: 'linear-gradient(135deg, #6C757D, #868E96)' },
   'DEFAULT': { color: '#6C757D', emoji: '🛒', gradient: 'linear-gradient(135deg, #6C757D, #868E96)' }
 };
 
-// Which department each commodity belongs to, so a commodity chip carries the
-// same icon and colour as its department does one level up.
+
 const COMMODITY_DEPARTMENT = {% commodity_departments_json %};
 
-// Create commodity badge: its department's icon, and the whole commodity name.
-// Truncating at ten characters turned "BAKED BREAD/BUNS/ROLLS" into
-// "BAKED BREA...", which named nothing.
+
 function createCommodityBadge(name) {
   const department = COMMODITY_DEPARTMENT[String(name || '').trim().toUpperCase()];
   const config = DEPARTMENT_CONFIG[department] || DEPARTMENT_CONFIG['DEFAULT'];
@@ -2518,9 +2435,8 @@ function renderDifferentialInsightCard(insight, compareBy, statTest) {
 }
 
 
-// Descriptive Analysis Functions
+
 function loadDescriptiveAnalysis() {
-  // Don't load placeholder data - wait for user to run algorithm
   updateSliderValues();
 }
 
@@ -2528,7 +2444,6 @@ function generateAssociationRules() {
   const supportThreshold = parseFloat(document.getElementById('supportInput')?.value || 0.001);
   const confidenceThreshold = parseFloat(document.getElementById('confidenceInput')?.value || 0.6);
   
-  // Department-level demo rules
   const allRules = [
     { antecedent: 'PORK', consequent: 'GROCERY', support: 0.15, confidence: 0.85, lift: 2.3 },
     { antecedent: 'SEAFOOD', consequent: 'FROZEN GROCERY', support: 0.12, confidence: 0.78, lift: 2.1 },
@@ -2542,12 +2457,10 @@ function generateAssociationRules() {
     { antecedent: 'MEAT-PCKGD', consequent: 'FROZEN GROCERY', support: 0.11, confidence: 0.69, lift: 1.6 }
   ];
   
-  // Filter department rules based on thresholds (simulating Apriori algorithm) - SHOW ALL
   const rules = allRules.filter(rule => 
     rule.support >= supportThreshold && rule.confidence >= confidenceThreshold
-  ).sort((a, b) => b.lift - a.lift); // Remove .slice(0, 10) to show ALL results
-  
-  // Department rules HTML (showing count) with click functionality and checkboxes
+  ).sort((a, b) => b.lift - a.lift); 
+
   const deptRulesHtml = rules.length > 0 ? rules.map(rule => `
     <div class="rule-card selectable-rule" data-antecedent="${rule.antecedent}" data-consequent="${rule.consequent}" data-support="${rule.support}" data-confidence="${rule.confidence}" data-lift="${rule.lift}" data-rule-type="department">
       <div class="d-flex align-items-center justify-content-between mb-2">
@@ -2583,15 +2496,13 @@ function generateAssociationRules() {
     </div>
   `).join('') : '<div class="text-center py-4 text-muted"><i class="fas fa-info-circle fa-2x mb-2"></i><p>No department rules found with current thresholds.<br>Try lowering the support or confidence values.</p></div>';
   
-  // Update department rules container
+
   const containerDept = document.getElementById('associationRules');
   if(containerDept) {
     containerDept.innerHTML = deptRulesHtml;
     enhanceRuleCards(containerDept, 'department', supportThreshold, confidenceThreshold);
-    // Update section title with count (infinity symbol for unlimited)
     const deptTitle = document.getElementById('deptRulesTitle');
     if(deptTitle) deptTitle.innerHTML = `<i class="fas fa-project-diagram"></i> Association Rules (${rules.length}/∞) — Department Level`;
-    // Show action buttons if rules exist
     const deptActions = document.getElementById('deptRulesActions');
     if(deptActions) {
       deptActions.style.display = rules.length > 0 ? 'flex' : 'none';
@@ -2600,7 +2511,7 @@ function generateAssociationRules() {
     updateSelectedCount('department');
   }
 
-  // Commodity-level demo rules (based on commodity_desc)
+
   const commodityRulesAll = [
     { ant: 'BREAD', con: 'PNT BTR/JELLY/JAMS', support: 0.12, confidence: 0.76, lift: 2.1 },
     { ant: 'BREAKFAST SWEETS', con: 'COFFEE', support: 0.14, confidence: 0.82, lift: 2.3 },
@@ -2614,11 +2525,10 @@ function generateAssociationRules() {
     { ant: 'FRZN ICE', con: 'VITAMINS', support: 0.06, confidence: 0.58, lift: 1.5 },
     { ant: 'SPICES & EXTRACTS', con: 'VITAMINS', support: 0.05, confidence: 0.55, lift: 1.4 }
   ];
-  // Filter commodity rules using SAME thresholds as department rules - SHOW ALL
+
   const commodityRules = commodityRulesAll.filter(r => 
     r.support >= supportThreshold && r.confidence >= confidenceThreshold
-  ).sort((a,b)=>b.lift-a.lift); // Remove .slice(0,10) to show ALL results
-  // Commodity rules HTML (showing count) with click functionality and checkboxes
+  ).sort((a,b)=>b.lift-a.lift); 
   const commodityHtml = commodityRules.length > 0 ? commodityRules.map(r=>`
     <div class="rule-card selectable-rule" data-antecedent="${r.ant}" data-consequent="${r.con}" data-support="${r.support}" data-confidence="${r.confidence}" data-lift="${r.lift}" data-rule-type="commodity">
       <div class="d-flex align-items-center justify-content-between mb-2">
@@ -2641,15 +2551,12 @@ function generateAssociationRules() {
     </div>
   `).join('') : '<div class="text-center py-4 text-muted"><i class="fas fa-info-circle fa-2x mb-2"></i><p>No commodity rules found with current thresholds.<br>Try lowering the support or confidence values.</p></div>';
   
-  // Update commodity rules container
   const containerCom = document.getElementById('associationRulesCommodity');
   if(containerCom) {
     containerCom.innerHTML = commodityHtml;
     enhanceRuleCards(containerCom, 'commodity', supportThreshold, confidenceThreshold);
-    // Update section title with count (infinity symbol for unlimited)
     const comTitle = document.getElementById('commodityRulesTitle');
-    if(comTitle) comTitle.innerHTML = `<i class="fas fa-boxes-stacked"></i> Association Rules (${commodityRules.length}/∞) — Commodity Level`;
-    // Show action buttons if rules exist
+    if(comTitle) comTitle.innerHTML = `<i class="fas fa-boxes-stacked"></i> Association Rules (${commodityRules.length}/∞) — Commodity Level`;t
     const commodityActions = document.getElementById('commodityRulesActions');
     if(commodityActions) {
       commodityActions.style.display = commodityRules.length > 0 ? 'flex' : 'none';
@@ -2673,7 +2580,6 @@ function enhanceRuleCards(container, ruleType, minSupport, minConfidence) {
     let lift = parseFloat(card.dataset.lift);
     let ruleTypeFromCard = card.dataset.ruleType || ruleType;
 
-    // Add click handler for rule details
     card.addEventListener('click', function() {
       showRuleDetails(antecedent, consequent, support, confidence, lift, ruleTypeFromCard);
     });
@@ -2840,7 +2746,6 @@ function performRuleInsert(ruleData) {
 }
 
 function showRuleInsertFeedback(message, variant, ruleType = 'department') {
-  // Use the correct alert container based on rule type
   const containerId = ruleType === 'department' ? 'descriptiveInsertAlert' : 'commodityInsertAlert';
   const container = document.getElementById(containerId);
   if (!container) {
@@ -2856,12 +2761,10 @@ function showRuleInsertFeedback(message, variant, ruleType = 'department') {
 }
 
 function updateSliderValues() {
-  // Function kept for compatibility but no longer needed with number inputs
-  // Number inputs provide direct value entry without sliders
+
 }
 
 function updatePeriodMetrics(transactionPeriod) {
-  // Update the displayed metrics based on the selected transaction period
   const formData = new FormData();
   formData.append('transaction_period', transactionPeriod);
   formData.append('csrfmiddlewaretoken', getCsrfToken());
@@ -2873,19 +2776,16 @@ function updatePeriodMetrics(transactionPeriod) {
   .then(response => response.json())
   .then(data => {
     if (data.success) {
-      // Update Total Baskets
       const totalBasketsElement = document.getElementById('totalBaskets');
       if (totalBasketsElement) {
         totalBasketsElement.textContent = data.metrics.total_baskets.toLocaleString();
       }
 
-      // Update Avg Basket Size
       const avgBasketSizeElement = document.getElementById('avgBasketSize');
       if (avgBasketSizeElement) {
         avgBasketSizeElement.textContent = data.metrics.avg_basket_size.toFixed(1);
       }
 
-      // Update the subtitle text to show period and transaction count
       const totalBasketsLabel = totalBasketsElement?.nextElementSibling;
       if (totalBasketsLabel) {
         totalBasketsLabel.innerHTML = `Total Baskets<br><small style="color: #6c757d; font-size: 0.6rem;">from ${data.metrics.transaction_count_text} transactions (${data.period_display})</small>`;
@@ -2901,13 +2801,11 @@ function updatePeriodMetrics(transactionPeriod) {
   });
 }
 
-// Global variables to track analysis state
 let isAnalysisRunning = false;
 let globalProgressInterval = null;
 let completedContainers = new Set();
 
 function runDescriptiveAnalysis() {
-  // Prevent multiple simultaneous analysis runs
   if (isAnalysisRunning) {
     console.log('Analysis already running, ignoring duplicate call');
     return;
@@ -2915,14 +2813,12 @@ function runDescriptiveAnalysis() {
 
   isAnalysisRunning = true;
 
-  // Disable the run button and show running state
   const runButton = document.querySelector('button[onclick="runDescriptiveAnalysis()"]');
   if (runButton) {
     runButton.disabled = true;
     runButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Running Analysis...';
   }
 
-  // Clear any existing progress interval and reset completed tracking
   if (globalProgressInterval) {
     clearInterval(globalProgressInterval);
     globalProgressInterval = null;
@@ -2935,7 +2831,6 @@ function runDescriptiveAnalysis() {
 
   const maxResults = parseInt(document.getElementById('descriptiveMaxResults')?.value || 100);
 
-  // Update metrics based on selected period
   updatePeriodMetrics(transactionPeriod);
 
   const periodDisplayNames = {
@@ -2947,7 +2842,6 @@ function runDescriptiveAnalysis() {
   };
   const periodDisplay = periodDisplayNames[transactionPeriod] || 'all transactions';
 
-  // Add performance warnings for very small support values
   let notificationLevel = 'info';
   let notificationMessage = `Running Apriori algorithm on ${periodDisplay} (min_support=${supportValue}, min_confidence=${confidenceValue})...`;
 
@@ -2961,7 +2855,6 @@ function runDescriptiveAnalysis() {
 
   showNotification(notificationMessage, notificationLevel);
 
-  // Show loading state for both containers with dynamic transaction counts
   const transactionCounts = {
     'all': '2.6M+',
     '12_months': '1.5M+',
@@ -2985,7 +2878,6 @@ function runDescriptiveAnalysis() {
   document.getElementById('associationRules').innerHTML = loadingHtml;
   document.getElementById('associationRulesCommodity').innerHTML = loadingHtml;
 
-  // Add progress indicator that updates every 10 seconds
   let progressCounter = 0;
 
   globalProgressInterval = setInterval(() => {
@@ -3011,7 +2903,6 @@ function runDescriptiveAnalysis() {
       </div>
     `;
 
-    // Only update containers that haven't completed yet
     if (!completedContainers.has('associationRules')) {
       const deptContainer = document.getElementById('associationRules');
       if (deptContainer && !deptContainer.querySelector('.rule-card')) {
@@ -3027,7 +2918,6 @@ function runDescriptiveAnalysis() {
     }
   }, 10000);
 
-  // Generate both department and commodity rules in parallel
   const departmentPromise = generateRealAssociationRules('department', supportValue, confidenceValue, transactionPeriod, maxResults);
   const commodityPromise = generateRealAssociationRules('commodity', supportValue, confidenceValue, transactionPeriod, maxResults);
 
@@ -3035,14 +2925,12 @@ function runDescriptiveAnalysis() {
     .then(([deptRules, commodityRules]) => {
       updateMetrics();
 
-      // Clear progress interval and reset state
       if (globalProgressInterval) {
         clearInterval(globalProgressInterval);
         globalProgressInterval = null;
       }
       isAnalysisRunning = false;
 
-      // Restore the run button
       const runButton = document.querySelector('button[onclick="runDescriptiveAnalysis()"]');
       if (runButton) {
         runButton.disabled = false;
@@ -3053,14 +2941,12 @@ function runDescriptiveAnalysis() {
       showNotification(`Apriori completed! Found ${total} strong association rules (${deptRules.length} department + ${commodityRules.length} commodity) from ${periodDisplay}.`, 'success');
     })
     .catch(error => {
-      // Clear progress interval and reset state on error
       if (globalProgressInterval) {
         clearInterval(globalProgressInterval);
         globalProgressInterval = null;
       }
       isAnalysisRunning = false;
 
-      // Restore the run button
       const runButton = document.querySelector('button[onclick="runDescriptiveAnalysis()"]');
       if (runButton) {
         runButton.disabled = false;
@@ -3108,9 +2994,8 @@ function generateRealAssociationRules(ruleType, minSupport, minConfidence, trans
       ? '/analysis/api/association-rules/department/'
       : '/analysis/api/association-rules/commodity/';
 
-    // Add timeout for long-running queries - reduced to 30 seconds for better UX
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
 
     fetch(endpoint, {
       method: 'POST',
@@ -3118,14 +3003,13 @@ function generateRealAssociationRules(ruleType, minSupport, minConfidence, trans
       signal: controller.signal
     })
     .then(response => {
-      clearTimeout(timeoutId); // Clear timeout on successful response
+      clearTimeout(timeoutId); 
       return response.json();
     })
     .then(data => {
       if (data.success) {
         const rules = data.rules || [];
 
-        // Render rules to appropriate container
         const containerId = ruleType === 'department' ? 'associationRules' : 'associationRulesCommodity';
         const container = document.getElementById(containerId);
 
@@ -3138,13 +3022,12 @@ function generateRealAssociationRules(ruleType, minSupport, minConfidence, trans
             </div>
           `;
 
-          // Mark this container as completed even when no rules found
+
           if (typeof completedContainers !== 'undefined') {
             completedContainers.add(containerId);
             console.log(`${ruleType} rules completed (no results), marked container ${containerId} as completed`);
           }
         } else {
-          // Use original styling format
           const rulesHtml = rules.map(rule => {
             if (ruleType === 'department') {
               return `
@@ -3209,22 +3092,18 @@ function generateRealAssociationRules(ruleType, minSupport, minConfidence, trans
 
           container.innerHTML = rulesHtml;
 
-          // Mark this container as completed to prevent progress overwrite
           const containerId = ruleType === 'department' ? 'associationRules' : 'associationRulesCommodity';
           if (typeof completedContainers !== 'undefined') {
             completedContainers.add(containerId);
             console.log(`${ruleType} rules completed, marked container ${containerId} as completed`);
           }
 
-          // Apply original enhancement functionality
           const minSupport = parseFloat(document.getElementById('supportInput')?.value || 0.001);
           const minConfidence = parseFloat(document.getElementById('confidenceInput')?.value || 0.6);
           enhanceRuleCards(container, ruleType, minSupport, minConfidence);
 
-          // Update multi-select count after rendering rules
           updateSelectedCount(ruleType);
 
-          // Update section titles like original code
           if (ruleType === 'department') {
             const deptTitle = document.getElementById('deptRulesTitle');
             if(deptTitle) deptTitle.innerHTML = `<i class="fas fa-project-diagram"></i> Association Rules (${rules.length}/∞) — Department Level`;
@@ -3241,8 +3120,7 @@ function generateRealAssociationRules(ruleType, minSupport, minConfidence, trans
     })
     .catch(error => {
       console.error(`Error generating ${ruleType} rules:`, error);
-      clearTimeout(timeoutId); // Clear timeout on error
-
+      clearTimeout(timeoutId);
       if (error.name === 'AbortError') {
         reject(new Error(`${ruleType} rules generation timed out. Try higher support values or shorter periods.`));
       } else {
@@ -3264,7 +3142,6 @@ function escapeHtml(text) {
 }
 
 function updateMetrics() {
-  // Count actual rules generated (excluding loading/empty state divs)
   const deptContainer = document.getElementById('associationRules');
   const commodityContainer = document.getElementById('associationRulesCommodity');
   
@@ -3279,7 +3156,6 @@ function updateMetrics() {
   
   if (elements.strongRules) {
     elements.strongRules.textContent = totalRules;
-    // Update the label description
     const label = elements.strongRules.nextElementSibling;
     if (label && totalRules > 0) {
       label.innerHTML = `Strong Rules Found<br><small style="color: #6c757d; font-size: 0.6rem;">${deptRules} dept + ${commodityRules} commodity</small>`;
@@ -3287,7 +3163,6 @@ function updateMetrics() {
   }
   
   if (elements.topLift && totalRules > 0) {
-    // Calculate the actual highest lift from all rule cards
     const allRuleCards = [
       ...(deptContainer ? deptContainer.querySelectorAll('.rule-card') : []),
       ...(commodityContainer ? commodityContainer.querySelectorAll('.rule-card') : [])
@@ -3307,17 +3182,14 @@ function updateMetrics() {
   }
 }
 
-// Predictive Analysis Functions
 function loadPredictiveAnalysis() {
   initializePredictiveCharts();
   updateTrainingSlider();
 
-  // Test API call immediately to verify real data access
   console.log('Testing API access on page load...');
   testApiAccess();
 }
 
-// Test API access to verify we can get real data
 function testApiAccess() {
   fetch('/analysis/api/ml/predictions/', {
     method: 'POST',
@@ -3351,14 +3223,12 @@ function updateTrainingSlider() {
     slider.addEventListener('input', (e) => {
       value.textContent = `${Math.round(parseFloat(e.target.value) * 100)}%`;
     });
-    // Each size has its own model and metrics, so reflect the change once the
-    // user settles on a value.
+
     slider.addEventListener('change', () => checkCachedModel());
   }
 }
 
 function initializePredictiveCharts() {
-  // Initialize empty chart containers - charts will be populated after training
   console.log('Predictive charts initialized - waiting for model training');
 }
 
@@ -3372,7 +3242,6 @@ function generateRecommendations() {
     container.innerHTML = '<div class="col-12 text-center"><i class="fas fa-spinner fa-spin fa-2x mb-2" style="color: #667eea;"></i><h6 style="color: #4a5568;">Generating ' + horizonLabel + ' Recommendations...</h6><p style="color: #a0aec0;">Using ' + algorithm.replace('_', ' ').toUpperCase() + ' algorithm for ' + horizonLabel.toLowerCase() + ' predictions</p></div>';
   }
 
-  // Call ML API for recommendations with time horizon
   fetch('/analysis/api/ml/recommendations/', {
     method: 'POST',
     headers: {
@@ -3384,7 +3253,7 @@ function generateRecommendations() {
   .then(response => response.json())
   .then(data => {
     if (data.success && data.recommendations.length > 0) {
-      // Update section title with model info
+
       const recSection = document.querySelector('#recommendedProducts').closest('.chart-container').querySelector('h5');
       if (recSection && data.recommendations[0].historical_accuracy) {
         const modelAcc = (data.recommendations[0].historical_accuracy * 100).toFixed(1);
@@ -3509,15 +3378,12 @@ function initializeRecommendationCards(scope = document) {
   console.log(`Initializing ${cards.length} recommendation cards`);
 
   cards.forEach((card, index) => {
-    // Skip if already attached unless explicitly re-initializing
     if (card.dataset.listenerAttached === 'true' && scope === document) {
       return;
     }
 
-    // Ensure card is clickable
     card.style.cursor = 'pointer';
 
-    // Add click handler
     const clickHandler = () => {
       console.log(`Clicked recommendation card ${index + 1}`);
       showRecommendationDetails(
@@ -3537,16 +3403,13 @@ function initializeRecommendationCards(scope = document) {
       );
     };
 
-    // Add event listener
     card.addEventListener('click', clickHandler);
 
-    // Mark as attached
     card.dataset.listenerAttached = 'true';
     console.log(`Attached click listener to recommendation card ${index + 1}`);
   });
 }
 
-// Check if a trained model is already cached (runs on page load)
 function checkCachedModel() {
   const algorithm = document.getElementById('mlAlgorithm').value;
 
@@ -3559,14 +3422,13 @@ function checkCachedModel() {
   .then(response => response.json())
   .then(data => {
     if (data.success && data.performance && Object.keys(data.performance).length > 0) {
-      // Model is cached - check if it matches current selection
+
       const metricsKey = legacyMetricsKey(algorithm);
       const metrics = data.performance[metricsKey];
 
       if (metrics) {
         console.log('Cached model found:', metricsKey, metrics);
 
-        // Display cached model accuracy
         const accuracyDisplay = document.getElementById('modelAccuracyDisplay');
         accuracyDisplay.classList.remove('alert-info');
         accuracyDisplay.classList.add('alert-success');
@@ -3587,13 +3449,10 @@ function checkCachedModel() {
           </div>
         `;
 
-        // Show the accuracy display
         accuracyDisplay.style.display = 'block';
 
-        // Enable predict button immediately
         document.getElementById('predictFutureBtn').disabled = false;
 
-        // Auto-load predictions for cached model
         console.log('Cached model found - auto-loading predictions...');
         predictFuture();
 
@@ -3613,7 +3472,6 @@ function checkCachedModel() {
   });
 }
 
-// Show message when no trained model is available
 function showNeedTrainingMessage() {
   document.getElementById('modelAccuracyDisplay').innerHTML = `
     <div class="d-flex align-items-center gap-3">
@@ -3630,25 +3488,19 @@ function showNeedTrainingMessage() {
   document.getElementById('predictFutureBtn').disabled = true;
 }
 
-// PHASE 1: Train Model (user must click this first)
 function trainModel() {
   const algorithm = document.getElementById('mlAlgorithm').value;
   const trainingSize = document.getElementById('trainingSizeSlider').value;
   const timeHorizon = getSelectedHorizon();
   const horizonLabel = getHorizonLabel(timeHorizon);
 
-  // Disable train button, hide accuracy display, show progress
   document.getElementById('trainModelBtn').disabled = true;
   document.getElementById('predictFutureBtn').disabled = true;
   document.getElementById('modelAccuracyDisplay').style.display = 'none';
   document.getElementById('trainingProgress').style.display = 'inline-block';
 
-  // One click fits neural network, random forest, gradient boosting and SVM
-  // for this horizon and training size; the dropdown only chooses which of them
-  // you then read.
   showNotification(`Training all 4 algorithms for ${horizonLabel} at ${Math.round(getSelectedTrainingSize() * 100)}% training size...`, 'info');
 
-  // Train the ML models
   fetch('/analysis/api/ml/train/', {
     method: 'POST',
     headers: {
@@ -3661,15 +3513,12 @@ function trainModel() {
   .then(data => {
     if (data.success) {
       if (data.used_cache) {
-        // Nothing to wait for: this configuration was already trained.
         document.getElementById('trainingProgress').style.display = 'none';
         document.getElementById('trainModelBtn').disabled = false;
         showNotification('Loaded the models already trained for this configuration.', 'success');
         loadModelPerformance(algorithm);
         return;
       }
-      // Training runs in a background thread, so poll until it reports done.
-      // Four algorithms take roughly half a minute to a minute here.
       showNotification('Training all 4 algorithms. This usually takes under a minute...', 'info');
       checkTrainingStatus(algorithm);
     } else {
@@ -3686,7 +3535,6 @@ function trainModel() {
   });
 }
 
-// PHASE 2: Predict Future (only enabled after training completes)
 function predictFuture() {
   const algorithm = document.getElementById('mlAlgorithm').value;
   const timeHorizon = getSelectedHorizon();
@@ -3694,12 +3542,10 @@ function predictFuture() {
 
   showNotification(`Generating future predictions for ${horizonLabel.toLowerCase()} ahead...`, 'info');
 
-  // Load future predictions using trained model
   loadPredictiveResults(algorithm);
   generateRecommendations();
 }
 
-// Check training status and display accuracy when complete
 function checkTrainingStatus(algorithm) {
   const statusInterval = setInterval(() => {
     fetch('/analysis/api/ml/training-status/', {
@@ -3713,13 +3559,11 @@ function checkTrainingStatus(algorithm) {
       if (data.status === 'completed') {
         clearInterval(statusInterval);
 
-        // Hide training progress
         document.getElementById('trainingProgress').style.display = 'none';
         document.getElementById('trainModelBtn').disabled = false;
 
         showNotification('✓ Model training completed successfully!', 'success');
 
-        // Load and display model performance metrics
         loadModelPerformance(algorithm);
 
       } else if (data.status === 'failed') {
@@ -3746,7 +3590,6 @@ function loadPredictiveResults(algorithm) {
   const horizonLabel = getHorizonLabel(timeHorizon);
   console.log(`Loading predictions for algorithm: ${algorithm}, horizon: ${horizonLabel}`);
 
-  // Load product recommendations - we'll aggregate these by department for the chart
   fetch('/analysis/api/ml/recommendations/', {
     method: 'POST',
     headers: {
@@ -3760,7 +3603,6 @@ function loadPredictiveResults(algorithm) {
     console.log('Product recommendations API response:', data);
 
     if (data.success && data.recommendations && data.recommendations.length > 0) {
-      // Aggregate product recommendations by department for charts
       const deptMap = {};
       data.recommendations.forEach(rec => {
         const dept = rec.department || 'Unknown';
@@ -3780,10 +3622,9 @@ function loadPredictiveResults(algorithm) {
         deptMap[dept].count += 1;
       });
 
-      // Convert to array and calculate average confidence per department
       const deptPredictions = Object.values(deptMap).map(dept => ({
         ...dept,
-        confidence: dept.confidence, // Keep first product's confidence
+        confidence: dept.confidence, 
         ml_prediction_score: dept.ml_prediction_score
       }));
 
@@ -3799,7 +3640,6 @@ function loadPredictiveResults(algorithm) {
     showChartError('Error loading predictions. Please try again.');
   });
 
-  // Also load product recommendations for insights
   fetch('/analysis/api/ml/predictions/', {
     method: 'POST',
     headers: {
@@ -3812,7 +3652,6 @@ function loadPredictiveResults(algorithm) {
   .then(productData => {
     console.log('Product predictions API response:', productData);
 
-    // Handle product recommendations for insights
     if (productData.success && productData.predictions && productData.predictions.length > 0) {
       console.log(`Found ${productData.predictions.length} product recommendations`);
       generateTimeBasedInsights(productData.predictions, algorithm);
@@ -3825,7 +3664,7 @@ function loadPredictiveResults(algorithm) {
   });
 }
 
-// Show error in chart containers when no real data is available
+
 function showChartError(message) {
   const revenueContainer = document.getElementById('revenueImpactChart');
   const trendsContainer = document.getElementById('purchaseTrendsChart');
@@ -3852,12 +3691,10 @@ function loadModelPerformance(algorithm) {
   .then(response => response.json())
   .then(data => {
     if (data.success && data.performance) {
-      // Find metrics for the current model, horizon and training size
       const metricsKey = legacyMetricsKey(algorithm);
       const metrics = data.performance[metricsKey];
 
       if (metrics) {
-        // Display model accuracy metrics
         const accuracyDisplay = document.getElementById('modelAccuracyDisplay');
         accuracyDisplay.classList.remove('alert-info');
         accuracyDisplay.classList.add('alert-success');
@@ -3878,13 +3715,13 @@ function loadModelPerformance(algorithm) {
           </div>
         `;
 
-        // Show the accuracy display box
+
         accuracyDisplay.style.display = 'block';
 
-        // Enable the predict button
+
         document.getElementById('predictFutureBtn').disabled = false;
 
-        // Auto-load predictions after training completes
+
         console.log('Training complete - auto-loading predictions...');
         predictFuture();
 
@@ -3895,21 +3732,18 @@ function loadModelPerformance(algorithm) {
         document.getElementById('predictFutureBtn').disabled = false;
       }
 
-      // Also update accuracy chart if it exists
+
       updateAccuracyChart(data.performance);
     }
   })
   .catch(error => {
     console.error('Error loading model performance:', error);
-    // Still enable predict button even if metrics fail to load
     document.getElementById('predictFutureBtn').disabled = false;
   });
 }
 
-// Differential Analysis Functions
+
 function loadDifferentialAnalysis() {
-  // Don't show initial results - wait for user to click "Compare Patterns"
-  // Chart and insights will be populated after running analysis
 }
 
 
@@ -3919,7 +3753,7 @@ function initializeComparisonChart() {
     return;
   }
 
-  // Create canvas inside container
+
   container.innerHTML = `<canvas id="comparisonChart" height="680"></canvas>`;
   const ctx = document.getElementById('comparisonChart');
 
@@ -4238,7 +4072,7 @@ function runDifferentialAnalysis() {
   }
 
   const timeoutPromise = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error('Request timeout')), 30000)  // 30 seconds for complex queries
+    setTimeout(() => reject(new Error('Request timeout')), 30000)  
   );
 
   const fetchPromise = fetch('{% url "dunnhumby_site:api_differential_analysis" %}', {
@@ -4387,8 +4221,6 @@ function renderHighValuePage(section, requestedPage = highValuePageState[section
   }
 
   controls.classList.remove('d-none');
-  // The same four controls the rest of the site uses, so these lists page the
-  // way every other list does.
   controls.classList.add('pager');
   controls.innerHTML = `
     <button type="button" class="pager-btn" data-go="1" ${page === 1 ? 'disabled' : ''}>&laquo;&laquo; First</button>
@@ -4472,9 +4304,6 @@ function showTopProductDetails(datasetSource) {
   const safeDepartment = escapeHtml(department);
   const safeCommodity = escapeHtml(commodity);
 
-  /* What one sale is worth follows from the two figures already on the card, so
-     it is shown straight away. Households and units sold have to be counted
-     across the whole transaction table and arrive a moment later. */
   const perSale = frequency ? totalSales / frequency : 0;
   const perSaleDisplay = perSale.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const tile = (label, value, gradient, id) => `
@@ -4530,10 +4359,6 @@ function showTopProductDetails(datasetSource) {
   loadProductDetailReach(String(productId), frequency, totalSales);
 }
 
-/* Households and units sold are counted over the whole transaction table, so
-   they are fetched after the modal is already on screen rather than holding it
-   shut. The reader can move on before the count lands -- if they have, the
-   fields it would have filled are gone and the answer is dropped. */
 async function loadProductDetailReach(productId, frequency, totalSales) {
   const stillShowing = () => {
     const panel = document.querySelector('[data-detail-product]');
@@ -4555,9 +4380,7 @@ async function loadProductDetailReach(productId, frequency, totalSales) {
 
     const reach = document.getElementById('productDetailReach');
     if (reach) {
-      /* Transactions per household says whether the total came from many
-         households buying once or a few buying repeatedly -- two situations
-         that read the same in a ranking but call for different decisions. */
+
       const perHousehold = households ? frequency / households : 0;
       const share = (households && TOTAL_HOUSEHOLDS)
         ? ` (${((households / TOTAL_HOUSEHOLDS) * 100).toFixed(1)}% of all households)` : '';
@@ -4566,12 +4389,6 @@ async function loadProductDetailReach(productId, frequency, totalSales) {
         + `${perHousehold.toFixed(1)} purchases each`;
     }
 
-    /* Fuel and other metered lines record quantity as a measured amount rather
-       than a count of items: one sale at the pump carries a quantity in the
-       thousands. Printed as a count it reads as millions of units sold at $0.00
-       each, so for those the count is withheld and the reason given instead.
-       The cut is unambiguous -- no product in the data averages between 100 and
-       1000 units a sale, the metered ones all sitting above 1000. */
     const unitLine = document.getElementById('productDetailUnits');
     if (unitLine) {
       const unitsPerSale = frequency ? units / frequency : 0;
@@ -4664,12 +4481,10 @@ function expandChart(chartId) {
 
   console.log('ExpandChart called with:', chartId, 'Title:', title, 'Container found:', !!container);
   if (container) {
-    // For charts, we'll create a larger canvas version
     const canvas = container.querySelector('canvas');
     const chartKey = getChartKey(chartId);
     console.log('Expanding chart:', chartId, 'Canvas found:', !!canvas, 'Container:', container, 'Chart exists:', !!charts[chartKey]);
 
-    // Always create canvas for expansion if we have a chart or if it's a comparison chart
     if (canvas || (chartKey === 'comparison' && charts.comparison)) {
       content = `
         <div class="expanded-chart-stage">
@@ -4678,7 +4493,6 @@ function expandChart(chartId) {
         <p class="small text-muted mt-2 mb-0">The expanded view uses the same saved holdout data and scales as the chart on the page.</p>
       `;
     } else {
-      // Fallback for non-canvas content (placeholder or other content)
       content = `
         <div style="background: white; padding: 2rem; border-radius: 15px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); min-height: 600px;">
           <div class="text-center py-5">
@@ -4696,7 +4510,6 @@ function expandChart(chartId) {
     showDetailModal(title || 'Chart Analysis', modalContent);
     setPredictiveModalMode('predictive-chart-modal');
 
-    // Re-create the chart in the expanded canvas if it exists
     setTimeout(() => {
       recreateExpandedChart(chartId);
     }, 300);
@@ -4732,19 +4545,16 @@ function recreateExpandedChart(chartId) {
     return;
   }
 
-  // Handle comparison chart specially
   if (chartKey === 'comparison') {
     console.log('Handling comparison chart expansion');
     if (originalChart) {
       recreateComparisonChartExpanded(expandedCanvas);
     } else {
       console.log('No comparison chart found, trying to initialize');
-      // Try to recreate from existing data if available
       setTimeout(() => {
         if (charts.comparison) {
           recreateComparisonChartExpanded(expandedCanvas);
         } else {
-          // Show message that chart needs to be generated first
           expandedCanvas.style.display = 'none';
           expandedCanvas.parentElement.innerHTML = `
             <div class="text-center py-5">
@@ -4770,9 +4580,6 @@ function recreateExpandedChart(chartId) {
     return;
   }
 
-  // Chart.js options are resolver Proxies. Spreading those Proxies into a new
-  // chart throws in Chart.js, so expanded charts use plain copied data and a
-  // small, explicit option set instead.
   const plainData = {
     labels: Array.from(originalChart.data.labels || []),
     datasets: (originalChart.data.datasets || []).map(dataset => ({
@@ -4913,7 +4720,6 @@ function recreateComparisonChartExpanded(canvas) {
     const comparisonType = originalChart.config?.type || 'bar';
     const comparisonIsBar = comparisonType === 'bar';
     if (expandedChartInstance) expandedChartInstance.destroy();
-    // Create expanded version with enhanced styling
     expandedChartInstance = new Chart(canvas, {
       type: comparisonType,
       data: {
@@ -4976,7 +4782,6 @@ function recreateComparisonChartExpanded(canvas) {
     console.log('Successfully created expanded comparison chart:', expandedChartInstance);
   } catch (error) {
     console.error('Error creating expanded comparison chart:', error);
-    // Show error message in canvas container
     canvas.style.display = 'none';
     canvas.parentElement.innerHTML = `
       <div class="text-center py-5">
@@ -5008,10 +4813,7 @@ function getChartKey(chartId) {
   }
 }
 
-/* A closed card carries its summary only. The detail block is built the first
-   time the card is opened, because holding one for every rendered card cost
-   about seventy DOM nodes each and made both scrolling and clicking crawl once
-   a few thousand were on the page. */
+
 function expandedForecastCard(product, index) {
   const rank = Number(product.forecast_rank || 0);
   const difference = Number(product.revenue_change_time_series_vs_independent || 0);
@@ -5058,9 +4860,6 @@ function expandedForecastDetailHtml(product) {
         </div>`;
 }
 
-/* Remember open state separately from the DOM because off-screen cards are
-   recycled. Detail markup is also discarded on close to release its table
-   nodes immediately. */
 function expandedForecastCardIsNearViewport(card) {
   const root = expandedForecastScroller();
   if (!root) return true;
@@ -5073,8 +4872,6 @@ function expandedForecastReleaseDetail(card) {
   if (!card || card.dataset.filled !== '1') return;
   const holder = card.querySelector('.forecast-expanded-detail');
   if (!holder) return;
-  /* Preserve the row's measured height while its heavy table DOM is released,
-     preventing scroll jumps when an open row moves outside the lazy margin. */
   card.style.minHeight = `${card.getBoundingClientRect().height}px`;
   card.dataset.detailPlaceholder = '1';
   holder.innerHTML = '';
@@ -5115,9 +4912,7 @@ function expandedForecastFillDetail(card, force = false) {
     return;
   }
   if (card.dataset.filled === '1') return;
-  /* Open all changes the lightweight <details> state for the whole virtual
-     window, but heavy metadata/monthly tables are created only as a card
-     approaches the viewport. A directly clicked card is already nearby. */
+
   if (!force && !expandedForecastCardIsNearViewport(card)) return;
   const product = expandedForecastByRank.get(rank);
   if (!product) return;
@@ -5127,10 +4922,7 @@ function expandedForecastFillDetail(card, force = false) {
   card.dataset.filled = '1';
 }
 
-/* The modal keeps its original continuous-scroll experience, but uses a
-   rolling DOM window. Cards far above or below the viewport are recycled and
-   represented by a measured spacer, preventing thousands of interactive rows
-   from accumulating in the browser. */
+
 const EXPANDED_FORECAST_CHUNK = 40;
 const EXPANDED_FORECAST_MAX_CARDS = 200;
 const EXPANDED_FORECAST_MAX_OPEN_CARDS = 80;
@@ -5435,9 +5227,7 @@ function toggleExpandedForecastCards(open) {
   expandedForecastOpenAll = !!open;
   expandedForecastOpenExceptions = new Set();
   expandedForecastRendering = true;
-  /* Reduce the virtual window before opening. This does not limit Open all:
-     recycled and future cards inherit the global open state, while the browser
-     never has to lay out hundreds of detailed tables in the same frame. */
+
   trimExpandedForecastWindow();
   requestAnimationFrame(() => {
     if (serial !== expandedForecastToggleSerial) return;
@@ -5450,10 +5240,6 @@ function toggleExpandedForecastCards(open) {
   });
 }
 
-/* An expanded list is the start of a trail, never a step within one: nothing
-   sits behind it, so the Back button stays hidden until a card is opened. The
-   trail is cleared after the list is on screen rather than before, because
-   showing it is itself what records the view being replaced. */
 function startExpandedTrail() {
   if (typeof resetDetailModalHistory === 'function') resetDetailModalHistory();
 }
@@ -5534,50 +5320,39 @@ function expandSection(sectionType) {
     showDetailModal(title, modalContent);
     startExpandedTrail();
 
-    // Re-attach event listeners after modal is shown
     setTimeout(() => {
       attachPopupEventListeners(sectionType);
     }, 200);
   }
 }
 
-/* Called by the shared modal helper when Back returns to an expanded list.
-   Only the click handling has to be rebuilt -- the markup and the scroll
-   position are restored by the helper itself. */
 window.onDetailModalRestore = function (sectionType) {
   attachPopupEventListeners(sectionType);
 };
 
-// Attach event listeners to popup content
+
 function attachPopupEventListeners(sectionType) {
   const expandedContent = document.getElementById('expandedContent');
   if (!expandedContent) return;
   
   if (sectionType === 'baskets') {
-    // Basket cards are handled by a delegated listener on the document, which
-    // covers the cards in this modal as well as the ones in the page grid.
   } else if (sectionType === 'recommendations') {
-    // Force re-initialization of recommendation cards in modal
     setTimeout(() => {
       const cards = expandedContent.querySelectorAll('.recommendation-card');
       console.log(`Found ${cards.length} recommendation cards in expanded modal`);
 
       cards.forEach((card, index) => {
-        // Remove existing listener flag to force re-attachment
         card.dataset.listenerAttached = 'false';
         card.style.cursor = 'pointer';
 
-        // Clone card to remove all existing event listeners
         const newCard = card.cloneNode(true);
         card.parentNode.replaceChild(newCard, card);
       });
 
-      // Re-initialize with fresh cards
       initializeRecommendationCards(expandedContent);
       console.log('Recommendation cards re-initialized in modal');
     }, 100);
   } else if (sectionType === 'differential') {
-    // Attach differential insight card click handlers
     const insightCards = expandedContent.querySelectorAll('.differential-insight-card');
     insightCards.forEach(card => {
       card.style.cursor = 'pointer';
@@ -5588,14 +5363,11 @@ function attachPopupEventListeners(sectionType) {
   } else if (sectionType === 'products') {
     initTopProductCards(expandedContent);
   } else {
-    // Attach rule card click handlers for department and commodity rules
     const ruleCards = expandedContent.querySelectorAll('.rule-card');
     ruleCards.forEach(card => {
-      card.style.cursor = 'pointer';
-      // Extract data from the card's onclick attribute or recreate the click handler
+      card.style.cursor = 'pointer';r
       const onclickAttr = card.getAttribute('onclick');
       if (onclickAttr) {
-        // Parse the onclick parameters
         const match = onclickAttr.match(/showRuleDetails\('([^']+)',\s*'([^']+)',\s*([\d.]+),\s*([\d.]+),\s*([\d.]+),\s*'([^']+)'\)/);
         if (match) {
           const [, antecedent, consequent, support, confidence, lift, ruleType] = match;
@@ -5614,9 +5386,6 @@ function attachPopupEventListeners(sectionType) {
   }
 }
 
-// Remove the scrollToSection function since we removed the scroll buttons
-
-// Configuration helper functions
 function updateComparisonDescription() {
   const compareBy = document.getElementById('compareBy')?.value;
   const description = document.getElementById('compareByDescription');
@@ -6030,7 +5799,6 @@ function showConfigurationHelp() {
   showDetailModal('Configuration Help', helpContent);
 }
 
-// Show detailed differential insight information
 
 function showDifferentialInsightDetailsFromCard(cardElement) {
   if (!cardElement) {
@@ -6415,7 +6183,6 @@ function showRecommendationDetails(
   showDetailModal(title, body);
 }
 
-// Show detailed rule information
 function showRuleDetails(antecedent, consequent, support, confidence, lift, ruleType) {
   const isDepth = ruleType === 'department';
   const antBadge = isDepth ? createDepartmentBadge(antecedent) : createCommodityBadge(antecedent);
@@ -6530,7 +6297,6 @@ function showRuleDetails(antecedent, consequent, support, confidence, lift, rule
   }, 200);
 }
 
-// Get interpretation based on metrics
 function getInterpretation(support, confidence, lift) {
   let significance, meaning, recommendation;
   
@@ -6555,7 +6321,6 @@ function getInterpretation(support, confidence, lift) {
   return { significance, meaning, recommendation };
 }
 
-// Get business value insights
 function getBusinessValue(ant, con, lift, type) {
   const roundedLift = lift.toFixed(2);
 
@@ -6581,14 +6346,11 @@ function getBusinessValue(ant, con, lift, type) {
 }
 
 
-// Basket card interactions
 document.addEventListener('DOMContentLoaded', function() {
   const csrftoken = (document.cookie.split('; ').find(r=>r.startsWith('csrftoken='))||'').split('=')[1]||'';
 
-  // Check if model is already trained (cached) on page load
   checkCachedModel();
 
-  // Re-check cached model when algorithm or horizon changes
   const algorithmSelect = document.getElementById('mlAlgorithm');
   const horizonSelect = document.getElementById('predictionHorizon');
 
@@ -6604,12 +6366,10 @@ document.addEventListener('DOMContentLoaded', function() {
       console.log('Horizon changed, checking for cached model...');
       checkCachedModel();
 
-      // Also refresh predictions if already loaded
       const algorithmValue = algorithmSelect ? algorithmSelect.value : 'neural_network';
       const horizonValue = getSelectedHorizon();
       const horizonLabelText = getHorizonLabel(horizonValue).toLowerCase();
 
-      // Only refresh if predict button is enabled (model is trained)
       if (!document.getElementById('predictFutureBtn').disabled) {
         showNotification('Updating forecasts for ' + horizonLabelText + ' horizon...', 'info');
         loadPredictiveResults(algorithmValue);
@@ -6618,7 +6378,6 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-  // Format metric values with commas
   const totalBasketsEl = document.getElementById('totalBaskets');
   if (totalBasketsEl && totalBasketsEl.textContent) {
     const value = parseInt(totalBasketsEl.textContent.replace(/,/g, ''));
@@ -6627,22 +6386,14 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
 
-  // Initialize metrics with default period (All transactions)
   updatePeriodMetrics('all');
 
-  // Initialize descriptive analysis by default
   loadDescriptiveAnalysis();
   initTopProductCards();
   switchTopProductsView('frequency');
   initializeHighValuePagination();
   window.addEventListener('resize', () => initializeHighValuePagination());
 
-  /* Basket cards are bound by delegation rather than per element. The
-     high-value grid is refreshed every 30 seconds by replacing its innerHTML,
-     which discards the cards and any listener attached to them; products were
-     re-bound afterwards but baskets were not, so they stopped responding after
-     the first refresh. A listener on the document survives the replacement and
-     also covers the copies rendered inside the expand modal. */
   document.addEventListener('click', event => {
     const card = event.target.closest('.basket-card');
     if (card && card.dataset.basketId) openBasketDetails(card.dataset.basketId);
@@ -6678,22 +6429,19 @@ async function openBasketDetails(basketId) {
   }
 }
 
-// Helper functions for ML integration
 function getCsrfToken() {
   return (document.cookie.split('; ').find(r=>r.startsWith('csrftoken='))||'').split('=')[1]||'';
 }
 
 
-// Prediction Horizon helper functions
 function getSelectedHorizon() {
   const select = document.getElementById('predictionHorizon');
   const value = select ? parseInt(select.value, 10) : NaN;
-  // 10 months and beyond leave too few independent windows in the 711-day
-  // calendar to fit and test on, so the grid stops at 9.
+
   if (value >= 1 && value <= 9) {
     return value;
   }
-  return 3; // Default to 3 months
+  return 3; 
 }
 
 function getHorizonLabel(months) {
@@ -6706,10 +6454,6 @@ function getHorizonLabel(months) {
   return `${value || 3} Months`;
 }
 
-/* The share of leakage-safe origins kept for fitting. The server accepts 0.50
-   to 0.95 and rejects anything outside, so the slider is clamped to the same
-   range rather than trusting the markup. Read as a Number, because the model
-   cache key is built from this value and "0.80" would not match 0.8. */
 function getTimeSeriesTrainingSize() {
   const slider = document.getElementById('timeSeriesTrainingSize');
   const value = slider ? parseFloat(slider.value) : 0.8;
@@ -6719,8 +6463,7 @@ function getTimeSeriesTrainingSize() {
 function showTimeSeriesTrainingSize() {
   const label = document.getElementById('timeSeriesTrainingSizeValue');
   if (label) label.textContent = `${Math.round(getTimeSeriesTrainingSize() * 100)}%`;
-  /* The Data check counts the origins this share leaves behind, so it has to
-     follow the slider as it moves rather than waiting for release. */
+
   updateSupervisionHint();
 }
 
@@ -6766,16 +6509,8 @@ function setSavedModelStatus(label, className = 'bg-secondary') {
   status.textContent = label;
 }
 
-// Complete 30-day periods the calendar provides (0 when unknown).
 const TIME_SERIES_COMPLETE_PERIODS = Number('{{ time_series_complete_periods|default:0 }}') || 0;
-/* Households in the whole dataset, so a product's reach can be stated as a
-   share rather than a bare count nobody can size. */
 const TOTAL_HOUSEHOLDS = Number('{{ overall_stats.total_customers|default:0 }}') || 0;
-
-/* Mirrors ProductRevenueTimeSeriesForecaster._training_origins and
-   _build_sequence_samples so the controls can show how many recursive steps a
-   configuration can actually supervise before anything is trained. Returns
-   null when the calendar is unknown or the configuration is invalid. */
 function supervisedRolloutDepth(horizon, windowSize, step, trainingSize = 0.8, periods = TIME_SERIES_COMPLETE_PERIODS) {
   if (!periods) return null;
   const testOrigin = periods - horizon;
@@ -6789,11 +6524,6 @@ function supervisedRolloutDepth(horizon, windowSize, step, trainingSize = 0.8, p
   return {depth: Math.min(horizon, testOrigin - kept[0]), invalid: null};
 }
 
-/* Largest Forecast Horizon this Lookback window can fully supervise. This is
-   not the same as the supervised depth of the current pair: at a 6-period
-   lookback a 12-period horizon supervises only 4 steps, yet an 8-period
-   horizon is fully supervised, so the depth alone would understate the
-   options. */
 function largestSupervisedHorizon(windowSize, step, trainingSize = 0.8) {
   const options = Array.from(document.getElementById('timeSeriesHorizon')?.options || [])
     .map(option => Number(option.value))
@@ -6805,9 +6535,6 @@ function largestSupervisedHorizon(windowSize, step, trainingSize = 0.8) {
   return null;
 }
 
-/* Smallest Lookback window that fully supervises this Forecast Horizon, or
-   null when no lookback can. Prevents suggesting a lookback change for a
-   horizon the calendar cannot support at any lookback. */
 function smallestWindowForHorizon(horizon, step, trainingSize = 0.8) {
   const options = Array.from(document.getElementById('timeSeriesWindow')?.options || [])
     .map(option => Number(option.value))
@@ -6819,8 +6546,6 @@ function smallestWindowForHorizon(horizon, step, trainingSize = 0.8) {
   return null;
 }
 
-/* Names both controls exactly as they are labelled in the form, and only
-   suggests a change that actually resolves the shortfall. */
 function supervisionRemedy(horizon, windowSize, step, trainingSize = getTimeSeriesTrainingSize()) {
   const bestHorizon = largestSupervisedHorizon(windowSize, step, trainingSize);
   const bestWindow = smallestWindowForHorizon(horizon, step, trainingSize);
@@ -6855,8 +6580,7 @@ function updateSupervisionHint() {
     hint.innerHTML = `<span class="badge bg-success text-wrap text-start"><i class="fas fa-check"></i> Fully supervised — all ${horizon} recursive step(s) have training signal</span>`;
     return;
   }
-  // supervisionRemedy reads mid-sentence in the post-training banners, so it
-  // starts lower-case; capitalise it where it opens a sentence.
+
   const remedy = supervisionRemedy(horizon, windowSize, step, trainingSize);
   hint.innerHTML = `<span class="badge bg-warning text-dark text-wrap text-start"><i class="fas fa-exclamation-triangle"></i> Only ${result.depth} of ${horizon} recursive steps can be supervised at <strong>Lookback window</strong> ${windowSize} months. ${remedy.charAt(0).toUpperCase()}${remedy.slice(1)}</span>`;
 }
@@ -6891,7 +6615,6 @@ async function refreshSavedTimeSeriesModel() {
 }
 
 const TIME_SERIES_ENDPOINTS = {
-  // Kept as plain paths so a stale Django URL resolver cannot prevent this page rendering.
   train: '/analysis/api/ml/time-series/train/',
   forecast: '/analysis/api/ml/time-series/forecast/',
   report: '/analysis/api/ml/time-series/report/',
@@ -6980,22 +6703,12 @@ function renderTimeSeriesDepartmentChart(rows, productCount = 0) {
   });
 }
 
-/* The three display controls only reshape the results table, so a change can
-   be applied straight away by re-running the forecast against the model that
-   is already trained. They deliberately do not touch the model itself: the
-   settings above them do, and those still require a retrain.
-
-   Nothing is re-run before a model exists, since there would be no forecast to
-   reshape; the values are simply picked up by the first Forecast click. */
 function handleTimeSeriesDisplayChange() {
   const ready = lastReadyTimeSeriesModelKey === timeSeriesModelConfigKey();
   if (!ready) return;
   forecastProductTimeSeries();
 }
 
-/* Shows the inline spinner beside the revenue buttons. Training and
-   forecasting both take long enough to need one, and the report container's
-   own message is off-screen once the panel is scrolled. */
 function setRevenueBusy(label) {
   const box = document.getElementById('revenueProgress');
   const text = document.getElementById('revenueProgressLabel');
@@ -7048,7 +6761,6 @@ function updatePredictiveCharts(predictions, algorithm) {
     return;
   }
 
-  // Update chart titles to show current time horizon
   const revenueTitle = document.querySelector('#revenueImpactChart').parentElement.querySelector('h5');
   const trendsTitle = document.querySelector('#purchaseTrendsChart').parentElement.querySelector('h5');
   if (revenueTitle) {
@@ -7058,7 +6770,6 @@ function updatePredictiveCharts(predictions, algorithm) {
     trendsTitle.innerHTML = `<i class="fas fa-chart-line"></i> Model Performance Across Time Horizons (${horizonLabel})`;
   }
 
-  // Validate that we have real data structure
   const firstPred = predictions[0];
   console.log('First prediction sample:', firstPred);
 
@@ -7068,17 +6779,13 @@ function updatePredictiveCharts(predictions, algorithm) {
     return;
   }
 
-  // Get top 6 departments by predicted revenue (used by both charts)
   const topDepts = predictions.slice(0, 6);
   console.log('Top departments for charts:', topDepts);
 
-  // Update Revenue Impact Chart
   const revenueContainer = document.getElementById('revenueImpactChart');
   if (revenueContainer) {
 
-    // Use the time-horizon specific revenue forecast from the backend
     const revenueData = topDepts.map(p => {
-      // Validate we have real data and selected forecast
       if (!p.selected_forecast || !p.selected_forecast.revenue_forecast) {
         console.error(`Missing selected forecast data for ${p.department}:`, p);
         return 0;
@@ -7108,7 +6815,7 @@ function updatePredictiveCharts(predictions, algorithm) {
         datasets: [{
           label: 'Predicted Revenue Impact ($)',
           data: revenueData,
-          backgroundColor: colors.map(c => c + '80'), // Add transparency
+          backgroundColor: colors.map(c => c + '80'),
           borderColor: colors,
           borderWidth: 2,
           borderRadius: 8,
@@ -7184,12 +6891,10 @@ function updatePredictiveCharts(predictions, algorithm) {
     });
   }
 
-  // Update Model Performance Chart
   const trendsContainer = document.getElementById('purchaseTrendsChart');
   if (trendsContainer) {
     console.log('Updating segment chart with real data:', topDepts);
 
-    // Ensure we have valid data for each department
     const validDepts = topDepts.filter(p => {
       const hasBasicData = p.department && p.confidence !== undefined;
       const hasForecasts = p.forecasts && Object.keys(p.forecasts).length > 0;
@@ -7198,13 +6903,11 @@ function updatePredictiveCharts(predictions, algorithm) {
     });
     console.log(`Filtered ${validDepts.length} valid departments out of ${topDepts.length}`);
 
-    // If no departments with forecasts, check if we have any departments at all
     if (validDepts.length === 0) {
       console.error('No valid department data for trends chart');
       console.log('Sample department data:', topDepts[0]);
 
       if (topDepts.length > 0) {
-        // Show a message that forecasts are missing but departments exist
         document.getElementById('purchaseTrendsChart').innerHTML = `
           <div class="text-center py-5 text-warning">
             <i class="fas fa-chart-line fa-3x mb-3"></i>
@@ -7224,7 +6927,6 @@ function updatePredictiveCharts(predictions, algorithm) {
       return;
     }
 
-    // Extract time-based forecast data with proper future predictions
     const timeLabels = ['1 Month', '3 Months', '6 Months', '12 Months'];
     const datasets = [];
 
@@ -7232,8 +6934,6 @@ function updatePredictiveCharts(predictions, algorithm) {
       const forecasts = dept.forecasts || {};
       const historicalProbs = dept.historical_probabilities || {};
 
-      // Use FIXED historical probabilities (doesn't change with horizon selection)
-      // This ensures the trends chart shows consistent historical data
       const probabilities = [
         (historicalProbs['1_month'] || 0) * 100,
         (historicalProbs['3_months'] || 0) * 100,
@@ -7271,7 +6971,7 @@ function updatePredictiveCharts(predictions, algorithm) {
         pointRadius: 6,
         tension: 0.4,
         yAxisID: 'y',
-        revenues: revenues // Store revenue data for tooltips
+        revenues: revenues 
       });
     });
 
@@ -7319,7 +7019,6 @@ function updatePredictiveCharts(predictions, algorithm) {
                 const deptIndex = datasets.findIndex(d => d.label === context.dataset.label);
                 const dept = validDepts[deptIndex];
                 if (dept && dept.forecasts) {
-                  // Map dataIndex to correct time keys (0=1_month, 1=3_months, 2=6_months, 3=12_months)
                   const timeKeys = ['1_month', '3_months', '6_months', '12_months'];
                   const timeKey = timeKeys[context.dataIndex];
                   const revenue = dept.forecasts[timeKey]?.revenue_forecast || 0;
@@ -7378,7 +7077,6 @@ function updatePredictiveCharts(predictions, algorithm) {
   }
 }
 
-// NEW FUNCTION: Update charts with REAL FUTURE predictions from trained ML models
 function updateFuturePredictiveCharts(predictions, algorithm, timeHorizon, horizonLabel) {
   console.log('updateFuturePredictiveCharts called - REAL ML PREDICTIONS');
   console.log('Algorithm:', algorithm, 'Horizon:', horizonLabel);
@@ -7389,12 +7087,10 @@ function updateFuturePredictiveCharts(predictions, algorithm, timeHorizon, horiz
     return;
   }
 
-  // Get first prediction to extract model accuracy
   const firstPred = predictions[0];
   const modelAccuracy = firstPred.historical_accuracy || 0.75;
   const mlScore = firstPred.ml_prediction_score || 0.0;
 
-  // Update chart titles with model accuracy info
   const revenueTitle = document.querySelector('#revenueImpactChart').parentElement.querySelector('h5');
   const trendsTitle = document.querySelector('#purchaseTrendsChart').parentElement.querySelector('h5');
 
@@ -7407,10 +7103,8 @@ function updateFuturePredictiveCharts(predictions, algorithm, timeHorizon, horiz
       <small class="text-muted" style="font-size: 0.75rem;">Based on ${algorithm.replace('_', ' ')} trained on historical data</small>`;
   }
 
-  // Take top 6 departments
   const topDepts = predictions.slice(0, 6);
 
-  // ==================== Revenue Impact Chart ====================
   const revenueContainer = document.getElementById('revenueImpactChart');
   if (revenueContainer) {
     const revenueData = topDepts.map(p => Math.round(p.projected_revenue || 0));
@@ -7498,10 +7192,8 @@ function updateFuturePredictiveCharts(predictions, algorithm, timeHorizon, horiz
     });
   }
 
-  // ==================== Model Performance Across Time Horizons ====================
   const trendsContainer = document.getElementById('purchaseTrendsChart');
   if (trendsContainer) {
-    // Fetch actual model accuracies for all horizons to show real confidence trends
     fetch('/analysis/api/ml/performance/', {
       method: 'GET',
       headers: {
@@ -7512,7 +7204,6 @@ function updateFuturePredictiveCharts(predictions, algorithm, timeHorizon, horiz
     .then(perfData => {
       const timeLabels = ['1 Month', '3 Months', '6 Months', '12 Months'];
 
-      // Get actual model accuracies for each horizon - ONE line for the model, not per department
       const modelAccuracies = [
         (perfData.performance?.[`1month_${algorithm}`]?.accuracy || 0.92) * 100,
         (perfData.performance?.[`3months_${algorithm}`]?.accuracy || 0.97) * 100,
@@ -7585,7 +7276,6 @@ function updateFuturePredictiveCharts(predictions, algorithm, timeHorizon, horiz
     })
     .catch(error => {
       console.error('Error loading model performance for trends chart:', error);
-      // Fallback to simple display if performance API fails
       trendsContainer.innerHTML = '<div class="text-center text-muted py-4">Model performance data unavailable</div>';
     });
   }
@@ -7602,10 +7292,8 @@ function generateTimeBasedInsights(predictions, algorithm) {
     return;
   }
 
-  // Find the container where insights will be displayed
   let insightsContainer = document.getElementById('timeBasedInsights');
   if (!insightsContainer) {
-    // Create insights container if it doesn't exist
     const chartsContainer = document.querySelector('#predictive .row.g-4');
     if (chartsContainer) {
       const insightsDiv = document.createElement('div');
@@ -7626,7 +7314,6 @@ function generateTimeBasedInsights(predictions, algorithm) {
     return;
   }
 
-  // Analyze top departments with forecasts
   const topDepts = predictions.slice(0, 4).filter(p => p.forecasts);
 
   if (topDepts.length === 0) {
@@ -7638,7 +7325,6 @@ function generateTimeBasedInsights(predictions, algorithm) {
     return;
   }
 
-  // Generate insights based on forecast trends
   const insights = [];
 
   topDepts.forEach((dept, index) => {
@@ -7659,7 +7345,6 @@ function generateTimeBasedInsights(predictions, algorithm) {
       long: year1.revenue_forecast || 0
     };
 
-    // Analyze trends
     let trendType = 'stable';
     let insight = '';
     let recommendation = '';
@@ -7690,7 +7375,6 @@ function generateTimeBasedInsights(predictions, algorithm) {
     });
   });
 
-  // Generate HTML for insights
   const insightsHtml = insights.map((insight, index) => {
     const iconMap = {
       growing: 'fas fa-arrow-trend-up text-success',
@@ -7818,7 +7502,6 @@ function updateAccuracyChart(performance) {
   }
 }
 
-// Multi-select functionality for association rules
 function selectAllRules(ruleType, selectAll) {
   const containerId = ruleType === 'department' ? 'associationRules' : 'associationRulesCommodity';
   const container = document.getElementById(containerId);
@@ -7849,7 +7532,6 @@ function updateSelectedCount(ruleType) {
 
   countElement.textContent = selectedCount;
 
-  // Update insert button state
   const insertBtn = countElement.closest('.btn-group').querySelector('.btn-success');
   if (insertBtn) {
     insertBtn.disabled = selectedCount === 0;
@@ -7883,10 +7565,9 @@ function insertSelectedRules(ruleType) {
       support: parseFloat(card.dataset.support),
       confidence: parseFloat(card.dataset.confidence),
       lift: parseFloat(card.dataset.lift),
-      rule_type: card.dataset.ruleType // Use rule_type to match API expectations
+      rule_type: card.dataset.ruleType 
     };
 
-    // Create unique identifier for duplicate detection
     const ruleId = `${ruleData.antecedent}→${ruleData.consequent}`;
 
     if (!duplicateRules.has(ruleId)) {
@@ -7895,11 +7576,10 @@ function insertSelectedRules(ruleType) {
     }
   });
 
-  // Show confirmation dialog with filtered count
+
   const confirmMsg = `Insert ${selectedRules.length} selected ${ruleType} level association rules?${selectedRules.length < selectedCards.length ? ` (${selectedCards.length - selectedRules.length} duplicates removed)` : ''}`;
   if (!confirm(confirmMsg)) return;
 
-  // Process bulk insertion with pre-validation
   processBulkRuleInsertion(selectedRules, ruleType);
 }
 
@@ -7908,7 +7588,7 @@ function processBulkRuleInsertion(rules, ruleType) {
   let errorCount = 0;
   const errors = [];
 
-  // Pre-validate rules
+
   const validRules = rules.filter(rule => validateRule(rule));
   const invalidCount = rules.length - validRules.length;
 
@@ -7916,7 +7596,6 @@ function processBulkRuleInsertion(rules, ruleType) {
     console.log(`Filtered out ${invalidCount} invalid rules before insertion`);
   }
 
-  // Show progress in the correct alert container based on rule type
   const alertElementId = ruleType === 'department' ? 'descriptiveInsertAlert' : 'commodityInsertAlert';
   const alertElement = document.getElementById(alertElementId);
   if (alertElement) {
@@ -7925,17 +7604,14 @@ function processBulkRuleInsertion(rules, ruleType) {
     alertElement.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Inserting ${validRules.length} validated rules with retry logic...`;
   }
 
-  // Process rules with improved batching and connection management
   let currentIndex = 0;
   const rulesToProcess = validRules;
 
-  // Connection health tracking
   let consecutiveFailures = 0;
   const maxConsecutiveFailures = 3;
 
   function processNextRule() {
     if (currentIndex >= rulesToProcess.length) {
-      // All rules processed, show final result
       if (alertElement) {
         if (successCount > 0 && errorCount === 0) {
           alertElement.className = 'alert alert-success';
@@ -7962,12 +7638,10 @@ function processBulkRuleInsertion(rules, ruleType) {
           `;
         }
 
-        // Clear selection after successful insertion
         if (successCount > 0) {
           selectAllRules(ruleType, false);
         }
 
-        // Hide alert after 5 seconds
         setTimeout(() => {
           alertElement.style.display = 'none';
         }, 5000);
@@ -7977,13 +7651,11 @@ function processBulkRuleInsertion(rules, ruleType) {
 
     const rule = rulesToProcess[currentIndex];
 
-    // Enhanced insertion with connection health monitoring
     insertSingleRule(rule).then(() => {
       successCount++;
       currentIndex++;
-      consecutiveFailures = 0; // Reset failure counter on success
+      consecutiveFailures = 0; 
 
-      // Update progress
       if (alertElement) {
         alertElement.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Inserting rules... (${currentIndex}/${rulesToProcess.length}) - ${successCount} successful`;
       }
@@ -7992,14 +7664,13 @@ function processBulkRuleInsertion(rules, ruleType) {
     }).catch((error) => {
       consecutiveFailures++;
 
-      // If too many consecutive failures, implement connection recovery delay
       if (consecutiveFailures >= maxConsecutiveFailures) {
         console.log(`Detected connection issues, implementing recovery delay...`);
         setTimeout(() => {
-          consecutiveFailures = 0; // Reset after recovery
-          // Retry this rule
+          consecutiveFailures = 0; 
+
           processNextRule();
-        }, 2000); // 2 second recovery delay
+        }, 2000); 
         return;
       }
 
@@ -8014,43 +7685,36 @@ function processBulkRuleInsertion(rules, ruleType) {
   processNextRule();
 }
 
-// Rule validation function - shared between both pages
+
 function validateRule(rule) {
-  // Check if rule has valid antecedent and consequent
+
   if (!rule.antecedent || !rule.consequent) return false;
 
-  // Check if antecedent and consequent are different
   if (rule.antecedent === rule.consequent) return false;
 
-  // Check if support, confidence, and lift are valid numbers
   if (isNaN(rule.support) || isNaN(rule.confidence) || isNaN(rule.lift)) return false;
 
-  // Check minimum thresholds
   if (rule.support <= 0 || rule.confidence <= 0 || rule.lift <= 0) return false;
 
-  // Check maximum thresholds
   if (rule.support > 1 || rule.confidence > 1) return false;
 
   return true;
 }
 
-// Store for tracking inserted rules to prevent duplicates - shared cache
 if (typeof insertedRulesCache === 'undefined') {
   var insertedRulesCache = new Set();
 }
 
 function insertSingleRule(rule, retryCount = 0) {
   return new Promise((resolve, reject) => {
-    // Create unique identifier
+
     const ruleId = `${rule.antecedent}→${rule.consequent}`;
 
-    // Check if rule was already inserted in this session
     if (insertedRulesCache.has(ruleId)) {
-      resolve(); // Already inserted, consider it successful
+      resolve();
       return;
     }
 
-    // Prepare rule data for API
     const ruleData = {
       antecedent: Array.isArray(rule.antecedent) ? rule.antecedent : [rule.antecedent],
       consequent: Array.isArray(rule.consequent) ? rule.consequent : [rule.consequent],
@@ -8070,14 +7734,12 @@ function insertSingleRule(rule, retryCount = 0) {
       }
     };
 
-    // Debug logging to trace rule type assignment
     console.log(`Inserting rule: ${ruleId}, rule_type: ${ruleData.rule_type}, original data:`, {
       rule_type: rule.rule_type,
       ruleType: rule.ruleType,
       type: rule.type
     });
 
-    // Make actual API call to insert rule
     const maxRetries = 3;
     const baseDelay = 100;
     const backoffMultiplier = 1.5;
@@ -8098,7 +7760,7 @@ function insertSingleRule(rule, retryCount = 0) {
           const result = await response.json().catch(() => ({ success: false, error: 'Invalid server response' }));
 
           if (response.ok && result.success) {
-            // Successful insertion
+
             insertedRulesCache.add(ruleId);
             console.log(`Successfully inserted rule: ${ruleId}`);
             resolve();
@@ -8110,11 +7772,11 @@ function insertSingleRule(rule, retryCount = 0) {
           console.log(`Insertion attempt failed for ${ruleId}:`, error.message);
 
           if (retryCount < maxRetries) {
-            // Retry with exponential backoff
+
             console.log(`Retrying insertion for ${ruleId} (attempt ${retryCount + 1}/${maxRetries})`);
             insertSingleRule(rule, retryCount + 1).then(resolve).catch(reject);
           } else {
-            // Final failure after all retries
+
             reject(new Error(error.message || `Insertion failed after ${maxRetries} retries`));
           }
         });
@@ -8125,7 +7787,6 @@ function insertSingleRule(rule, retryCount = 0) {
   });
 }
 
-// Add CSS for selected rule cards
 document.addEventListener('DOMContentLoaded', function() {
   const style = document.createElement('style');
   style.textContent = `
@@ -8153,7 +7814,6 @@ document.addEventListener('DOMContentLoaded', function() {
   document.head.appendChild(style);
 });
 
-// Corrected Predictive Market Basket interface.
 function showPredictiveSubtab(name) {
   const selected = name === 'legacy' ? 'legacy' : 'revenue';
   document.querySelectorAll('[data-predictive-panel]').forEach(panel => {
@@ -8179,10 +7839,7 @@ function renderLegacyModelMetrics(metrics, algorithm) {
     document.getElementById('predictFutureBtn').disabled = true;
     return;
   }
-  /* How many independent snapshots the model was fitted on is the figure that
-     decides whether these metrics mean anything: a longer horizon consumes the
-     calendar, so origins fall away and the estimate rests on fewer, more
-     correlated windows. */
+
   const origins = Array.isArray(metrics.fit_origins) ? metrics.fit_origins.length : null;
   const trainedAt = metrics.training_size != null
     ? ` at ${Math.round(Number(metrics.training_size) * 100)}% training size` : '';
@@ -8195,9 +7852,7 @@ function renderLegacyModelMetrics(metrics, algorithm) {
         711-day calendar at this horizon. The holdout is still leakage-free, but the metrics rest
         on very few windows; a shorter horizon gives a far better-supported estimate.</div>`
     : '';
-  /* These facts were one run-on sentence strung together with semicolons.
-     Splitting them into labelled parts makes each one findable, and saying
-     which way the calibration gap runs is more use than the bare number. */
+
   const holdoutParts = valid
     ? [
         `Tested on day ${metrics.test_origin}`,
@@ -8253,9 +7908,7 @@ function legacyHorizonKey(months) {
   return Number(months) === 1 ? '1month' : `${Number(months)}months`;
 }
 
-/* Metrics are stored per horizon, per training size, per algorithm. Building
-   this key in more than one place is how two call sites ended up still asking
-   for the old size-less key and finding nothing. */
+
 function legacyMetricsKey(algorithm) {
   const sizeTag = 'tr' + String(Math.round(getSelectedTrainingSize() * 100)).padStart(2, '0');
   return `${legacyHorizonKey(getSelectedHorizon())}_${sizeTag}_${algorithm}`;
@@ -8264,9 +7917,6 @@ function legacyMetricsKey(algorithm) {
 async function getSelectedLegacyMetrics() {
   const algorithm = document.getElementById('mlAlgorithm')?.value || 'neural_network';
   const horizonKey = legacyHorizonKey(getSelectedHorizon());
-  // Each training size keeps its own model and its own metrics, so the size
-  // belongs in the key: looking it up without one returned whichever size was
-  // trained first and made the slider look inert.
   const response = await fetch('/analysis/api/ml/performance/');
   const data = await response.json();
   return {algorithm, metrics: data.performance?.[legacyMetricsKey(algorithm)] || null};
@@ -8495,14 +8145,6 @@ function renderTimeSeriesReportV5(report) {
     ['Recent-average benchmark', baseline, ''],
   ];
   const metricRows = methods.map(([label, metrics, rowClass]) => `<tr class="${rowClass}"><td><strong>${label}</strong></td><td>${metricCell(metrics.wmape, true)}</td><td>${metricCell(metrics.mae)}</td><td>${metricCell(metrics.rmse)}</td><td>${metricCell(metrics.bias_percent, true)}</td><td>${metricCell(metrics.precision_at_k, true)}</td><td>${metricCell(metrics.ndcg_at_k, true)}</td><td>${metricCell(metrics.spearman)}</td></tr>`).join('');
-  /* The depths come from what the report actually measured, not a fixed list.
-     A model saved before K=100 and K=200 existed holds only the three shallow
-     cutoffs, and asking it for the deep ones would print rows of zeros that
-     read as a failed ranking rather than an absent measurement. */
-  /* A depth deeper than the list itself is dropped rather than shown. Once K
-     passes the number of products scored, both top-K sets are the whole list,
-     so precision is 1.00 by construction and every deeper row repeats it --
-     three rows of apparent perfection that measure nothing. */
   const measuredCutoffs = new Map();
   methods.forEach(([, metrics]) => Object.entries(metrics.ranking_at_k || {})
     .forEach(([key, item]) => {
@@ -8514,7 +8156,6 @@ function renderTimeSeriesReportV5(report) {
     .filter(([depth, withinList]) => Number.isFinite(depth) && withinList)
     .map(([depth]) => depth)
     .sort((first, second) => first - second);
-  // Mirrors RANKING_CUTOFFS; only reached when a report carries no depths at all.
   const rankingDepths = rankingCutoffs.length
     ? rankingCutoffs
     : [5, 10, 20, 100, 200, 500, 1000, 2000, 5000, 10000, 20000];
@@ -8525,12 +8166,6 @@ function renderTimeSeriesReportV5(report) {
   const rankingDepthLabel = rankingDepths.map(k => `Top-${k}`).join(', ')
     .replace(/, ([^,]+)$/, ' and $1');
 
-  /* Where the models actually earn their keep. A product's recent takings are
-     a strong guess at its next ones, so near the top of the list the benchmark
-     ranks as well as either model and sometimes better. A reader who saw only
-     the shallow rows would conclude the models add nothing, so the depth from
-     which both lead on precision and NDCG, and never fall back below it, is
-     named outright. */
   const leadsBenchmark = k => {
     const rnn = (sequence.ranking_at_k || {})[String(k)];
     const direct = (independent.ranking_at_k || {})[String(k)];
@@ -8673,8 +8308,6 @@ function shortModelLabel(key) {
   return key === 'time_series_model' ? 'Recursive RNN' : 'Independent direct';
 }
 
-// The two ML approaches are what this page compares; the recent-average
-// benchmark is a naive reference bar to clear, never a "winning model".
 function renderRevenueQuickStats(report) {
   const container = document.getElementById('revenueQuickStats');
   if (!container) return;
@@ -8712,9 +8345,6 @@ function renderRevenueQuickStats(report) {
   setText('qsModelAgreementLabel', `Top-${topK} model agreement`);
   setText('qsModelAgreementSub', `Jaccard ${metricCell(similarity.jaccard_at_k, true)} · RBO ${metricCell(similarity.rank_biased_overlap, true)}`);
 
-  // A horizon deeper than the supervised rollout makes the recursive column
-  // damped extrapolation, so say so on the main page rather than only in the
-  // benchmarks modal.
   const guard = report.recursive_rollout_guard || {};
   const supervisedDepth = Number(
     (report.sequence_training || {}).maximum_supervised_rollout || guard.supervised_rollout || 0
@@ -8795,10 +8425,6 @@ function forecastUnitRate(value) {
   return forecastMoney(value);
 }
 
-/* The table can now be asked for every eligible product -- roughly 49,000 --
-   so rows are built for the visible page only rather than every row being put
-   in the DOM and hidden. Search and expansion state live in this data instead
-   of in the markup, so they survive paging. */
 let forecastRowData = [];
 let forecastExpandedRanks = new Set();
 let forecastSortKey = 'rank';
@@ -8824,9 +8450,7 @@ function renderProductForecastRows(predictions, response) {
   const inactiveProducts = Math.max(0, forecastPanelProducts - eligibleProducts);
   const outsideAlignedHistory = Math.max(0, sourceUniqueProducts - forecastPanelProducts);
   const lookbackPeriods = Number(response.window_size_months || 0);
-  /* The three caveats behind these figures are worth keeping, but four lines of
-     them under every table is more than the reader asked for. The line states
-     what was ranked and how; the rest waits on the hover. */
+
   forecastResultContext = `${Number(response.products_after_threshold || 0).toLocaleString()} products passed the threshold, ranked by ${forecastMethodLabel(response.forecast_method_applied)}.`;
   forecastResultDetail = `${inactiveProducts.toLocaleString()} of ${forecastPanelProducts.toLocaleString()} products in the aligned history had no revenue in the latest ${lookbackPeriods}-period lookback. ${outsideAlignedHistory.toLocaleString()} more Product IDs fall outside that history. Model Benchmarks scored ${evaluatedProducts.toLocaleString()} products on an earlier holdout, so that is a different population.`;
   forecastRowData = predictions.map(product => ({
@@ -8879,8 +8503,6 @@ function toggleForecastDetail(rank, button) {
   button.querySelector('i')?.classList.toggle('fa-chevron-up', !expanded);
 }
 
-/* Expand all covers the whole filtered result rather than only the rows on
-   screen, so paging onward keeps the detail open. */
 function setAllForecastDetails(expanded) {
   if (!expanded) {
     forecastExpandedRanks = new Set();
@@ -8964,7 +8586,6 @@ function filterForecastRows() {
   updateForecastSortHeaders();
 }
 
-/* 0 means the last page, whatever it turns out to be. */
 function goForecastPage(page) {
   const query = (document.getElementById('forecastProductSearch')?.value || '').trim().toLowerCase();
   const matching = query ? forecastRowData.filter(entry => entry.search.includes(query)) : forecastRowData;
@@ -9003,23 +8624,17 @@ function downloadTimeSeriesMetrics() {
 document.addEventListener('DOMContentLoaded', () => {
   showPredictiveSubtab('revenue');
   setTimeSeriesParameterMode();
-  /* Firefox restores a slider's position across a reload but not the label
-     beside it, so the two are synchronised once at startup. */
+
   showTimeSeriesTrainingSize();
-  // Charts created while the benchmarks modal is hidden get a 0-width canvas;
-  // resize once Bootstrap actually shows the modal so Chart.js can measure it.
+
   document.getElementById('modelBenchmarksModal')?.addEventListener('shown.bs.modal', () => {
-    /* These charts are built while the modal is hidden, so Chart.js measures a
-       zero-width canvas and resize() cannot recover it: the instance already
-       believes it matches its container. Re-rendering from the stored report
-       measures the container for real. */
+
     if (!lastTimeSeriesReport) return;
     renderTimeSeriesComparisonChart(lastTimeSeriesReport);
     renderTimeSeriesActualChartV5(lastTimeSeriesReport);
   });
 });
 
-// Auto-refresh High-Value Baskets and Products every 30 seconds
 function refreshHighValueSections() {
   fetch(window.location.href)
     .then(response => response.text())
@@ -9027,14 +8642,12 @@ function refreshHighValueSections() {
       const parser = new DOMParser();
       const doc = parser.parseFromString(html, 'text/html');
 
-      // Refresh High-Value Baskets
       const newBasketsGrid = doc.getElementById('basketsGrid');
       const currentBasketsGrid = document.getElementById('basketsGrid');
       if (newBasketsGrid && currentBasketsGrid) {
         currentBasketsGrid.innerHTML = newBasketsGrid.innerHTML;
       }
 
-      // Refresh High-Value Products
       const newProductsGrid = doc.getElementById('topProductsGrid');
       const currentProductsGrid = document.getElementById('topProductsGrid');
       if (newProductsGrid && currentProductsGrid) {
@@ -9052,7 +8665,6 @@ function refreshHighValueSections() {
     });
 }
 
-// Refresh every 30 seconds (30000 milliseconds)
 setInterval(refreshHighValueSections, 30000);
 </script>
 

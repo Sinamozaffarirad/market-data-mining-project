@@ -4,9 +4,7 @@
 {% block favicon %}{% favicon "🔗" %}{% endblock %}
 {% block content %}
 <style>
-/* The card system the basket-mining tabs use, so the two pages read as one
-   product rather than two. Only what this page draws is restated here. */
-/* Banner and frame come from analysis_shell.css. */
+
 .ar-page { --rev-1:#667eea; --rev-2:#764ba2; --rev-ink:#1e2338; --rev-muted:#6b7391; --rev-line:#e6e8f2; }
 .ar-page .rev-card {
   background:#fff; border:1px solid var(--rev-line); border-radius:16px;
@@ -33,7 +31,6 @@
   text-transform:uppercase; color:var(--rev-muted); }
 .ar-page .form-select, .ar-page .form-control { border-radius:.55rem; border-color:#dfe3f1; }
 .ar-page .form-text { font-size:.8rem; color:var(--rev-muted); }
-/* The value scale, as chips rather than a stack of one-line paragraphs. */
 .ar-page .ar-scale { display:flex; flex-wrap:wrap; gap:.3rem; margin:.45rem 0 .3rem; }
 .ar-page .ar-scale span {
   background:#f2f4fb; border:1px solid #e4e7f4; border-radius:999px;
@@ -66,12 +63,6 @@
   margin-top:.5rem; font-size:.72rem; font-weight:600; color:#b45309;
   background:#fff7ed; border:1px solid #fed7aa; border-radius:8px; padding:.3rem .5rem;
 }
-/* A grid rather than a flex row, so the three labels sit on one line and the
-   three controls on another. Under flex the department field was taller than
-   its neighbours -- it carries a hint underneath -- and bottom-alignment then
-   lifted its select above the other two. The hint is taken out of the flow and
-   the space it needs is reserved on every field, so adding a hint to another
-   field later cannot pull the row apart again. */
 .ar-page .ar-filterbar {
   display:grid;
   grid-template-columns:minmax(190px, 1fr) minmax(190px, 1fr) minmax(185px, 250px) auto;
@@ -92,8 +83,6 @@
   color:#94a3b8; font-size:.8rem; pointer-events:none;
 }
 .ar-page .ar-search-wrap input { padding-left:2rem; }
-/* Matched to the height of a form control so the button sits on the same line
-   as the three inputs rather than standing taller than them. */
 .ar-page .ar-filter-clear {
   margin-bottom:1.15rem; white-space:nowrap;
   height:38px; display:inline-flex; align-items:center; gap:.3rem;
@@ -111,15 +100,11 @@
   padding:2rem 1rem; text-align:center; color:#64748b; font-size:.9rem;
   border:1px dashed #cbd5e1; border-radius:12px; background:#f8fafc;
 }
-/* Lift under 1 is the opposite finding, not a weaker one, so it gets a colour of
-   its own rather than the green every other rule wears. Slate, not red: the pair
-   avoiding each other is a legitimate result, not an error. */
 .ar-page .ar-lift-inverse { background:#475569; color:#fff; }
 .ar-page .ar-inverse {
   margin-top:.5rem; font-size:.72rem; font-weight:600; color:#334155;
   background:#f1f5f9; border:1px solid #cbd5e1; border-radius:8px; padding:.3rem .5rem;
 }
-/* The chip carried inline padding and radius on every use; it belongs in one rule. */
 .ar-page .department-badge {
   color:#fff; padding:4px 10px; border-radius:999px; font-size:.75rem; font-weight:600;
   display:inline-flex; align-items:center; gap:5px; letter-spacing:.01em;
@@ -164,7 +149,6 @@
             <form method="post" id="associationRulesForm">
               {% csrf_token %}
 
-              <!-- First row: Basic controls -->
               <div class="row g-3 mb-3">
                 <div class="col-12 col-md-6">
                   <label for="transaction_period" class="form-label">Transaction Period</label>
@@ -196,7 +180,6 @@
                 </div>
               </div>
 
-              <!-- Second row: Algorithm parameters -->
               <div class="row g-3 mb-4">
                 <div class="col-12 col-md-4">
                   <label for="min_support" class="form-label">Minimum Support (0.0 - 1.0)</label>
@@ -241,7 +224,6 @@
                 </div>
               </div>
 
-              <!-- Running it is step two, numbered as on the other pages -->
               <div class="rev-step mt-4">
                 <span class="rev-step-num">2</span>
                 <div>
@@ -299,7 +281,6 @@
             </div>
             {% endif %}
 
-            <!-- Loading State -->
             <div id="loadingState" class="d-none text-center py-5">
               <div class="spinner-border text-primary mb-3" role="status" style="width: 3rem; height: 3rem;">
                 <span class="visually-hidden">Loading...</span>
@@ -311,7 +292,6 @@
               </div>
             </div>
 
-            <!-- Results Container -->
             <div id="resultsContainer">
             {% if rules %}
             {% comment %}
@@ -387,13 +367,11 @@
                      onmouseover="this.style.transform='translateY(-3px)'; this.style.boxShadow='0 12px 30px rgba(0,0,0,0.2)'"
                      onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow=''">
                   <div class="card-body">
-                    <!-- Multi-select checkbox -->
                     <div class="position-absolute" style="top: 8px; right: 8px;">
                       <div class="form-check">
                         <input class="form-check-input rule-checkbox" type="checkbox" onchange="updateSelectedRulesCount()" onclick="event.stopPropagation()">
                       </div>
                     </div>
-                    <!-- Antecedent Product -->
                     <div class="d-flex align-items-center mb-2">
                       <span class="department-badge" style="background: {{ rule.antecedent_details.0.department|dept_gradient }};">
                         {{ rule.antecedent_details.0.department|dept_icon }} {{ rule.antecedent_details.0.department }}
@@ -404,12 +382,10 @@
                     </h6>
                     <div class="text-muted small mb-2">ID: {{ rule.antecedent|join:', ' }} • {{ rule.antecedent_details.0.brand }}</div>
 
-                    <!-- Arrow Separator -->
                     <div class="text-center mb-2">
                       <i class="fas fa-long-arrow-alt-down text-primary" style="font-size: 1.2rem;"></i>
                     </div>
 
-                    <!-- Consequent Product -->
                     <div class="mb-2">
                       <span class="department-badge" style="background: {{ rule.consequent_details.0.department|dept_gradient }};">
                         {{ rule.consequent_details.0.department|dept_icon }} {{ rule.consequent_details.0.department }}
@@ -420,7 +396,7 @@
                     </h6>
                     <div class="text-muted small mb-2">ID: {{ rule.consequent|join:', ' }} • {{ rule.consequent_details.0.brand }}</div>
 
-                    <!-- Statistics -->
+
                     <div class="mt-2 pt-2 border-top">
                       {% if rule.is_saved %}
                         <div class="ar-saved" title="Read from the saved rules table, not from a run on this screen">
@@ -493,7 +469,8 @@
             {% else %}
               <div class="info-box">No association rules found. Try generating new rules with different parameters.</div>
             {% endif %}
-            </div> <!-- End Results Container -->
+            </div> 
+            
           </div>
         </div>
       </div>
@@ -578,8 +555,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (modalInsertBtn) {
           modalInsertBtn.addEventListener('click', (event) => {
             event.preventDefault();
-            // The same card the modal was opened from, so inserting here marks
-            // it saved too rather than only the button on the card itself.
+            
             openInsertConfirm(ruleData, card);
           }, { once: true });
         }
@@ -639,27 +615,19 @@ function buildRuleData(card) {
   };
 }
 
-/* A card went on offering "Insert Rule" after its rule had been stored, and
-   only a page reload would say otherwise. That made the same rule easy to
-   insert twice and gave no sign the first attempt had worked. The card is
-   brought up to date in place instead, carrying the same badge the server
-   renders for an already-saved rule on the next load. */
+
 function markRuleCardSaved(card) {
   if (!card || card.dataset.savedState === 'saved') return;
   card.dataset.savedState = 'saved';
 
   const stats = card.querySelector('.border-top');
   if (stats) {
-    // "Update available" no longer applies once the saved copy matches this one.
+    
     stats.querySelectorAll('.ar-saved, .ar-changed').forEach(chip => chip.remove());
     const badge = document.createElement('div');
     badge.className = 'ar-saved';
     badge.title = 'Stored from this page a moment ago';
-    /* Written out rather than left to toLocaleDateString, so it matches what
-       Django's "j M Y" renders for this same badge on the next load. The
-       locale versions disagree with it and with each other: the default gives
-       "Sep 6, 2026" and en-GB gives "6 Sept 2026", so the one card would be
-       dated differently before and after a refresh. */
+    
     const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
                     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const now = new Date();
@@ -677,8 +645,6 @@ function markRuleCardSaved(card) {
     button.disabled = true;
   }
 
-  /* Leaving it ticked would send it again with the next bulk insert, for no
-     effect but a wasted request. */
   const checkbox = card.querySelector('.rule-checkbox');
   if (checkbox && checkbox.checked) {
     checkbox.checked = false;
@@ -687,11 +653,6 @@ function markRuleCardSaved(card) {
 }
 
 function openInsertConfirm(ruleData, card) {
-  /* Four decimal places suit confidence and lift, but not support, which on
-     this data runs into the ten-thousandths: 0.000130 was shown as 0.0001, so
-     the figure the reader confirmed was not the figure being stored. Values
-     below 0.001 are given three significant figures instead, in plain notation
-     rather than an exponent. */
   const formatMetric = (value) => {
     if (!Number.isFinite(value)) return 'N/A';
     if (value === 0) return '0';
@@ -793,7 +754,6 @@ function getCsrfToken() {
   return match ? match[1] : '';
 }
 
-// Loading functionality for association rules generation
 document.addEventListener('DOMContentLoaded', function() {
   const form = document.getElementById('associationRulesForm');
   const generateBtn = document.getElementById('generateBtn');
@@ -802,12 +762,11 @@ document.addEventListener('DOMContentLoaded', function() {
   const periodSelect = document.getElementById('transaction_period');
   const periodText = document.getElementById('periodText');
 
-  // Update period text when selection changes
   if (periodSelect && periodText) {
     periodSelect.addEventListener('change', function() {
       updatePeriodText();
     });
-    updatePeriodText(); // Set initial text
+    updatePeriodText(); 
   }
 
   function updatePeriodText() {
@@ -815,28 +774,18 @@ document.addEventListener('DOMContentLoaded', function() {
     periodText.textContent = selectedOption.text.toLowerCase();
   }
 
-  // Handle form submission with loading state
   if (form && generateBtn && loadingState && resultsContainer) {
     form.addEventListener('submit', function(e) {
-      // Show loading state
       generateBtn.disabled = true;
       generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
 
       loadingState.classList.remove('d-none');
       resultsContainer.style.display = 'none';
 
-      // Allow form to submit normally
-      // The page will reload with results or error message
     });
   }
 });
 
-// Real-time support value calculator
-/* Five thousand rules is a legitimate request, but laying them all out at once
-   made a three-million-pixel page: one scroll to the bottom cost 1.6 seconds.
-   The cards are all here in the document; only a page of them is displayed, so
-   the browser lays out a hundred instead of five thousand. Selection and the
-   insert count still work across the whole set. */
 const RULE_PAGE_SIZE = 100;
 let rulePage = 1;
 
@@ -845,10 +794,6 @@ function ruleCells() {
   return grid ? Array.from(grid.children) : [];
 }
 
-/* The pager walks the cards that match the current search and filters, not
-   every card in the grid, so "Showing 1-100 of 2,000" keeps telling the truth
-   once a filter is on. A cell that does not match is hidden outright and never
-   enters the page arithmetic. */
 function ruleFilterState() {
   const term = (document.getElementById('ruleSearch')?.value || '').trim().toLowerCase();
   return {
@@ -898,11 +843,6 @@ function clearRuleFilter() {
   applyRuleFilter();
 }
 
-/* The list of departments comes from the rules on the page rather than the 43
-   in the product table, so it never offers a department that would return
-   nothing. The count beside each name says so plainly: without it the list
-   looks like it ought to be the whole catalogue and its shortness reads as a
-   bug rather than as the point. */
 function buildDepartmentFilter() {
   const select = document.getElementById('ruleDepartmentFilter');
   if (!select) return;
@@ -941,7 +881,6 @@ function renderRulePage() {
     });
     return;
   }
-  // Anything filtered out is hidden before the page window is applied.
   const matching = new Set(cells);
   all.forEach(cell => {
     if (!matching.has(cell)) cell.style.display = 'none';
@@ -970,7 +909,6 @@ function renderRulePage() {
   });
 }
 
-/* 0 means the last page, whatever it turns out to be. */
 function goRulePage(page) {
   const pages = Math.max(1, Math.ceil(matchingRuleCells().length / RULE_PAGE_SIZE));
   rulePage = page === 0 ? pages : page;
@@ -989,8 +927,6 @@ document.addEventListener('DOMContentLoaded', () => {
   renderRulePage();
 });
 
-/* Basket counts per period, read from the database rather than written in.
-   null means "not fetched yet"; the request is fired once and the answer kept. */
 const basketCountCache = {};
 const basketCountPending = {};
 
@@ -1018,8 +954,6 @@ function basketsForPeriod(period) {
       })
       .catch(error => {
         console.error('Could not read basket counts for', period, error);
-        // Falling back to the all-time figure is better than leaving the hint
-        // blank; it is the same order of magnitude and the label says so.
         if (basketCountCache['all'] != null) basketCountCache[period] = basketCountCache['all'];
         updateSupportInfo();
       });
@@ -1034,16 +968,6 @@ function updateSupportInfo() {
   const periodSelect = document.getElementById('transaction_period');
   if (!supportInput || !countSpan) return;
 
-  /* Support is measured against baskets, not transaction lines. This read
-     transaction counts and so overstated every threshold about ninefold: 0.00001
-     was labelled "26+ transactions" when the algorithm was in fact accepting
-     pairs seen in 3 baskets.
-
-     The five basket counts used to be written in here, correct only while the
-     table did not change. They are fetched from the period-metrics endpoint
-     instead and remembered per period, so typing in the support box does not
-     put a request on the wire for every keystroke. The all-time count rendered
-     into the banner seeds the cache, so the first paint needs no request. */
   const period = periodSelect ? periodSelect.value : 'all';
   const total = basketsForPeriod(period);
   if (total === null) {
@@ -1055,7 +979,6 @@ function updateSupportInfo() {
   if (totalSpan) totalSpan.textContent = total.toLocaleString();
   if (isNaN(support) || support <= 0) { countSpan.textContent = '--'; return; }
 
-  // Rounded up, matching the threshold the query applies.
   const needed = Math.max(1, Math.ceil(total * support));
   countSpan.textContent = needed.toLocaleString();
   const box = document.getElementById('supportInfo');
@@ -1067,22 +990,18 @@ function updateSupportInfo() {
   }
 }
 
-// Initialize when page loads
 document.addEventListener('DOMContentLoaded', function() {
   seedBasketCountCache();
   updateSupportInfo();
 
-  // Also update when period changes
   const periodSelect = document.getElementById('transaction_period');
   if (periodSelect) {
     periodSelect.addEventListener('change', updateSupportInfo);
   }
 
-  // Initialize multi-select functionality
   initializeMultiSelect();
 });
 
-// Multi-select functionality for association rules
 function selectAllRules(selectAll) {
   const checkboxes = document.querySelectorAll('.rule-checkbox');
   checkboxes.forEach(checkbox => {
@@ -1102,12 +1021,10 @@ function updateSelectedRulesCount() {
     countElement.textContent = selectedCount;
   }
 
-  // Show/hide actions based on whether there are rules
   if (actionsElement) {
     actionsElement.style.display = totalCount > 0 ? 'flex' : 'none';
   }
 
-  // Update insert button state
   const insertBtn = document.querySelector('#rulesMultiSelectActions .btn-success');
   if (insertBtn) {
     insertBtn.disabled = selectedCount === 0;
@@ -1118,7 +1035,6 @@ function updateSelectedRulesCount() {
     }
   }
 
-  // Update visual feedback for selected cards
   document.querySelectorAll('.selectable-rule').forEach(card => {
     const checkbox = card.querySelector('.rule-checkbox');
     if (checkbox && checkbox.checked) {
@@ -1150,13 +1066,9 @@ function insertSelectedRules() {
       confidence: parseFloat(card.dataset.conf),
       lift: parseFloat(card.dataset.lift),
       rule_type: card.dataset.type,
-      /* Carried so each card can be marked saved as its own insert lands.
-         insertSingleRule rebuilds its payload from named fields, so this
-         element never reaches JSON.stringify. */
       card: card,
     };
 
-    // Create unique identifier for duplicate detection
     const ruleId = `${ruleData.antecedent}→${ruleData.consequent}`;
 
     if (!duplicateRules.has(ruleId)) {
@@ -1165,11 +1077,9 @@ function insertSelectedRules() {
     }
   });
 
-  // Show confirmation dialog with filtered count
   const confirmMsg = `Insert ${selectedRules.length} selected association rules?${selectedRules.length < selectedCards.length ? ` (${selectedCards.length - selectedRules.length} duplicates removed)` : ''}`;
   if (!confirm(confirmMsg)) return;
 
-  // Process bulk insertion with pre-validation
   processBulkRuleInsertion(selectedRules);
 }
 
@@ -1178,7 +1088,6 @@ function processBulkRuleInsertion(rules) {
   let errorCount = 0;
   const errors = [];
 
-  // Pre-validate rules
   const validRules = rules.filter(rule => validateRule(rule));
   const invalidCount = rules.length - validRules.length;
 
@@ -1186,7 +1095,6 @@ function processBulkRuleInsertion(rules) {
     console.log(`Filtered out ${invalidCount} invalid rules before insertion`);
   }
 
-  // Show progress
   const alertElement = document.getElementById('ruleInsertAlert');
   if (alertElement) {
     alertElement.className = 'alert alert-info';
@@ -1194,17 +1102,14 @@ function processBulkRuleInsertion(rules) {
     alertElement.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Inserting ${validRules.length} validated rules with retry logic...`;
   }
 
-  // Process rules with improved batching and connection management
   let currentIndex = 0;
   const rulesToProcess = validRules;
 
-  // Connection health tracking
   let consecutiveFailures = 0;
   const maxConsecutiveFailures = 3;
 
   function processNextRule() {
     if (currentIndex >= rulesToProcess.length) {
-      // All rules processed, show final result
       if (alertElement) {
         if (successCount > 0 && errorCount === 0) {
           alertElement.className = 'alert alert-success';
@@ -1231,12 +1136,10 @@ function processBulkRuleInsertion(rules) {
           `;
         }
 
-        // Clear selection after successful insertion
         if (successCount > 0) {
           selectAllRules(false);
         }
 
-        // Hide alert after 5 seconds
         setTimeout(() => {
           alertElement.style.display = 'none';
         }, 5000);
@@ -1246,14 +1149,12 @@ function processBulkRuleInsertion(rules) {
 
     const rule = rulesToProcess[currentIndex];
 
-    // Enhanced insertion with connection health monitoring
     insertSingleRule(rule).then(() => {
       markRuleCardSaved(rule.card);
       successCount++;
       currentIndex++;
-      consecutiveFailures = 0; // Reset failure counter on success
+      consecutiveFailures = 0; 
 
-      // Update progress
       if (alertElement) {
         alertElement.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Inserting rules... (${currentIndex}/${rulesToProcess.length}) - ${successCount} successful`;
       }
@@ -1262,14 +1163,13 @@ function processBulkRuleInsertion(rules) {
     }).catch((error) => {
       consecutiveFailures++;
 
-      // If too many consecutive failures, implement connection recovery delay
       if (consecutiveFailures >= maxConsecutiveFailures) {
         console.log(`Detected connection issues, implementing recovery delay...`);
         setTimeout(() => {
-          consecutiveFailures = 0; // Reset after recovery
-          // Retry this rule
+          consecutiveFailures = 0;
+
           processNextRule();
-        }, 2000); // 2 second recovery delay
+        }, 2000);
         return;
       }
 
@@ -1284,41 +1184,34 @@ function processBulkRuleInsertion(rules) {
   processNextRule();
 }
 
-// Rule validation function
 function validateRule(rule) {
-  // Check if rule has valid antecedent and consequent
   if (!rule.antecedent || !rule.consequent) return false;
 
-  // Check if antecedent and consequent are different
   if (rule.antecedent === rule.consequent) return false;
 
-  // Check if support, confidence, and lift are valid numbers
   if (isNaN(rule.support) || isNaN(rule.confidence) || isNaN(rule.lift)) return false;
 
-  // Check minimum thresholds
   if (rule.support <= 0 || rule.confidence <= 0 || rule.lift <= 0) return false;
 
-  // Check maximum thresholds
   if (rule.support > 1 || rule.confidence > 1) return false;
 
   return true;
 }
 
-// Store for tracking inserted rules to prevent duplicates
 let insertedRulesCache = new Set();
 
 function insertSingleRule(rule, retryCount = 0) {
   return new Promise((resolve, reject) => {
-    // Create unique identifier
+
     const ruleId = `${rule.antecedent}→${rule.consequent}`;
 
-    // Check if rule was already inserted in this session
+
     if (insertedRulesCache.has(ruleId)) {
-      resolve(); // Already inserted, consider it successful
+      resolve(); 
       return;
     }
 
-    // Prepare rule data for API
+
     const ruleData = {
       antecedent: Array.isArray(rule.antecedent) ? rule.antecedent : [rule.antecedent],
       consequent: Array.isArray(rule.consequent) ? rule.consequent : [rule.consequent],
@@ -1337,7 +1230,6 @@ function insertSingleRule(rule, retryCount = 0) {
       }
     };
 
-    // Make actual API call to insert rule
     const maxRetries = 3;
     const baseDelay = 100;
     const backoffMultiplier = 1.5;
@@ -1358,7 +1250,7 @@ function insertSingleRule(rule, retryCount = 0) {
           const result = await response.json().catch(() => ({ success: false, error: 'Invalid server response' }));
 
           if (response.ok && result.success) {
-            // Successful insertion
+
             insertedRulesCache.add(ruleId);
             console.log(`Successfully inserted rule: ${ruleId}`);
             resolve();
@@ -1370,11 +1262,11 @@ function insertSingleRule(rule, retryCount = 0) {
           console.log(`Insertion attempt failed for ${ruleId}:`, error.message);
 
           if (retryCount < maxRetries) {
-            // Retry with exponential backoff
+
             console.log(`Retrying insertion for ${ruleId} (attempt ${retryCount + 1}/${maxRetries})`);
             insertSingleRule(rule, retryCount + 1).then(resolve).catch(reject);
           } else {
-            // Final failure after all retries
+
             reject(new Error(error.message || `Insertion failed after ${maxRetries} retries`));
           }
         });
@@ -1386,10 +1278,9 @@ function insertSingleRule(rule, retryCount = 0) {
 }
 
 function initializeMultiSelect() {
-  // Initialize the multi-select UI
+
   updateSelectedRulesCount();
 
-  // Add CSS for selected rule cards
   const style = document.createElement('style');
   style.textContent = `
     .selectable-rule {

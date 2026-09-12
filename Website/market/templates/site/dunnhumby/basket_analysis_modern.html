@@ -238,7 +238,6 @@
 {% endblock %}
 
 {% block content %}
-<!-- Analysis Header -->
 <div class="analysis-header text-center">
     <h1 class="display-5 fw-bold mb-3">
         <i class="fas fa-shopping-basket me-3"></i>
@@ -252,7 +251,6 @@
     </div>
 </div>
 
-<!-- Filter Panel -->
 <div class="filter-panel animate-on-scroll">
     <div class="row align-items-end">
         <div class="col-md-3">
@@ -286,7 +284,6 @@
     </div>
 </div>
 
-<!-- Key Statistics -->
 <div class="stats-grid animate-on-scroll">
     <div class="stat-card">
         <div class="stat-value" id="totalBaskets">1,234</div>
@@ -314,7 +311,6 @@
     </div>
 </div>
 
-<!-- Charts Section -->
 <div class="row mb-4">
     <div class="col-lg-8">
         <div class="chart-section animate-on-scroll">
@@ -345,7 +341,6 @@
     </div>
 </div>
 
-<!-- Data Table -->
 <div class="data-table animate-on-scroll">
     <div class="table-header">
         <h3 class="h5 fw-bold mb-0">
@@ -367,7 +362,6 @@
     
     <div class="p-3">
         <div id="basketsContainer">
-            <!-- Loading skeletons -->
             <div class="basket-card loading-skeleton" style="height: 120px;"></div>
             <div class="basket-card loading-skeleton" style="height: 120px;"></div>
             <div class="basket-card loading-skeleton" style="height: 120px;"></div>
@@ -381,7 +375,6 @@
     </div>
 </div>
 
-<!-- Basket Details Modal -->
 <div class="modal fade modal-modern" id="basketModal" tabindex="-1">
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
         <div class="modal-content">
@@ -394,7 +387,6 @@
             </div>
             <div class="modal-body">
                 <div id="basketDetails">
-                    <!-- Content loaded dynamically -->
                 </div>
             </div>
         </div>
@@ -423,28 +415,23 @@ class BasketAnalysis {
     }
     
     bindEvents() {
-        // Filter controls
         document.getElementById('applyFilters').addEventListener('click', () => {
             this.applyFilters();
         });
-        
-        // Search
+
         document.getElementById('searchInput').addEventListener('input', 
             this.debounce(() => this.applyFilters(), 300)
         );
-        
-        // Sort
+
         document.getElementById('sortBy').addEventListener('change', () => {
             this.sortBaskets();
             this.renderBaskets();
         });
-        
-        // Load more
+
         document.getElementById('loadMore').addEventListener('click', () => {
             this.loadMoreBaskets();
         });
         
-        // Chart type toggle
         document.querySelectorAll('[data-chart]').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 document.querySelectorAll('[data-chart]').forEach(b => b.classList.remove('active'));
@@ -458,7 +445,6 @@ class BasketAnalysis {
         try {
             showLoading(true);
             
-            // Simulate API call with realistic data
             await new Promise(resolve => setTimeout(resolve, 1000));
             
             this.allBaskets = this.generateMockBaskets(500);
@@ -585,7 +571,6 @@ class BasketAnalysis {
         
         container.innerHTML = basketsToShow.map(basket => this.createBasketCard(basket)).join('');
         
-        // Show/hide load more button
         const loadMoreBtn = document.getElementById('loadMore');
         if (endIndex < this.filteredBaskets.length) {
             loadMoreBtn.style.display = 'block';
@@ -593,7 +578,6 @@ class BasketAnalysis {
             loadMoreBtn.style.display = 'none';
         }
         
-        // Animate new cards
         container.querySelectorAll('.basket-card').forEach((card, index) => {
             card.style.opacity = '0';
             card.style.transform = 'translateY(20px)';
@@ -736,8 +720,7 @@ class BasketAnalysis {
     initBasketChart() {
         const ctx = document.getElementById('basketChart');
         if (!ctx) return;
-        
-        // Create histogram data
+
         const values = this.allBaskets.map(b => parseFloat(b.totalValue));
         const bins = this.createHistogramBins(values, 20);
         
@@ -850,7 +833,7 @@ class BasketAnalysis {
     }
     
     updateChart(type) {
-        // Implementation for chart type switching
+
         showNotification(`Switched to ${type} view`, 'success');
     }
     
@@ -867,7 +850,6 @@ class BasketAnalysis {
     }
 }
 
-// Initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
     window.basketAnalysis = new BasketAnalysis();
 });

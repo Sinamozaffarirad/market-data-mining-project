@@ -1,12 +1,5 @@
 # customers/ml/cf_cache.py
-"""
-Precomputed, on-disk cache of the collaborative-filtering similarity
-matrix. dunnhumby.collab_filter.get_cf_recommendations rebuilds the whole
-matrix from 2.6M transactions and recomputes cosine_similarity on every
-single call - that's why recommendation pages were taking minutes.
-This module builds it ONCE (via `python manage.py build_cf_cache`) and
-every request afterward just loads the cached file into memory.
-"""
+
 import pickle
 from pathlib import Path
 
@@ -21,7 +14,7 @@ CF_CACHE_PATH = CF_CACHE_DIR / "cf_matrix_cache.pkl"
 
 
 def build_and_save():
-    """Rebuild the household x product matrix + similarity matrix and save to disk."""
+    
     query = "SELECT household_key, product_id, COUNT(*) as cnt FROM transactions GROUP BY household_key, product_id"
     with connection.cursor() as cursor:
         cursor.execute(query)
@@ -62,12 +55,7 @@ def _load():
 
 
 def get_cf_candidates(household_key, level="product", top_n=30):
-    """
-    Same output shape as dunnhumby.collab_filter.get_cf_recommendations:
-    a list of {'product': Product instance, 'score': float, 'level': level}.
-    Returns None (not []) if the cache file doesn't exist yet, so the
-    caller can fall back to the slow live version just this once.
-    """
+    
     data = _load()
     if data is None:
         return None
@@ -130,12 +118,7 @@ def get_cf_candidates(household_key, level="product", top_n=30):
     return results
 
 def get_similar_households(seed_households, top_n=300):
-    """
-    Given a set of "seed" household keys (e.g. everyone who already bought a
-    product/commodity/department), returns OTHER households ranked by how
-    similar their overall purchase pattern is to the seed group. This is the
-    CF signal for the reverse (product -> customer leads) recommender.
-    """
+    
     data = _load()
     if data is None:
         return None

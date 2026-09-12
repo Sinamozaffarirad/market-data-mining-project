@@ -6,36 +6,36 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block title %}Market Intelligence Platform{% endblock %}</title>
     
-    <!-- Preload critical resources -->
+    
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     
-    <!-- Modern Font Stack -->
+    
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     
-    <!-- Icon Libraries -->
+    
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons@2.44.0/icons-sprite.svg">
     
-    <!-- Core Frameworks -->
+    
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     
-    <!-- Animation Libraries -->
+    
     <link href="https://cdn.jsdelivr.net/npm/animate.css@4.1.1/animate.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.2/dist/gsap.min.js"></script>
     
-    <!-- Chart Libraries -->
+    
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
     <script src="{% static 'js/chart_quality.js' %}"></script>
     
-    <!-- Data Tables -->
+    
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css">
     <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
     <script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
     
-    <!-- Theme System -->
+    
     <script>
         (function() {
             const savedTheme = localStorage.getItem('market.theme') || 'light';
@@ -43,10 +43,10 @@
         })();
     </script>
     
-    <!-- Custom Styles -->
+    
     <style>
         :root {
-            /* Modern Color Palette */
+            
             --primary: #6366f1;
             --primary-dark: #4f46e5;
             --primary-light: #a5b4fc;
@@ -54,13 +54,13 @@
             --accent: #06b6d4;
             --accent-dark: #0891b2;
             
-            /* Semantic Colors */
+            
             --success: #10b981;
             --warning: #f59e0b;
             --danger: #ef4444;
             --info: #3b82f6;
             
-            /* Neutrals */
+           
             --gray-50: #f8fafc;
             --gray-100: #f1f5f9;
             --gray-200: #e2e8f0;
@@ -72,11 +72,11 @@
             --gray-800: #1e293b;
             --gray-900: #0f172a;
             
-            /* Typography */
+           
             --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             --font-mono: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
             
-            /* Spacing */
+           
             --space-xs: 0.25rem;
             --space-sm: 0.5rem;
             --space-md: 1rem;
@@ -84,18 +84,18 @@
             --space-xl: 2rem;
             --space-2xl: 3rem;
             
-            /* Shadows */
+           
             --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
             --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
             --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
             --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
             
-            /* Borders */
+            
             --border-radius: 0.5rem;
             --border-radius-lg: 0.75rem;
             --border-radius-xl: 1rem;
             
-            /* Transitions */
+           
             --transition: all 0.2s ease;
             --transition-slow: all 0.3s ease;
         }
@@ -132,7 +132,7 @@
             transition: var(--transition);
         }
         
-        /* Modern Scrollbar */
+        
         ::-webkit-scrollbar {
             width: 6px;
             height: 6px;
@@ -151,7 +151,7 @@
             background: var(--gray-500);
         }
         
-        /* Navigation */
+        
         .modern-nav {
             background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
             backdrop-filter: blur(20px);
@@ -208,13 +208,13 @@
             transform: scale(1.1);
         }
         
-        /* Content Area */
+       
         .main-content {
             min-height: calc(100vh - 70px);
             padding: var(--space-xl) var(--space-md);
         }
         
-        /* Modern Cards */
+        
         .modern-card {
             background: white;
             border: 1px solid var(--gray-200);
@@ -234,7 +234,7 @@
             border-color: var(--gray-200);
         }
         
-        /* Metric Cards */
+       
         .metric-card {
             background: linear-gradient(135deg, white 0%, var(--gray-50) 100%);
             border: 1px solid var(--gray-200);
@@ -292,7 +292,7 @@
             color: var(--danger);
         }
         
-        /* Modern Buttons */
+        
         .btn-modern {
             font-weight: 600;
             border-radius: var(--border-radius);
@@ -331,7 +331,7 @@
             box-shadow: var(--shadow-lg);
         }
         
-        /* Loading States */
+        
         .loading {
             opacity: 0.6;
             pointer-events: none;
@@ -352,7 +352,7 @@
             100% { transform: rotate(360deg); }
         }
         
-        /* Animations */
+       
         .fade-in {
             animation: fadeIn 0.6s ease forwards;
             opacity: 0;
@@ -377,7 +377,7 @@
             }
         }
         
-        /* Responsive Design */
+       
         @media (max-width: 768px) {
             .main-content {
                 padding: var(--space-md) var(--space-sm);
@@ -393,13 +393,13 @@
             }
         }
         
-        /* Custom Scrollbar for content */
+        
         .scrollable {
             overflow-y: auto;
             max-height: 400px;
         }
         
-        /* Glass morphism effect */
+        
         .glass {
             background: rgba(255, 255, 255, 0.1);
             backdrop-filter: blur(20px);
@@ -415,7 +415,7 @@
     {% block extrahead %}{% endblock %}
 </head>
 <body>
-    <!-- Modern Navigation -->
+    
     <nav class="navbar navbar-expand-lg modern-nav">
         <div class="container-fluid">
             <a class="nav-brand" href="/analysis/">
@@ -463,12 +463,12 @@
         </div>
     </nav>
     
-    <!-- Main Content -->
+  
     <main class="main-content">
         {% block content %}{% endblock %}
     </main>
     
-    <!-- Toast Container -->
+    
     <div class="toast-container position-fixed top-0 end-0 p-3">
         <div id="successToast" class="toast" role="alert">
             <div class="toast-header">
@@ -489,7 +489,7 @@
         </div>
     </div>
     
-    <!-- Loading Overlay -->
+   
     <div id="loadingOverlay" class="position-fixed top-0 start-0 w-100 h-100 d-none" style="background: rgba(0,0,0,0.5); z-index: 9999;">
         <div class="d-flex align-items-center justify-content-center h-100">
             <div class="text-center text-white">
@@ -499,10 +499,10 @@
         </div>
     </div>
     
-    <!-- Modern JavaScript -->
+ 
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script>
-        // Modern Theme System
+       
         class ThemeManager {
             constructor() {
                 this.theme = localStorage.getItem('market.theme') || 'light';
@@ -523,7 +523,7 @@
                     icon.className = theme === 'dark' ? 'fas fa-sun' : 'fas fa-moon';
                 }
                 
-                // Animate theme transition
+               
                 document.body.style.transition = 'all 0.3s ease';
                 setTimeout(() => {
                     document.body.style.transition = '';
@@ -542,7 +542,7 @@
             }
         }
         
-        // Animation Controller
+        
         class AnimationController {
             constructor() {
                 this.init();
@@ -572,7 +572,7 @@
             }
             
             initPageTransitions() {
-                // Smooth page transitions
+                
                 document.addEventListener('click', (e) => {
                     if (e.target.matches('a[href^="/analysis/"]')) {
                         e.preventDefault();
@@ -590,7 +590,7 @@
             }
         }
         
-        // Notification System
+       
         class NotificationManager {
             static show(message, type = 'success') {
                 const toast = document.getElementById(type + 'Toast');
@@ -609,19 +609,19 @@
             }
         }
         
-        // Initialize on DOM ready
+        
         document.addEventListener('DOMContentLoaded', function() {
-            // Initialize managers
+         
             window.themeManager = new ThemeManager();
             window.animationController = new AnimationController();
             
-            // Add animation classes to cards
+           
             document.querySelectorAll('.metric-card, .modern-card').forEach((el, index) => {
                 el.classList.add('animate-on-scroll');
                 el.style.animationDelay = `${index * 0.1}s`;
             });
             
-            // Enhanced form handling
+           
             document.querySelectorAll('form').forEach(form => {
                 form.addEventListener('submit', function(e) {
                     const submitBtn = form.querySelector('button[type="submit"]');
@@ -632,14 +632,14 @@
                 });
             });
             
-            // Initialize tooltips
+          
             const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
             tooltipTriggerList.map(function (tooltipTriggerEl) {
                 return new bootstrap.Tooltip(tooltipTriggerEl);
             });
         });
         
-        // Global utilities
+        
         window.showNotification = NotificationManager.show;
         window.showLoading = NotificationManager.loading;
     </script>

@@ -1,34 +1,31 @@
-/* Market Analysis Admin Panel - Ultra Modern Django Compatible Theme */
 
-/* Enhanced Theme Variables with High Contrast */
 :root {
-    /* Django Admin Compatible Colors */
-    --primary-color: #2563eb;      /* Modern Blue */
-    --primary-light: #60a5fa;      /* Light Blue */
-    --primary-dark: #1d4ed8;       /* Dark Blue */
-    --secondary-color: #10b981;     /* Emerald Green */
-    --accent-color: #f59e0b;       /* Amber */
-    --danger-color: #ef4444;       /* Red */
-    --warning-color: #f59e0b;      /* Amber */
-    --success-color: #10b981;      /* Emerald */
-    --info-color: #06b6d4;         /* Cyan */
-    
-    /* Neutral Colors - Light Theme - MAXIMUM CONTRAST */
+
+    --primary-color: #2563eb;      
+    --primary-light: #60a5fa;      
+    --primary-dark: #1d4ed8;      
+    --secondary-color: #10b981;   
+    --accent-color: #f59e0b;      
+    --danger-color: #ef4444;     
+    --warning-color: #f59e0b;   
+    --success-color: #10b981;    
+    --info-color: #06b6d4;       
+
     --bg-primary: #f8fafc;
     --bg-secondary: #ffffff;
     --bg-tertiary: #f1f5f9;
     --bg-card: #ffffff;
-    --text-primary: #0f172a;       /* Near-black for maximum readability */
-    --text-secondary: #334155;     /* Dark gray for secondary text */
-    --text-light: #64748b;         /* Medium gray for light text */
-    --text-inverse: #ffffff;       /* White text for dark backgrounds */
+    --text-primary: #0f172a;       
+    --text-secondary: #334155;     
+    --text-light: #64748b;         
+    --text-inverse: #ffffff;       
     --border-color: #e2e8f0;
     --border-light: #f1f5f9;
     --shadow-color: rgba(0, 0, 0, 0.1);
     --hover-bg: rgba(37, 99, 235, 0.05);
     --card-hover: rgba(37, 99, 235, 0.02);
     
-    /* Gradients */
+
     --gradient-primary: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
     --gradient-secondary: linear-gradient(135deg, var(--secondary-color) 0%, #059669 100%);
     --gradient-success: linear-gradient(135deg, var(--success-color) 0%, #047857 100%);
@@ -36,7 +33,7 @@
     --gradient-danger: linear-gradient(135deg, var(--danger-color) 0%, #dc2626 100%);
     --gradient-info: linear-gradient(135deg, var(--info-color) 0%, #0891b2 100%);
     
-    /* Modern Shadows */
+
     --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
     --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
     --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
@@ -44,7 +41,7 @@
     --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
     --shadow-2xl: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
     
-    /* Border Radius */
+
     --radius-xs: 0.125rem;
     --radius-sm: 0.25rem;
     --radius-md: 0.375rem;
@@ -53,7 +50,7 @@
     --radius-2xl: 1rem;
     --radius-3xl: 1.5rem;
     
-    /* Spacing */
+
     --space-px: 1px;
     --space-0: 0;
     --space-0_5: 0.125rem;
@@ -75,7 +72,7 @@
     --space-20: 5rem;
 }
 
-/* Dark theme support - Override Django's theme system completely */
+
 :root[data-theme='dark'],
 body.theme-dark {
     --primary-color: #60a5fa;
@@ -92,10 +89,10 @@ body.theme-dark {
     --bg-secondary: #1e293b;
     --bg-tertiary: #334155;
     --bg-card: #1e293b;
-    --text-primary: #f8fafc;       /* Pure white for maximum contrast */
-    --text-secondary: #cbd5e1;     /* Light gray for secondary text */
-    --text-light: #94a3b8;         /* Medium gray for light text */
-    --text-inverse: #0f172a;       /* Dark text for light backgrounds */
+    --text-primary: #f8fafc;       
+    --text-secondary: #cbd5e1;     
+    --text-light: #94a3b8;         
+    --text-inverse: #0f172a;       
     --border-color: #334155;
     --border-light: #475569;
     --shadow-color: rgba(0, 0, 0, 0.3);
@@ -103,7 +100,7 @@ body.theme-dark {
     --card-hover: rgba(96, 165, 250, 0.05);
 }
 
-/* Force light theme for Django admin */
+
 :root[data-theme='light'],
 body.theme-light {
     --primary-color: #2563eb;
@@ -131,7 +128,7 @@ body.theme-light {
     --card-hover: rgba(37, 99, 235, 0.02);
 }
 
-/* Override any Django auto theme - force it to light */
+
 :root[data-theme='auto'],
 body.theme-auto {
     --primary-color: #2563eb !important;
@@ -159,7 +156,7 @@ body.theme-auto {
     --card-hover: rgba(37, 99, 235, 0.02) !important;
 }
 
-/* Hide Django's native theme toggle - we only want our custom one */
+
 .admin .theme-toggle:not(#theme-toggle),
 .admin [class*="django-admin-theme"],
 .admin button[title*="Toggle theme"]:not(#theme-toggle),
@@ -167,7 +164,7 @@ body.theme-auto {
     display: none !important;
 }
 
-/* Base typography with modern font stack */
+
 body.admin {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
     line-height: 1.6 !important;
@@ -179,7 +176,7 @@ body.admin {
     -moz-osx-font-smoothing: grayscale !important;
 }
 
-/* Enhanced typography hierarchy */
+
 h1, h2, h3, h4, h5, h6 {
     color: var(--text-primary) !important;
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
@@ -203,7 +200,7 @@ p {
     font-weight: 400 !important;
 }
 
-/* Django admin header styling */
+
 .admin #header {
     background: var(--gradient-primary) !important;
     border-bottom: none !important;
@@ -235,14 +232,14 @@ p {
     color: var(--text-inverse) !important;
 }
 
-/* Content area styling */
+
 .admin #content {
     background: var(--bg-primary) !important;
     padding: var(--space-8) !important;
     min-height: calc(100vh - 80px) !important;
 }
 
-/* Modern module styling */
+
 .admin .module {
     background: var(--bg-card) !important;
     border: 1px solid var(--border-color) !important;
@@ -278,7 +275,7 @@ p {
     font-size: 1.25rem !important;
 }
 
-/* Ultra-modern button system */
+
 .btn {
     display: inline-flex !important;
     align-items: center !important;
@@ -323,7 +320,7 @@ p {
     ring-opacity: 0.5 !important;
 }
 
-/* Button variants with modern gradients */
+
 .btn-primary {
     background: var(--gradient-primary) !important;
     color: var(--text-inverse) !important;
@@ -405,7 +402,7 @@ p {
     border-color: var(--primary-color) !important;
 }
 
-/* Button sizes */
+
 .btn-sm {
     padding: var(--space-2) var(--space-4) !important;
     font-size: 0.875rem !important;
@@ -418,7 +415,7 @@ p {
     min-height: 56px !important;
 }
 
-/* Action card system with glassmorphism */
+
 .action-grid {
     display: grid !important;
     grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)) !important;
@@ -497,7 +494,7 @@ p {
     gap: var(--space-3) !important;
 }
 
-/* Enhanced form styling */
+
 .admin .form-section {
     background: var(--bg-card) !important;
     border: 1px solid var(--border-color) !important;
@@ -544,7 +541,7 @@ p {
     background: var(--bg-card) !important;
 }
 
-/* Modern alert system */
+
 .alert {
     padding: var(--space-5) var(--space-6) !important;
     border-radius: var(--radius-xl) !important;
@@ -609,7 +606,7 @@ p {
     background: var(--primary-color);
 }
 
-/* Enhanced table styling */
+
 .table {
     width: 100% !important;
     border-collapse: separate !important;
@@ -653,7 +650,7 @@ p {
     border-bottom: 1px solid var(--border-light) !important;
 }
 
-/* Metric cards with modern gradients */
+
 .metric-grid {
     display: grid !important;
     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)) !important;
@@ -722,7 +719,7 @@ p {
     margin-top: var(--space-2) !important;
 }
 
-/* Modal system */
+
 .modal {
     display: none;
     position: fixed;
@@ -786,7 +783,7 @@ p {
     background: rgba(239, 68, 68, 0.1);
 }
 
-/* Animations */
+
 @keyframes fadeIn {
     from { opacity: 0; }
     to { opacity: 1; }
@@ -803,7 +800,7 @@ p {
     }
 }
 
-/* Stats display */
+
 .stats-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -840,7 +837,7 @@ p {
     letter-spacing: 0.5px;
 }
 
-/* Form mini styling */
+
 .form-mini {
     display: grid;
     grid-template-columns: auto 1fr auto 1fr;
@@ -870,7 +867,7 @@ p {
     color: var(--text-primary) !important;
 }
 
-/* Breadcrumbs styling */
+
 .breadcrumbs {
     background: var(--bg-card) !important;
     padding: var(--space-4) var(--space-6) !important;
@@ -891,7 +888,7 @@ p {
     text-decoration: underline !important;
 }
 
-/* Dashboard section styling */
+
 .dashboard {
     display: flex;
     flex-direction: column;
@@ -917,7 +914,7 @@ p {
     font-size: 1.5rem;
 }
 
-/* Responsive design */
+
 @media (max-width: 768px) {
     .admin #content {
         padding: var(--space-4) !important;
@@ -954,7 +951,7 @@ p {
     }
 }
 
-/* High contrast mode support */
+
 @media (prefers-contrast: high) {
     :root {
         --text-primary: #000000 !important;
@@ -970,7 +967,7 @@ p {
     }
 }
 
-/* Reduced motion support */
+
 @media (prefers-reduced-motion: reduce) {
     * {
         animation-duration: 0.01ms !important;

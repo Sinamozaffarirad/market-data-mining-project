@@ -9,7 +9,6 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         self.stdout.write(self.style.SUCCESS('Testing admin panel functionality...\n'))
         
-        # Test basic model access
         self.stdout.write('1. Testing model access:')
         try:
             transaction_count = Transaction.objects.count()
@@ -24,7 +23,6 @@ class Command(BaseCommand):
             self.stdout.write(self.style.ERROR(f'   ✗ Error accessing models: {e}\n'))
             return
         
-        # Test basket analysis queries
         self.stdout.write('2. Testing basket analysis queries:')
         try:
             basket_stats = Transaction.objects.values('basket_id').annotate(
@@ -44,7 +42,6 @@ class Command(BaseCommand):
         except Exception as e:
             self.stdout.write(self.style.ERROR(f'   ✗ Error in basket analysis: {e}\n'))
         
-        # Test product analysis queries
         self.stdout.write('3. Testing product analysis queries:')
         try:
             top_products = Transaction.objects.values(
@@ -62,7 +59,6 @@ class Command(BaseCommand):
         except Exception as e:
             self.stdout.write(self.style.ERROR(f'   ✗ Error in product analysis: {e}\n'))
         
-        # Test RFM data preparation
         self.stdout.write('4. Testing RFM analysis data:')
         try:
             customers = Transaction.objects.values('household_key').annotate(
