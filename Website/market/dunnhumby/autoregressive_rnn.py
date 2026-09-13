@@ -1,18 +1,10 @@
-"""Small NumPy encoder-decoder RNN for recursive product-revenue forecasting.
 
-The decoder feeds each predicted period into the next one.  Training uses a
-joint masked loss across the complete available rollout and backpropagation
-through time, so a later-period error updates the recurrent states and outputs
-that produced earlier predictions.  Keeping the implementation in NumPy avoids
-adding a large deep-learning runtime to the Django project.
-"""
 from __future__ import annotations
 
 import numpy as np
 
 
 class AutoregressiveRevenueRNN:
-    """One-layer tanh encoder-decoder trained with Adam and full BPTT."""
 
     def __init__(
         self,
@@ -39,24 +31,12 @@ class AutoregressiveRevenueRNN:
         if not 0.0 < self.feedback_rate <= 1.0:
             raise ValueError("feedback_rate must be in (0, 1].")
         self.random_state = int(random_state)
-        # Normalized revenue level and a non-zero indicator.  A 12-period
-        # seasonal term used to be supplied here but is not identifiable from
-        # this calendar -- see _normalized_inputs.
         self.input_size = 2
         self.parameters_ = None
         self.training_history_ = []
-        # Size-conditional retransformation correction for the log-space
-        # inverse transform; estimated on the training fold in ``fit`` and
-        # applied in ``_forward``.  Defaults to the identity correction.
         self.smearing_edges_ = np.array([-np.inf, np.inf])
         self.smearing_factors_ = np.array([1.0])
-        # Head-room allowed above a product's own observed normalized peak
-        # before its recursive feedback is capped.  Steps deeper than the
-        # supervised rollout receive no gradient during fitting, so without a
-        # per-product bound the decoder drifts upward without limit.
         self.feedback_headroom = float(feedback_headroom)
-        # Geometric weight applied to recursive steps deeper than the
-        # supervised rollout, shrinking them toward the recent-average level.
         self.unsupervised_damping = float(unsupervised_damping)
 
     @staticmethod
@@ -81,17 +61,6 @@ class AutoregressiveRevenueRNN:
         history = lags.mean(axis=1)
         return np.maximum(np.where(recent > 0.0, recent, history), 1e-3)
 
-    # A 12-period sin/cos seasonal pair was previously fed to both the encoder
-    # and the decoder.  It is deliberately absent: the dataset yields 23
-    # complete 30-day periods, and for any usable horizon the supervised
-    # targets span only a handful of consecutive phases (at a 10-period
-    # lookback and 6-period horizon, phases 0.00-0.42), while a recursive
-    # rollout reaches phases 0.50-0.92 that never appear in training.  The
-    # seasonal coefficients are therefore unidentifiable, and extrapolating
-    # them drove the rollout to +104% aggregate bias against -19% with the
-    # terms removed.  Restoring them needs a calendar long enough to supervise
-    # a full cycle, not a change here.
-
     def _initialize_parameters(self, rng):
         hidden = self.hidden_size
         input_scale = np.sqrt(2.0 / (self.input_size + hidden))
@@ -107,11 +76,6 @@ class AutoregressiveRevenueRNN:
         }
 
     def _normalized_inputs(self, lags, scales, start_periods=None):
-        """Per-period encoder inputs: normalized level and a non-zero flag.
-
-        ``start_periods`` is accepted so callers keep a stable signature, but
-        no calendar feature is derived from it (see the note above).
-        """
         normalized = np.log1p(np.maximum(lags, 0.0) / scales[:, None])
         inputs = [
             np.column_stack((
@@ -129,11 +93,6 @@ class AutoregressiveRevenueRNN:
         encoder_inputs, feedback_value = self._normalized_inputs(
             lags, scales, start_periods
         )
-        # Each product may only feed back up to its own observed normalized
-        # peak plus a fixed allowance.  Beyond the supervised rollout the
-        # decoder has no gradient signal, so this keeps a long recursive
-        # forecast inside the range that product has actually demonstrated
-        # instead of compounding upward.  Uses lookback data only.
         feedback_ceiling = np.log1p(
             np.maximum(lags, 0.0) / scales[:, None]
         ).max(axis=1) + self.feedback_headroom
@@ -172,23 +131,9 @@ class AutoregressiveRevenueRNN:
 
         normalized_predictions = np.column_stack(outputs)
         if not retain_cache:
-            # Steps deeper than the supervised rollout get no gradient while
-            # fitting, so the decoder can saturate at a high level and produce
-            # a forecast many times the product's demonstrated revenue.  Cap
-            # the emitted level at the same per-product bound used for the
-            # feedback.  Supervised steps sit well inside it, so this only
-            # constrains genuine extrapolation, and it reads lookback data
-            # only.  Training gradients are untouched (this is the inference
-            # path); the bound is reported as a required caveat.
             normalized_predictions = np.minimum(
                 normalized_predictions, feedback_ceiling[:, None]
             )
-            # Steps past the supervised depth carry no evidence at all, so the
-            # recursive path is damped geometrically toward log(2) -- the
-            # normalized level that reproduces the product's own recent
-            # average.  The model therefore reverts to a defensible level
-            # instead of free-running, and the reversion is disclosed rather
-            # than presented as a validated recursive forecast.
             depth = int(getattr(self, "max_supervised_horizon_", horizon) or horizon)
             if horizon > depth:
                 anchor = np.log(2.0)
@@ -198,8 +143,6 @@ class AutoregressiveRevenueRNN:
                         anchor
                         + (normalized_predictions[:, step] - anchor) * weight
                     )
-            # exp(mean of logs) is a geometric mean; the size-conditional
-            # factor restores the arithmetic mean of skewed revenue.
             level = np.log(scales)[:, None] + normalized_predictions
             factor = self._apply_smearing(level)
             return np.maximum(np.exp(level) * factor - scales[:, None], 0.0)
@@ -224,16 +167,6 @@ class AutoregressiveRevenueRNN:
         )
         mask = np.asarray(target_mask, dtype=np.float64)
         weights = np.asarray(sample_weight, dtype=np.float64)[:, None] * mask
-        # Balance the loss across forecast steps.  A sliding-window origin can
-        # only supervise as many steps as remain before the training boundary,
-        # so shallow steps are supervised far more often than deep ones -- at a
-        # 10-period lookback and 6-period horizon step 1 carries about six
-        # times the mass of step 6.  Averaging over raw entries therefore fits
-        # almost entirely to the one-step-ahead task and leaves the recursive
-        # loop gain unconstrained, which is what makes a long rollout compound
-        # upward.  Normalising each step to equal mass gives every step in the
-        # rollout the same influence.  This reweights the training objective
-        # only; no holdout information is involved.
         step_mass = weights.sum(axis=0, keepdims=True)
         weights = np.divide(
             weights, step_mass, out=np.zeros_like(weights), where=step_mass > 0.0
@@ -366,22 +299,6 @@ class AutoregressiveRevenueRNN:
         return factors[index]
 
     def _estimate_smearing(self, lags, targets, target_mask, start_periods, n_bins=10):
-        """Solve the log-space retransformation correction on the training fold.
-
-        The decoder is trained on ``log1p(y / scale)`` and inverted with
-        ``expm1``, so exponentiating a conditional mean of logs returns a
-        geometric mean and understates skewed revenue.  Duan's smearing factor
-        assumes a plain ``log`` model with homoscedastic residuals; the
-        ``log1p`` inverse carries a ``-1`` that breaks that decomposition, the
-        Huber loss pulls toward the median, and residual spread varies with
-        product size on this sparse panel.  A single global factor therefore
-        removes the aggregate bias but inflates near-zero products.
-
-        A factor is instead solved per decile of predicted level so that within
-        each bin the retransformed training total matches the observed total:
-
-            sum[exp(level) * f - scale] = sum(target),  level = log(scale) + prediction
-        """
         levels, actuals, scale_values = [], [], []
         for start in range(0, len(lags), self.batch_size):
             stop = start + self.batch_size

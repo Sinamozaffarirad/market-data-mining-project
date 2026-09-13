@@ -1,9 +1,6 @@
 import unittest
-
 import pandas as pd
-
 from .rfm_utils import assign_rfm_segment, score_rfm_series
-
 
 class SharedRFMTests(unittest.TestCase):
     def test_rfm_score_direction_is_correct(self):

@@ -3,7 +3,6 @@ from decimal import Decimal
 
 
 class Transaction(models.Model):
-    """Transaction data from Dunnhumby dataset"""
     id = models.BigAutoField(primary_key=True) 
     household_key = models.IntegerField()
     basket_id = models.BigIntegerField()
@@ -27,7 +26,6 @@ class Transaction(models.Model):
 
 
 class DunnhumbyProduct(models.Model):
-    """Product catalog from Dunnhumby dataset"""
     product_id = models.BigIntegerField(primary_key=True)
     manufacturer = models.IntegerField()
     department = models.CharField(max_length=50)
@@ -45,7 +43,6 @@ class DunnhumbyProduct(models.Model):
 
 
 class Household(models.Model):
-    """Customer household data from Dunnhumby dataset"""
     household_key = models.BigIntegerField(primary_key=True)
     age_desc = models.CharField(max_length=10, null=True, blank=True)
     marital_status_code = models.CharField(max_length=5, null=True, blank=True)
@@ -64,7 +61,6 @@ class Household(models.Model):
 
 
 class Campaign(models.Model):
-    """Marketing campaign data from Dunnhumby dataset"""
     campaign = models.IntegerField(primary_key=True)
     description = models.CharField(max_length=10, null=True, blank=True)
     start_day = models.IntegerField(null=True, blank=True)
@@ -79,7 +75,6 @@ class Campaign(models.Model):
 
 
 class Coupon(models.Model):
-    """Coupon data from Dunnhumby dataset"""
     coupon_upc = models.CharField(max_length=20, primary_key=True)
     product_id = models.BigIntegerField()
     campaign = models.IntegerField()
@@ -93,7 +88,6 @@ class Coupon(models.Model):
 
 
 class CouponRedemption(models.Model):
-    """Coupon redemption tracking from Dunnhumby dataset"""
     id = models.BigAutoField(primary_key=True)
     household_key = models.BigIntegerField()
     day = models.IntegerField()
@@ -109,7 +103,6 @@ class CouponRedemption(models.Model):
 
 
 class CampaignMember(models.Model):
-    """Campaign membership tracking from Dunnhumby dataset"""
     id = models.BigAutoField(primary_key=True)
     household_key = models.BigIntegerField()
     campaign = models.IntegerField()
@@ -123,7 +116,6 @@ class CampaignMember(models.Model):
 
 
 class CausalData(models.Model):
-    """Causal data for promotional effects from Dunnhumby dataset"""
     id = models.BigAutoField(primary_key=True)
     product_id = models.BigIntegerField()
     store_id = models.BigIntegerField()
@@ -139,9 +131,7 @@ class CausalData(models.Model):
         return f"Product {self.product_id} - Store {self.store_id} - Week {self.week_no}"
 
 
-# Association Rules Analysis Models
 class BasketAnalysis(models.Model):
-    """Model to store basket analysis results"""
     basket_id = models.BigIntegerField()
     household_key = models.BigIntegerField()
     transaction_date = models.DateField(null=True, blank=True)
@@ -161,7 +151,6 @@ class BasketAnalysis(models.Model):
 
 
 class AssociationRule(models.Model):
-    """Model to store association rules"""
     antecedent = models.JSONField()
     consequent = models.JSONField()
     support = models.FloatField()
@@ -226,7 +215,6 @@ class CustomerSegment(models.Model):
 
 
 class ChurnWindowCache(models.Model):
-    """Reusable data and finished-model result for one fixed-data rule configuration."""
     method = models.CharField(max_length=24)
     observation_window_days = models.PositiveIntegerField()
     prediction_horizon_days = models.PositiveIntegerField()
@@ -248,7 +236,6 @@ class ChurnWindowCache(models.Model):
 
 
 class ChurnExperiment(models.Model):
-    """A reproducible time-window churn training run."""
     method = models.CharField(max_length=24)
     observation_window_days = models.PositiveIntegerField()
     prediction_horizon_days = models.PositiveIntegerField()
@@ -281,7 +268,6 @@ class ChurnExperiment(models.Model):
 
 
 class ChurnCustomerScore(models.Model):
-    """Predicted current churn probability for one experiment and household."""
     experiment = models.ForeignKey(ChurnExperiment, on_delete=models.CASCADE, related_name="scores")
     household_key = models.BigIntegerField()
     churn_probability = models.FloatField()
@@ -292,7 +278,6 @@ class ChurnCustomerScore(models.Model):
 
 
 class CustomerStateSnapshot(models.Model):
-    """Customer RFM state at one cutoff; shared by all experiments using that cutoff."""
     household_key = models.BigIntegerField()
     cutoff_day = models.IntegerField()
     observation_window_days = models.PositiveIntegerField()
@@ -311,7 +296,6 @@ class CustomerStateSnapshot(models.Model):
 
 
 class CustomerChurnOutcome(models.Model):
-    """Observed churn outcome after a historical snapshot; never created for current cutoffs."""
     snapshot = models.ForeignKey(CustomerStateSnapshot, on_delete=models.CASCADE, related_name="outcomes")
     prediction_horizon_days = models.PositiveIntegerField()
     is_churn = models.BooleanField()
@@ -321,7 +305,6 @@ class CustomerChurnOutcome(models.Model):
 
 
 class CustomerChurnPrediction(models.Model):
-    """A probability made by a particular model version for one customer snapshot."""
     HISTORICAL = "historical"
     CURRENT = "current"
     PREDICTION_TYPES = [(HISTORICAL, "Historical walk-forward"), (CURRENT, "Current forecast")]
@@ -337,7 +320,6 @@ class CustomerChurnPrediction(models.Model):
 
 
 class CustomerWindowHistory(models.Model):
-    """One auditable customer state and known horizon outcome for one experiment window."""
     experiment = models.ForeignKey(ChurnExperiment, on_delete=models.CASCADE, related_name="window_history")
     household_key = models.BigIntegerField()
     observation_start = models.IntegerField()
@@ -363,7 +345,6 @@ class CustomerWindowHistory(models.Model):
 
 
 class CachedCustomerWindow(models.Model):
-    """Reusable customer RFM state and known future outcome, independent of experiments."""
     cache = models.ForeignKey(ChurnWindowCache, on_delete=models.CASCADE, related_name="customer_windows")
     household_key = models.BigIntegerField()
     observation_start = models.IntegerField()
@@ -387,7 +368,6 @@ class CachedCustomerWindow(models.Model):
 
 
 class ChurnExperimentWindowPrediction(models.Model):
-    """A model-specific historical probability linked to a reusable window cache row."""
     experiment = models.ForeignKey(ChurnExperiment, on_delete=models.CASCADE, related_name="cached_history_predictions")
     window = models.ForeignKey(CachedCustomerWindow, on_delete=models.CASCADE, related_name="experiment_predictions")
     churn_probability = models.FloatField()

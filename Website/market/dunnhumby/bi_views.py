@@ -1,13 +1,4 @@
-"""Business-intelligence dashboard over the star-schema reporting views.
 
-Serves the drill-down reporting layer from Django rather than an external BI
-tool: Department -> Commodity -> Sub-commodity -> Product on one axis,
-Year -> Quarter -> Month -> Week -> Day on the other, with every panel sharing
-one filter context so clicking a mark in any chart narrows all the others.
-
-Everything reads the ``vw_`` views created by
-``dunnhumby/sql/powerbi_star_schema.sql``.  No endpoint writes.
-"""
 from __future__ import annotations
 
 import logging
@@ -22,12 +13,6 @@ from .views import _bi_filter_options, admin_required
 logger = logging.getLogger(__name__)
 
 def _from(needs):
-    """FROM clause carrying only the dimensions a query actually references.
-
-    Joining all three unconditionally made every panel pay for dimensions it
-    never used, which on a 2.6M row fact table cost seconds per request. Each
-    endpoint declares the aliases it needs and the active filters add their own.
-    """
     sql = ["FROM vw_fact_sales f"]
     if "d" in needs:
         sql.append("JOIN vw_dim_date d ON d.day_key = f.day_key")
@@ -37,8 +22,6 @@ def _from(needs):
         sql.append("LEFT JOIN vw_dim_household h ON h.household_key = f.household_key")
     return "\n    ".join(sql)
 
-# Every dimension a mark can be clicked on.  Panels all build their WHERE from
-# this one table, so a filter set anywhere applies everywhere.
 FILTER_COLUMNS = {
     "year": ("d.calendar_year", int),
     "quarter": ("d.quarter_name", str),
@@ -60,9 +43,6 @@ FILTER_COLUMNS = {
     "household_size": ("h.household_size", str),
 }
 
-# ``key`` is also the filter each level sets: descending the hierarchy and
-# filtering the dashboard are one action, so the breadcrumb and the filter chips
-# can never disagree.
 PRODUCT_LEVELS = [
     {"key": "department", "column": "p.department", "label": "Department"},
     {"key": "commodity", "column": "p.commodity", "label": "Commodity"},
@@ -78,10 +58,6 @@ TIME_LEVELS = [
      "group": "d.calendar_quarter", "label": "Quarter"},
     {"key": "month", "select": "d.month_name", "value": "d.month_name",
      "group": "d.calendar_month", "label": "Month"},
-    # Week within the month, not the dataset week: a month overlaps five dataset
-    # weeks whose ends are clipped by the month boundary, which read as a slump.
-    # It displays as "Week 5" but filters on the bare number, so the two are
-    # carried separately.
     {"key": "week", "select": "'Week ' + CAST(d.week_of_month AS varchar(2))",
      "value": "CAST(d.week_of_month AS varchar(2))",
      "group": "d.week_of_month", "label": "Week", "crumb": "Week {}"},
@@ -104,8 +80,6 @@ def _predicate(request, key, column, cast):
     raw = (request.GET.get(key) or "").strip()
     if not raw or raw.lower() == "all":
         return None
-    # A slicer may hold several values. They arrive pipe-separated because a
-    # comma appears inside real department and commodity names.
     values = [v.strip() for v in raw.split("|") if v.strip()]
     if cast is int:
         values = [int(v) for v in values if v.lstrip("-").isdigit()]
@@ -117,7 +91,6 @@ def _predicate(request, key, column, cast):
 
 
 def _filters(request, needs=()):
-    """Active filters as predicates, parameters, and the aliases they require."""
     where, params, required = [], [], set(needs)
     for key, (column, cast) in FILTER_COLUMNS.items():
         found = _predicate(request, key, column, cast)
@@ -147,16 +120,6 @@ def _scalar_row(sql, params):
 
 
 def _rank_rows(rows, value_key="revenue", total=None):
-    """Attach float values and each row's share of the rows returned.
-
-    A table that keeps its top 25 divides by the sum of those 25, so the shares
-    down the column add to 100% and the largest product appears to hold a tenth
-    of the business when it holds a fraction of a per cent. The figure is not
-    wrong, but it answers "share of what is on screen", and nothing on screen
-    said so. Pass ``total`` -- the value across everything the filters allow --
-    and each row also carries ``share_of_total``, which is the reading most
-    people take the column for.
-    """
     for row in rows:
         row[value_key] = float(row.get(value_key) or 0)
     shown = sum(row[value_key] for row in rows)
@@ -168,7 +131,6 @@ def _rank_rows(rows, value_key="revenue", total=None):
 
 
 def _filtered_revenue(where, params, needs):
-    """Revenue across everything the current filters allow, for share-of-total."""
     return float(_scalar_row(f"""
         SELECT SUM(f.sales_value) AS revenue
         {_from(needs)}{_clause(where)}
@@ -177,7 +139,6 @@ def _filtered_revenue(where, params, needs):
 
 @admin_required
 def bi_dashboard(request):
-    """Render the dashboard shell; every panel loads over the API."""
     options = _bi_filter_options()
     context = {"title": "Business Intelligence Dashboard", "filter_options": options}
     if not options["departments"]:
@@ -212,8 +173,6 @@ def api_bi_kpis(request):
     list_value = float(totals.get("list_value") or 0)
     days = int(totals.get("days") or 0)
 
-    # Basket size counts distinct products. dunnhumby records weighted and
-    # dispensed goods in source units, so a units-based average is about 943.
     size = _scalar_row(f"""
         SELECT AVG(CAST(x.items AS float)) AS avg_items
         FROM (
@@ -255,13 +214,6 @@ def api_bi_kpis(request):
 
 
 def _drill(request, levels, is_product):
-    """Show the deepest hierarchy level the active filters have not yet pinned.
-
-    There is no separate drill path: each level's filter key is what a click
-    sets, so the level on display is simply the first one with no filter. That
-    keeps the breadcrumb, the chips and every other panel describing the same
-    selection.
-    """
     where, params, needs = _filters(request, ["p"] if is_product else ["d"])
 
     depth = 0
@@ -277,7 +229,6 @@ def _drill(request, levels, is_product):
             "key": level["key"],
         })
         depth = index + 1
-    # The leaf stays selectable rather than drilling into nothing.
     depth = min(depth, len(levels) - 1)
     level = levels[depth]
 
@@ -307,9 +258,6 @@ def _drill(request, levels, is_product):
     for row in rows:
         row["days"] = int(row["days"] or 0)
         row["revenue_per_day"] = row["revenue"] / row["days"] if row["days"] else 0
-        # Only a material shortfall counts: quarters legitimately run 90 to 92
-        # days, so testing against the longest would brand every first quarter
-        # as truncated.
         row["partial"] = bool(not is_product and full and row["days"] < full * 0.9)
 
     return JsonResponse({
@@ -340,7 +288,6 @@ def api_bi_time_drill(request):
 
 @admin_required
 def api_bi_stores(request):
-    """Store scatter: basket count against average basket value."""
     where, params, needs = _filters(request)
     rows = _query(f"""
         SELECT TOP 300
@@ -359,7 +306,6 @@ def api_bi_stores(request):
 
 @admin_required
 def api_bi_segments(request):
-    """Revenue and household count per RFM segment."""
     where, params, needs = _filters(request, ["h"])
     rows = _query(f"""
         SELECT
@@ -381,12 +327,6 @@ def api_bi_segments(request):
 
 @admin_required
 def api_bi_basket_distribution(request):
-    """How many baskets hold N distinct products.
-
-    Every bar is one basket size.  Folding the tail into a single bucket stacked
-    a long thin tail into a bar taller than the mid sizes and read as a second
-    mode, so the tail is summarised in words instead.
-    """
     where, params, needs = _filters(request)
     rows = _query(f"""
         SELECT items AS bucket, COUNT(*) AS baskets, SUM(value) AS revenue
@@ -424,7 +364,6 @@ def api_bi_basket_distribution(request):
 
 
 def _median_size(rows, total_baskets):
-    """Median basket size from the size histogram."""
     if not total_baskets:
         return 0
     seen, half = 0, total_baskets / 2
@@ -437,7 +376,6 @@ def _median_size(rows, total_baskets):
 
 @admin_required
 def api_bi_daypart(request):
-    """Trading pattern by hour of day and by weekday."""
     where, params, needs = _filters(request)
     clause = _clause(where)
     hours = _query(f"""
@@ -465,19 +403,12 @@ def api_bi_daypart(request):
     for row in weekdays:
         row["revenue"] = float(row["revenue"] or 0)
         row["days"] = int(row["days"] or 0)
-        # Weekdays occur a different number of times across the window, so the
-        # per-day rate is the comparable figure.
         row["revenue_per_day"] = row["revenue"] / row["days"] if row["days"] else 0
     return JsonResponse({"success": True, "hours": hours, "weekdays": weekdays})
 
 
 @admin_required
 def api_bi_demographics(request):
-    """Revenue by a chosen household attribute.
-
-    Only 802 of 2,497 households carry demographics, so the uncovered share is
-    returned rather than silently drawn as an 'Unknown' bar that dominates.
-    """
     dimension = (request.GET.get("dimension") or "age").strip()
     column, label = DEMOGRAPHIC_DIMENSIONS.get(dimension, DEMOGRAPHIC_DIMENSIONS["age"])
     where, params, needs = _filters(request, ["h"])
@@ -541,13 +472,6 @@ def api_bi_brand(request):
 
 @admin_required
 def api_bi_top_products(request):
-    """Highest-revenue products for the current filter context.
-
-    Ranking is done on the sum alone, which the columnstore index answers
-    quickly, and the distinct basket count is then taken for the surviving rows
-    only: doing both in one pass meant counting distinct baskets for all 92,353
-    products and took over ten seconds.
-    """
     where, params, needs = _filters(request)
     clause = _clause(where)
     rows = _query(f"""
@@ -583,7 +507,6 @@ def api_bi_top_products(request):
 
 @admin_required
 def api_bi_discount_trend(request):
-    """Discount rate and revenue by month, to see promotion intensity move."""
     where, params, needs = _filters(request, ["d"])
     rows = _query(f"""
         SELECT d.year_month AS label,
@@ -612,11 +535,6 @@ def api_bi_discount_trend(request):
 
 @admin_required
 def api_bi_insights(request):
-    """Rule-based findings for the current filter context.
-
-    Each statement comes from the same filtered queries that feed the charts, so
-    the narrative cannot drift from what is on screen.
-    """
     where, params, needs = _filters(request)
     clause = _clause(where)
     insights = []
@@ -658,11 +576,6 @@ def api_bi_insights(request):
             ),
         })
 
-        # The follow-through: the strongest quarter's best sellers, and what the
-        # same products did in the weakest one. Comparing the same products
-        # across both periods keeps the change about those products rather than
-        # about a changing assortment. Daily rates again, because the quarters
-        # do not hold the same number of trading days.
         movers = _query(f"""
             SELECT TOP 5
                 f.product_id,
@@ -793,10 +706,6 @@ def api_bi_insights(request):
     return JsonResponse({"success": True, "insights": insights})
 
 
-# Dimensions whose categories have a natural order.  Ranking them by revenue,
-# which is the sensible default for an unordered dimension like department, put
-# the income bands in the order 50-74K, 35-49K, 75-99K, 25-34K and so on, which
-# reads as scrambled rather than ranked.
 WEEKDAY_ORDER = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday",
                  "Friday", "Saturday"]
 HOMEOWNER_ORDER = ["Homeowner", "Probable Owner", "Probable Renter", "Renter"]
@@ -806,12 +715,6 @@ NATURAL_ORDER_DIMENSIONS = {
 
 
 def _band_sort_key(value):
-    """Sort key for a banded label such as 15-24K, Under 15K, 65+ or 5+.
-
-    Bands are ordered by the first number they contain.  "Under 15K" shares its
-    number with "15-24K", so it is nudged ahead of it, and labels standing for
-    missing data are pushed to the end rather than sorted among real bands.
-    """
     import re
     text = str(value or "").strip()
     if not text or text.lower() in {"unknown", "unsegmented", "none", "n/a"}:
@@ -830,14 +733,11 @@ def _band_sort_key(value):
 
 
 def _apply_natural_order(dimension, rows, key):
-    """Order rows by their category's natural sequence where one exists."""
     if dimension not in NATURAL_ORDER_DIMENSIONS:
         return rows
     return sorted(rows, key=lambda row: _band_sort_key(row[key]))
 
 
-# Groups that can be compared head to head.  Each maps to the column holding the
-# group label and the dimension alias that column needs.
 COMPARISON_DIMENSIONS = {
     "segment": ("h.rfm_segment", "h", "Customer segment"),
     "brand": ("p.brand", "p", "Brand type"),
@@ -851,16 +751,6 @@ COMPARISON_DIMENSIONS = {
     "homeowner": ("h.homeowner", "h", "Home ownership"),
 }
 
-
-"""How a group is summarised before it is tested.
-
-Basket value was the only answer the panel could give, so every question had
-to be phrased as one about spend. Segments that differ mainly in how often
-they come back read as barely different on basket value, because the
-difference is not in the baskets but in their number. Visits give the tests a
-second response, measured one row per household rather than one per basket:
-changing the response changes the unit of observation with it.
-"""
 MEASURES = {
     "basket_value": {
         "label": "Basket value",
@@ -871,21 +761,10 @@ MEASURES = {
         "group_by": "f.basket_id",
         "key": "f.basket_id",
         "noun": "spend per basket",
-        # RFM segments are cut on recency, frequency and monetary value, so a
-        # segment label already encodes the answer to some of what is asked of
-        # it here: Big Spenders is defined by m >= 4. Naming the component lets
-        # the panels say so rather than reporting a tautology as a discovery.
         "rfm_component": "monetary value",
-        # What a long right tail is made of, for the wording that explains why a
-        # shape test asks something the rank test does not.
         "tail_noun": "unusually large baskets",
-        # Money carries its own symbol; a count needs a word after it or a
-        # headline reads "higher by about 55.0".
         "unit_word": "",
         "discrete": False,
-        # A group needs enough observations for a rank test to mean anything.
-        # Baskets run to tens of thousands per group; households to hundreds,
-        # so one threshold cannot serve both.
         "scan_minimum": 300,
     },
     "visits": {
@@ -900,9 +779,6 @@ MEASURES = {
         "rfm_component": "frequency",
         "tail_noun": "households that shop far more often than the rest",
         "unit_word": " trips",
-        # Visit counts are whole numbers that repeat heavily: three quarters of
-        # households share a count with another. Only Kolmogorov-Smirnov cares,
-        # and it errs safe -- measured at 4.0% rejection where 5% is nominal.
         "discrete": True,
         "scan_minimum": 30,
     },
@@ -917,11 +793,6 @@ def _measure(request):
 
 def _dimension_samples(column, where, params, needs, per_group=1200, minimum=100,
                        measure=None):
-    """A reproducible per-group sample of the chosen response variable.
-
-    ANOVA and Kruskal-Wallis need all the groups at once, not the chosen pair,
-    and one windowed query is far cheaper than a query per group.
-    """
     spec = measure or MEASURES["basket_value"]
     rows = _query(f"""
         ;WITH baskets AS (
@@ -946,13 +817,6 @@ def _dimension_samples(column, where, params, needs, per_group=1200, minimum=100
 
 
 def _cliffs_delta(first, second, sample=4000):
-    """Cliff's delta: how often one group's baskets beat the other's.
-
-    Reported alongside the p-value because with hundreds of thousands of baskets
-    almost any difference reaches significance, so the p-value says only that a
-    difference exists, not that it is large enough to act on.  Computed on a
-    capped random sample because the exact form is quadratic in the group sizes.
-    """
     import numpy as np
     rng = np.random.default_rng(42)
     a = np.asarray(first, dtype=float)
@@ -969,7 +833,6 @@ def _cliffs_delta(first, second, sample=4000):
 
 
 def _delta_label(value):
-    """Conventional thresholds for interpreting an effect size."""
     size = abs(value)
     if size < 0.147:
         return "negligible"
@@ -982,16 +845,6 @@ def _delta_label(value):
 
 @admin_required
 def api_bi_significance(request):
-    """Compare two groups on basket value and on department mix.
-
-    Only tests that suit this data are offered.  Basket value is heavily
-    right-skewed and the groups are large and unequal, so spend is compared with
-    Mann-Whitney U on ranks rather than a t-test, which would assume a normality
-    basket value does not have.  Kolmogorov-Smirnov answers the separate
-    question of distribution shape, and chi-square asks whether the two groups
-    buy from different parts of the catalogue.  Every test carries an effect
-    size, because at this sample size significance is close to guaranteed.
-    """
     from scipy.stats import (chi2_contingency, f_oneway, kruskal, ks_2samp,
                              mannwhitneyu, skew, t as student_t, ttest_ind)
 
@@ -1026,12 +879,6 @@ def api_bi_significance(request):
             "caveat": "Two distinct groups are needed for a comparison.",
         })
 
-    # A capped hash-ordered sample per group. Pulling every basket into Python
-    # took nearly nine seconds on the larger segments, and the rank tests gain
-    # nothing from more: at 200,000 baskets the p-value is already pinned at
-    # zero, which is exactly why the effect size is the figure to read. The
-    # ordering is a hash of the basket id, so the sample is spread across the
-    # whole period rather than taken from one end of it, and is reproducible.
     sample_cap = 20000
 
     def basket_values(group):
@@ -1050,12 +897,6 @@ def api_bi_significance(request):
         """, params + [group]).get("baskets") or 0)
 
     def basket_median(group):
-        """Median over every observation in the group, not over the sample.
-
-        The tests run on a sample, which is sound, but the median is quoted to
-        the reader and also appears in the scan above. Computing it over all the
-        baskets keeps the two panels in agreement.
-        """
         row = _scalar_row(f"""
             ;WITH baskets AS (
                 SELECT {spec['group_by']} AS unit_id, {spec['expression']} AS basket_value
@@ -1073,7 +914,6 @@ def api_bi_significance(request):
         return float(row.get("median_value") or 0)
 
     def amount(value):
-        """Money or a plain count, whichever the chosen response is measured in."""
         return f"${value:,.2f}" if spec["unit"] == "money" else f"{value:,.1f}"
 
     units = spec["observations"]
@@ -1165,9 +1005,6 @@ def api_bi_significance(request):
         {_from(needs | {"p", alias})}{_clause(where + [column + " IN (%s, %s)"])}
         GROUP BY p.department, {column}
     """, params + [group_a, group_b])
-    # Comparing two departments and then asking whether they buy from different
-    # departments is circular: it can only return a perfect association, which
-    # is a property of the question rather than a finding about the data.
     departments = sorted({r["department"] for r in mix})
     if dimension != "department" and len(departments) >= 2:
         table = [
@@ -1176,14 +1013,11 @@ def api_bi_significance(request):
              for dept in departments]
             for grp in (group_a, group_b)
         ]
-        # Departments neither group touches would leave an all-zero column, which
-        # chi-square cannot take.
         keep = [i for i in range(len(departments)) if table[0][i] + table[1][i] > 0]
         table = [[row[i] for i in keep] for row in table]
         if len(keep) >= 2 and all(sum(row) > 0 for row in table):
             chi2, chi_p, _, _ = chi2_contingency(table)
             total = sum(sum(row) for row in table)
-            # For a 2 x k table Cramer's V reduces to sqrt(chi2 / n).
             cramers_v = float((chi2 / total) ** 0.5) if total else 0.0
             tests.append({
                 "name": "Chi-square",
@@ -1212,11 +1046,6 @@ def api_bi_significance(request):
                 ),
             })
 
-    # Welch's t-test on the same pair. It compares means rather than ranks and
-    # assumes roughly normal data, which basket value is not, so it is reported
-    # with its skew and with the rank test standing as the primary read. It is
-    # here because a mean difference in currency is what a manager budgets with,
-    # and it is the only test of the set that yields a confidence interval.
     if len(values_a) >= 20 and len(values_b) >= 20:
         import numpy as np
 
@@ -1224,7 +1053,6 @@ def api_bi_significance(request):
         b = np.asarray(values_b, dtype=float)
         t_stat, t_p = ttest_ind(a, b, equal_var=False)
         mean_gap = float(a.mean() - b.mean())
-        # Welch-Satterthwaite degrees of freedom for the interval.
         var_a, var_b = a.var(ddof=1) / len(a), b.var(ddof=1) / len(b)
         standard_error = float((var_a + var_b) ** 0.5)
         degrees = ((var_a + var_b) ** 2 /
@@ -1269,10 +1097,6 @@ def api_bi_significance(request):
             ),
         })
 
-    # The two tests above answer a question about one pair. These ask whether the
-    # dimension as a whole separates the groups, which is what the professor's
-    # ANOVA / Kruskal-Wallis pairing is for: the same question, one assuming
-    # normality and one not.
     group_samples = _dimension_samples(column, where, params, needs, measure=spec)
     if len(group_samples) >= 3:
         import numpy as np
@@ -1350,22 +1174,6 @@ def api_bi_significance(request):
             ),
         })
 
-    # The automatic scan corrects for the number of comparisons it makes; this
-    # panel did not, though it runs six tests at once and they are far from
-    # independent. Three of them -- Mann-Whitney, Kolmogorov-Smirnov and Welch's
-    # t -- read the identical two samples of basket value, differing only in
-    # what they ask of them. ANOVA and Kruskal-Wallis read the same basket
-    # values again across every group, and are themselves a matched pair, one
-    # assuming normality and one not. Only chi-square looks at other data.
-    # Reading six such p-values each against 0.05 counts the same evidence
-    # repeatedly. Benjamini-Hochberg is conservative under this kind of positive
-    # dependence rather than wrong, which is the safe direction to err in.
-    #
-    # It changes little in practice: the verdict on each card comes from the
-    # effect size, not from the p-value, and at these sample sizes the p-values
-    # are small enough that correcting them rarely moves one across a threshold.
-    # It is recorded because a reader comparing this panel with the scan should
-    # not find one corrected and the other not.
     if tests:
         for test, q in zip(tests, _benjamini_hochberg([t["p_value"] for t in tests])):
             test["q_value"] = q
@@ -1403,40 +1211,10 @@ def api_bi_significance(request):
     })
 
 
-# ---------------------------------------------------------------------------
-# Decision panels
-#
-# Each of the following answers a question the earlier panels could not: they
-# report levels, these report concentration, direction and mix.  All of them
-# read the same filter context, so a department or segment chosen anywhere
-# narrows them too.
-# ---------------------------------------------------------------------------
-
-# Growth compares two whole 30-day periods, so both sides of the comparison
-# cover the same number of trading days; comparing against a partial period
-# would read as a collapse. How many periods exist is read from the calendar,
-# not assumed, because a time filter changes the answer.
 PERIOD_DAYS = 30
 
 
 def _growth_windows(request):
-    """The two equal-length day windows the growth panel compares.
-
-    Only the date predicates decide this.  A product or household filter removes
-    transactions, not days from the calendar, and requiring every day of a window
-    to carry a sale of one niche product would throw away windows that are in
-    fact whole.
-
-    Two whole 30-day periods are preferred, which is what the panel compares when
-    nothing is filtered.  A filter that cuts across periods -- a single month, or
-    one weekday -- leaves none whole, so the qualifying days are split into an
-    older and a newer half instead.  Either way both windows hold the same number
-    of trading days, so a shortfall can never be an artefact of window length.
-
-    Returns ``(current, previous, note)`` where a window is ``(first_day,
-    last_day, days)``, or ``(None, None, note)`` when the filter is too narrow to
-    hold two windows at all.
-    """
     where, params = [], []
     for key, (column, cast) in FILTER_COLUMNS.items():
         if not column.startswith("d."):
@@ -1482,8 +1260,6 @@ def _growth_windows(request):
             "window inside the current filter.",
         )
 
-    # No whole period survives the filter, so the selection is halved instead.
-    # An odd day count drops the middle day rather than lengthening one side.
     keys = [int(row["day_key"]) for row in days]
     half = len(keys) // 2
     plural = "" if half == 1 else "s"
@@ -1498,30 +1274,13 @@ def _growth_windows(request):
 
 @admin_required
 def api_bi_growth(request):
-    """Revenue change between the two newest equal windows the filter allows.
-
-    This is a like-for-like comparison of two equal windows, not a trend line
-    or a forecast.  A department can move because demand moved or because the
-    assortment did; the panel says which departments changed, not why.
-
-    The windows follow the time filter rather than being a fixed pair -- see
-    ``_growth_windows`` -- because filtering to a quarter used to leave the panel
-    comparing two periods the filter had excluded, so it drew nothing at all.
-    The note returned alongside the rows says which two windows were compared.
-    """
     dimension = (request.GET.get("dimension") or "department").strip()
-    # The join each dimension needs is declared, not read off the front of the
-    # expression: "COALESCE(h.rfm_segment, ...)" starts with "COALESCE(h", so
-    # deriving it left the household table unjoined and the segment view failing.
     column, alias = {
         "department": ("p.department", "p"),
         "commodity": ("p.commodity", "p"),
         "store": ("CAST(f.store_id AS varchar(20))", "f"),
         "segment": ("COALESCE(h.rfm_segment, 'Unsegmented')", "h"),
     }.get(dimension, ("p.department", "p"))
-    # Ranking by money alone answers only half the question. A small line that
-    # trebles is the more interesting news for anyone looking for something
-    # emerging, and it can never reach either end of a chart sorted by amount.
     sort = "percent" if (request.GET.get("sort") or "").strip() == "percent" else "absolute"
     try:
         min_revenue = max(0.0, float(request.GET.get("min_revenue") or 0))
@@ -1533,16 +1292,7 @@ def api_bi_growth(request):
     if not current:
         return JsonResponse({"success": True, "rows": [], "note": note, "window_days": 0,
                              "sort": sort, "min_revenue": min_revenue, "excluded": 0})
-    # Both windows are contiguous runs of qualifying days, so each is expressed as
-    # a day range rather than a list: a weekday filter can leave hundreds of days,
-    # and repeating them as parameters would run into the driver's 2,100 limit.
     span_low, span_high = min(current[0], previous[0]), max(current[1], previous[1])
-    # Taking the 40 largest by current revenue decided the answer before any
-    # sorting ran: a group could not be shown as the fastest riser unless it was
-    # already among the biggest, and one that collapsed to nothing dropped out
-    # of the ranking that was meant to report it. The cut is wider now and made
-    # on both windows together, so a line qualifies on the revenue it had or the
-    # revenue it has.
     rows = _query(f"""
         SELECT TOP 200
             {column} AS label,
@@ -1567,9 +1317,6 @@ def api_bi_growth(request):
         row["change_pct"] = ((now - prior) / prior * 100) if prior > 0 else None
     rows = [r for r in rows if (r["current_revenue"] or r["previous_revenue"])]
 
-    # The floor is measured on the larger of the two windows, so a line that
-    # collapsed is still judged on what it used to be worth rather than being
-    # dropped for what is left of it.
     def peak(row):
         return max(float(row["current_revenue"] or 0), float(row["previous_revenue"] or 0))
 
@@ -1578,12 +1325,6 @@ def api_bi_growth(request):
     rows = kept
 
     def percent_key(row):
-        """Order for the percentage view, with the undefined cases pinned.
-
-        A line with no earlier revenue has grown by no finite percentage. It is
-        the strongest possible rise and sorts above everything, but only the
-        revenue floor keeps that from being a shelf that sold one extra item.
-        """
         if row["change_pct"] is not None:
             return float(row["change_pct"])
         return float("inf") if float(row["current_revenue"] or 0) > 0 else float("-inf")
@@ -1605,13 +1346,6 @@ def api_bi_growth(request):
 
 @admin_required
 def api_bi_pareto(request):
-    """How much of revenue the best-selling products account for.
-
-    Products are ranked by revenue and the running share is reported at each
-    rank, so the curve shows what share of the range earns what share of the
-    money.  It is a description of concentration, not an argument for delisting
-    anything: a product can be small and still be why a basket was opened.
-    """
     where, params, needs = _filters(request, ["p"])
     revenues = [
         float(r["revenue"] or 0)
@@ -1625,8 +1359,6 @@ def api_bi_pareto(request):
     ]
     products = len(revenues)
     total = sum(revenues)
-    # One point per product would be a payload nobody can read; the curve is
-    # sampled to about 200 points and always keeps the first and last.
     stride = max(1, products // 200)
     points, running, milestones = [], 0.0, {}
     pending = {50: None, 80: None, 90: None}
@@ -1657,12 +1389,6 @@ def api_bi_pareto(request):
 
 @admin_required
 def api_bi_household_value(request):
-    """Revenue share by household spend decile.
-
-    Households are split into ten equal groups by what they spent in the current
-    selection, so each band holds the same number of households and the bars
-    compare their contribution.  Decile 1 is the heaviest.
-    """
     where, params, needs = _filters(request, ["h"])
     rows = _query(f"""
         ;WITH spend AS (
@@ -1698,12 +1424,6 @@ def api_bi_household_value(request):
 
 @admin_required
 def api_bi_heatmap(request):
-    """Revenue by weekday and hour.
-
-    The separate weekday and hour panels each average over the other, which
-    hides the combinations that actually drive staffing: a busy Saturday
-    afternoon and a quiet Tuesday one land in the same weekday bar.
-    """
     where, params, needs = _filters(request, ["d"])
     rows = _query(f"""
         SELECT d.day_name, d.day_sort, f.trans_hour AS hour,
@@ -1725,14 +1445,6 @@ def api_bi_heatmap(request):
 
 @admin_required
 def api_bi_repeat(request):
-    """New against returning households, period by period.
-
-    "New" means the first 30-day period in which a household appears *inside the
-    current selection*, so filtering to a department reports households new to
-    that department.  The data begins at period 1 with no history before it, so
-    every household there counts as new and that period is marked as such rather
-    than being read as a recruitment spike.
-    """
     where, params, needs = _filters(request, ["d"])
     rows = _query(f"""
         ;WITH activity AS (
@@ -1772,13 +1484,6 @@ def api_bi_repeat(request):
 
 @admin_required
 def api_bi_discount_mix(request):
-    """Revenue by discount depth, and how the discount was given.
-
-    Lines are banded by how much of the pre-discount price was taken off.  This
-    describes where the money sits, not what discounting causes: deep-discount
-    lines are not proof that discounting created the demand, because the lines
-    that get discounted are chosen, not drawn at random.
-    """
     where, params, needs = _filters(request)
     rows = _query(f"""
         ;WITH lines AS (
@@ -1826,12 +1531,6 @@ def api_bi_discount_mix(request):
 
 @admin_required
 def api_bi_brand_mix(request):
-    """Private-label against national-brand share, department by department.
-
-    The overall brand split hides where own-label actually competes: a chain can
-    sit at a third private label overall while running near zero in one aisle and
-    over half in another.
-    """
     where, params, needs = _filters(request, ["p"])
     rows = _query(f"""
         SELECT TOP 30
@@ -1851,24 +1550,12 @@ def api_bi_brand_mix(request):
     return JsonResponse({"success": True, "rows": rows})
 
 
-# Groups smaller than this are not worth comparing: the estimate moves too much
-# on a handful of baskets.
 SCAN_MIN_BASKETS = 300
-# Per-group sample. The comparison is rank-based, so a few thousand baskets
-# place the groups against each other about as well as the full set would.
 SCAN_SAMPLE = 2000
-# Comparing every group in a dimension against every other grows quadratically;
-# the largest few carry almost all the trade.
 SCAN_MAX_GROUPS = 6
 
 
 def _benjamini_hochberg(p_values):
-    """Expected share of false findings among those called significant.
-
-    A scan of a hundred comparisons at p < 0.05 would turn up several by chance
-    alone, so the raw p-value stops meaning what it does for a single planned
-    test. This rescales them for the number of comparisons actually made.
-    """
     indexed = sorted(enumerate(p_values), key=lambda pair: pair[1])
     total = len(p_values)
     adjusted = [1.0] * total
@@ -1881,15 +1568,6 @@ def _benjamini_hochberg(p_values):
 
 @admin_required
 def api_bi_significance_scan(request):
-    """Rank every pair of groups by how far apart their basket values sit.
-
-    The panel below tests one pair a reader has already picked, which only helps
-    if they guessed a useful pair. This searches the pairs for them and orders
-    the results by effect size, not by p-value: at this many baskets almost
-    everything reaches significance, so a p-value sorts nothing. Cliff's delta
-    asks how often a basket drawn from one group beats one drawn from the other,
-    which is the question a manager is actually asking.
-    """
     from scipy.stats import chi2_contingency, f_oneway, kruskal, mannwhitneyu
 
     import numpy as np
@@ -1931,10 +1609,6 @@ def api_bi_significance_scan(request):
             continue
         largest = sorted(usable.items(), key=lambda kv: kv[1]["baskets"], reverse=True)[:SCAN_MAX_GROUPS]
 
-        # The median every panel quotes, taken over all the baskets rather than the
-        # sample the test runs on, so the scan and the panel below cannot
-        # disagree about the same group. Picked by rank: PERCENTILE_CONT repeats
-        # its answer on every row and cost more than the whole rest of the scan.
         for row in _query(f"""
             ;WITH baskets AS (
                 SELECT {column} AS grp, {spec['expression']} AS basket_value
@@ -1954,10 +1628,6 @@ def api_bi_significance_scan(request):
             if name in groups:
                 groups[name]["median"] = float(row["median_value"] or 0)
 
-        # Spend is only half the question: two groups can spend alike and still
-        # fill their baskets from different aisles. One query gives the whole
-        # group-by-department grid, and every pair's chi-square is then read off
-        # it in memory rather than costing a query each.
         mix_where, mix_params, mix_needs = _filters(request, [alias, "p"])
         mix_rows = _query(f"""
             SELECT {column} AS grp, p.department AS dept,
@@ -1972,10 +1642,6 @@ def api_bi_significance_scan(request):
             if name:
                 mix.setdefault(name, {})[row["dept"] or "Unknown"] = int(row["baskets"] or 0)
 
-        # One test across every group of this dimension, which is what says
-        # whether the dimension is worth slicing by at all. Kruskal-Wallis is
-        # the rank-based form and ANOVA the mean-based one; on skewed basket
-        # values the first is the one to read.
         arrays = [np.asarray(g["values"], dtype=float) for _, g in largest]
         if len(arrays) >= 3 and all(len(x) >= 20 for x in arrays):
             observations = int(sum(len(x) for x in arrays))
@@ -2009,15 +1675,10 @@ def api_bi_significance_scan(request):
                     continue
                 statistic, p_value = mannwhitneyu(
                     values_a, values_b, alternative="two-sided", method="asymptotic")
-                # Cliff's delta follows directly from the same U statistic, so
-                # the effect size costs nothing beyond the test itself.
                 delta = float(2 * statistic / (len(values_a) * len(values_b)) - 1)
                 median_a = float(a["median"])
                 median_b = float(b["median"])
                 leader, trailer = ((name_a, name_b) if delta >= 0 else (name_b, name_a))
-                # Cross-tabulating departments by department is circular: a
-                # basket in the GROCERY group is in GROCERY by definition, which
-                # is why that comparison returned a perfect 1.0.
                 mix_v, mix_label = (None, "n/a") if key == "department" else (0.0, "negligible")
                 mix_a, mix_b = mix.get(name_a, {}), mix.get(name_b, {})
                 columns = [d for d in set(mix_a) | set(mix_b)
@@ -2027,15 +1688,9 @@ def api_bi_significance_scan(request):
                     if all(sum(row) > 0 for row in table):
                         chi2, _, _, _ = chi2_contingency(table)
                         n = sum(sum(row) for row in table)
-                        # For a 2 x k table Cramer's V is sqrt(chi2 / n).
                         mix_v = float((chi2 / n) ** 0.5) if n else 0.0
                         mix_label = _delta_label(mix_v)
                 scanned.append({
-                    # Champions require f >= 4 and Hibernating f <= 2, so a
-                    # segment leading on visits is partly true by construction.
-                    # The same holds for basket value through the monetary
-                    # score. It is reported, not hidden: the size of the gap is
-                    # still informative, but it is not independent evidence.
                     "circular": key == "segment",
                     "circular_note": (
                         f"RFM segments are cut partly on {spec['rfm_component']}, "
@@ -2064,8 +1719,6 @@ def api_bi_significance_scan(request):
     if scanned:
         for row, q in zip(scanned, _benjamini_hochberg([r["p_value"] for r in scanned])):
             row["q_value"] = q
-            # Worth acting on only if it is both unlikely to be chance and big
-            # enough to notice; either alone is not enough.
             row["actionable"] = q < 0.05 and row["abs_delta"] >= 0.147
     scanned.sort(key=lambda r: r["abs_delta"], reverse=True)
 
@@ -2073,8 +1726,6 @@ def api_bi_significance_scan(request):
     dimension_rows.sort(key=lambda r: r["epsilon_squared"], reverse=True)
     return JsonResponse({
         "success": True,
-        # Every comparison is returned, not a slice of them: the headline counts
-        # the ones worth a look, and a table cut short would contradict it.
         "rows": scanned,
         "dimensions": dimension_rows,
         "compared": len(scanned),

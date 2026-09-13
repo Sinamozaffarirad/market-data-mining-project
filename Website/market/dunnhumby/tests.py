@@ -2,14 +2,12 @@ import numpy as np
 import pandas as pd
 from django.test import SimpleTestCase
 from sklearn.ensemble import GradientBoostingClassifier
-
 from .repurchase_classifier import MODEL_FEATURES, PredictiveMarketBasketAnalyzer
 from .autoregressive_rnn import AutoregressiveRevenueRNN
 from .time_series_forecasting import ProductRevenueTimeSeriesForecaster
 
 
 class ZeroCorrectionModel:
-    """Test double that leaves the recent-average baseline unchanged."""
 
     def predict(self, features):
         return np.zeros(len(features), dtype=float)

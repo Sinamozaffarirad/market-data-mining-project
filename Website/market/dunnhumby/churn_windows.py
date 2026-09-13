@@ -1,4 +1,3 @@
-"""Leakage-safe, time-windowed churn dataset generation and training."""
 
 from dataclasses import dataclass
 from enum import Enum
@@ -21,7 +20,6 @@ from django.db.models import Min, Max
 from .models import DunnhumbyProduct, Transaction
 from .rfm_utils import RFM_FEATURE_VERSION, assign_rfm_segment, score_rfm_series
 
-# Bump this whenever churn-window feature columns or their meaning changes.
 CHURN_FEATURE_VERSION = "churn-features-v3"
 TRAINING_PROTOCOL_VERSION = "purged-temporal-v1"
 
@@ -49,7 +47,6 @@ class ChurnWindowConfig:
 def generate_time_windows(
     minimum_day: int, maximum_day: int, config: ChurnWindowConfig
 ):
-    """Yield complete observation/label windows; the label never extends beyond the data."""
     start = int(minimum_day)
     while True:
         cutoff = start + config.observation_window_days - 1
@@ -110,12 +107,6 @@ def build_customer_features(
     lifetime_transactions: pd.DataFrame | None = None,
     observation_start: int | None = None,
 ) -> pd.DataFrame:
-    """Build leakage-safe window and lifetime features for one cutoff day.
-
-    The eligible customer set is every customer with a purchase on or before
-    the cutoff. Recent-window features may therefore be zero for an inactive
-    customer, while lifetime context and recency remain available.
-    """
     if lifetime_transactions is None:
         lifetime_transactions = observation
     lifetime_transactions = lifetime_transactions[
@@ -345,8 +336,6 @@ CLASSIFICATION_THRESHOLD_CANDIDATES = tuple(
     round(value, 2) for value in np.arange(0.30, 0.71, 0.05)
 )
 
-# Keep these values in one place so every saved experiment can document the
-# exact model configuration that produced its predictions.
 MODEL_NAME = "XGBoostClassifier"
 MODEL_PARAMETERS = {
     "n_estimators": 100,
@@ -363,7 +352,6 @@ MODEL_PARAMETERS = {
 
 
 def experiment_metadata() -> dict:
-    """Return the reproducibility record saved alongside every new rule."""
     return {
         "model_name": MODEL_NAME,
         "model_parameters": MODEL_PARAMETERS.copy(),
@@ -385,11 +373,6 @@ def experiment_metadata() -> dict:
 
 
 def _select_classification_threshold(y_true, probabilities) -> float:
-    """Choose an actionable cutoff using validation data only.
-
-    F1 is the primary objective because churn is imbalanced.  If two cutoffs
-    have the same F1, prefer the one that catches more churners (recall).
-    """
     y_true = np.asarray(y_true)
     probabilities = np.asarray(probabilities)
     if len(y_true) == 0 or len(np.unique(y_true)) < 2:
@@ -538,8 +521,6 @@ def train_and_score(config: ChurnWindowConfig, cached_training_dataset=None):
         classification_threshold,
     )
 
-    # Blocked expanding-window scoring keeps every prediction leakage-safe while
-    # limiting historical model fits to five instead of fitting once per cutoff.
     historical_rows = []
     prediction_cutoffs = np.asarray(cutoffs[3:])
     cutoff_blocks = (
@@ -589,7 +570,6 @@ def train_and_score(config: ChurnWindowConfig, cached_training_dataset=None):
     current_encoded = pd.get_dummies(
         current_features[feature_columns], columns=["rfm_segment"], dtype=float
     ).reindex(columns=encoded.columns, fill_value=0)
-    # Retrain on every labelled historical sample before making the current forecast.
     production_model = _new_model()
     production_model.fit(encoded, dataset["is_churn"])
     current_features["churn_probability"] = production_model.predict_proba(

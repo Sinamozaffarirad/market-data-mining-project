@@ -1,19 +1,4 @@
-"""Leakage-safe product-level revenue forecasting for Predictive Basket Analysis.
 
-The existing project classifiers predict customer repurchase.  This module keeps
-those models intact and adds a separate, comparable revenue-forecasting task:
-
-* one Product ID by one complete 30-day period is the analytical grain;
-* ordered prior-period revenue is supplied through overlapping sliding windows;
-* the final forecast horizon is a strictly out-of-time holdout;
-* an independent direct gradient-boosting model is preserved as a comparison;
-* an encoder-decoder RNN recursively feeds each predicted period into the next;
-* a joint multi-step loss is propagated through the complete supervised rollout;
-* long-horizon forecasts are reconciled to a separately estimated aggregate
-  revenue path; and
-* revenue errors and Top-K product-ranking metrics are reported against the same
-  independent recent-average baseline and the same evaluation population.
-"""
 from __future__ import annotations
 
 import json
@@ -28,7 +13,6 @@ from django.db import connection
 from scipy.stats import kendalltau, spearmanr
 from sklearn.ensemble import HistGradientBoostingRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
-
 from .autoregressive_rnn import AutoregressiveRevenueRNN
 
 
@@ -36,24 +20,9 @@ logger = logging.getLogger(__name__)
 MODEL_DIR = Path(__file__).resolve().parent.parent / "ml_models_cache" / "time_series"
 ARTIFACT_VERSION = 12
 PERIOD_DAYS = 30
-# A horizon is fully supervised only while periods - horizon - window >= horizon,
-# so with 23 complete periods every horizon above 9 is unreachable at any
-# lookback and is excluded rather than offered as a configuration that can only
-# ever produce damped extrapolation.  Horizons 1-9 each have at least one
-# lookback that supervises them fully; every lookback from 2 to 12 supports at
-# least one horizon.  Both ranges are contiguous so no usable pair is missing.
 VALID_HORIZONS = {1, 2, 3, 4, 5, 6, 7, 8, 9}
 VALID_WINDOWS = {2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}
 VALID_STEPS = {1, 2, 3}
-# Shallow cutoffs say whether the handful of products a buyer actually reads
-# came out in the right order; the deep ones say whether the ranking still
-# holds once it is used as a shortlist rather than a headline.
-#
-# The deep end is not decoration. Down to a few hundred products the recent
-# average ranks revenue as well as either model and at K=50 it ranks it better,
-# because a product's recent takings are a strong guess at its next ones. Both
-# models pull clear of it around K=500 and stay clear, so a comparison that
-# stopped at 20 would report a tie the data does not support either way.
 RANKING_CUTOFFS = (5, 10, 20, 100, 200, 500, 1000, 2000, 5000, 10000, 20000)
 AUTO_HIDDEN_UNITS = 16
 AUTO_FEEDBACK_RATE = 0.5
@@ -64,14 +33,12 @@ VALID_EPOCHS = {5, 10, 15, 20, 30}
 
 
 class ProductRevenueTimeSeriesForecaster:
-    """Compare independent direct and recursive neural sequence forecasts."""
 
     def __init__(self):
         MODEL_DIR.mkdir(parents=True, exist_ok=True)
 
     @staticmethod
     def _refresh_report_interpretation(report):
-        """Refresh explanatory metadata when loading an otherwise valid artifact."""
         if report and report.get("bias_diagnostics") is not None:
             report["bias_diagnostics"]["interpretation"] = (
                 "Negative values mean underprediction and positive values mean "
@@ -175,12 +142,6 @@ class ProductRevenueTimeSeriesForecaster:
             raise ValueError("training_size must be between 0.50 and 0.95.")
 
     def load_product_panels(self):
-        """Return equal-length revenue/unit panels ending on the dataset's last day.
-
-        Anchoring backwards from MAX(day) avoids treating the final 21 days of the
-        711-day dataset as a complete month.  Days 22-711 form 23 complete and
-        directly comparable 30-day periods; days 1-21 are disclosed as excluded.
-        """
         with connection.cursor() as cursor:
             cursor.execute(
                 "SELECT MIN(day), MAX(day), COUNT(*), COUNT(DISTINCT product_id) "
@@ -266,17 +227,6 @@ class ProductRevenueTimeSeriesForecaster:
 
     @staticmethod
     def _feature_matrix(lag_values: np.ndarray, target_period_index: int) -> np.ndarray:
-        """Create ordered lag and summary features using only observed history.
-
-        No calendar term is derived from ``target_period_index``.  A 12-period
-        sin/cos pair was previously appended here, but the supervised targets
-        of any usable configuration span only a few consecutive phases of that
-        cycle, so the seasonal coefficients are not identifiable and the models
-        extrapolate them into phases never observed.  Both forecasters drop the
-        term, which keeps the comparison on identical information and improves
-        each of them; the argument is retained so the call sites keep a stable
-        signature.
-        """
         lag_values = np.maximum(np.asarray(lag_values, dtype=float), 0.0)
         recent_width = min(3, lag_values.shape[1])
         recent = lag_values[:, -recent_width:]
@@ -296,7 +246,6 @@ class ProductRevenueTimeSeriesForecaster:
 
     @staticmethod
     def _one_step_baseline(lag_values: np.ndarray) -> np.ndarray:
-        """Independent recent-average revenue baseline for the next period."""
         recent_width = min(3, lag_values.shape[1])
         return np.maximum(lag_values[:, -recent_width:].mean(axis=1), 0.0)
 
@@ -308,12 +257,6 @@ class ProductRevenueTimeSeriesForecaster:
         sliding_step: int,
         training_size: float,
     ):
-        """Choose fitting origins strictly before the final-horizon holdout.
-
-        The target of each one-step fitting sample is the period at its origin.
-        Consequently every fitting target is earlier than ``test_origin`` and no
-        train target can overlap the final ``horizon`` test periods.
-        """
         test_origin = period_count - horizon
         if test_origin < window_size:
             raise ValueError(
@@ -335,14 +278,6 @@ class ProductRevenueTimeSeriesForecaster:
         self, panel: pd.DataFrame, origins: list[int], window_size: int,
         lead: int = 1, training_end: int | None = None,
     ):
-        """Samples whose target sits ``lead`` periods after the forecast origin.
-
-        ``lead=1`` reproduces the one-step problem.  Deeper leads give the
-        direct multi-step strategy its own supervised target per horizon step,
-        rather than replaying a one-step model.  Origins whose target would
-        land on or after ``training_end`` are dropped, so no lead can see the
-        holdout.
-        """
         values = panel.to_numpy(dtype=float)
         features, residual_targets, sample_ids, sample_actuals = [], [], [], []
         product_ids = panel.index.to_numpy(dtype=int)
@@ -378,14 +313,6 @@ class ProductRevenueTimeSeriesForecaster:
     def _fit_direct_models(
         self, panel, origins, window_size, horizon, training_end=None,
     ):
-        """Fit one estimator per forecast lead - the direct multi-step strategy.
-
-        Each lead learns its own mapping from the same observed window, so the
-        forecast varies across the horizon instead of repeating a single
-        one-step prediction.  Deep leads lose origins to the leakage guard, so
-        a lead with no usable samples reuses the deepest lead that has them and
-        the shortfall is reported.
-        """
         models, counts, trained_leads = {}, {}, []
         total_samples = 0
         for lead in range(1, int(horizon) + 1):
@@ -469,7 +396,6 @@ class ProductRevenueTimeSeriesForecaster:
 
     @staticmethod
     def _production_origins(period_count, window_size, sliding_step, training_size):
-        """Use every fully observed target when refitting the future-production model."""
         candidates = list(range(window_size, period_count, sliding_step))
         if candidates and candidates[-1] != period_count - 1:
             candidates.append(period_count - 1)
@@ -492,28 +418,6 @@ class ProductRevenueTimeSeriesForecaster:
 
     @staticmethod
     def _fit_retransformation_bins(log_level, actual, n_bins=10):
-        """Correct log-space retransformation bias, conditional on forecast size.
-
-        The estimators are fitted on ``log1p(actual) - log1p(baseline)`` and
-        inverted with ``expm1``.  Exponentiating a conditional mean of logs
-        yields a geometric mean, which understates the arithmetic mean of a
-        right-skewed revenue distribution, so revenue is reported too low.
-        Duan's (1983) smearing factor ``E[exp(residual)]`` is the classical
-        remedy but assumes a multiplicative ``log`` model with homoscedastic
-        residuals.  Neither holds here: the ``log1p`` inverse carries a ``-1``
-        that breaks the decomposition, and residual spread varies sharply with
-        product size because 75% of the Product ID x period cells are zero.
-
-        A single global factor therefore fixes the aggregate bias but inflates
-        the many near-zero products and degrades per-product error.  Instead a
-        separate factor is solved per decile of predicted level, so that within
-        each bin the retransformed training total matches the observed total:
-
-            sum[exp(level) * f - 1] = sum(actual)
-
-        Bins and factors are estimated on the training fold only, so the
-        holdout is never used to calibrate the forecast.
-        """
         log_level = np.asarray(log_level, dtype=float)
         actual = np.maximum(np.asarray(actual, dtype=float), 0.0)
         if log_level.size == 0:
@@ -551,7 +455,6 @@ class ProductRevenueTimeSeriesForecaster:
 
     @classmethod
     def _fit_estimators(cls, features, target, sample_actual):
-        """Fit equal-weight and revenue-aware estimators for a stable ensemble."""
         unweighted = cls._new_regressor()
         unweighted.fit(features, target)
         weights = 1.0 + np.log1p(np.maximum(sample_actual, 0.0))
@@ -559,8 +462,6 @@ class ProductRevenueTimeSeriesForecaster:
         weights = weights / weights.mean()
         revenue_weighted = cls._new_regressor()
         revenue_weighted.fit(features, target, sample_weight=weights)
-        # target == log1p(actual) - log1p(baseline), so the fitting baseline is
-        # recoverable exactly and no extra state has to be threaded through.
         log1p_baseline = np.log1p(np.maximum(sample_actual, 0.0)) - target
         for model in (unweighted, revenue_weighted):
             level = log1p_baseline + model.predict(features)
@@ -576,14 +477,6 @@ class ProductRevenueTimeSeriesForecaster:
     def _direct_predict(
         cls, estimators, observed_history, horizon, window_size, first_target_index
     ):
-        """Predict every lead from observed history, avoiding recursive error compounding.
-
-        ``estimators`` is the bundle from ``_fit_direct_models``: one estimator
-        set per lead.  Each step is served by the model trained for that lead,
-        which is what makes the direct strategy vary across the horizon; the
-        observed window itself never advances, so no prediction is ever fed
-        back into another.
-        """
         observed = np.maximum(np.asarray(observed_history, dtype=float), 0.0)
         lags = observed[:, -window_size:]
         active = lags.sum(axis=1) > 0
@@ -604,8 +497,6 @@ class ProductRevenueTimeSeriesForecaster:
             )
             for model in selected_estimators:
                 level = np.log1p(baseline) + model.predict(features)
-                # Size-conditional retransformation correction; identity when
-                # the estimator predates the calibrated artifact version.
                 edges = getattr(model, "smearing_edges_", None)
                 factor = 1.0 if edges is None else cls._apply_retransformation_bins(
                     level, edges, model.smearing_factors_
@@ -618,7 +509,6 @@ class ProductRevenueTimeSeriesForecaster:
 
     @staticmethod
     def _aggregate_total_forecast(observed_history, horizon):
-        """Damped robust trend for total revenue, using only observed periods."""
         totals = np.maximum(np.asarray(observed_history, dtype=float), 0.0).sum(axis=0)
         recent = totals[-min(6, len(totals)):]
         recent_level = recent[-min(3, len(recent)):]
@@ -633,14 +523,12 @@ class ProductRevenueTimeSeriesForecaster:
 
     @staticmethod
     def _reconciliation_power(horizon):
-        """Apply only a light drift guard without erasing model-specific paths."""
         if horizon >= 12 or 1 < horizon <= 3:
             return 0.25
         return 0.0
 
     @classmethod
     def _reconcile_to_aggregate(cls, forecasts, observed_history, horizon):
-        """Align product forecasts to a separately forecast aggregate total."""
         forecasts = np.maximum(np.asarray(forecasts, dtype=float), 0.0)
         if horizon <= 1:
             return forecasts
@@ -685,10 +573,6 @@ class ProductRevenueTimeSeriesForecaster:
         weighted_overlap = 0.0
         first_seen, second_seen = set(), set()
         agreement = 0.0
-        # The shared count is carried rather than recomputed. Intersecting the
-        # two sets at every depth is quadratic, which cost 6.5s at k=20000 and
-        # nothing at k=20; each new pair can only add to the overlap, so the
-        # count is updated in place and the deep cutoffs come almost free.
         shared = 0
         for index in range(depth):
             first_id, second_id = first_ids[index], second_ids[index]
@@ -826,7 +710,6 @@ class ProductRevenueTimeSeriesForecaster:
         top_k=20, parameter_mode="auto", hidden_units=None,
         feedback_rate=None, epochs=None,
     ):
-        """Validate recursive RNN and independent direct forecasts, then refit both."""
         horizon, window_size, sliding_step = int(horizon), int(window_size), int(sliding_step)
         training_size = float(training_size)
         self._validate_configuration(horizon, window_size, sliding_step, training_size)
@@ -993,13 +876,6 @@ class ProductRevenueTimeSeriesForecaster:
                     else "disabled"
                 ),
                 "applied_equally_to_compared_models": True,
-                # Stated plainly because the field above reads, at a glance, as
-                # though every column were treated alike. The recent-average
-                # benchmark is not rescaled: it is a mean of observed periods,
-                # so it has no drift to correct. Whether that flatters the two
-                # models is checkable -- at horizons 4 to 9 the power is 0 and
-                # nothing is rescaled at all, and the ranking result there is
-                # the same as it is here.
                 "applied_to_recent_average_baseline": False,
             },
             "target": f"monthly Product ID revenue for the next {horizon} complete 30-day period(s)",
@@ -1112,8 +988,6 @@ class ProductRevenueTimeSeriesForecaster:
                         getattr(validation_sequence, "smearing_factors_", [1.0])
                     ).ravel()
                 ],
-                # Each lead is calibrated separately, so report the first lead
-                # as the representative set.
                 "direct_factors": [
                     round(float(value), 6)
                     for value in np.asarray(
@@ -1153,8 +1027,6 @@ class ProductRevenueTimeSeriesForecaster:
         production_origins, production_candidates = self._production_origins(
             revenue_panel.shape[1], window_size, sliding_step, training_size
         )
-        # The production refit may use every fully observed target, so the only
-        # bound on a lead is the end of the panel itself.
         production_direct = self._fit_direct_models(
             revenue_panel, production_origins, window_size, horizon,
             training_end=revenue_panel.shape[1],
@@ -1246,7 +1118,6 @@ class ProductRevenueTimeSeriesForecaster:
         feedback_rate=None,
         epochs=None,
     ):
-        """Forecast with both compared models and return side-by-side product results."""
         horizon, window_size, sliding_step = int(horizon), int(window_size), int(sliding_step)
         training_size = float(training_size)
         self._validate_configuration(horizon, window_size, sliding_step, training_size)
@@ -1339,9 +1210,6 @@ class ProductRevenueTimeSeriesForecaster:
             out=np.full_like(recent_revenue, np.nan),
             where=recent_units > 0,
         )
-        # Quantity is not a consistent retail "unit" in this source (notably fuel and
-        # weighted products).  Do not manufacture enormous unit forecasts when the
-        # historical revenue/quantity rate is below one cent.
         unit_estimate_available = np.isfinite(revenue_per_unit) & (revenue_per_unit >= 0.01)
         predicted_units = np.divide(
             predicted_revenue,
@@ -1374,16 +1242,11 @@ class ProductRevenueTimeSeriesForecaster:
         result = result.sort_values(
             ["predicted_revenue", "product_id"], ascending=[False, True]
         )
-        # top_n <= 0 means "every product that passed the threshold". A positive
-        # request stays capped at the largest explicit display option, so a
-        # stray larger value cannot request an accidental oversized payload.
         requested_top_n = int(top_n)
         if requested_top_n <= 0:
             top_result = result.copy()
         else:
             top_result = result.head(min(requested_top_n, 1000)).copy()
-        # The department chart is a summary of the displayed product selection,
-        # so Top 10/20/.../1,000 and All products each produce matching totals.
         department_forecast = top_result.groupby("department", dropna=False)[[
             "predicted_revenue", "time_series_revenue", "independent_revenue",
             "baseline_revenue",

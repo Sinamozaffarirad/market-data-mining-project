@@ -1,11 +1,4 @@
-"""Leakage-safe household-department repurchase classification.
 
-The prediction grain is one household and one department at an as-of day.  Every
-feature is aggregated from transactions on or before that day; the binary target
-is whether the same household buys from the same department in the subsequent
-forecast window.  Chronological validation is purged so no training target
-overlaps the final test snapshot.
-"""
 from __future__ import annotations
 
 import json
@@ -40,13 +33,6 @@ from sklearn.svm import SVC
 logger = logging.getLogger(__name__)
 MODEL_DIR = Path(__file__).resolve().parent.parent / "ml_models_cache"
 ARTIFACT_VERSION = 4
-# A horizon needs two non-overlapping outcome windows inside the 711-day
-# calendar: one to train on and a later one to test against.  Twelve months
-# cannot supply that - 711 days holds only one 360-day outcome - so it was
-# always reported as "validation unavailable" and has been dropped rather than
-# offered as a setting that cannot produce an honest metric.  Ten months leaves
-# a single training origin, which is too thin to fit on, so the grid stops at
-# nine and the origin count is reported alongside every result.
 VALID_HORIZON_MONTHS = (1, 2, 3, 4, 5, 6, 7, 8, 9)
 
 
@@ -121,7 +107,6 @@ class PredictiveMarketBasketAnalyzer:
         return f"{horizon}_{cls._size_tag(training_size)}_{model_name}"
 
     def _load_cached_models(self):
-        # Keyed by (horizon, size tag) so sizes do not overwrite one another.
         self.models = {}
         metrics_path = self._metrics_path()
         if metrics_path.exists():
@@ -482,14 +467,6 @@ class PredictiveMarketBasketAnalyzer:
         return True
 
     def _persist_metrics(self):
-        """Merge this run's metrics into the file rather than replacing it.
-
-        The metrics for every horizon, training size and algorithm share one
-        JSON file. Writing the in-memory dict wholesale meant a process holding
-        a stale copy - the web server, say, while a training script ran - erased
-        entries it had never seen. Re-reading immediately before the write keeps
-        both sets.
-        """
         metrics_path = self._metrics_path()
         merged = {}
         if metrics_path.exists():
@@ -571,5 +548,4 @@ class PredictiveMarketBasketAnalyzer:
         return self.predict_future_purchases(model_name, time_horizon, top_n=10)
 
     def predict_customer_preferences(self, model_name, customer_id=None, top_n=10, time_horizon=3):
-        """Deprecated: the corrected classifier has no defensible Product-ID output."""
         return []

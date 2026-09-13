@@ -103,7 +103,17 @@ def _commodity_departments():
         mapping = {}
         try:
             with connection.cursor() as cursor:
-                cursor.execute()
+                cursor.execute("""
+                    SELECT commodity_desc, department FROM (
+                        SELECT commodity_desc, department, COUNT(*) AS n,
+                            ROW_NUMBER() OVER (PARTITION BY commodity_desc
+                                                ORDER BY COUNT(*) DESC) AS rn
+                        FROM product
+                        WHERE commodity_desc IS NOT NULL AND commodity_desc <> ''
+                        AND department IS NOT NULL AND department <> ''
+                        GROUP BY commodity_desc, department
+                    ) ranked WHERE rn = 1
+                """)
                 mapping = {str(row[0]).strip().upper(): row[1] for row in cursor.fetchall()}
         except Exception:
             logger = __import__('logging').getLogger(__name__)

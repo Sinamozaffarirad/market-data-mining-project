@@ -4,16 +4,13 @@ from . import bi_views, views
 app_name = "dunnhumby_site"
 
 urlpatterns = [
-    # Authentication
     path("login/", views.user_login, name="login"),
     path("logout/", views.user_logout, name="logout"),
-    # Main pages
     path("", views.site_index, name="index"),
     path("basket-analysis/", views.basket_analysis, name="basket_analysis"),
     path("association-rules/", views.association_rules, name="association_rules"),
     path("customer-segments/", views.customer_segments, name="customer_segments"),
     path("data-management/", views.data_management, name="data_management"),
-    # Business-intelligence dashboard over the star-schema views
     path("bi-dashboard/", bi_views.bi_dashboard, name="bi_dashboard"),
     path("api/bi/kpis/", bi_views.api_bi_kpis, name="api_bi_kpis"),
     path("api/bi/product-drill/", bi_views.api_bi_product_drill, name="api_bi_product_drill"),
@@ -37,7 +34,6 @@ urlpatterns = [
     path("api/bi/repeat/", bi_views.api_bi_repeat, name="api_bi_repeat"),
     path("api/bi/discount-mix/", bi_views.api_bi_discount_mix, name="api_bi_discount_mix"),
     path("api/bi/brand-mix/", bi_views.api_bi_brand_mix, name="api_bi_brand_mix"),
-    # JSON/API endpoints used by front-end JS
     path("api/table/", views.api_get_table_data, name="api_get_table_data"),
     path("api/association-rules/insert/", views.api_insert_association_rule, name="api_insert_association_rule"),
     path("api/association-rules/department/", views.api_generate_department_rules, name="api_generate_department_rules"),
@@ -61,7 +57,6 @@ urlpatterns = [
     path("api/differential/", views.api_differential_analysis, name="api_differential_analysis"),
     path("api/market-trends/", views.api_market_trends, name="api_market_trends"),
     path("api/regenerate-segments/", views.api_regenerate_segments, name="api_regenerate_segments"),
-    # ML API endpoints
     path("api/ml/predictive/", views.predictive_analysis_api, name="predictive_analysis_api"),
     path("api/ml/predict-future/", views.predict_future_api, name="predict_future_api"),
     path("api/ml/train/", views.train_ml_models, name="train_ml_models"),

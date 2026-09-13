@@ -5,7 +5,6 @@ from django.db import models
 from django.http import JsonResponse, HttpResponse
 from django.shortcuts import render, get_object_or_404, redirect
 import math
-
 from django.db import connection
 from django.contrib import messages
 from django.urls import reverse
@@ -62,7 +61,6 @@ logger = logging.getLogger(__name__)
 
 
 def _source_dataset_signature():
-    """A lightweight version marker for this project's fixed transaction dataset."""
     source = Transaction.objects.aggregate(
         total=Count("id"), first_day=Min("day"), last_day=Max("day")
     )
@@ -95,13 +93,11 @@ def _write_cached_training_dataset(cache, dataset):
 
 
 def _model_result_signature():
-    """Fingerprint the model and feature settings, not only the transaction data."""
     metadata = json.dumps(experiment_metadata(), sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(metadata.encode("utf-8")).hexdigest()
 
 
 def _read_cached_model_result(cache):
-    """Return a finished result only when it matches this code and fixed dataset."""
     if not cache or not cache.customer_windows.exists():
         return None
     if cache.model_result_signature != _model_result_signature():
@@ -132,7 +128,6 @@ def _read_cached_model_result(cache):
 
 
 def _write_cached_model_result(cache, metrics, scores, historical_predictions):
-    """Keep a restoreable result after its visible experiment is deleted."""
     cache.model_result_signature = _model_result_signature()
     cache.model_metrics_json = json.dumps(metrics, sort_keys=True)
     cache.current_scores_blob = gzip.compress(
@@ -156,7 +151,6 @@ def _write_cached_model_result(cache, metrics, scores, historical_predictions):
 def _get_or_build_window_cache(
     config, historical_snapshots=None, training_dataset=None
 ):
-    """Return a shared RFM/outcome cache, creating it only once per source version."""
     cache, created = ChurnWindowCache.objects.get_or_create(
         method=config.method.value,
         observation_window_days=config.observation_window_days,
@@ -204,7 +198,6 @@ def _get_or_build_window_cache(
 
 
 def _persist_cache_predictions(experiment, cache, historical_predictions):
-    """Save only model-specific probabilities; RFM/outcomes stay in the shared cache."""
     if historical_predictions.empty:
         return 0
     window_ids = {
@@ -227,7 +220,6 @@ def _persist_cache_predictions(experiment, cache, historical_predictions):
 
 
 def _persist_window_history(experiment, historical_snapshots, historical_predictions):
-    """Save each complete historical window as one experiment-owned customer record."""
     probability_by_window = {
         (
             int(row.household_key),
@@ -281,7 +273,6 @@ def _persist_churn_history(
     current_scores,
     horizon_days,
 ):
-    """Persist reusable states, known outcomes, and this experiment's probabilities."""
     states = pd.concat(
         [historical_snapshots.drop(columns=["is_churn"]), current_snapshots],
         ignore_index=True,
@@ -309,8 +300,6 @@ def _persist_churn_history(
         batch_size=150,
     )
 
-    # Do not put every household in an ``IN`` clause: SQL Server allows only
-    # 2,100 query parameters and this dataset contains more households than that.
     desired_keys = {
         (int(row.household_key), int(row.cutoff_day), int(row.observation_window_days))
         for row in unique_states.itertuples(index=False)
@@ -413,7 +402,6 @@ def _persist_churn_history(
     }
 
 
-# Define table categories based on their CRUD properties
 READ_ONLY_ANALYTICAL_TABLES = ["basket_analysis", "customer_segments"]
 MANAGED_ANALYTICAL_TABLES = ["association_rules"]
 
@@ -431,7 +419,6 @@ def admin_required(view_func):
 
 
 def user_login(request):
-    """Login view for main website - only admins allowed"""
     if request.user.is_authenticated and (
         request.user.is_staff or request.user.is_superuser
     ):
@@ -444,20 +431,16 @@ def user_login(request):
         user = authenticate(request, username=username, password=password)
 
         if user is not None:
-            # Check if user is admin/staff
             if user.is_staff or user.is_superuser:
                 login(request, user)
 
-                # Set session expiry (1 hour)
                 request.session.set_expiry(3600)
 
-                # Store device info for security
                 request.session["user_agent"] = request.META.get("HTTP_USER_AGENT", "")
                 request.session["ip_address"] = request.META.get("REMOTE_ADDR", "")
 
                 messages.success(request, f"Welcome back, {user.username}!")
 
-                # Redirect to next parameter or default
                 next_url = request.GET.get("next", "/analysis/")
                 return redirect(next_url)
             else:
@@ -469,14 +452,12 @@ def user_login(request):
 
 
 def user_logout(request):
-    """Logout view"""
     logout(request)
     messages.success(request, "You have been logged out successfully.")
     return redirect("dunnhumby_site:login")
 
 
 def refresh_basket_analysis_logic():
-    """Refresh basket analysis data for all transactions."""
     with db_transaction.atomic():
         BasketAnalysis.objects.all().delete()
 
@@ -527,16 +508,10 @@ def api_refresh_basket_analysis(request):
     except Exception as e:
         return JsonResponse({"success": False, "error": str(e)}, status=500)
 
-
-# SQL Server accepts at most 2,100 parameters in one statement, and an IN list
-# built from a page of results runs past that: 1,000 rules reference up to 2,000
-# products, which failed with "COUNT field incorrect or syntax error" -- a
-# message that says nothing about the real cause. Lookups are batched instead.
 SQL_PARAMETER_BATCH = 900
 
 
 def _rows_in_batches(cursor, sql_template, values):
-    """Run an IN-list query in batches small enough for the driver."""
     collected = []
     values = list(values)
     for start in range(0, len(values), SQL_PARAMETER_BATCH):
@@ -551,19 +526,13 @@ def _generate_association_rules(
     min_support, min_confidence, transaction_period="all", max_results=100,
     min_lift=0.0,
 ):
-    """
-    Efficient association rules generation using database-level queries
-    to handle large datasets without memory issues
-    """
     from django.db import connection
 
     rules = []
 
     try:
-        # Calculate date filter based on transaction period
         start_day = None
         if transaction_period != "all":
-            # Get the maximum day from transactions to calculate the period
             with connection.cursor() as cursor:
                 cursor.execute("SELECT MAX(day) FROM transactions")
                 max_day_result = cursor.fetchone()
@@ -571,7 +540,6 @@ def _generate_association_rules(
                     max_day_result[0] if max_day_result and max_day_result[0] else 365
                 )
 
-                # Calculate start day based on period
                 period_days = {
                     "1_month": 30,
                     "3_months": 90,
@@ -585,7 +553,6 @@ def _generate_association_rules(
                 )
 
         with connection.cursor() as cursor:
-            # First, get total number of unique baskets for support calculation
             logger.info("Starting basket count query...")
             if start_day is not None:
                 basket_count_query = f"SELECT COUNT(DISTINCT basket_id) FROM transactions WHERE day >= {start_day}"
@@ -601,27 +568,18 @@ def _generate_association_rules(
                 logger.warning("No baskets found in transactions table")
                 return rules
 
-            # Calculate minimum basket count threshold
-            # Rounded up, not down: truncating let a rule through at a support
-            # marginally below the one that was asked for, so the threshold on
-            # screen was not quite the threshold applied.
             min_basket_count = max(1, math.ceil(total_baskets * min_support))
             logger.info(
                 f"Total baskets: {total_baskets}, Min basket count: {min_basket_count}"
             )
 
-            # Validate parameters to prevent extremely long queries
-            # Allow very small support values but warn about performance
             if min_basket_count < 5 and total_baskets > 500000:
                 logger.warning(
                     f"Very low support threshold ({min_basket_count} baskets) may result in slow query performance"
                 )
-            # Only enforce minimum if absolutely necessary for performance
             if min_basket_count < 1:
                 min_basket_count = 1
 
-            # Find frequent product pairs using a simpler SQL approach for SQL Server
-            # Build the query with optional date filtering
             if start_day is not None:
                 date_filter_pairs = (
                     f" WHERE t1.day >= {start_day} AND t2.day >= {start_day}"
@@ -631,17 +589,7 @@ def _generate_association_rules(
                 date_filter_pairs = ""
                 date_filter_single = ""
 
-            # Candidates are taken by lift, which is what the results are ranked
-            # and read by. Taking the 2,000 most frequent pairs and then sorting
-            # those by lift could not surface the strongest rules: lift is
-            # highest for rare pairs, so the most frequent candidates are the
-            # least likely to hold them. At the default threshold 4.1M pairs
-            # qualify, so which 2,000 were examined decided the answer.
             candidate_limit = max(int(max_results) * 4, 400)
-            # Lift is filtered in the query rather than after it. Filtering the
-            # rows afterwards would thin the candidate set that TOP has already
-            # cut, so asking for 100 rules above a lift floor would return
-            # fewer than 100 even where more qualify.
             lift_expression = (
                 f"(CAST(pairs.pair_count AS float) * {total_baskets}) "
                 "/ (CAST(counts_a.product_count AS float) * counts_b.product_count)"
@@ -700,7 +648,6 @@ def _generate_association_rules(
             product_pairs = cursor.fetchall()
             logger.info(f"Found {len(product_pairs)} product pairs")
 
-            # Get product details for the products we found
             if product_pairs:
                 product_ids = set()
                 for pair in product_pairs:
@@ -726,14 +673,11 @@ def _generate_association_rules(
             else:
                 product_details = {}
 
-        # Process the pairs to generate rules (outside cursor context since we have all data)
         for product_a, product_b, pair_count, count_a, count_b in product_pairs:
-            # Calculate metrics
             support = pair_count / total_baskets
             confidence_a_to_b = pair_count / count_a if count_a > 0 else 0
             confidence_b_to_a = pair_count / count_b if count_b > 0 else 0
 
-            # Generate rule A -> B
             if confidence_a_to_b >= min_confidence:
                 lift = (
                     confidence_a_to_b / (count_b / total_baskets) if count_b > 0 else 0
@@ -780,7 +724,6 @@ def _generate_association_rules(
                     }
                 )
 
-            # Generate rule B -> A (if different from A -> B)
             if (
                 confidence_b_to_a >= min_confidence
                 and confidence_b_to_a != confidence_a_to_b
@@ -830,7 +773,6 @@ def _generate_association_rules(
                     }
                 )
 
-        # Sort by lift and return top N results
         all_rules = sorted(rules, key=lambda x: x["lift"], reverse=True)
         logger.info(
             "Generated %s rules from %s candidate pairs (limit %s, min %s baskets), returning top %s",
@@ -844,13 +786,12 @@ def _generate_association_rules(
 
     except Exception as e:
         logger.error(f"Error in _generate_association_rules: {str(e)}")
-        raise e  # Re-raise to be caught by the view function
+        raise e  
 
 
 def _generate_department_association_rules(
     min_support, min_confidence, transaction_period="all", max_results=100
 ):
-    """Generate association rules at department level using Python aggregation for scalability."""
     from django.db import connection
     from itertools import combinations
     from collections import defaultdict
@@ -887,7 +828,6 @@ def _generate_department_association_rules(
                     transaction_period,
                 )
 
-        # Count baskets for support denominator
         with connection.cursor() as cursor:
             if start_day is not None:
                 cursor.execute(
@@ -909,7 +849,6 @@ def _generate_department_association_rules(
             min_basket_count,
         )
 
-        # Determine eligible departments (those that can meet min support)
         base_conditions = []
         base_params = []
         if start_day is not None:
@@ -946,7 +885,6 @@ def _generate_department_association_rules(
             logger.info("Not enough departments met support threshold to form rules")
             return rules
 
-        # Stream basket-department pairs for eligible departments only
         placeholders = ",".join(["%s"] * len(eligible_departments))
         stream_query = (
             "SELECT t.basket_id, p.department "
@@ -984,7 +922,6 @@ def _generate_department_association_rules(
                         current_departments.clear()
                         current_basket = basket_id
                     current_departments.add(department)
-            # Process final basket
             process_current()
 
         if not pair_counts:
@@ -1044,7 +981,6 @@ def _generate_department_association_rules(
 def _generate_commodity_association_rules(
     min_support, min_confidence, transaction_period="all", max_results=100
 ):
-    """Generate association rules at commodity level using Python aggregation for scalability."""
     from django.db import connection
     from itertools import combinations
     from collections import defaultdict
@@ -1081,7 +1017,6 @@ def _generate_commodity_association_rules(
                     transaction_period,
                 )
 
-        # Count baskets for support denominator
         with connection.cursor() as cursor:
             if start_day is not None:
                 cursor.execute(
@@ -1248,7 +1183,6 @@ def _get_data_statistics():
 
 @admin_required
 def site_index(request):
-    # Calculate dynamic metrics
     total_transactions = Transaction.objects.count()
     unique_products = Transaction.objects.values("product_id").distinct().count()
     active_customers = Transaction.objects.values("household_key").distinct().count()
@@ -1256,21 +1190,17 @@ def site_index(request):
         Transaction.objects.aggregate(total=Sum("sales_value"))["total"] or 0
     )
 
-    # Keep revenue as raw value for JavaScript formatting
     total_revenue_raw = int(total_revenue)
 
-    # Calculate period-over-period changes (last 60 days vs previous 60 days)
     from django.db.models import Min, Max
 
     day_stats = Transaction.objects.aggregate(min_day=Min("day"), max_day=Max("day"))
     max_day = day_stats["max_day"]
 
-    # Recent period: days 652-711, Previous period: days 592-651
     recent_period_start = max_day - 59
     previous_period_start = max_day - 119
     previous_period_end = max_day - 60
 
-    # Recent period metrics
     recent_transactions = Transaction.objects.filter(
         day__gte=recent_period_start
     ).count()
@@ -1293,7 +1223,6 @@ def site_index(request):
         or 0
     )
 
-    # Previous period metrics
     prev_transactions = Transaction.objects.filter(
         day__gte=previous_period_start, day__lte=previous_period_end
     ).count()
@@ -1320,7 +1249,6 @@ def site_index(request):
         or 0
     )
 
-    # Calculate percentage changes
     trans_change = (
         ((recent_transactions - prev_transactions) / prev_transactions * 100)
         if prev_transactions > 0
@@ -1342,9 +1270,6 @@ def site_index(request):
         else 0
     )
 
-    # Each card names the thing it actually opens. A single shared "Launch
-    # Analysis" said nothing, and was plainly wrong on the cards that open a
-    # data table or a search rather than an analysis.
     tools = [
         {
             "title": "Shopping Basket Analysis",
@@ -1431,9 +1356,6 @@ def api_market_trends(request):
 
     try:
         with connection.cursor() as cursor:
-            # Get monthly aggregated data for exactly 12 months ending at day 711
-            # 12 complete months = days 352-711 (360 days)
-            # Group by 30-day periods: Month 1 (days 352-381), Month 2 (days 382-411), etc.
             cursor.execute("""
                 SELECT
                     ((day - 352) / 30) + 1 as month_num,
@@ -1451,14 +1373,12 @@ def api_market_trends(request):
 
             rows = cursor.fetchall()
 
-            # Initialize data arrays
             sales_volume = []
             revenue = []
             customers = []
             basket_sizes = []
             month_labels = []
 
-            # Process exactly 12 months of data
             for i, row in enumerate(rows):
                 (
                     month_num,
@@ -1474,9 +1394,7 @@ def api_market_trends(request):
                 customers.append(int(unique_customers or 0))
                 basket_sizes.append(round(float(avg_basket or 0), 2))
 
-            # Generate labels after filtering
             for i in range(len(sales_volume)):
-                # Label showing months ago (oldest → newest)
                 months_ago = len(sales_volume) - i - 1
                 if months_ago == 0:
                     month_labels.append("Current")
@@ -1502,7 +1420,7 @@ def api_market_trends(request):
         return JsonResponse({"success": False, "error": str(e)}, status=500)
 
 
-from .analytics import RFMAnalyzer  # ۱. کلاس اصلی را وارد می‌کنیم
+from .analytics import RFMAnalyzer  
 
 
 @admin_required
@@ -1512,18 +1430,14 @@ def api_regenerate_segments(request):
     API endpoint to regenerate customer segments by calling the RFMAnalyzer.
     """
     try:
-        # ۲. یک نمونه از موتور تحلیلی می‌سازیم
         analyzer = RFMAnalyzer()
 
-        # ۳. تمام مراحل تحلیل را با فراخوانی متدهای کلاس انجام می‌دهیم
         analyzer.calculate_rfm_scores()
         analyzer.segment_customers()
         analyzer.save_segments_to_db()
 
-        # تعداد سگمنت‌های ایجاد شده را از کلاس می‌خوانیم
         count = len(analyzer.segments)
 
-        # ۴. پاسخ موفقیت‌آمیز را برمی‌گردانیم
         return JsonResponse(
             {
                 "success": True,
@@ -1542,10 +1456,6 @@ def api_regenerate_segments(request):
             status=500,
         )
 
-
-# The lists on the descriptive tab ship 25 rows. A reader who wants more picks
-# from this set rather than typing a number into the URL: the value goes into a
-# TOP clause, so it is chosen from a list and never taken from the request.
 TOP_LIST_SIZES = (25, 50, 100, 200)
 
 
@@ -1559,17 +1469,12 @@ def _top_list_size(request, name, default=25):
 
 @admin_required
 def basket_analysis(request):
-    """
-    Optimized Market Basket Analysis for 2.6M+ transactions
-    """
     top_baskets_size = _top_list_size(request, "top_baskets")
     top_products_size = _top_list_size(request, "top_products")
     logger.info("Starting basket analysis for 2.6M+ transactions")
 
     try:
-        # Get overall statistics efficiently using raw SQL
         with connection.cursor() as cursor:
-            # Overall dataset statistics
             cursor.execute("""
                 SELECT
                     COUNT(*) as total_transactions,
@@ -1582,7 +1487,6 @@ def basket_analysis(request):
             """)
             overall_stats = cursor.fetchone()
 
-            # Top baskets by value (optimized for large dataset)
             cursor.execute(f"""
                 SELECT TOP {top_baskets_size}
                     basket_id,
@@ -1597,7 +1501,6 @@ def basket_analysis(request):
             """)
             basket_stats = cursor.fetchall()
 
-            # Department analysis - aggregated for performance
             cursor.execute("""
                 SELECT TOP 15
                     p.department,
@@ -1613,7 +1516,6 @@ def basket_analysis(request):
             """)
             dept_analysis = cursor.fetchall()
 
-        # Top products by frequency - optimized query
         product_stats = (
             Transaction.objects.values("product_id")
             .annotate(
@@ -1632,7 +1534,6 @@ def basket_analysis(request):
             product_stats.order_by("-total_sales")[:top_products_size]
         )
 
-        # Get product details in one efficient query
         all_product_ids = {
             item["product_id"]
             for item in top_products_frequency_raw + top_products_sales_raw
@@ -1679,7 +1580,6 @@ def basket_analysis(request):
         top_products_frequency = _enrich_product_records(top_products_frequency_raw)
         top_products_sales = _enrich_product_records(top_products_sales_raw)
 
-        # Format basket stats for template
         formatted_basket_stats = []
         for basket in basket_stats:
             formatted_basket_stats.append(
@@ -1693,7 +1593,6 @@ def basket_analysis(request):
                 }
             )
 
-        # Format department analysis for template
         formatted_dept_analysis = []
         for dept in dept_analysis:
             formatted_dept_analysis.append(
@@ -1707,7 +1606,6 @@ def basket_analysis(request):
                 }
             )
 
-        # Create context with comprehensive statistics
         avg_basket_size = (
             overall_stats[0] / overall_stats[1] if overall_stats[1] > 0 else 0
         )
@@ -1730,10 +1628,7 @@ def basket_analysis(request):
             "dept_analysis": formatted_dept_analysis,
             "top_products_frequency": top_products_frequency,
             "top_products_sales": top_products_sales,
-            # Lets the time-series controls flag horizon/lookback combinations
-            # the calendar cannot fully supervise, before a model is trained.
             "time_series_complete_periods": _complete_period_count(),
-            # Slicer options for the BI dashboard panel embedded in this page.
             "filter_options": _bi_filter_options(),
         }
 
@@ -1759,13 +1654,6 @@ def basket_analysis(request):
 
 
 def _bi_filter_options():
-    """Slicer choices for the BI dashboard panel.
-
-    Returns empty lists when the reporting views are absent so the page still
-    renders and the panel can explain what to run.
-    """
-    # Imported here rather than at module scope: bi_views imports from this
-    # module, so a top-level import would close the circle.
     from .bi_views import _apply_natural_order
 
     def rows(sql):
@@ -1774,8 +1662,6 @@ def _bi_filter_options():
             return cursor.fetchall()
 
     def banded(dimension, sql):
-        """Bands ordered by their number, not alphabetically, and without the
-        blank rows the source leaves for households with no demographics."""
         values = [{"value": r[0]} for r in rows(sql) if (r[0] or "").strip()]
         return [r["value"] for r in _apply_natural_order(dimension, values, "value")]
 
@@ -1819,8 +1705,6 @@ def _bi_filter_options():
                 "SELECT DISTINCT department FROM vw_dim_product ORDER BY department"
             )
         ]
-        # Carries its department so the commodity list can narrow to whichever
-        # department is chosen instead of listing all three hundred.
         commodities = [
             {"name": r[0], "department": r[1]}
             for r in rows(
@@ -1888,13 +1772,6 @@ def _bi_filter_options():
 
 
 def _complete_period_count():
-    """Complete 30-day periods available to the product revenue forecaster.
-
-    Mirrors ProductRevenueTimeSeriesForecaster.load_product_panels, which
-    anchors backwards from the last transaction day so trailing partial days
-    are excluded.  Returns 0 when the calendar cannot be read, in which case
-    the UI simply skips the feasibility hints.
-    """
     try:
         from .time_series_forecasting import PERIOD_DAYS
 
@@ -1910,14 +1787,6 @@ def _complete_period_count():
 
 
 def _describe_stored_rules(rules):
-    """Attach product, commodity and department names to saved rules.
-
-    Saved rules hold only the ids or names either side of the arrow, so the page
-    that lists them had nothing to label its chips with and every one of them
-    fell back to a grey box. The names are looked up here, in two queries for
-    the whole page rather than one per rule, and returned in the same shape the
-    freshly generated rules use so the template needs no branch.
-    """
     rules = list(rules)
     if not rules:
         return []
@@ -1981,7 +1850,6 @@ def _describe_stored_rules(rules):
                 "commodity": text,
                 "brand": "",
             }
-        # A department-level rule already names its own department.
         return {"department": text, "commodity": text, "brand": ""}
 
     described = []
@@ -1996,11 +1864,7 @@ def _describe_stored_rules(rules):
                 "consequent_details": [
                     describe(v, rule.rule_type) for v in (rule.consequent or [])
                 ],
-                # Saved rules keep only the rate, so the basket count behind it is
-                # recovered from the support it was stored with.
                 "baskets_together": round((rule.support or 0) * total_baskets),
-                # Marks these as rules read back from the table rather than ones the
-                # run on this screen produced, and says when they were put there.
                 "is_saved": True,
                 "created_at": rule.created_at,
                 "source_view": rule.source_view,
@@ -2014,13 +1878,6 @@ def _describe_stored_rules(rules):
 
 
 def _mark_saved_state(rules):
-    """Say whether each generated rule is already in the table, and if it moved.
-
-    A run repeats work that may have been saved before. Without this the reader
-    cannot tell a new finding from one they already stored, nor notice that a
-    stored rule's numbers have shifted since -- which is the case worth acting
-    on, because the saved copy is now out of date.
-    """
     rules = list(rules)
     if not rules:
         return rules
@@ -2045,8 +1902,6 @@ def _mark_saved_state(rules):
         if match is None:
             rule["saved_state"] = "new"
             continue
-        # Compared at the precision the cards print, so a rule is not called
-        # changed over a difference nobody can see.
         same = (
             round(float(match.support or 0), 6) == round(float(rule["support"]), 6)
             and round(float(match.confidence or 0), 4)
@@ -2062,12 +1917,6 @@ def _mark_saved_state(rules):
 
 
 def _dataset_scale():
-    """Size of the transaction table, for the banner and the support helper.
-
-    The page used to carry these three figures as literals, which were correct
-    only for as long as the table did not change. They are counted here instead
-    so that loading new data updates the page rather than silently dating it.
-    """
     with connection.cursor() as cursor:
         cursor.execute(
             """
@@ -2085,8 +1934,6 @@ def _dataset_scale():
         "transactions": transactions,
         "baskets": baskets,
         "products": products,
-        # humanize is not installed, so the thousands separators are added here
-        # rather than pulling in an app for three numbers.
         "transactions_display": f"{transactions:,}",
         "baskets_display": f"{baskets:,}",
         "products_display": f"{products:,}",
@@ -2103,28 +1950,22 @@ def association_rules(request):
             transaction_period = request.POST.get("transaction_period", "all")
             max_results = int(request.POST.get("max_results", 100))
 
-            # Validate parameters - allow very small positive values
             if min_support <= 0 or min_support > 1:
-                min_support = 0.00001  # Allow much smaller default
-            # Warn about very small values and adjust for performance
+                min_support = 0.00001  
             if min_support < 0.00001:
                 logger.warning(
                     f"Very small support value ({min_support}) may cause performance issues"
                 )
 
-            # For ultra-small support values, limit results for performance
             if min_support < 0.000005:
                 max_results = min(
                     max_results, 50
-                )  # Limit to 50 results for ultra-rare patterns
+                )  
                 logger.info(
                     f"Ultra-small support detected, limiting results to {max_results}"
                 )
             if min_confidence <= 0 or min_confidence > 1:
                 min_confidence = 0.5
-            # A floor of 1 keeps only pairs that appear together more often than
-            # chance. Below 1 the two products avoid one another, which is a
-            # real finding but the opposite of the one a cross-sell rule claims.
             if min_lift < 0:
                 min_lift = 0.0
             if transaction_period not in [
@@ -2135,9 +1976,6 @@ def association_rules(request):
                 "12_months",
             ]:
                 transaction_period = "all"
-            # Kept in step with the choices the form offers: a value the form
-            # can produce was being silently replaced with 100, so asking for
-            # 2,000 or 3,000 quietly returned a hundred.
             if max_results not in [50, 100, 200, 500, 1000, 2000, 3000, 5000]:
                 max_results = 100
 
@@ -2148,7 +1986,6 @@ def association_rules(request):
                 )
             )
 
-            # Get period display name
             period_names = {
                 "all": "all transactions",
                 "1_month": "last 1 month",
@@ -2175,7 +2012,6 @@ def association_rules(request):
             logger.error(f"Association rules generation failed: {str(e)}")
             logger.error(f"Traceback: {traceback.format_exc()}")
 
-            # Provide more specific error guidance
             error_msg = str(e)
             if "timeout" in error_msg.lower():
                 suggestion = "Query timed out. Try using higher support values (≥0.0001) or shorter time periods."
@@ -2331,8 +2167,6 @@ def api_insert_association_rule(request):
         return JsonResponse({"success": True, "message": "Rule inserted."}, status=201)
 
 
-# One request is sent per record when deleting, so a selection that can be acted
-# on has to stay within reach of that.
 SELECTION_ID_CAP = 5000
 
 
@@ -2367,7 +2201,6 @@ def api_get_table_data(request):
         if not model:
             return JsonResponse({"error": "Table not found"}, status=400)
 
-        # Define which fields to select for each table
         field_sets = {
             "transactions": [
                 "id",
@@ -2396,14 +2229,11 @@ def api_get_table_data(request):
             ],
         }
 
-        # Always start with a values() queryset to get dictionaries
         if table_name in field_sets:
             queryset = model.objects.values(*field_sets[table_name])
         else:
-            # For other tables, get all fields as values
             queryset = model.objects.values()
 
-        # Generic Search Logic
         searchable_fields = {
             "transactions": ["basket_id", "household_key", "product_id"],
             "products": [
@@ -2426,15 +2256,11 @@ def api_get_table_data(request):
             "association_rules": ["rule_type"],
         }
 
-        # Special handling for association_rules search
         if search and table_name == "association_rules":
             q_objects = Q()
-            # Search in rule_type
             q_objects |= Q(rule_type__icontains=search)
-            # Search in JSON fields by converting to string
             q_objects |= Q(antecedent__icontains=search)
             q_objects |= Q(consequent__icontains=search)
-            # Search by ID if numeric
             if search.isnumeric():
                 q_objects |= Q(id=int(search))
             queryset = queryset.filter(q_objects)
@@ -2442,7 +2268,6 @@ def api_get_table_data(request):
             q_objects = Q()
             for field in searchable_fields.get(table_name, []):
                 try:
-                    # Check if field type is numeric before attempting numeric search
                     is_numeric_field = (
                         "int"
                         in model._meta.get_field(field).get_internal_type().lower()
@@ -2452,12 +2277,10 @@ def api_get_table_data(request):
                     else:
                         q_objects |= Q(**{f"{field}__icontains": search})
                 except (AttributeError, ValueError):
-                    # Fallback for non-model fields or casting issues
                     q_objects |= Q(**{f"{field}__icontains": search})
             if q_objects:
                 queryset = queryset.filter(q_objects)
 
-        # Generic Filter Logic
         filter_mappings = {
             "household_key_min": "household_key__gte",
             "household_key_max": "household_key__lte",
@@ -2473,7 +2296,6 @@ def api_get_table_data(request):
             "income_desc": "income_desc__icontains",
             "description": "description__icontains",
             "rfm_segment": "rfm_segment__icontains",
-            # ADDED: Filters for Basket Analysis
             "total_items_min": "total_items__gte",
             "total_items_max": "total_items__lte",
             "total_value_min": "total_value__gte",
@@ -2488,13 +2310,10 @@ def api_get_table_data(request):
             if filter_kwargs:
                 queryset = queryset.filter(**filter_kwargs)
 
-        # Ordering - check for client-side sort first, then default ordering
         if sort_column:
-            # Client requested sorting by a specific column
             order_field = f"-{sort_column}" if sort_direction == "desc" else sort_column
             queryset = queryset.order_by(order_field)
         else:
-            # Default ordering per table
             ordering_fields = {
                 "transactions": ("-day", "basket_id"),
                 "products": ("product_id",),
@@ -2508,10 +2327,6 @@ def api_get_table_data(request):
 
         total_count = queryset.count()
 
-        # "Select all matching" asks for the keys alone, so a selection can span
-        # pages without pulling every column of every row. Capped, because the
-        # delete path issues one request per record and the larger tables run to
-        # millions of rows.
         if request.POST.get("ids_only"):
             pk_name = model._meta.pk.name
             cap = SELECTION_ID_CAP
@@ -2527,7 +2342,6 @@ def api_get_table_data(request):
 
         offset = (page - 1) * limit
 
-        # Simple slicing now works because queryset is always a ValuesQuerySet
         data = list(queryset[offset : offset + limit])
 
         return JsonResponse(
@@ -2548,7 +2362,7 @@ def api_get_table_data(request):
 def api_table_schema(request):
     """Return a schema for a table to build dynamic filters or forms client-side."""
     table = request.GET.get("table")
-    purpose = request.GET.get("purpose", "filter")  # 'filter' or 'form'
+    purpose = request.GET.get("purpose", "filter") 
 
     model_map = {
         "transactions": Transaction,
@@ -2578,23 +2392,20 @@ def api_table_schema(request):
 
     fields_to_include = []
     if purpose == "form":
-        # For forms, we usually want all non-pk, editable fields
         fields_to_include = [
             f.name for f in model._meta.fields if not f.primary_key and f.editable
         ]
-        # For specific tables, we might need to add the PK field for creation
         if table == "products":
             fields_to_include.insert(0, "product_id")
         elif table == "households":
             fields_to_include.insert(0, "household_key")
-    else:  # purpose == 'filter'
+    else:
         filterable_fields = {
             "transactions": ["household_key", "product_id", "sales_value", "day"],
             "products": ["department", "brand"],
             "households": ["age_desc", "income_desc"],
             "campaigns": ["description"],
             "customer_segments": ["rfm_segment"],
-            # ADDED: Filterable fields for Basket Analysis
             "basket_analysis": ["total_items", "total_value"],
         }
         fields_to_include = filterable_fields.get(table, [])
@@ -2605,7 +2416,6 @@ def api_table_schema(request):
         f = meta.get(name)
         if f:
             ftype = field_type(f)
-            # Use verbose_name for a user-friendly label, fallback to name
             label = getattr(f, "verbose_name", name).title()
             fields.append({"name": name, "type": ftype, "label": label})
 
@@ -2674,8 +2484,6 @@ def api_product_details(request):
             total_sales=Sum("sales_value"),
             total_txns=Count("product_id"),
             unique_households=Count("household_key", distinct=True),
-            # Units sold, so the detail view can separate what a sale is worth
-            # from what one unit costs: a multi-buy moves the two apart.
             total_quantity=Sum("quantity"),
         )
         top_households = list(
@@ -2726,7 +2534,7 @@ def api_household_details(request):
                 "total_transactions",
                 "avg_basket_value",
                 "updated_at",
-                "churn_probability",  # 👈 اضافه شد
+                "churn_probability",  
             )
             .first()
         )
@@ -2734,7 +2542,6 @@ def api_household_details(request):
         if not seg:
             return JsonResponse({"error": "household not found"}, status=404)
 
-        # محاسبه churn_risk label
         prob = seg.get("churn_probability")
         if prob is None:
             seg["churn_risk"] = "N/A"
@@ -2747,14 +2554,12 @@ def api_household_details(request):
         else:
             seg["churn_risk"] = "Low Risk"
 
-        # تراکنش‌های اخیر
         recent_txns = list(
             Transaction.objects.filter(household_key=household_key)
             .values("basket_id", "product_id", "quantity", "sales_value", "day")
             .order_by("-day")[:15]
         )
 
-        # enrich با اسم محصول
         pids = list({t["product_id"] for t in recent_txns})
         prodmap = {
             p["product_id"]: p["commodity_desc"]
@@ -2827,7 +2632,6 @@ def api_differential_analysis(request):
                 return "N/A"
 
         def build_limit_clause(limit):
-            """Return database-specific clauses for limiting result sets."""
             limit = max(int(limit or 0), 0)
             if limit <= 0:
                 return "", ""
@@ -2976,24 +2780,6 @@ def api_differential_analysis(request):
                 if to_float(item["total_value"]) > 0
             ]
 
-        # def fetch_basket_totals_for_segment(segment, limit=4000):
-        #     limit = max(int(limit or 4000), 1)
-        #     select_limit, suffix_limit = build_limit_clause(limit)
-        #     query = f"""
-        #         SELECT {select_limit}
-        #             t.basket_id,
-        #             SUM(t.sales_value) as total_value
-        #         FROM transactions t
-        #         WHERE t.household_key IN (
-        #             SELECT household_key FROM dunnhumby_customersegment WHERE rfm_segment = %s
-        #         )
-        #         GROUP BY t.basket_id
-        #         {suffix_limit}
-        #     """
-        #     with connection.cursor() as cursor:
-        #         cursor.execute(query, [segment])
-        #         rows = cursor.fetchall()
-        #     return [to_float(row[1]) for row in rows if to_float(row[1]) > 0]
 
         def fetch_basket_totals_for_store(store_id, limit=4000):
             if store_id is None:
@@ -3047,13 +2833,10 @@ def api_differential_analysis(request):
                         r, c = observed_arr.shape
                         min_dim = min(r - 1, c - 1)
 
-                        # Calculate Cramér's V (standard formula)
                         cramers_v = (
                             sqrt(chi2 / (n * min_dim)) if min_dim > 0 and n > 0 else 0.0
                         )
 
-                        # For large datasets, also calculate Cohen's w for practical effect size
-                        # Cohen's w based on variance in proportions
                         row_totals = observed_arr.sum(axis=1)
                         col_totals = observed_arr.sum(axis=0)
                         expected = np.outer(row_totals, col_totals) / n
@@ -3063,8 +2846,6 @@ def api_differential_analysis(request):
                             else 0.0
                         )
 
-                        # Calculate practical effect based on data size and proportional differences
-                        # For small matrices (departments), calculate max proportional difference
                         row_proportions = row_totals / n
                         max_prop_diff = (
                             max(row_proportions) / min(row_proportions)
@@ -3072,19 +2853,17 @@ def api_differential_analysis(request):
                             else 1.0
                         )
 
-                        # Hybrid effect size calculation
-                        if n > 100000:  # Large dataset (transaction counts)
+                        if n > 100000:  
                             effect = cohen_w * sqrt(min(n / 100000, 50))
-                        elif n < 10000 and r <= 6:  # Small matrix (department sales)
-                            # Use Cramér's V but boost based on proportional differences
-                            if max_prop_diff > 10:  # 10x+ difference
+                        elif n < 10000 and r <= 6: 
+                            if max_prop_diff > 10: 
                                 effect = max(
                                     cramers_v * 100, 0.8
-                                )  # Boost to large effect
-                            elif max_prop_diff > 5:  # 5x+ difference
+                                )  
+                            elif max_prop_diff > 5:  
                                 effect = max(
                                     cramers_v * 50, 0.5
-                                )  # Boost to medium effect
+                                ) 
                             else:
                                 effect = cramers_v * 20
                         else:
@@ -3118,23 +2897,19 @@ def api_differential_analysis(request):
                         (group_a_np.var(ddof=1) + group_b_np.var(ddof=1)) / 2
                     )
 
-                    # Standard Cohen's d
                     cohens_d = mean_diff / pooled_std if pooled_std > 0 else 0.0
 
-                    # For retail data with high variance, also calculate percentage difference
                     baseline_mean = min(mean_a, mean_b)
                     pct_diff = (mean_diff / baseline_mean) if baseline_mean > 0 else 0
 
-                    # Hybrid effect size: weight Cohen's d but boost if percentage difference is large
-                    # For retail: 50%+ difference should show as medium-large effect even with high variance
-                    if pct_diff > 0.5:  # >50% difference
+                    if pct_diff > 0.5:
                         effect = max(
                             cohens_d, 0.5 + (pct_diff - 0.5) * 0.4
-                        )  # Boost to at least medium
-                    elif pct_diff > 0.3:  # >30% difference
+                        )  
+                    elif pct_diff > 0.3:  
                         effect = max(
                             cohens_d, 0.3 + (pct_diff - 0.3) * 0.5
-                        )  # Boost to small-medium
+                        )  
                     else:
                         effect = cohens_d
 
@@ -3144,7 +2919,6 @@ def api_differential_analysis(request):
                         50, min(99, int(round((1 - p_value) * 100)))
                     )
                     stats["test_used"] = "t_test"
-                    # Determine context based on sample size
                     if len(group_a_np) < 50:
                         context = f"department sales totals"
                     else:
@@ -3167,10 +2941,8 @@ def api_differential_analysis(request):
                     )
                     n1, n2 = len(group_a), len(group_b)
 
-                    # Rank-biserial correlation (ranges -1 to 1)
                     rank_biserial = 1 - (2 * u_stat) / (n1 * n2)
 
-                    # Also calculate percentage difference in medians for practical significance
                     median_a = np.median(group_a)
                     median_b = np.median(group_b)
                     median_diff = abs(median_a - median_b)
@@ -3179,7 +2951,6 @@ def api_differential_analysis(request):
                         (median_diff / baseline_median) if baseline_median > 0 else 0
                     )
 
-                    # Use rank-biserial but boost if large median difference
                     effect = abs(rank_biserial)
                     if pct_diff > 0.5 and effect < 0.5:
                         effect = max(effect, 0.5 + (pct_diff - 0.5) * 0.3)
@@ -3192,7 +2963,6 @@ def api_differential_analysis(request):
                         50, min(95, int(round((1 - p_value) * 100)))
                     )
                     stats["test_used"] = "mann_whitney"
-                    # Determine context based on sample size
                     if n1 < 50:
                         context = f"department sales totals"
                     else:
@@ -3219,7 +2989,6 @@ def api_differential_analysis(request):
                         50, min(99, int(round((1 - p_value) * 100)))
                     )
                     stats["test_used"] = "kolmogorov"
-                    # Determine context based on sample size
                     if len(group_a) < 50:
                         context = f"department sales distributions"
                     else:
@@ -3302,20 +3071,17 @@ def api_differential_analysis(request):
                 reverse=True,
             )[:6]
 
-            # Create two matrices: one for transaction counts, one for sales
-            observed_matrix_counts = []  # For traditional chi-square
-            observed_matrix_sales = []  # For sales-based chi-square
+            observed_matrix_counts = []  
+            observed_matrix_sales = []  
 
             if ordered_quarters and department_order:
                 for quarter in ordered_quarters:
-                    # Transaction count matrix (original)
                     observed_matrix_counts.append(
                         [
                             dept_quarters.get(dept, {}).get(quarter, {}).get("count", 0)
                             for dept in department_order
                         ]
                     )
-                    # Sales matrix (scaled to thousands of dollars for reasonable numbers)
                     observed_matrix_sales.append(
                         [
                             int(
@@ -3328,7 +3094,6 @@ def api_differential_analysis(request):
                         ]
                     )
 
-                # Use sales matrix for effect size calculation
                 observed_matrix = observed_matrix_sales
 
             insight_candidates = []
@@ -3445,11 +3210,8 @@ def api_differential_analysis(request):
                     quarter_totals, key=lambda q: quarter_totals[q]["sales"]
                 )
 
-                # Build department-level sales arrays for each quarter
-                # This compares aggregate sales by department (what actually differs 13x)
-                # instead of individual basket values (which are similar ~$29)
-                group_a_sales = []  # Peak quarter department sales
-                group_b_sales = []  # Low quarter department sales
+                group_a_sales = [] 
+                group_b_sales = []  
 
                 for dept in department_order:
                     peak_sales = (
@@ -3638,7 +3400,6 @@ def api_differential_analysis(request):
                 reverse=True,
             )[:6]
 
-            # Create sales-based matrix for Chi-Square (scaled to thousands)
             observed = []
             for segment in [high_seg["rfm_segment"], low_seg["rfm_segment"]]:
                 observed.append(
@@ -3688,9 +3449,8 @@ def api_differential_analysis(request):
                 "yAxisLabel": "Spend ($)",
             }
 
-            # Build department-level sales arrays for aggregate comparison
-            group_a_sales = []  # High segment department sales
-            group_b_sales = []  # Low segment department sales
+            group_a_sales = []  
+            group_b_sales = []  
 
             for label in labels:
                 high_sales = (
@@ -3828,7 +3588,6 @@ def api_differential_analysis(request):
                 reverse=True,
             )[:6]
 
-            # Create sales-based matrix for Chi-Square (scaled to thousands)
             observed = []
             for store_id in top_stores:
                 observed.append(
@@ -3878,9 +3637,8 @@ def api_differential_analysis(request):
                 "yAxisLabel": "Sales ($)",
             }
 
-            # Build department-level sales arrays for aggregate comparison
-            group_a_sales = []  # Best store department sales
-            group_b_sales = []  # Runner store department sales
+            group_a_sales = []  
+            group_b_sales = []  
 
             for label in labels:
                 best_sales = (
@@ -4035,7 +3793,6 @@ def api_differential_analysis(request):
             top_departments_matrix = [
                 dept for dept in top_departments if dept in dept_season
             ][:5]
-            # Create sales-based matrix for Chi-Square (scaled to thousands)
             observed = []
             for season in season_order:
                 observed.append(
@@ -4087,9 +3844,8 @@ def api_differential_analysis(request):
             peak_season = max(season_totals, key=lambda s: season_totals[s]["sales"])
             low_season = min(season_totals, key=lambda s: season_totals[s]["sales"])
 
-            # Build department-level sales arrays for aggregate comparison
-            group_a_sales = []  # Peak season department sales
-            group_b_sales = []  # Low season department sales
+            group_a_sales = []  
+            group_b_sales = []  
 
             for dept in top_departments_matrix:
                 peak_sales = (
@@ -4149,9 +3905,7 @@ def api_differential_analysis(request):
         return JsonResponse({"error": str(e)}, status=500)
 
 
-# در فایل views.py
-
-from django.core.paginator import Paginator  # این خط را اضافه کنید
+from django.core.paginator import Paginator 
 
 
 @login_required(login_url="/admin/login/")
@@ -4162,7 +3916,7 @@ def api_rfm_details(request):
     name = request.POST.get("rfm_segment")
     page_number = request.POST.get(
         "page", 1
-    )  # شماره صفحه درخواستی را از فرانت‌اند می‌گیریم
+    )  
 
     if not name:
         return JsonResponse({"error": "rfm_segment required"}, status=400)
@@ -4170,7 +3924,6 @@ def api_rfm_details(request):
     try:
         qs = CustomerSegment.objects.filter(rfm_segment=name)
 
-        # متریک‌های کلی مثل قبل محاسبه می‌شوند و نیازی به تغییر ندارند
         agg = qs.aggregate(
             customers=Count("household_key"),
             avg_spend=Avg("total_spend"),
@@ -4178,7 +3931,6 @@ def api_rfm_details(request):
             avg_basket=Avg("avg_basket_value"),
         )
 
-        # ۱. دیگر همه خانوارها را به لیست تبدیل نمی‌کنیم، فقط کوئری را آماده می‌کنیم
         all_households_qs = qs.values(
             "household_key",
             "total_spend",
@@ -4191,10 +3943,8 @@ def api_rfm_details(request):
             "updated_at",
         ).order_by("-total_spend")
 
-        # ۲. یک Paginator با تمام داده‌ها و سایز صفحه ۲۰ می‌سازیم
-        paginator = Paginator(all_households_qs, 20)  # هر صفحه ۲۰ آیتم خواهد داشت
+        paginator = Paginator(all_households_qs, 20)  
 
-        # ۳. صفحه درخواستی را از Paginator می‌گیریم
         page_obj = paginator.get_page(page_number)
 
         return JsonResponse(
@@ -4206,9 +3956,7 @@ def api_rfm_details(request):
                     "avg_txns": float(agg["avg_txns"] or 0),
                     "avg_basket": float(agg["avg_basket"] or 0),
                 },
-                # ۴. فقط لیست خانوارهای صفحه فعلی را ارسال می‌کنیم
                 "households_page": list(page_obj.object_list),
-                # ۵. اطلاعات صفحه‌بندی را هم ارسال می‌کنیم تا فرانت‌اند از آن استفاده کند
                 "pagination": {
                     "has_next": page_obj.has_next(),
                     "has_previous": page_obj.has_previous(),
@@ -4237,7 +3985,6 @@ def api_create_record(request):
     table_name = request.POST.get("table_name")
     field_data = json.loads(request.POST.get("field_data", "{}"))
 
-    # Prevent creation for read-only analytical tables
     if table_name in READ_ONLY_ANALYTICAL_TABLES:
         return JsonResponse(
             {
@@ -4268,7 +4015,6 @@ def api_create_record(request):
         }
         pk_field = pk_field_map.get(table_name, "id")
 
-        # Auto-increment logic for specified tables
         if table_name in ["households", "campaigns"] and pk_field not in field_data:
             last_record = model.objects.order_by(f"-{pk_field}").first()
             if last_record:
@@ -4278,7 +4024,6 @@ def api_create_record(request):
 
         record = model.objects.create(**field_data)
 
-        # Determine the primary key value to return
         pk_value = getattr(record, pk_field)
 
         return JsonResponse({"success": True, "record_id": pk_value})
@@ -4293,7 +4038,6 @@ def api_update_record(request):
     record_id = request.POST.get("record_id")
     field_data = json.loads(request.POST.get("field_data", "{}"))
 
-    # Prevent updates for read-only analytical tables
     if table_name in READ_ONLY_ANALYTICAL_TABLES:
         return JsonResponse(
             {
@@ -4326,7 +4070,6 @@ def api_update_record(request):
         if pk_field in field_data:
             del field_data[pk_field]
 
-        # Use .update() for a more direct and reliable update
         updated_count = model.objects.filter(**{pk_field: record_id}).update(
             **field_data
         )
@@ -4393,27 +4136,22 @@ def api_delete_record(request):
 
             elif table_name == "households":
                 household_id = int(record_id)
-                # This can be very slow on large datasets. Use with caution.
                 Transaction.objects.filter(household_key=household_id).delete()
                 CampaignMember.objects.filter(household_key=household_id).delete()
                 CouponRedemption.objects.filter(household_key=household_id).delete()
                 CustomerSegment.objects.filter(household_key=household_id).delete()
 
             elif table_name == "transactions":
-                # Get the transaction to be deleted
                 transaction_to_delete = get_object_or_404(Transaction, id=record_id)
                 basket_id_to_update = transaction_to_delete.basket_id
 
-                # Delete the specific transaction
                 transaction_to_delete.delete()
 
-                # Check for remaining transactions in the same basket
                 remaining_transactions = Transaction.objects.filter(
                     basket_id=basket_id_to_update
                 )
 
                 if remaining_transactions.exists():
-                    # If transactions remain, update the basket analysis
                     new_totals = remaining_transactions.aggregate(
                         total_items=Sum("quantity"), total_value=Sum("sales_value")
                     )
@@ -4422,22 +4160,18 @@ def api_delete_record(request):
                         total_value=new_totals["total_value"] or 0.0,
                     )
                 else:
-                    # If no transactions remain, delete the basket analysis record
                     BasketAnalysis.objects.filter(
                         basket_id=basket_id_to_update
                     ).delete()
 
             elif table_name == "basket_analysis":
-                # Get the basket analysis record to delete
                 basket_analysis_to_delete = get_object_or_404(
                     BasketAnalysis, id=record_id
                 )
                 basket_id_to_clear = basket_analysis_to_delete.basket_id
 
-                # Delete all associated transactions
                 Transaction.objects.filter(basket_id=basket_id_to_clear).delete()
 
-                # Delete the basket analysis record itself
                 basket_analysis_to_delete.delete()
 
             else:
@@ -4450,7 +4184,6 @@ def api_delete_record(request):
     except model.DoesNotExist:
         return JsonResponse({"success": False, "error": "Record not found"}, status=404)
     except Exception as e:
-        # This will catch any other database errors, including other potential FK constraints
         return JsonResponse(
             {"success": False, "error": f"An unexpected error occurred: {str(e)}"},
             status=500,
@@ -4491,7 +4224,6 @@ def api_generate_department_rules(request):
         max_results = 100
     max_results = min(max_results, 500)
 
-    # No auto-limiting - respect user's period selection completely
     logger.info(
         'Using selected period "%s" with support %s (no auto-limiting applied)',
         transaction_period,
@@ -4566,7 +4298,6 @@ def api_generate_commodity_rules(request):
         max_results = 100
     max_results = min(max_results, 500)
 
-    # No auto-limiting - respect user's period selection completely
     logger.info(
         'Using selected period "%s" with support %s (no auto-limiting applied)',
         transaction_period,
@@ -4609,21 +4340,18 @@ def api_generate_commodity_rules(request):
 
 @csrf_exempt
 def api_get_period_metrics(request):
-    """API endpoint to get basket metrics for a specific transaction period"""
     if request.method != "POST":
         return JsonResponse({"error": "POST method required"}, status=405)
 
     try:
         transaction_period = request.POST.get("transaction_period", "all")
 
-        # Validate transaction period
         valid_periods = {"all", "1_month", "3_months", "6_months", "12_months"}
         if transaction_period not in valid_periods:
             transaction_period = "all"
 
         from django.db import connection
 
-        # Get the date range for the period
         start_day = None
         max_day = None
 
@@ -4647,10 +4375,8 @@ def api_get_period_metrics(request):
                 days_back = period_days.get(transaction_period, max_day)
                 start_day = max(1, max_day - days_back + 1)
 
-        # Calculate metrics for the specified period
         with connection.cursor() as cursor:
             if start_day is not None:
-                # Period-specific metrics
                 cursor.execute(
                     """
                     SELECT
@@ -4663,7 +4389,6 @@ def api_get_period_metrics(request):
                     (start_day,),
                 )
             else:
-                # All-time metrics
                 cursor.execute("""
                     SELECT
                         COUNT(DISTINCT basket_id) as total_baskets,
@@ -4675,7 +4400,6 @@ def api_get_period_metrics(request):
             result = cursor.fetchone()
             total_baskets, total_transactions, avg_basket_size = result
 
-        # Format the response with appropriate display names
         period_display_names = {
             "all": "All Time",
             "1_month": "Last Month",
@@ -4741,7 +4465,6 @@ def api_export_data(request):
     output = io.StringIO()
     writer = csv.writer(output)
 
-    # values selection for frequently used sets
     if table_name in ("transactions", "products", "households"):
         if table_name == "transactions":
             data = model.objects.values(
@@ -4786,7 +4509,6 @@ def api_export_data(request):
     return resp
 
 
-# Global variable to track training status
 ml_training_status = {
     "status": "idle",
     "is_training": False,
@@ -4807,7 +4529,6 @@ def predictive_analysis_api(request):
     try:
         model_type = request.POST.get("model_type", "neural_network")
 
-        # Get time horizon parameter
         time_horizon_param = request.POST.get("time_horizon") or request.GET.get(
             "time_horizon"
         )
@@ -4884,7 +4605,6 @@ def _time_series_params(request):
 
 @csrf_exempt
 def train_product_time_series(request):
-    """Train the Product ID revenue forecaster with chronological validation."""
     if request.method != "POST":
         return JsonResponse(
             {"success": False, "error": "POST method required"}, status=405
@@ -5011,7 +4731,6 @@ def predict_future_api(request):
     try:
         model_type = request.POST.get("model_type", "neural_network")
 
-        # Get time horizon parameter
         time_horizon_param = request.POST.get("time_horizon") or request.GET.get(
             "time_horizon"
         )
@@ -5062,7 +4781,6 @@ def predict_future_api(request):
 
 @csrf_exempt
 def train_ml_models(request):
-    """Train ML models in background"""
     global ml_training_status
 
     model_type = request.POST.get("model_type", "neural_network")
@@ -5212,7 +4930,6 @@ def train_ml_models(request):
 
 @csrf_exempt
 def get_predictions(request):
-    """Get department-level predictions"""
     model_type = request.POST.get("model_type", "neural_network")
     time_horizon_param = request.POST.get("time_horizon") or request.GET.get(
         "time_horizon"
@@ -5257,7 +4974,6 @@ def get_predictions(request):
 
 @csrf_exempt
 def get_recommendations(request):
-    """Get AI-powered product recommendations"""
     model_type = request.POST.get("model_type", "neural_network")
     top_n = int(request.POST.get("top_n", 10))
     time_horizon_param = request.POST.get("time_horizon") or request.GET.get(
@@ -5328,7 +5044,6 @@ def training_status_api(request):
 
 @admin_required
 def customer_segments(request):
-    # ۱. تعریف ترتیب منطقی و استراتژیک برای دسته‌ها
     segment_order = [
         "Champions",
         "Loyal Customers",
@@ -5342,14 +5057,12 @@ def customer_segments(request):
         "Lost",
     ]
 
-    # ۲. دریافت داده‌ها از دیتابیس (بدون تغییر)
     segments_query = CustomerSegment.objects.values("rfm_segment").annotate(
         count=Count("household_key"),
         avg_spend=Avg("total_spend"),
         avg_transactions=Avg("total_transactions"),
     )
 
-    # ۳. مرتب‌سازی داده‌ها بر اساس ترتیب منطقی تعریف شده
     segments_list = list(segments_query)
     segments_list.sort(
         key=lambda s: (
@@ -5359,9 +5072,6 @@ def customer_segments(request):
         )
     )
 
-    # Use the active experiment's scores rather than `updated_at`, which does
-    # not change when a different churn rule is activated.  A balanced sample
-    # avoids duplicating the all-high-risk Customer Retention page.
     active_experiment = ChurnExperiment.objects.filter(is_active=True).first()
     customer_risk_groups = []
     if active_experiment:
@@ -5405,9 +5115,6 @@ def customer_segments(request):
         {"risk_label": "Very High Risk", "count": risk_counts.get("very_high", 0)},
     ]
 
-    # ۴. ارسال لیست مرتب‌شده به قالب
-    # Present one row per rule configuration.  Old duplicate runs are retained
-    # only until that configuration is trained again, but never clutter the UI.
     visible_experiments = []
     seen_rules = set()
     for experiment in ChurnExperiment.objects.order_by("-created_at"):
@@ -5425,7 +5132,7 @@ def customer_segments(request):
         "site/dunnhumby/customer_segments.html",
         {
             "title": "Customer Segmentation",
-            "segments": segments_list,  # <-- از لیست مرتب‌شده جدید استفاده می‌کنیم
+            "segments": segments_list,
             "customer_risk_groups": customer_risk_groups,
             "churn_overview": churn_data_sorted,
             "active_experiment": active_experiment,
@@ -5488,9 +5195,6 @@ def run_churn_experiment(request):
             _write_cached_model_result(
                 window_cache, metrics, scores, historical_predictions
             )
-        # Saving the experiment, current scores, and history is one operation. If
-        # any history row fails, Django rolls everything back instead of leaving a
-        # completed-looking experiment with an empty customer history.
         with db_transaction.atomic():
             previous_runs = ChurnExperiment.objects.filter(
                 method=config.method.value,
@@ -5499,8 +5203,6 @@ def run_churn_experiment(request):
                 step_size_days=config.step_size(),
             )
             replace_active_rule = previous_runs.filter(is_active=True).exists()
-            # A new generation of the same rule supersedes its old model,
-            # scores, and window history. Related rows are removed by cascade.
             previous_runs.delete()
             experiment = ChurnExperiment.objects.create(
                 method=config.method.value,
@@ -5701,8 +5403,6 @@ def cache_churn_experiment_history(request, experiment_id):
         )
         window_cache, stats = _get_or_build_window_cache(config)
 
-        # Reuse any historical probability rows saved by older versions. Most
-        # old rules have only RFM/outcome data, which is still useful history.
         legacy_predictions = pd.DataFrame.from_records(
             CustomerChurnPrediction.objects.filter(
                 experiment=experiment,
@@ -5765,12 +5465,11 @@ def cache_churn_experiment_history(request, experiment_id):
 def churn_api(request):
     if request.method == "POST":
         risk_label = request.POST.get("churn_risk")
-        page_number = request.POST.get("page", 1)  # ۱. شماره صفحه را دریافت می‌کنیم
+        page_number = request.POST.get("page", 1)  
 
         if not risk_label:
             return JsonResponse({"error": "No churn risk provided"})
 
-        # فیلتر مشتریان براساس ریسک (بدون تغییر)
         qs = CustomerSegment.objects.all()
         if risk_label == "Very High Risk":
             qs = qs.filter(churn_probability__gt=0.75)
@@ -5781,7 +5480,6 @@ def churn_api(request):
         elif risk_label == "Low Risk":
             qs = qs.filter(churn_probability__lte=0.25)
 
-        # متریک‌ها (بدون تغییر)
         metrics = {
             "customers": qs.count(),
             "avg_spend": qs.aggregate(Avg("total_spend"))["total_spend__avg"] or 0,
@@ -5805,7 +5503,6 @@ def churn_api(request):
             or 0,
         }
 
-        # ۲. کوئری اصلی را بدون محدودیت آماده می‌کنیم
         all_households_qs = qs.order_by("-churn_probability").values(
             "household_key",
             "total_spend",
@@ -5818,11 +5515,9 @@ def churn_api(request):
             "updated_at",
         )
 
-        # ۳. Paginator را با داده‌ها و سایز صفحه ۲۰ می‌سازیم
         paginator = Paginator(all_households_qs, 20)
         page_obj = paginator.get_page(page_number)
 
-        # ۴. پاسخ JSON را با ساختار جدید ارسال می‌کنیم
         return JsonResponse(
             {
                 "metrics": metrics,

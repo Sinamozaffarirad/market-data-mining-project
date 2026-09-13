@@ -1,7 +1,3 @@
-"""
-Advanced analytics module for Dunnhumby data analysis
-Includes association rules, RFM analysis, and market basket analysis
-"""
 
 import pandas as pd
 import numpy as np
@@ -21,9 +17,7 @@ from django.db import transaction
 
 
 class AssociationRulesMiner:
-    """
-    Advanced Association Rules Mining using Apriori algorithm
-    """
+   
 
     def __init__(self, min_support=0.01, min_confidence=0.5, min_lift=1.0):
         self.min_support = min_support
@@ -34,7 +28,6 @@ class AssociationRulesMiner:
         self.transaction_data = None
 
     def load_transaction_data(self, limit=None):
-        """Load transaction data from database"""
         if limit:
             query = f"""
             SELECT TOP {limit} t.basket_id, t.product_id, p.commodity_desc, p.department
@@ -52,7 +45,6 @@ class AssociationRulesMiner:
             cursor.execute(query)
             results = cursor.fetchall()
 
-        # Group by basket
         baskets = defaultdict(list)
         for basket_id, product_id, commodity_desc, department in results:
             item = commodity_desc or f"Product_{product_id}"
@@ -62,7 +54,6 @@ class AssociationRulesMiner:
         return len(self.transaction_data)
 
     def get_item_support(self, itemset):
-        """Calculate support for an itemset"""
         count = sum(
             1
             for basket in self.transaction_data
@@ -71,7 +62,6 @@ class AssociationRulesMiner:
         return count / len(self.transaction_data)
 
     def find_frequent_1_itemsets(self):
-        """Find frequent 1-itemsets"""
         item_counts = Counter()
         for basket in self.transaction_data:
             for item in basket:
@@ -88,16 +78,15 @@ class AssociationRulesMiner:
         return frequent_items
 
     def apriori_gen(self, frequent_k_minus_1):
-        """Generate candidate k-itemsets from frequent (k-1)-itemsets"""
         candidates = set()
         items = list(frequent_k_minus_1.keys())
 
         for i in range(len(items)):
             for j in range(i + 1, len(items)):
-                # Join step
+             
                 union = items[i] | items[j]
                 if len(union) == len(items[i]) + 1:
-                    # Prune step
+                  
                     valid = True
                     for subset in combinations(union, len(union) - 1):
                         if frozenset(subset) not in frequent_k_minus_1:
@@ -109,8 +98,6 @@ class AssociationRulesMiner:
         return candidates
 
     def find_frequent_itemsets(self):
-        """Find all frequent itemsets using Apriori algorithm"""
-        # Find frequent 1-itemsets
         self.frequent_itemsets[1] = self.find_frequent_1_itemsets()
 
         k = 2
@@ -132,18 +119,16 @@ class AssociationRulesMiner:
         return self.frequent_itemsets
 
     def generate_rules(self):
-        """Generate association rules from frequent itemsets"""
         rules = []
 
         for k in range(2, len(self.frequent_itemsets) + 1):
             for itemset, support in self.frequent_itemsets[k].items():
-                # Generate all possible rules
+               
                 for r in range(1, len(itemset)):
                     for antecedent in combinations(itemset, r):
                         antecedent = frozenset(antecedent)
                         consequent = itemset - antecedent
 
-                        # Calculate confidence
                         antecedent_support = self.frequent_itemsets[
                             len(antecedent)
                         ].get(antecedent, 0)
@@ -151,7 +136,7 @@ class AssociationRulesMiner:
                             confidence = support / antecedent_support
 
                             if confidence >= self.min_confidence:
-                                # Calculate lift
+                              
                                 consequent_support = 0
                                 if len(consequent) == 1:
                                     consequent_support = self.frequent_itemsets[1].get(
@@ -183,8 +168,6 @@ class AssociationRulesMiner:
         return self.association_rules
 
     def save_rules_to_db(self, rule_type="product"):
-        """Save association rules to database"""
-        # Clear existing rules of this type
         AssociationRule.objects.filter(rule_type=rule_type).delete()
 
         for rule in self.association_rules:
@@ -208,16 +191,12 @@ class AssociationRulesMiner:
 
 
 class RFMAnalyzer:
-    """
-    RFM (Recency, Frequency, Monetary) Analysis for customer segmentation
-    """
 
     def __init__(self):
         self.rfm_data = None
         self.segments = None
 
     def calculate_rfm_scores(self, quantiles=5):
-        """Calculate shared stable 1-5 RFM scores for all customers."""
         query = """
         SELECT 
             household_key,
@@ -232,20 +211,15 @@ class RFMAnalyzer:
             cursor.execute(query)
             results = cursor.fetchall()
 
-        # Convert to DataFrame for easier processing
         df = pd.DataFrame(
             results, columns=["household_key", "recency", "frequency", "monetary"]
         )
 
-        # Convert monetary from Decimal to float for calculations
         df["monetary"] = df["monetary"].astype(float)
 
-        # Calculate recency (days since last purchase, assuming max day is reference)
         max_day = df["recency"].max()
         df["recency"] = max_day - df["recency"]
 
-        # ``quantiles`` remains for backwards-compatible callers. The shared
-        # implementation intentionally always uses the project-wide 1-5 scale.
         del quantiles
         df["R"] = score_rfm_series(df["recency"], higher_is_better=False)
         df["F"] = score_rfm_series(df["frequency"], higher_is_better=True)
@@ -255,7 +229,6 @@ class RFMAnalyzer:
         return df
 
     def segment_customers(self):
-        """Segment customers based on RFM scores"""
         if self.rfm_data is None:
             self.calculate_rfm_scores()
 
@@ -268,11 +241,9 @@ class RFMAnalyzer:
         return df
 
     def save_segments_to_db(self):
-        """Save customer segments to database"""
         if self.segments is None:
             self.segment_customers()
 
-        # Clear existing segments
         CustomerSegment.objects.all().delete()
 
         for _, row in self.segments.iterrows():
@@ -327,7 +298,6 @@ class MarketBasketAnalyzer:
         self.basket_data = None
 
     def analyze_baskets(self):
-        """Analyze shopping baskets"""
         query = """
         SELECT 
             t.basket_id,
@@ -361,7 +331,6 @@ class MarketBasketAnalyzer:
         return df
 
     def get_basket_statistics(self):
-        """Get comprehensive basket statistics"""
         if self.basket_data is None:
             self.analyze_baskets()
 
@@ -377,11 +346,9 @@ class MarketBasketAnalyzer:
         return stats
 
     def save_basket_analysis(self):
-        """Save basket analysis to database"""
         if self.basket_data is None:
             self.analyze_baskets()
 
-        # Clear existing analysis
         BasketAnalysis.objects.all().delete()
 
         for _, row in self.basket_data.iterrows():
@@ -401,15 +368,12 @@ class MarketBasketAnalyzer:
 
 
 def run_complete_analysis(transaction_limit=None):
-    """
-    Run complete analysis pipeline
-    """
     results = {}
 
     print("Starting Association Rules Mining...")
     arm = AssociationRulesMiner(
         min_support=0.0001, min_confidence=0.3
-    )  # Lowered support for large dataset
+    )  
     transactions_loaded = arm.load_transaction_data(limit=transaction_limit)
     results["transactions_loaded"] = transactions_loaded
 
@@ -436,24 +400,15 @@ def run_complete_analysis(transaction_limit=None):
 
 
 def build_churn_feature_set(*args, **kwargs):
-    """Block use of the obsolete single-cutoff churn feature builder."""
     raise RuntimeError(
         "Deprecated churn builder. Use the time-window experiment system in "
         "Customer Segments to train and activate a churn model."
     )
 
 
-# Kept only as historical reference while this project transitions to the
-# time-window engine. Do not call this function from application code.
 def _legacy_build_churn_feature_set(prediction_point_offset=30):
-    """
-    یک مجموعه ویژگی جامع برای پیش‌بینی ریزش مشتری بدون نشت داده ایجاد می‌کند.
-    ویژگی‌ها بر اساس یک نقطه زمانی در گذشته محاسبه شده و برچسب ریزش بر اساس
-    رفتار مشتری در آینده تعیین می‌شود.
-    """
     print("🚀 Starting CORRECTED churn feature engineering process (time-aware)...")
 
-    # --- ۱. بارگذاری داده و تعیین پنجره‌های زمانی ---
     print("  - Step 1: Loading data and setting time windows...")
     transactions_df = pd.DataFrame(list(Transaction.objects.all().values()))
     households_df = pd.DataFrame(list(Household.objects.all().values()))
@@ -462,11 +417,9 @@ def _legacy_build_churn_feature_set(prediction_point_offset=30):
         print("Error: No transaction data found.")
         return pd.DataFrame()
 
-    # تعیین "امروز" و "نقطه پیش‌بینی" در گذشته
     last_day_in_data = transactions_df["day"].max()
     prediction_date = last_day_in_data - prediction_point_offset
 
-    # تقسیم داده به "تاریخچه" (برای ساخت ویژگی) و "آینده" (برای برچسب‌گذاری)
     history_df = transactions_df[transactions_df["day"] <= prediction_date]
     future_df = transactions_df[transactions_df["day"] > prediction_date]
 
@@ -474,28 +427,25 @@ def _legacy_build_churn_feature_set(prediction_point_offset=30):
     print(f"  - Building features based on data up to day: {prediction_date}")
     print(f"  - Labeling churn based on activity after day: {prediction_date}")
 
-    # --- ۲. محاسبه ویژگی‌ها بر اساس داده‌های تاریخی ---
     print("  - Step 2: Calculating features from HISTORICAL data...")
 
     if history_df.empty:
         print("Error: Not enough historical data to build features.")
         return pd.DataFrame()
 
-    # محاسبه RFM بر اساس تاریخچه
     customer_features = (
         history_df.groupby("household_key")
         .agg(
             recency=(
                 "day",
                 lambda date: (prediction_date - date.max()),
-            ),  # Recency نسبت به نقطه پیش‌بینی
+            ),  
             frequency=("day", "nunique"),
             monetary=("sales_value", "sum"),
         )
         .reset_index()
     )
 
-    # محاسبه ویژگی‌های رفتاری بر اساس تاریخچه
     temp_df = (
         history_df[["household_key", "day"]]
         .drop_duplicates()
@@ -512,19 +462,15 @@ def _legacy_build_churn_feature_set(prediction_point_offset=30):
     )
     product_variety.rename(columns={"product_id": "product_variety"}, inplace=True)
 
-    # --- ۳. ساخت برچسب Churn بر اساس داده‌های آینده ---
     print("  - Step 3: Creating churn label from FUTURE data...")
 
-    # مشتریانی که در دوره آینده خرید کرده‌اند را پیدا می‌کنیم
     customers_who_returned = future_df["household_key"].unique()
 
-    # برچسب Churn حالا به رفتار آینده بستگی دارد، نه Recency گذشته
-    customer_features["is_churn"] = 1  # فرض می‌کنیم همه ریزش کرده‌اند
+    customer_features["is_churn"] = 1 
     customer_features.loc[
         customer_features["household_key"].isin(customers_who_returned), "is_churn"
-    ] = 0  # آنهایی که برگشتند، ریزش نکرده‌اند
+    ] = 0  
 
-    # --- ۴. ترکیب تمام ویژگی‌ها ---
     print("  - Step 4: Merging all features...")
     df = pd.merge(customer_features, avg_purchase_gap, on="household_key", how="left")
     df = pd.merge(df, product_variety, on="household_key", how="left")

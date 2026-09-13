@@ -60,7 +60,7 @@ class TimeWindowTests(TestCase):
         transactions = _transactions([
             (1, 1, 101, 10.0),
             (1, 3, 102, 20.0),
-            (1, 4, 103, 999.0),  # Label window purchase, not an observation feature.
+            (1, 4, 103, 999.0),  
             (1, 7, 104, 25.0),
         ])
         config = ChurnWindowConfig(WindowMethod.SLIDING, 3, 2, 3)
@@ -93,7 +93,7 @@ class TimeWindowTests(TestCase):
         lifetime = _transactions([
             (1, 2, 101, 10.0),
             (1, 8, 102, 20.0),
-            (1, 12, 103, 999.0),  # Future of cutoff 10: must not be used.
+            (1, 12, 103, 999.0), 
             (2, 10, 201, 15.0),
         ])
         observation = lifetime[lifetime.day == 10]
@@ -137,7 +137,6 @@ class TimeWindowTests(TestCase):
 
 
 def _transactions(rows):
-    """Build the minimum transaction frame needed by churn-window feature tests."""
     return pd.DataFrame([
         {
             "household_key": household_key,

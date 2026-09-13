@@ -6,9 +6,6 @@ from django.db import connection
 from customers.models import Product
 
 def _get_product_meta_map():
-    """
-    بازگرداندن mapping از product_id -> (commodity_desc, department)
-    """
     metas = Product.objects.values_list('product_id', 'commodity_desc', 'department')
     prod_to_meta = {}
     for pid, comm, dept in metas:
@@ -19,12 +16,6 @@ def _get_product_meta_map():
     return prod_to_meta
 
 def get_cf_recommendations(household_key, top_n=10, level='product', sample_limit=None):
-    """
-    Collaborative Filtering که از سه سطح پشتیبانی می‌کند:
-    level in {'product', 'commodity', 'department'}
-    خروجی: لیستی از دیکشنری‌ها: { 'product': Product instance, 'score': float, 'level': level }
-    """
-    # 1. load aggregated purchase counts
     query = "SELECT household_key, product_id, COUNT(*) as purchase_count FROM transactions GROUP BY household_key, product_id"
     with connection.cursor() as cursor:
         cursor.execute(query)
@@ -37,7 +28,6 @@ def get_cf_recommendations(household_key, top_n=10, level='product', sample_limi
     prod_meta = _get_product_meta_map()
     df['product_id'] = df['product_id'].astype(str)
 
-    # map product to requested level
     if level == 'product':
         df['item_key'] = df['product_id']
     elif level == 'commodity':
@@ -47,21 +37,18 @@ def get_cf_recommendations(household_key, top_n=10, level='product', sample_limi
     else:
         raise ValueError("level must be 'product', 'commodity' or 'department'")
 
-    # build user-item matrix at requested granularity
     user_item = df.groupby(['household_key', 'item_key'])['purchase_count'].sum().reset_index()
     user_item_matrix = user_item.pivot_table(index='household_key', columns='item_key', values='purchase_count', fill_value=0)
 
     if household_key not in user_item_matrix.index:
         return []
 
-    # similarity
     similarity_matrix = cosine_similarity(user_item_matrix)
     similarity_df = pd.DataFrame(similarity_matrix, index=user_item_matrix.index, columns=user_item_matrix.index)
     similar_customers = similarity_df[household_key].drop(household_key).sort_values(ascending=False)
     if similar_customers.empty:
         return []
 
-    # candidate scoring on item_key
     purchased_items = set(user_item_matrix.loc[household_key][user_item_matrix.loc[household_key] > 0].index)
     candidate_scores = {}
     for other, sim in similar_customers.items():
@@ -75,7 +62,6 @@ def get_cf_recommendations(household_key, top_n=10, level='product', sample_limi
     if not candidate_scores:
         return []
 
-    # If level == product => directly map to Product objects
     recommendations = []
     if level == 'product':
         sorted_candidates = sorted(candidate_scores.items(), key=lambda x: x[1], reverse=True)[:top_n]
@@ -88,11 +74,8 @@ def get_cf_recommendations(household_key, top_n=10, level='product', sample_limi
             except:
                 continue
     else:
-        # For commodity/department: for each recommended item_key, pick top products in that category by popularity
         sorted_items = sorted(candidate_scores.items(), key=lambda x: x[1], reverse=True)
-        # get top products per item_key (popularity by total households)
         item_to_products = {}
-        # Query popularity once
         pop_q = Product.objects.all().values('product_id', 'commodity_desc', 'department')
         pop_map = {}
         for p in pop_q:
@@ -101,7 +84,6 @@ def get_cf_recommendations(household_key, top_n=10, level='product', sample_limi
 
         for item_key, score in sorted_items:
             pids = pop_map.get(item_key, [])
-            # fallback: if no products found, skip
             for pid in pids[:max(1, top_n)]:
                 prod = Product.objects.filter(product_id=pid).first()
                 if prod:

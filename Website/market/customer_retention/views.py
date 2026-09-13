@@ -7,7 +7,6 @@ from dunnhumby.models import ChurnExperiment, CustomerSegment
 
 @login_required
 def retention_dashboard(request):
-    """Prioritize at-risk customers and hand off to the existing hybrid recommender."""
     try:
         minimum_probability = min(max(float(request.GET.get('minimum_probability', .50)), 0), 1)
     except (TypeError, ValueError):
