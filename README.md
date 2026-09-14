@@ -30,11 +30,11 @@ A comprehensive Django-based web application for market basket analysis using th
 ## Technology Stack
 
 ### Backend
-- **Django 5.2.10**: Web framework
-- **Python 3.x**: Core programming language
-- **SQL Server**: Database with mssql-django adapter
-- **scikit-learn**: Machine learning library
-- **pandas & numpy**: Data processing
+- Django 5.2.12: Web framework
+- Python 3.11+: Core programming language
+- SQL Server 2025: Primary database with mssql-django adapter
+- scikit-learn: Machine learning library
+- pandas & numpy: Data processing
 
 ### Frontend
 - **Bootstrap 5**: UI framework
@@ -43,15 +43,16 @@ A comprehensive Django-based web application for market basket analysis using th
 - **JavaScript ES6+**: Dynamic functionality
 
 ### Database
-- **Microsoft SQL Server**: Primary database
-- **pyodbc**: Database connectivity
-- **Raw SQL queries**: Optimized database operations
+- Microsoft SQL Server 2025: Primary database (Internal Version 998)
+- pyodbc: Database connectivity
+- Raw SQL queries: Optimized database operations
 
 ## Installation
 
 ### Prerequisites
-- Python 3.8+
-- SQL Server
+- Python 3.11+
+- Microsoft SQL Server 2025 (or higher)
+- Microsoft ODBC Driver 17 or 18 for SQL Server
 - pip (Python package manager)
 
 ### Setup Instructions
@@ -68,8 +69,8 @@ A comprehensive Django-based web application for market basket analysis using th
    ```
 
 3. **Database Configuration**
-   - Set up SQL Server connection in `Website/market/market/settings.py`
-   - Import Dunnhumby dataset to SQL Server
+   - Set up SQL Server 2025 connection in `Website/market/market/settings.py`
+   - Import Dunnhumby dataset to SQL Server 2025 (If using a lower version like SQL Server 2022, use the portable JSON restore scripts provided in `database_backups/`)
    - Update database credentials
 
 4. **Run the application**
@@ -215,5 +216,5 @@ For questions or issues, please open an issue on GitHub or contact the developme
 
 ---
 
-**Last Updated**: September 2025
-**Version**: 1.0.0
+**Last Updated**: September 2026
+**Version**: 1.1.0
